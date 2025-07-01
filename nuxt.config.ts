@@ -1,5 +1,13 @@
+import tailwindcss from "@tailwindcss/vite";
+
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
+  css: ['@/assets/css/tailwind.css'],
+  vite: {
+    plugins: [
+      tailwindcss()
+    ]
+  },
   compatibilityDate: '2025-05-15',
   devtools: { enabled: true },
 
@@ -7,6 +15,19 @@ export default defineNuxtConfig({
     '@nuxt/eslint',
     '@nuxt/fonts',
     '@nuxt/icon',
-    '@nuxt/image'
-  ]
+    '@nuxt/image',
+    'shadcn-nuxt',
+    '@hypernym/nuxt-anime',
+  ],
+  shadcn: {
+    /**
+     * Prefix for all the imported component
+     */
+    prefix: '',
+    /**
+       * Directory that the component lives in.
+       * @default "./components/ui"
+       */
+      componentDir: './components/ui'
+  },
 })
