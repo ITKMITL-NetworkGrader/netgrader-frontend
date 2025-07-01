@@ -18,7 +18,16 @@ export default defineNuxtConfig({
     '@nuxt/image',
     'shadcn-nuxt',
     '@hypernym/nuxt-anime',
+    '@nuxt/fonts', // This is different from @nuxtjs/google-fonts
+    '@nuxtjs/google-fonts', // Ensure this is listed
   ],
+  googleFonts: {
+    families: {
+      'Bai Jamjuree': true,
+      'Roboto Mono': true,
+    },
+    display: 'swap',
+  },
   shadcn: {
     /**
      * Prefix for all the imported component

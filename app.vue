@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import '@fontsource/bai-jamjuree';
-import '@fontsource-variable/roboto-mono';
+// @nuxtjs/google-fonts will handle font imports
+// import '@fontsource/bai-jamjuree';
+// import '@fontsource-variable/roboto-mono';
 useSeoMeta({
         title: 'NetGrader',
         ogTitle: 'NetGrader',
