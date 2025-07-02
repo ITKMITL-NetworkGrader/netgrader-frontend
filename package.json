@@ -17,6 +17,8 @@
     "@nuxt/icon": "1.15.0",
     "@nuxt/image": "1.10.0",
     "@nuxtjs/google-fonts": "^3.2.0",
+    "@stagewise-plugins/vue": "^0.4.7",
+    "@stagewise/toolbar": "^0.4.9",
     "@tailwindcss/vite": "^4.1.11",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

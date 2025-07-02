@@ -2,9 +2,8 @@ module.exports = {
     theme: {
         extend: {
             fontFamily: {
-                sans: ['"Roboto Mono"', 'sans-serif'],
-                mono: ['"Roboto Mono"', 'monospace'],
-                thai: ['"Bai Jamjuree"', 'sans-serif'],
+                sans: ['"Bai Jamjuree"', '"Bai Jamjuree fallback"', "sans-serif"],
+                mono: ['"Roboto Mono Variable"', '"Roboto Mono"', "monospace", "Bai Jamjuree"],
             },
         },
     },

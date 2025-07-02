@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Button } from '@/components/ui/button'
+import { NavigationBar } from '#components';
 
 const { $anime } = useNuxtApp()
 
@@ -64,28 +65,16 @@ onBeforeUnmount(() => {
 
 <template>
     <div>
-        <div class="">
-            <header class="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-200/20">
-                <div class="container mx-auto px-4 py-3">
-                    <nav class="flex items-center justify-between">
-                        <div class="text-xl font-semibold">NetGrader</div>
-                        <div class="flex items-center space-x-4">
-                            <a href="/" class="text-gray-700 hover:text-gray-900">Home</a>
-                            <Button class=" text-white ">
-                                Login
-                            </Button>
-                        </div>
-                    </nav>
-                </div>
-            </header>
-        </div>
-        <div class="flex flex-col items-center justify-center min-h-screen text-center">
+        <NavigationBar />
+        <div class="font-roboto-mono flex flex-col items-center justify-center min-h-screen text-center">
             <h1 id="hero-title" class="text-5xl font-semibold">NetGrader</h1>
             <p id="hero-subtitle" class="mt-2 text-xl">Your go-to platform for grading network configurations!</p>
             <div class="flex justify-center">
-                <Button id="get-started" class="mt-4">
-                    Get Started
-                </Button>
+                <NuxtLink to="/login" class="mt-2">
+                    <Button id="get-started" class="mt-4 scale-100">
+                        Get Started
+                    </Button>
+                </NuxtLink>   
             </div>
         </div>
     </div>
