@@ -5,9 +5,9 @@ import { Button } from '@/components/ui/button'
 
 <template>
     <div class="font-roboto-mono">
-        <header class="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-200/20">
+        <nav class="fixed top-0 w-full h-16 z-[5] bg-secondary/5 backdrop-blur-sm border-b border-gray-200/20">
             <div class="container mx-auto px-4 py-3 flex items-center justify-between">
-                <NuxtLink to="/" class="text-2xl font-bold text-gray-800">
+                <NuxtLink to="/" class="text-2xl font-bold">
                     NetGrader
                 </NuxtLink>
                 <div class="flex items-center">
@@ -21,6 +21,6 @@ import { Button } from '@/components/ui/button'
                     </NuxtLink>
                 </div>
             </div>
-        </header>
+        </nav>
     </div>
 </template>

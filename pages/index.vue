@@ -48,8 +48,8 @@ onMounted(() => {
                 minWidth: 200.00,
                 scale: 1.00,
                 scaleMobile: 1.00,
-                color: 0x46f7de,
-                backgroundColor: 0xffffff
+                color: 0xe4c090,
+                backgroundColor: 0xfdfbf7
             })
         }
     }   
@@ -65,7 +65,6 @@ onBeforeUnmount(() => {
 
 <template>
     <div>
-        <NavigationBar />
         <div class="font-roboto-mono flex flex-col items-center justify-center min-h-screen text-center">
             <h1 id="hero-title" class="text-5xl font-semibold">NetGrader</h1>
             <p id="hero-subtitle" class="mt-2 text-xl">Your go-to platform for grading network configurations!</p>

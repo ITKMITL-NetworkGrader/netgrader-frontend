@@ -8,6 +8,11 @@ export default defineNuxtConfig({
       tailwindcss()
     ]
   },
+  runtimeConfig: {
+    public: {
+      backend1url: process.env.NUXT_BACKEND1_URL,
+    },
+  },
   compatibilityDate: '2025-05-15',
   devtools: { enabled: true },
 
@@ -19,6 +24,7 @@ export default defineNuxtConfig({
     'shadcn-nuxt',
     '@hypernym/nuxt-anime',
     '@nuxt/fonts',
+    'vue-sonner/nuxt',
   ],
   shadcn: {
     /**
@@ -31,4 +37,7 @@ export default defineNuxtConfig({
        */
       componentDir: './components/ui'
   },
+  vueSonner: {
+    css: false,
+  }
 })
