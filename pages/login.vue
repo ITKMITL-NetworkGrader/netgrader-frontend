@@ -79,15 +79,25 @@ onMounted(() => {
 const username = ref('')
 const password = ref('')
 const isLoading = ref(false)
+const showPassword = ref(false)
 
 // Form validation
 const usernameError = ref('')
 const passwordError = ref('')
 
+const togglePasswordVisibility = () => {
+  showPassword.value = !showPassword.value
+}
+
 const validateUsername = (username: string) => {
   const usernameRegex = /^[a-zA-Z0-9._-]+$/
   return usernameRegex.test(username)
 }
+
+const tokenCookie = useCookie('access_token')
+const userState = useUserState()
+const query = useRoute()
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
 const handleLogin = async () => {
   // Reset errors
@@ -113,44 +123,52 @@ const handleLogin = async () => {
   }
 
   isLoading.value = true
-  try {
-    const data = await $fetch<LoginResponse>(backendURL + '/v0/auth/login', {
-      method: 'POST',
-      body: {
-        username: username.value,
-        password: password.value
+  $fetch<LoginResponse>(`${backendURL}/v0/auth/login`, {
+    method: 'POST',
+    body: {
+      username: username.value,
+      password: password.value
+    }
+  }).then(async (res) => {
+    toast.success('Login Successful', {
+      description: 'Welcome back! Redirecting...',
+    })
+    tokenCookie.value = res.token
+    
+    // Use the user data from the login response directly
+    if (res.user && res.user.fullName) {
+      userState.value = {
+        u_id: res.user.u_id,
+        fullName: res.user.fullName,
+        first_name: res.user.fullName.split(' ')[0] || '',
+        last_name: res.user.fullName.split(' ').slice(1).join(' ') || '',
+        role: res.user.role as "STUDENT" | "INSTRUCTOR"
       }
-    })
-
-    // Store token in client-side storage
-    const token = useCookie('auth-token', {
-      default: () => '',
-      httpOnly: true,
-      secure: !import.meta.dev,
-      sameSite: 'strict',
-      maxAge: 60 * 60 * 24 // 1 day
-    })
-    token.value = data.token
-    // Success - navigate to dashboard
-    toast.success('Login Success', {
-      description: 'Welcome back, ' + data.user.fullName.split(' ')[0] + '! Redirecting now...',
-    })
-
-    await navigateTo('/dashboard')
-  } catch (error: unknown) {
+      
+      await sleep(1000)
+      if (query.query.next) {
+        await navigateTo(query.query.next as string, { replace: true })
+      } else {
+        await navigateTo('/courses', { replace: true })
+      }
+    } else {
+      console.error('Invalid user data in login response:', res)
+      toast.error('Login Failure', {
+        description: 'Failed to retrieve user data. Please try again.',
+      })
+    }
+  }).catch((error) => {
     console.error('Login failed:', error)
-
-    const apiError = error as { statusCode?: number }
-    if (apiError.statusCode === 401) {
+    if (error.statusCode === 401) {
       usernameError.value = 'Invalid username or password'
       toast.error('Login Failure', {
         description: 'Invalid username or password. Please try again.',
       })
-    } else if (apiError.statusCode === 500) {
+    } else if (error.statusCode === 500) {
       toast.error('Login Failure', {
         description: 'Server error occurred. Please try again later.',
       })
-    } else if (apiError.statusCode === 503) {
+    } else if (error.statusCode === 503) {
       toast.error('Login Failure', {
         description: 'Service temporarily unavailable. Please try again later.',
       })
@@ -159,9 +177,9 @@ const handleLogin = async () => {
         description: 'Login failed. Please check your connection and try again.',
       })
     }
-  } finally {
+  }).finally(() => {
     isLoading.value = false
-  }
+  })
 }
 </script>
 
@@ -225,22 +243,61 @@ stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
             <Label for="password">Password</Label>
             <div class="relative">
               <Input
-id="password" v-model="password" type="password" autocomplete="current-password" :class="[
-                'pl-4 pr-12 py-3 h-12 bg-background/50 backdrop-blur-sm rounded-xl border-2',
-                passwordError
-                  ? 'border-destructive focus:border-destructive focus:ring-destructive/20'
-                  : 'border-border focus:border-ring focus:ring-ring/20'
-              ]" placeholder="Enter your password" :aria-invalid="!!passwordError" />
-              <div class="absolute inset-y-0 right-0 flex items-center pr-3">
-                <svg class="w-5 h-5 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                id="password" 
+                v-model="password" 
+                :type="showPassword ? 'text' : 'password'" 
+                autocomplete="current-password" 
+                :class="[
+                  'pl-4 pr-12 py-3 h-12 bg-background/50 backdrop-blur-sm rounded-xl border-2',
+                  passwordError
+                    ? 'border-destructive focus:border-destructive focus:ring-destructive/20'
+                    : 'border-border focus:border-ring focus:ring-ring/20'
+                ]" 
+                placeholder="Enter your password" 
+                :aria-invalid="!!passwordError" 
+              />
+              <button
+                type="button"
+                class="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground hover:text-foreground transition-colors"
+                @click="togglePasswordVisibility"
+              >
+                <!-- Eye Open Icon (when password is hidden) -->
+                <svg 
+                  v-if="!showPassword"
+                  class="w-5 h-5" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24"
+                >
                   <path
-stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    stroke-linecap="round" 
+                    stroke-linejoin="round" 
+                    stroke-width="2"
+                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" 
+                  />
                   <path
-stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    stroke-linecap="round" 
+                    stroke-linejoin="round" 
+                    stroke-width="2"
+                    d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" 
+                  />
                 </svg>
-              </div>
+                <!-- Eye Closed Icon (when password is visible) -->
+                <svg 
+                  v-else
+                  class="w-5 h-5" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round" 
+                    stroke-linejoin="round" 
+                    stroke-width="2"
+                    d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L8.464 8.464m1.414 1.414l4.242 4.242m-4.242-4.242L8.464 8.464m7.07 7.07l1.414 1.414M15.536 15.536l1.414 1.414M5.636 5.636l1.414 1.414m11.314 11.314l1.414 1.414" 
+                  />
+                </svg>
+              </button>
             </div>
             <p v-if="passwordError" class="text-sm text-destructive mt-1">{{ passwordError }}</p>
           </div>

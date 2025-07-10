@@ -69,7 +69,7 @@ onBeforeUnmount(() => {
             <h1 id="hero-title" class="text-5xl font-semibold">NetGrader</h1>
             <p id="hero-subtitle" class="mt-2 text-xl">Your go-to platform for grading network configurations!</p>
             <div class="flex justify-center">
-                <NuxtLink to="/login" class="mt-2">
+                <NuxtLink to="/courses" class="mt-2">
                     <Button id="get-started" class="mt-4 scale-100">
                         Get Started
                     </Button>
