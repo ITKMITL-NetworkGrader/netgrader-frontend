@@ -1,5 +1,5 @@
 <template>
-  <div class="h-screen flex flex-col bg-gray-50">
+  <div class="h-screen flex flex-col bg-gray-50 pt-16">
     <!-- Custom header for Play page -->
     <div class="border-b bg-white px-4 py-2 shadow-sm">
       <div class="flex items-center justify-between">
@@ -27,7 +27,7 @@
     
     <div class="flex-1 flex">
       <PlayToolbar class="w-64 border-r bg-white" />
-      <PlayCanvas class="flex-1" :play-id="playId" />
+      <PlayCanvas class="flex-1 w-full" :play-id="playId" />
     </div>
   </div>
 </template>
@@ -41,8 +41,8 @@ const route = useRoute()
 const userState = useUserState()
 const playId = computed(() => route.params.id as string)
 
-// Fetch course data
-const { data: course } = await $fetch(`/api/courses/${playId}`)
+// Mock course data for demo
+const course = ref({ name: 'Demo Course' })
 
 const savePlay = async () => {
   // Save play logic
@@ -56,6 +56,6 @@ const publishPlay = async () => {
 
 // Use a custom layout or no layout for full-screen experience
 // definePageMeta({
-//   layout: false  // This removes the default layout
+//   layout: false,  // This removes the default layout
 // })
 </script>
