@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import { Button } from '@/components/ui/button'
-import { NavigationBar } from '#components';
 
 const { $anime } = useNuxtApp()
 
-const vantaEffect = ref(null)
+const vantaEffect = ref<unknown>(null)
 
 onMounted(() => {
     $anime({
@@ -39,7 +38,7 @@ onMounted(() => {
 
         vantaScript.onload = () => {
             // Initialize Vanta effect
-            vantaEffect.value = window.VANTA.NET({
+            vantaEffect.value = (window as unknown as { VANTA: { NET: (config: unknown) => { destroy: () => void } } }).VANTA.NET({
                 el: "body",
                 mouseControls: true,
                 touchControls: true,
@@ -56,8 +55,8 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
-    if (vantaEffect.value) {
-        vantaEffect.value.destroy()
+    if (vantaEffect.value && typeof vantaEffect.value === 'object' && vantaEffect.value !== null && 'destroy' in vantaEffect.value) {
+        (vantaEffect.value as { destroy: () => void }).destroy()
     }
 })
 
@@ -65,7 +64,7 @@ onBeforeUnmount(() => {
 
 <template>
     <div>
-        <div class="font-roboto-mono flex flex-col items-center justify-center min-h-screen text-center">
+        <div class="font-roboto-mono flex flex-col items-center justify-center min-h-[calc(100vh-theme(spacing.28))] text-center">
             <h1 id="hero-title" class="text-5xl font-semibold">NetGrader</h1>
             <p id="hero-subtitle" class="mt-2 text-xl">Your go-to platform for grading network configurations!</p>
             <div class="flex justify-center">

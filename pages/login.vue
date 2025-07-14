@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Toaster } from '@/components/ui/sonner'
 import { toast } from 'vue-sonner'
 import 'vue-sonner/style.css'
 import { LoaderCircle } from 'lucide-vue-next'
@@ -123,26 +122,52 @@ const handleLogin = async () => {
   }
 
   isLoading.value = true
-  $fetch<LoginResponse>(`${backendURL}/v0/auth/login`, {
-    method: 'POST',
-    body: {
-      username: username.value,
-      password: password.value
+  
+  try {
+    // First, let's test if the backend is reachable
+    const response = await $fetch(`${backendURL}/v0/auth/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'  // Explicitly request JSON
+      },
+      body: {
+        username: username.value,
+        password: password.value
+      }
+    })
+    
+    // Check if response is HTML (indicating wrong endpoint)
+    if (typeof response === 'string' && response.includes('<!DOCTYPE html>')) {
+      throw new Error('Backend API not found - receiving HTML instead of JSON. Please check your backend URL and ensure the API server is running.')
     }
-  }).then(async (res) => {
+    
+    // Check if response is valid JSON object
+    if (!response || typeof response !== 'object') {
+      throw new Error('Invalid response format from server')
+    }
+    
+    // Cast to expected type after validation
+    const loginResponse = response as LoginResponse
+    
+    if (!loginResponse.success) {
+      throw new Error(loginResponse.message || 'Login failed')
+    }
+    
     toast.success('Login Successful', {
       description: 'Welcome back! Redirecting...',
     })
-    tokenCookie.value = res.token
+    
+    tokenCookie.value = loginResponse.token
     
     // Use the user data from the login response directly
-    if (res.user && res.user.fullName) {
+    if (loginResponse.user && loginResponse.user.fullName) {
       userState.value = {
-        u_id: res.user.u_id,
-        fullName: res.user.fullName,
-        first_name: res.user.fullName.split(' ')[0] || '',
-        last_name: res.user.fullName.split(' ').slice(1).join(' ') || '',
-        role: res.user.role as "STUDENT" | "INSTRUCTOR"
+        u_id: loginResponse.user.u_id,
+        fullName: loginResponse.user.fullName,
+        first_name: loginResponse.user.fullName.split(' ')[0] || '',
+        last_name: loginResponse.user.fullName.split(' ').slice(1).join(' ') || '',
+        role: loginResponse.user.role as "STUDENT" | "INSTRUCTOR"
       }
       
       await sleep(1000)
@@ -152,35 +177,49 @@ const handleLogin = async () => {
         await navigateTo('/courses', { replace: true })
       }
     } else {
-      console.error('Invalid user data in login response:', res)
       toast.error('Login Failure', {
         description: 'Failed to retrieve user data. Please try again.',
       })
     }
-  }).catch((error) => {
-    console.error('Login failed:', error)
-    if (error.statusCode === 401) {
+  } catch (error: unknown) {    
+    const err = error as { data?: string; statusCode?: number; message?: string }
+    
+    // Handle HTML response (wrong endpoint)
+    if (err.data && typeof err.data === 'string' && err.data.includes('<!DOCTYPE html>')) {
+      toast.error('Configuration Error', {
+        description: 'Cannot connect to authentication server. Please check server configuration.',
+      })
+    } else if (err.message?.includes('Backend API not found')) {
+      toast.error('Server Configuration Error', {
+        description: 'Backend API is not accessible. Please contact support.',
+      })
+    } else if (err.statusCode === 401) {
       usernameError.value = 'Invalid username or password'
       toast.error('Login Failure', {
         description: 'Invalid username or password. Please try again.',
       })
-    } else if (error.statusCode === 500) {
+    } else if (err.statusCode === 500) {
       toast.error('Login Failure', {
         description: 'Server error occurred. Please try again later.',
       })
-    } else if (error.statusCode === 503) {
+    } else if (err.statusCode === 503) {
       toast.error('Login Failure', {
         description: 'Service temporarily unavailable. Please try again later.',
       })
+    } else if (err.message?.includes('fetch') || err.message?.includes('network')) {
+      toast.error('Connection Error', {
+        description: 'Cannot connect to server. Please check your internet connection.',
+      })
     } else {
       toast.error('Login Failure', {
-        description: 'Login failed. Please check your connection and try again.',
+        description: err.message || 'Login failed. Please check your connection and try again.',
       })
     }
-  }).finally(() => {
+  } finally {
     isLoading.value = false
-  })
+  }
 }
+
 </script>
 
 <template>
@@ -198,7 +237,7 @@ const handleLogin = async () => {
     </div>
 
     <!-- Login Card -->
-    <Card id="card" class="relative w-full max-w-md bg-card backdrop-blur-lg border shadow-2xl">
+    <Card id="card" class="relative w-full min-w-md bg-card backdrop-blur-lg border shadow-2xl">
       <!-- Header -->
       <CardHeader class="text-center space-y-2">
         <div class="w-16 h-16 bg-primary rounded-2xl mx-auto flex items-center justify-center mb-4">

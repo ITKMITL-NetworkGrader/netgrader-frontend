@@ -1,15 +1,23 @@
 <script setup lang="ts">
-const route = useRoute();    
+const route = useRoute();
+const isFullScreenPage = computed(() => route.path === '/demo' || route.path.startsWith('/play'));
+const isHomePage = computed(() => route.path === '/');
 </script>
 
 <template>
-    <div>
+    <div class="min-h-screen flex flex-col">
         <NuxtLoadingIndicator />
         <NavigationBar />
-        <main class="mx-auto" :class="{ 'max-w-screen-xl md:pt-28 pt-24 2xl:px-0 px-8 min-[1024px]:min-h-[90.9vh] min-h-[86.7vh]' : route.path !== '/' }">
-            <slot>
-            </slot>
+        <main 
+            class="flex-1" 
+            :class="{
+                'mx-auto max-w-screen-xl md:pt-28 pt-24 2xl:px-0 px-8': !isFullScreenPage && !isHomePage,
+                'pt-0': isFullScreenPage,
+                'mx-auto': !isFullScreenPage
+            }"
+        >
+            <slot />
         </main>
-        <PageFooter />
+        <PageFooter v-if="!isFullScreenPage" />
     </div>
 </template>
