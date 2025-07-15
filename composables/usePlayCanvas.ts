@@ -1,4 +1,4 @@
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import type { PlayNode, Connection, TaskConfig, NetworkInterface } from '@/types/play'
 
 export const usePlayCanvas = (playId?: string) => {
@@ -22,11 +22,132 @@ export const usePlayCanvas = (playId?: string) => {
   const connections = ref<Connection[]>([])
   const selectedNodeId = ref<string | null>(null)
   const connectingFrom = ref<{ nodeId: string; interfaceId: string } | null>(null)
+  const selectedConnectionType = ref<string | null>(null)
+
+  // Debug watcher to track when selectedConnectionType changes
+  watch(selectedConnectionType, (newVal, oldVal) => {
+    console.log('🔍 selectedConnectionType changed:', { from: oldVal, to: newVal })
+    console.trace('Call stack:')
+  })
+
+  // Debug watcher to track when connectingFrom changes
+  watch(connectingFrom, (newVal, oldVal) => {
+    console.log('🔍 connectingFrom changed:', { from: oldVal, to: newVal })
+    console.trace('Call stack:')
+  })
+
+  // State for the new interface selection modal
+  const isInterfaceModalOpen = ref(false)
+  const modalNode = ref<PlayNode | null>(null)
+  const modalTitle = ref('')
 
   const selectedNode = computed(() => 
     nodes.value.find(node => node.id === selectedNodeId.value) || null
   )
-  const selectedConnectionType = ref<string>('lan')
+
+  const setConnectionType = (type: string | null) => {
+    selectedConnectionType.value = type
+  }
+
+  // --- NEW CONNECTION FLOW ---
+
+  // 1. Triggered when a node is clicked in connection mode
+  const initiateConnection = (node: PlayNode) => {
+    console.log('=== INITIATE CONNECTION ===')
+    console.log('Node:', node.name)
+    console.log('connectingFrom before:', connectingFrom.value)
+    
+    modalNode.value = node
+    if (!connectingFrom.value) {
+      console.log('Setting title to Select Source Interface')
+      // This is the source node
+      modalTitle.value = 'Select Source Interface'
+    } else {
+      console.log('Setting title to Select Destination Interface')
+      // This is the destination node
+      modalTitle.value = 'Select Destination Interface'
+    }
+    isInterfaceModalOpen.value = true
+    console.log('Modal title set to:', modalTitle.value)
+  }
+
+  // 2. Triggered when an interface is selected from the modal
+  const handleInterfaceSelection = (interfaceId: string) => {
+    console.log('=== INTERFACE SELECTION ===')
+    console.log('Interface ID:', interfaceId)
+    console.log('Modal Node:', modalNode.value?.name)
+    console.log('Connecting From:', connectingFrom.value)
+    
+    if (!modalNode.value) return
+
+    const nodeId = modalNode.value.id
+
+    if (!connectingFrom.value) {
+      console.log('Setting source connection')
+      // Set the source and wait for the next node click
+      connectingFrom.value = { nodeId, interfaceId }
+      console.log('ConnectingFrom set to:', connectingFrom.value)
+      console.log('selectedConnectionType after setting source:', selectedConnectionType.value)
+      // DON'T reset selectedConnectionType here - we're still in connection mode!
+    } else {
+      console.log('Creating destination connection')
+      // We have the source, now we have the destination. Create the connection.
+      if (connectingFrom.value.nodeId === nodeId) {
+        console.log('Cannot connect node to itself')
+        // Avoid connecting a node to itself
+        connectingFrom.value = null
+        // Reset connection type to exit connection mode
+        selectedConnectionType.value = null
+        return
+      }
+
+      console.log('Creating new connection...')
+      const newConnection: Connection = {
+        id: `conn-${Date.now()}`,
+        type: (selectedConnectionType.value || 'lan') as 'lan' | 'serial' | 'console',
+        sourceNodeId: connectingFrom.value.nodeId,
+        sourceInterfaceId: connectingFrom.value.interfaceId,
+        targetNodeId: nodeId,
+        targetInterfaceId: interfaceId,
+      }
+      console.log('New connection created:', newConnection)
+      connections.value.push(newConnection)
+      console.log('Total connections now:', connections.value.length)
+      // Reset for the next connection
+      connectingFrom.value = null
+      // Reset connection type to exit connection mode
+      selectedConnectionType.value = null
+    }
+    isInterfaceModalOpen.value = false
+    modalNode.value = null
+  }
+
+  const cancelConnection = () => {
+    connectingFrom.value = null
+    isInterfaceModalOpen.value = false
+    modalNode.value = null
+    // Reset connection type to exit connection mode
+    selectedConnectionType.value = null
+  }
+
+  const selectNode = (nodeId: string) => {
+    selectedNodeId.value = nodeId
+  }
+
+  const clearSelection = () => {
+    console.log('=== CLEAR SELECTION CALLED ===')
+    console.log('connectingFrom before clear:', connectingFrom.value)
+    console.log('selectedConnectionType:', selectedConnectionType.value)
+    
+    selectedNodeId.value = null
+    
+    // Only cancel connection if we're not in connection mode
+    if (!selectedConnectionType.value) {
+      cancelConnection() // Also cancel any pending connection
+    }
+    
+    console.log('connectingFrom after clear:', connectingFrom.value)
+  }
 
   const addNode = (nodeType: string, position: { x: number; y: number }) => {
     const defaultInterfaces = getDefaultInterfaces(nodeType)
@@ -110,39 +231,21 @@ export const usePlayCanvas = (playId?: string) => {
     }
   }
 
-  const selectNode = (nodeId: string) => {
-    selectedNodeId.value = nodeId
-  }
-
-  const clearSelection = () => {
-    selectedNodeId.value = null
-    connectingFrom.value = null
-  }
-
   const startConnection = (data: { nodeId: string; interfaceId: string }) => {
-    console.log('Starting connection from:', data)
     connectingFrom.value = data
-  }
-
-  const setConnectionType = (type: string) => {
-    selectedConnectionType.value = type
   }
 
   const completeConnection = (data: { nodeId: string; interfaceId: string }) => {
     if (!connectingFrom.value) return
     
-    console.log('Completing connection to:', data)
-    
     // Don't allow connection to the same node
     if (connectingFrom.value.nodeId === data.nodeId) {
-      console.log('Cannot connect to the same node')
       connectingFrom.value = null
       return
     }
 
     // Don't allow connection to the same interface
     if (connectingFrom.value.interfaceId === data.interfaceId) {
-      console.log('Cannot connect to the same interface')
       connectingFrom.value = null
       return
     }
@@ -156,7 +259,6 @@ export const usePlayCanvas = (playId?: string) => {
     )
 
     if (existingConnection) {
-      console.log('Interface already connected')
       connectingFrom.value = null
       return
     }
@@ -164,7 +266,7 @@ export const usePlayCanvas = (playId?: string) => {
     // Create connection
     const newConnection: Connection = {
       id: `conn-${Date.now()}`,
-      type: selectedConnectionType.value as 'lan' | 'serial',
+      type: (selectedConnectionType.value || 'lan') as 'lan' | 'serial',
       sourceNodeId: connectingFrom.value.nodeId,
       targetNodeId: data.nodeId,
       sourceInterfaceId: connectingFrom.value.interfaceId,
@@ -172,8 +274,9 @@ export const usePlayCanvas = (playId?: string) => {
     }
     
     connections.value.push(newConnection)
-    console.log('Connection created:', newConnection)
     connectingFrom.value = null
+    // Reset connection type to exit connection mode
+    selectedConnectionType.value = null
   }
 
   const saveTask = (config: TaskConfig) => {
@@ -201,16 +304,20 @@ export const usePlayCanvas = (playId?: string) => {
     connections,
     selectedNodeId,
     selectedNode,
-    selectedConnectionType,
-    setConnectionType,
     connectingFrom,
+    selectedConnectionType,
+    isInterfaceModalOpen,
+    modalNode,
+    modalTitle,
     addNode,
     moveNode,
     selectNode,
-    removeNode,
     clearSelection,
-    startConnection,
-    completeConnection,
-    saveTask
+    saveTask,
+    removeNode,
+    setConnectionType,
+    initiateConnection,
+    handleInterfaceSelection,
+    cancelConnection,
   }
 }

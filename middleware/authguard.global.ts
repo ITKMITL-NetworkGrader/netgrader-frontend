@@ -8,7 +8,7 @@ export interface GetResponse {
 export default defineNuxtRouteMiddleware(async (to, from) => {
     const userState = useUserState();
     const access_token = useCookie("access_token");
-    const excludedRoutes = [ "/login", "/", "/demo"];
+    const excludedRoutes = [ "/login", "/", "/demo", "/oat"];
 
     if (!userState.value && access_token.value) {
         await $fetch<GetResponse>("/api/auth/me", {

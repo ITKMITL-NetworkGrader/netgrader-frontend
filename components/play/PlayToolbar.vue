@@ -28,7 +28,7 @@
           :class="[
             'flex items-center gap-2 p-2 border rounded cursor-pointer transition-colors',
             selectedConnectionType === connection.type 
-              ? 'border-blue-500 bg-blue-50' 
+              ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200' 
               : 'hover:bg-gray-50'
           ]"
           @click="selectConnectionType(connection.type)"
@@ -152,7 +152,13 @@ import InterfaceConfigModal from './modals/InterfaceConfigModal.vue'
 import type { NetworkInterface } from '@/types/play'
 import { usePlayCanvas } from '@/composables/usePlayCanvas'
 
-const { selectedNode, selectedConnectionType, setConnectionType } = usePlayCanvas()
+interface Props {
+  playId: string
+}
+
+const props = defineProps<Props>()
+
+const { selectedNode, selectedConnectionType, setConnectionType } = usePlayCanvas(props.playId)
 
 const showInterfaceModal = ref(false)
 const editingInterface = ref<NetworkInterface | null>(null)
@@ -197,7 +203,12 @@ const connectionTypes = [
 ]
 
 const selectConnectionType = (type: string) => {
-  setConnectionType(type)
+  // Toggle the connection type - if already selected, deselect it
+  if (selectedConnectionType.value === type) {
+    setConnectionType(null)
+  } else {
+    setConnectionType(type)
+  }
 }
 
 const getDeviceModels = (deviceType: string | undefined) => {

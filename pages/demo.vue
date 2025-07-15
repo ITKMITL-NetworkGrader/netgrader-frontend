@@ -26,7 +26,7 @@
     </div>
     
     <div class="flex-1 flex">
-      <PlayToolbar class="w-64 border-r bg-white" />
+      <PlayToolbar class="w-64 border-r bg-white" :play-id="playId" />
       <PlayCanvas class="flex-1 w-full" :play-id="playId" />
     </div>
   </div>

@@ -1,19 +1,19 @@
 <template>
   <div
-    :id="`node-${node.id}`"
     :style="{ left: `${node.position.x}px`, top: `${node.position.y}px` }"
     :class="[
-      'absolute border-2 rounded-lg cursor-move select-none',
+      'absolute border-2 rounded-lg cursor-pointer select-none',
       selected ? 'border-blue-500 shadow-lg' : 'border-gray-300',
       'bg-white hover:shadow-md transition-shadow',
       getNodeSize()
     ]"
     @mousedown="onMouseDown"
-    @click.stop="$emit('select', node.id)"
-    @dblclick="$emit('double-click', node)"
+    @click.stop="handleClick"
+    @dblclick.stop="handleDoubleClick"
+    @contextmenu.prevent="handleRightClick"
   >
     <!-- Device Icon and Info -->
-    <div class="w-full h-full flex flex-col items-center justify-center p-2">
+    <div class="w-full h-full flex flex-col items-center justify-center p-2 pointer-events-none">
       <component 
         :is="getDeviceIcon()" 
         :class="[
@@ -33,34 +33,21 @@
       </span>
     </div>
     
-    <!-- Interface Connection Points -->
-    <div
-      v-for="(interfaceItem, index) in visibleInterfaces"
-      :key="interfaceItem.id"
-      :class="[
-        'absolute w-3 h-3 rounded-full cursor-crosshair border-2 border-white',
-        'hover:scale-110 transition-transform',
-        getInterfaceColor(interfaceItem)
-      ]"
-      :style="getInterfacePosition(index)"
-      :title="`${interfaceItem.name} - ${interfaceItem.status}`"
-      @click.stop="$emit('connect', { nodeId: node.id, interfaceId: interfaceItem.id })"
-    />
 
     <!-- Interface Labels -->
-    <div
+    <!-- <div
       v-for="(interfaceItem, index) in visibleInterfaces"
       :key="`label-${interfaceItem.id}`"
       class="absolute text-xs bg-white px-1 rounded border pointer-events-none"
       :style="getInterfaceLabelPosition(index)"
     >
       {{ interfaceItem.name }}
-    </div>
+    </div> -->
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { Monitor, Router, Server } from 'lucide-vue-next'
 import type { PlayNode, NetworkInterface } from '@/types/play'
 
@@ -73,7 +60,8 @@ interface Emits {
   (e: 'select', nodeId: string): void
   (e: 'move', nodeId: string, position: { x: number; y: number }): void
   (e: 'double-click', node: PlayNode): void
-  (e: 'connect', data: { nodeId: string; interfaceId: string }): void
+  (e: 'node-click', node: PlayNode): void
+  (e: 'contextmenu', node: PlayNode): void
 }
 
 const props = defineProps<Props>()
@@ -186,7 +174,7 @@ let isDragging = false
 let dragOffset = { x: 0, y: 0 }
 
 const onMouseDown = (event: MouseEvent) => {
-  isDragging = true
+  isDragging = false // Reset drag state
   dragOffset = {
     x: event.clientX - props.node.position.x,
     y: event.clientY - props.node.position.y
@@ -197,19 +185,47 @@ const onMouseDown = (event: MouseEvent) => {
 }
 
 const onMouseMove = (event: MouseEvent) => {
-  if (!isDragging) return
+  isDragging = true // It's a drag if the mouse moves
   
-  const newPosition = {
-    x: event.clientX - dragOffset.x,
-    y: event.clientY - dragOffset.y
-  }
+  const nodeWidth = props.node.deviceType === 'pc' ? 80 : 96
+  const nodeHeight = props.node.deviceType === 'pc' ? 80 : 96
   
+  let newX = event.clientX - dragOffset.x
+  let newY = event.clientY - dragOffset.y
+  
+  // Constrain to prevent negative positions and going too far right/down
+  newX = Math.max(0, newX)
+  newY = Math.max(0, newY)
+  
+  // Basic viewport constraints (you can adjust these values)
+  const maxX = window.innerWidth - nodeWidth - 300 // Account for toolbar width
+  const maxY = window.innerHeight - nodeHeight - 100 // Account for header
+  
+  newX = Math.min(newX, maxX)
+  newY = Math.min(newY, maxY)
+  
+  const newPosition = { x: newX, y: newY }
   emit('move', props.node.id, newPosition)
 }
 
 const onMouseUp = () => {
-  isDragging = false
   document.removeEventListener('mousemove', onMouseMove)
   document.removeEventListener('mouseup', onMouseUp)
+}
+
+const handleClick = () => {
+  if (!isDragging) {
+    // Only emit click if it wasn't a drag
+    emit('select', props.node.id)
+    emit('node-click', props.node)
+  }
+}
+
+const handleRightClick = () => {
+  emit('contextmenu', props.node)
+}
+
+const handleDoubleClick = () => {
+  emit('double-click', props.node)
 }
 </script>

@@ -8,14 +8,16 @@
       'bg-white hover:shadow-md transition-shadow'
     ]"
     @mousedown="onMouseDown"
-    @click.stop="$emit('select', node.id)"
+    @click.stop="handleClick"
+    @dblclick.stop="handleDoubleClick"
+    @contextmenu.prevent="handleRightClick"
   >
     <div class="w-full h-full flex flex-col items-center justify-center p-2">
       <Settings class="w-6 h-6 mb-1 text-purple-600" />
       <span class="text-xs font-medium truncate w-full text-center">{{ node.name }}</span>
     </div>
     
-    <!-- Interface Connection Points -->
+    <!-- Interface Connection Points
     <div
       v-for="(interfaceItem, index) in node.interfaces"
       :key="interfaceItem.id"
@@ -25,8 +27,8 @@
       ]"
       :style="getInterfacePosition(index)"
       :title="`${interfaceItem.name}`"
-      @click.stop="$emit('connect', { nodeId: node.id, interfaceId: interfaceItem.id })"
-    />
+      @click.stop="handleInterfaceClick(interfaceItem)"
+    /> -->
   </div>
 </template>
 
@@ -43,6 +45,9 @@ interface Emits {
   (e: 'select', nodeId: string): void
   (e: 'move', nodeId: string, position: { x: number; y: number }): void
   (e: 'connect', data: { nodeId: string; interfaceId: string }): void
+  (e: 'node-click', node: PlayNode): void
+  (e: 'double-click', node: PlayNode): void
+  (e: 'contextmenu', node: PlayNode): void
 }
 
 const props = defineProps<Props>()
@@ -61,7 +66,7 @@ let isDragging = false
 let dragOffset = { x: 0, y: 0 }
 
 const onMouseDown = (event: MouseEvent) => {
-  isDragging = true
+  isDragging = false // Reset drag state
   dragOffset = {
     x: event.clientX - props.node.position.x,
     y: event.clientY - props.node.position.y
@@ -72,19 +77,44 @@ const onMouseDown = (event: MouseEvent) => {
 }
 
 const onMouseMove = (event: MouseEvent) => {
-  if (!isDragging) return
+  isDragging = true // It's a drag if the mouse moves
   
-  const newPosition = {
-    x: event.clientX - dragOffset.x,
-    y: event.clientY - dragOffset.y
-  }
+  const nodeWidth = 80 // Grader node is always 80x80
+  const nodeHeight = 80
   
+  let newX = event.clientX - dragOffset.x
+  let newY = event.clientY - dragOffset.y
+  
+  // Basic constraints to prevent negative positions
+  newX = Math.max(0, newX)
+  newY = Math.max(0, newY)
+  
+  const newPosition = { x: newX, y: newY }
   emit('move', props.node.id, newPosition)
 }
 
 const onMouseUp = () => {
-  isDragging = false
   document.removeEventListener('mousemove', onMouseMove)
   document.removeEventListener('mouseup', onMouseUp)
+}
+
+const handleClick = () => {
+  if (!isDragging) {
+    // Only emit click if it wasn't a drag
+    emit('select', props.node.id)
+    emit('node-click', props.node)
+  }
+}
+
+const handleRightClick = () => {
+  emit('contextmenu', props.node)
+}
+
+const handleInterfaceClick = (interfaceItem: any) => {
+  emit('connect', { nodeId: props.node.id, interfaceId: interfaceItem.id })
+}
+
+const handleDoubleClick = () => {
+  emit('double-click', props.node)
 }
 </script>

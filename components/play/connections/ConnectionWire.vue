@@ -8,43 +8,6 @@
       stroke-linecap="round"
       stroke-linejoin="round"
     />
-    <!-- Connection type indicator at midpoint -->
-    <circle
-      :cx="midPoint.x"
-      :cy="midPoint.y"
-      r="8"
-      :fill="wireColor"
-      class="opacity-90"
-    />
-    <text
-      :x="midPoint.x"
-      :y="midPoint.y"
-      text-anchor="middle"
-      dominant-baseline="middle"
-      class="text-xs fill-white font-medium pointer-events-none"
-    >
-      {{ connectionTypeLabel }}
-    </text>
-    
-    <!-- Source interface label -->
-    <text
-      :x="sourcePoint.x"
-      :y="sourcePoint.y - 15"
-      text-anchor="middle"
-      class="text-xs fill-gray-700 font-medium pointer-events-none bg-white"
-    >
-      {{ sourceInterfaceName }}
-    </text>
-    
-    <!-- Target interface label -->
-    <text
-      :x="targetPoint.x"
-      :y="targetPoint.y - 15"
-      text-anchor="middle"
-      class="text-xs fill-gray-700 font-medium pointer-events-none bg-white"
-    >
-      {{ targetInterfaceName }}
-    </text>
   </g>
 </template>
 
@@ -55,6 +18,7 @@ import type { Connection, PlayNode } from '@/types/play'
 interface Props {
   connection: Connection
   nodes: PlayNode[]
+  canvasRef?: HTMLElement
 }
 
 const props = defineProps<Props>()
@@ -67,33 +31,20 @@ const targetNode = computed(() =>
   props.nodes.find(n => n.id === props.connection.targetNodeId)
 )
 
-const sourceInterface = computed(() => 
-  sourceNode.value?.interfaces?.find(i => i.id === props.connection.sourceInterfaceId)
-)
-
-const targetInterface = computed(() => 
-  targetNode.value?.interfaces?.find(i => i.id === props.connection.targetInterfaceId)
-)
-
-const sourceInterfaceName = computed(() => sourceInterface.value?.name || 'Unknown')
-const targetInterfaceName = computed(() => targetInterface.value?.name || 'Unknown')
+const wireColor = computed(() => {
+  const colors = {
+    'lan': '#3b82f6',
+    'serial': '#ef4444'
+  }
+  return colors[props.connection.type as keyof typeof colors] || '#3b82f6'
+})
 
 const connectionTypeLabel = computed(() => {
   const labels = {
     'lan': 'E',      // Ethernet
-    'serial': 'S',   // Serial
-    'console': 'C'   // Console
+    'serial': 'S'    // Serial
   }
   return labels[props.connection.type as keyof typeof labels] || 'E'
-})
-
-const wireColor = computed(() => {
-  const colors = {
-    'lan': '#3b82f6',      // Blue
-    'serial': '#ef4444',   // Red
-    'console': '#6b7280'   // Gray
-  }
-  return colors[props.connection.type as keyof typeof colors] || '#3b82f6'
 })
 
 const wireWidth = computed(() => {
@@ -106,38 +57,6 @@ const wireWidth = computed(() => {
 })
 
 // Get actual interface connection points
-const sourcePoint = computed(() => {
-  if (!sourceNode.value || !sourceInterface.value) return { x: 0, y: 0 }
-  
-  const nodeSize = sourceNode.value.type === 'grader' ? 80 : 96
-  const nodeCenter = {
-    x: sourceNode.value.position.x + nodeSize / 2,
-    y: sourceNode.value.position.y + nodeSize / 2
-  }
-  
-  // Find interface index to determine position
-  const interfaceIndex = sourceNode.value.interfaces?.findIndex(i => i.id === sourceInterface.value!.id) || 0
-  const totalInterfaces = sourceNode.value.interfaces?.filter(i => i.status !== 'admin-down').length || 1
-  
-  return getInterfacePosition(nodeCenter, interfaceIndex, totalInterfaces, nodeSize)
-})
-
-const targetPoint = computed(() => {
-  if (!targetNode.value || !targetInterface.value) return { x: 0, y: 0 }
-  
-  const nodeSize = targetNode.value.type === 'grader' ? 80 : 96
-  const nodeCenter = {
-    x: targetNode.value.position.x + nodeSize / 2,
-    y: targetNode.value.position.y + nodeSize / 2
-  }
-  
-  // Find interface index to determine position
-  const interfaceIndex = targetNode.value.interfaces?.findIndex(i => i.id === targetInterface.value!.id) || 0
-  const totalInterfaces = targetNode.value.interfaces?.filter(i => i.status !== 'admin-down').length || 1
-  
-  return getInterfacePosition(nodeCenter, interfaceIndex, totalInterfaces, nodeSize)
-})
-
 const getInterfacePosition = (center: { x: number; y: number }, index: number, total: number, nodeSize: number) => {
   if (total <= 4) {
     // Position on sides: top, right, bottom, left
@@ -159,33 +78,91 @@ const getInterfacePosition = (center: { x: number; y: number }, index: number, t
   }
 }
 
+const getEdgePoint = (source: PlayNode, target: PlayNode) => {
+  // Function to get node dimensions
+  const getNodeDimensions = (node: PlayNode) => {
+    if (node.type === 'grader') {
+      return { w: 80, h: 80 } // w-20 h-20 = 80px × 80px
+    } else if (node.deviceType === 'pc') {
+      return { w: 80, h: 80 } // PCs are also 80x80
+    } else {
+      return { w: 96, h: 96 } // Other devices (switches, routers) are 96x96
+    }
+  }
+
+  const s = {
+    ...getNodeDimensions(source),
+    x: source.position.x,
+    y: source.position.y,
+  }
+  const t = {
+    ...getNodeDimensions(target),
+    x: target.position.x,
+    y: target.position.y,
+  }
+
+  const s_cx = s.x + s.w / 2
+  const s_cy = s.y + s.h / 2
+  const t_cx = t.x + t.w / 2
+  const t_cy = t.y + t.h / 2
+
+  const dx = t_cx - s_cx
+  const dy = t_cy - s_cy
+
+  const angle = Math.atan2(dy, dx)
+
+  const tan = Math.tan(angle)
+  const abs_tan = Math.abs(tan)
+
+  let x, y
+
+  if (abs_tan * s.w / 2 > s.h / 2) {
+    // Intersects top or bottom edge
+    y = s_cy + (dy > 0 ? s.h / 2 : -s.h / 2)
+    x = s_cx + (dy > 0 ? s.h / 2 : -s.h / 2) / tan
+  } else {
+    // Intersects left or right edge
+    x = s_cx + (dx > 0 ? s.w / 2 : -s.w / 2)
+    y = s_cy + (dx > 0 ? s.w / 2 : -s.w / 2) * tan
+  }
+
+  return { x, y }
+}
+
 const pathData = computed(() => {
-  if (!sourcePoint.value || !targetPoint.value) return ''
+  if (!sourceNode.value || !targetNode.value) return ''
   
-  const source = sourcePoint.value
-  const target = targetPoint.value
+  // Get canvas position relative to viewport
+  const canvasRect = props.canvasRef?.getBoundingClientRect() || { left: 0, top: 0 }
   
+  // Calculate node positions relative to viewport
+  const sourcePos = {
+    x: sourceNode.value.position.x + canvasRect.left,
+    y: sourceNode.value.position.y + canvasRect.top
+  }
+  const targetPos = {
+    x: targetNode.value.position.x + canvasRect.left,
+    y: targetNode.value.position.y + canvasRect.top
+  }
+  
+  // Create temporary nodes with viewport-relative positions for getEdgePoint
+  const sourceNodeViewport = { ...sourceNode.value, position: sourcePos }
+  const targetNodeViewport = { ...targetNode.value, position: targetPos }
+  
+  const sourcePoint = getEdgePoint(sourceNodeViewport, targetNodeViewport)
+  const targetPoint = getEdgePoint(targetNodeViewport, sourceNodeViewport)
+
   // Create a smooth curve
-  const dx = target.x - source.x
-  const dy = target.y - source.y
+  const dx = targetPoint.x - sourcePoint.x
+  const dy = targetPoint.y - sourcePoint.y
   const distance = Math.sqrt(dx * dx + dy * dy)
   
-  // Control points for bezier curve
   const controlOffset = Math.min(distance * 0.3, 80)
-  const control1X = source.x + (dx > 0 ? controlOffset : -controlOffset)
-  const control1Y = source.y
-  const control2X = target.x - (dx > 0 ? controlOffset : -controlOffset)
-  const control2Y = target.y
+  const control1X = sourcePoint.x + (dx > 0 ? controlOffset : -controlOffset)
+  const control1Y = sourcePoint.y
+  const control2X = targetPoint.x - (dx > 0 ? controlOffset : -controlOffset)
+  const control2Y = targetPoint.y
   
-  return `M ${source.x} ${source.y} C ${control1X} ${control1Y}, ${control2X} ${control2Y}, ${target.x} ${target.y}`
-})
-
-const midPoint = computed(() => {
-  if (!sourcePoint.value || !targetPoint.value) return { x: 0, y: 0 }
-  
-  return {
-    x: (sourcePoint.value.x + targetPoint.value.x) / 2,
-    y: (sourcePoint.value.y + targetPoint.value.y) / 2
-  }
+  return `M ${sourcePoint.x} ${sourcePoint.y} C ${control1X} ${control1Y}, ${control2X} ${control2Y}, ${targetPoint.x} ${targetPoint.y}`
 })
 </script>

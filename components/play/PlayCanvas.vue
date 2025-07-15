@@ -4,6 +4,7 @@
     class="relative w-full h-full bg-gray-100"
     @drop="onDrop"
     @dragover.prevent
+    @dragenter.prevent
     @click="clearSelection"
   >
     <!-- Grid background -->
@@ -18,18 +19,22 @@
       </svg>
     </div>
 
-    <!-- Connections Layer - Full canvas coverage -->
+    <!-- Connections Layer - Fixed positioning that follows scroll -->
     <svg 
-      class="absolute inset-0 pointer-events-none" 
-      style="z-index: 1; width: 100%; height: 100%;"
-      viewBox="0 0 100% 100%"
-      preserveAspectRatio="none"
+      class="fixed pointer-events-none" 
+      style="z-index: 1; top: 0; left: 0; width: 100vw; height: 100vh;"
     >
+      <!-- Debug info for connections -->
+      <text v-if="connections.length" x="10" y="20" fill="red" font-size="12">
+        Connections: {{ connections.length }}
+      </text>
+      
       <ConnectionWire
         v-for="connection in connections"
         :key="connection.id"
         :connection="connection"
         :nodes="nodes"
+        :canvas-ref="canvasRef"
       />
       
       <!-- Temporary connection line while connecting -->
@@ -45,52 +50,79 @@
 
     <!-- Nodes Layer -->
     <div class="absolute inset-0" style="z-index: 2;">
+      <!-- Grader Node -->
       <GraderNode
-        v-if="graderNode"
+        v-if="graderNode && !nodesPendingDelete.has(graderNode.id)"
+        :id="`node-${graderNode.id}`"
         :node="graderNode"
         :selected="selectedNodeId === graderNode.id"
-        @select="selectNode"
+        @select="selectNode(graderNode.id)"
         @move="moveNode"
-        @connect="handleConnection"
+        @node-click="handleNodeClick(graderNode)"
+        @double-click="openInterfaceModal(graderNode)"
+        @contextmenu="openTaskModal(graderNode)"
       />
       
-      <DeviceNode
-        v-for="node in deviceNodes"
-        :key="node.id"
-        :node="node"
-        :selected="selectedNodeId === node.id"
-        @select="selectNode"
-        @move="moveNode"
-        @connect="handleConnection"
-        @double-click="openTaskModal"
+      <!-- Device Nodes -->
+      <template v-for="node in deviceNodes" :key="node.id">
+        <DeviceNode
+          v-if="node && !nodesPendingDelete.has(node.id)"
+          :id="`node-${node.id}`"
+          :node="node"
+          :selected="selectedNodeId === node.id"
+          @select="selectNode(node.id)"
+          @move="moveNode"
+          @node-click="handleNodeClick(node)"
+          @double-click="openInterfaceModal(node)"
+          @contextmenu="openTaskModal(node)"
+        />
+      </template>
+
+      <!-- Connection mode indicator -->
+      <div 
+        v-if="selectedConnectionType && !connectingFrom" 
+        class="absolute top-4 left-4 bg-green-100 border border-green-300 rounded px-3 py-1 text-sm z-10"
+      >
+        Connection mode active: {{ selectedConnectionType }}. Click on a node to start wiring.
+      </div>
+
+      <!-- Connection status indicator -->
+      <div 
+        v-if="connectingFrom" 
+        class="absolute top-4 left-4 bg-blue-100 border border-blue-300 rounded px-3 py-1 text-sm z-10"
+      >
+        Connecting from {{ getNodeName(connectingFrom.nodeId) }} ({{ getInterfaceName(connectingFrom.nodeId, connectingFrom.interfaceId) }})... Click on another node to complete connection
+      </div>
+
+      <!-- Interface Selection Modal -->
+      <InterfaceSelectionModal
+        v-model:open="isInterfaceModalOpen"
+        :node="modalNode"
+        :title="modalTitle"
+        :connections="connections"
+        @select="handleInterfaceSelection"
+      />
+      
+      <!-- Task Configuration Modal -->
+      <TaskConfigModal
+        v-model:open="showTaskModal"
+        :node="selectedNode"
+        @save="saveTask"
       />
     </div>
-
-    <!-- Connection status indicator -->
-    <div 
-      v-if="connectingFrom" 
-      class="absolute top-4 left-4 bg-blue-100 border border-blue-300 rounded px-3 py-1 text-sm z-10"
-    >
-      Connecting from {{ getNodeName(connectingFrom.nodeId) }}... Click on another interface to connect
-    </div>
-
-    <!-- Task Configuration Modal -->
-    <TaskConfigModal
-      v-model:open="showTaskModal"
-      :node="selectedNode"
-      @save="saveTask"
-    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { useNuxtApp } from '#app'
 import GraderNode from './nodes/GraderNode.vue'
 import DeviceNode from './nodes/DeviceNode.vue'
 import ConnectionWire from './connections/ConnectionWire.vue'
 import TaskConfigModal from './modals/TaskConfigModal.vue'
+import InterfaceSelectionModal from './modals/InterfaceSelectionModal.vue'
 import { usePlayCanvas } from '@/composables/usePlayCanvas'
-import type { PlayNode, Connection } from '@/types/play'
+import type { PlayNode } from '@/types/play'
 import { toast } from 'vue-sonner'
 import 'vue-sonner/style.css'
 
@@ -103,7 +135,7 @@ const { $anime } = useNuxtApp()
 const nodesPendingDelete = ref<Set<string>>(new Set())
 
 const deleteNode = async (nodeId: string) => {
-    const node = nodes.value.find(n => n.id === nodeId)
+  const node = nodes.value.find(n => n.id === nodeId)
   if (node?.type === 'grader') {
     toast.error('No! No! No!', {
       description: 'Grader node cannot be deleted.'
@@ -126,10 +158,21 @@ const deleteNode = async (nodeId: string) => {
   })
 }
 
-// 3. Keyboard event handler
+// Keyboard event handler
 const onKeyDown = (e: KeyboardEvent) => {
   if (e.key === 'Delete' && selectedNodeId.value) {
     deleteNode(selectedNodeId.value)
+  }
+}
+
+// Mouse move handler
+const onMouseMove = (event: MouseEvent) => {
+  if (connectingFrom.value && canvasRef.value) {
+    // Since SVG is now fixed to viewport, use clientX/Y directly
+    mousePosition.value = {
+      x: event.clientX,
+      y: event.clientY
+    }
   }
 }
 
@@ -158,19 +201,24 @@ const {
   addNode,
   moveNode,
   removeNode,
+  isInterfaceModalOpen,
+  selectedConnectionType,
+  modalNode,
+  modalTitle,
+  initiateConnection,
+  handleInterfaceSelection,
+  cancelConnection,
   selectNode,
   clearSelection,
-  startConnection,
-  completeConnection,
   saveTask
 } = usePlayCanvas(props.playId)
 
 const graderNode = computed(() => 
-  nodes.value.find(node => node.type === 'grader')
+  nodes.value?.find(node => node.type === 'grader') || null
 )
 
 const deviceNodes = computed(() => 
-  nodes.value.filter(node => node.type === 'device')
+  nodes.value?.filter(node => node.type === 'device') || []
 )
 
 const onDrop = (event: DragEvent) => {
@@ -186,11 +234,23 @@ const onDrop = (event: DragEvent) => {
   }
 }
 
-const handleConnection = (data: { nodeId: string; interfaceId: string }) => {
-  if (!connectingFrom.value) {
-    startConnection(data)
+const handleNodeClick = (node: PlayNode) => {
+  console.log('=== NODE CLICK ===')
+  console.log('Node:', node.name)
+  console.log('selectedConnectionType:', selectedConnectionType.value)
+  console.log('connectingFrom:', connectingFrom.value)
+  console.log('Time:', Date.now())
+  
+  if (!node) return
+  
+  if (selectedConnectionType.value) {
+    console.log('In connection mode, initiating connection for:', node.name)
+    // If a connection type is selected, initiate wiring
+    initiateConnection(node)
   } else {
-    completeConnection(data)
+    console.log('Not in connection mode, selecting node:', node.name)
+    // Otherwise, select the node
+    selectNode(node.id)
   }
 }
 
@@ -199,38 +259,38 @@ const getNodeName = (nodeId: string) => {
   return node?.name || 'Unknown'
 }
 
+const getInterfaceName = (nodeId: string, interfaceId: string) => {
+  const node = nodes.value.find(n => n.id === nodeId)
+  const iface = node?.interfaces?.find(i => i.id === interfaceId)
+  return iface?.name || 'Unknown'
+}
+
 const getTemporaryConnectionPath = () => {
-  if (!connectingFrom.value || !mousePosition.value) return ''
+  if (!connectingFrom.value || !mousePosition.value || !nodes.value || !canvasRef.value) return ''
   
   const sourceNode = nodes.value.find(n => n.id === connectingFrom.value!.nodeId)
   if (!sourceNode) return ''
   
-  const sourceX = sourceNode.position.x + 40 // Center of node (80/2)
-  const sourceY = sourceNode.position.y + 40
+  // Get canvas position relative to viewport
+  const canvasRect = canvasRef.value.getBoundingClientRect()
+  
+  // Calculate source position relative to viewport (same as ConnectionWire)
+  const sourceX = sourceNode.position.x + canvasRect.left + 40 // Center of node (80/2)
+  const sourceY = sourceNode.position.y + canvasRect.top + 40
   
   return `M ${sourceX} ${sourceY} L ${mousePosition.value.x} ${mousePosition.value.y}`
 }
 
-const onMouseMove = (event: MouseEvent) => {
-  if (connectingFrom.value && canvasRef.value) {
-    const rect = canvasRef.value.getBoundingClientRect()
-    mousePosition.value = {
-      x: event.clientX - rect.left,
-      y: event.clientY - rect.top
-    }
-  }
-}
-
 const openTaskModal = (node: PlayNode) => {
+  if (!node) return
   selectNode(node.id)
   showTaskModal.value = true
 }
 
-onMounted(() => {
-  document.addEventListener('mousemove', onMouseMove)
-})
-
-onUnmounted(() => {
-  document.removeEventListener('mousemove', onMouseMove)
-})
+const openInterfaceModal = (node: PlayNode) => {
+  // Set connection type to LAN to enter connection mode  
+  selectedConnectionType.value = 'lan'
+  // Use the proper initiate connection flow
+  initiateConnection(node)
+}
 </script>
