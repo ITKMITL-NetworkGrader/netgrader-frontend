@@ -46,7 +46,7 @@
       </div>
     </div>
     <div>
-      <h3 class="font-medium mb-2">Device Properties</h3>
+      <h3 class="font-medium mb-2">Create a Play task</h3>
       <div v-if="selectedNode && selectedNode.type === 'device'" class="space-y-3">
         <div>
           <label class="text-xs text-gray-600">Device Name</label>
@@ -122,9 +122,12 @@
         </div>
       </div>
       <p v-else class="text-sm text-gray-500">
-        Select a device to edit properties
+        Right click a device node to create a Play task
       </p>
     </div>
+    <h3 class="font-medium mb-2">Wire up device nodes</h3>
+    <p class="text-sm text-gray-500">Double-click a device node to wire it up</p>
+    
 
     <!-- Interface Configuration Modal -->
     <InterfaceConfigModal
@@ -194,12 +197,12 @@ const connectionTypes = [
     description: 'RJ45 Copper Cable',
     color: 'bg-blue-500' 
   },
-  { 
-    type: 'serial', 
-    name: 'Serial Cable', 
-    description: 'DCE/DTE Serial',
-    color: 'bg-red-500' 
-  }
+  // { 
+  //   type: 'serial', 
+  //   name: 'Serial Cable', 
+  //   description: 'DCE/DTE Serial',
+  //   color: 'bg-red-500' 
+  // }
 ]
 
 const selectConnectionType = (type: string) => {

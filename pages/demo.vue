@@ -27,7 +27,19 @@
     
     <div class="flex-1 flex">
       <PlayToolbar class="w-64 border-r bg-white" :play-id="playId" />
-      <PlayCanvas class="flex-1 w-full" :play-id="playId" />
+      <div class="flex-1 flex">
+        <PlayCanvas 
+          class="flex-1 w-full" 
+          :play-id="playId" 
+        />
+        <TaskList 
+          :nodes="nodes" 
+          @reorder="handleTaskReorder"
+          @delete="handleTaskDelete"
+          @edit="handleTaskEdit"
+          @duplicate="handleTaskDuplicate"
+        />
+      </div>
     </div>
   </div>
 </template>
@@ -36,13 +48,72 @@
 import { Button } from '@/components/ui/button'
 import PlayToolbar from '@/components/play/PlayToolbar.vue'
 import PlayCanvas from '@/components/play/PlayCanvas.vue'
+import TaskList from '@/components/play/TaskList.vue'
+import { usePlayCanvas } from '@/composables/usePlayCanvas'
+import type { TaskConfig } from '@/types/play'
 
 const route = useRoute()
 const userState = useUserState()
-const playId = computed(() => route.params.id as string)
+const playId = computed(() => (route.params.id as string) || 'demo-play')
+
+// Use the play canvas composable
+const { 
+  nodes, 
+  deleteTask, 
+  updateTaskOrder, 
+  duplicateTask 
+} = usePlayCanvas(playId.value)
+
+// Add some mock tasks for testing
+onMounted(() => {
+  if (nodes.value.length > 0 && (!nodes.value[0].tasks || nodes.value[0].tasks.length === 0)) {
+    nodes.value[0].tasks = [
+      {
+        id: 'task-1',
+        type: 'ping',
+        destinationIPs: ['192.168.1.1'],
+        expectedResult: 'success',
+        points: 10,
+        timeout: 30
+      },
+      {
+        id: 'task-2',
+        type: 'ssh',
+        destinationIPs: ['192.168.1.2'],
+        username: 'admin',
+        password: 'cisco',
+        expectedResult: 'success',
+        points: 15,
+        timeout: 30
+      }
+    ]
+  }
+})
 
 // Mock course data for demo
 const course = ref({ name: 'Demo Course' })
+
+interface TaskConfigWithNode extends TaskConfig {
+  nodeId: string
+  nodeName: string
+}
+
+const handleTaskReorder = (reorderedTasks: TaskConfigWithNode[]) => {
+  updateTaskOrder(reorderedTasks)
+}
+
+const handleTaskDelete = (taskId: string) => {
+  deleteTask(taskId)
+}
+
+const handleTaskEdit = (task: TaskConfigWithNode) => {
+  // TODO: Implement task editing
+  console.log('Edit task:', task)
+}
+
+const handleTaskDuplicate = (task: TaskConfigWithNode) => {
+  duplicateTask(task, task.nodeId)
+}
 
 const savePlay = async () => {
   // Save play logic

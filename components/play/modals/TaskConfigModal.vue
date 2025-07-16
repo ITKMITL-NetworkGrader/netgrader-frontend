@@ -9,63 +9,25 @@
       </DialogHeader>
       
       <div class="space-y-4">
-        <div class="grid grid-cols-2 gap-4">
-          <div>
-            <Label>Task Type</Label>
-            <Select v-model="taskConfig.type">
-              <SelectTrigger>
-                <SelectValue placeholder="Select task type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ping">Ping Test</SelectItem>
-                <SelectItem value="traceroute">Traceroute</SelectItem>
-                <SelectItem value="ssh">SSH Connectivity</SelectItem>
-                <SelectItem value="telnet">Telnet Connectivity</SelectItem>
-                <SelectItem value="show-command">Show Command</SelectItem>
-                <SelectItem value="config-verify">Config Verification</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div>
-          <Label>Source Interface</Label>
-          <Select v-model="taskConfig.sourceInterface">
-            <SelectTrigger>
-              <SelectValue placeholder="Select source interface" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem 
-                v-for="interfaceItem in node?.interfaces"
-                :key="interfaceItem.id"
-                :value="interfaceItem.id"
-              >
-                {{ interfaceItem.name }} ({{ interfaceItem.ipAddress || 'No IP' }})
-              </SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        </div>
-
         <div>
-          <Label>Destination Device</Label>
-          <Select v-model="taskConfig.destinationDevice">
+          <Label class="pb-1">Task Type</Label>
+          <Select v-model="taskConfig.type">
             <SelectTrigger>
-              <SelectValue placeholder="Select destination device" />
+              <SelectValue placeholder="Select task type" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem 
-                v-for="device in availableDevices"
-                :key="device.id"
-                :value="device.id"
-              >
-                {{ device.name }} ({{ device.deviceType }})
-              </SelectItem>
+              <SelectItem value="ping">Ping Test</SelectItem>
+              <SelectItem value="traceroute">Traceroute</SelectItem>
+              <SelectItem value="ssh">SSH Connectivity</SelectItem>
+              <SelectItem value="telnet">Telnet Connectivity</SelectItem>
+              <SelectItem value="show-command">Show Command</SelectItem>
+              <SelectItem value="config-verify">Config Verification</SelectItem>
             </SelectContent>
           </Select>
         </div>
 
         <div>
-          <Label>Destination IP Addresses</Label>
+          <Label class="pb-1">Destination IP Addresses</Label>
           <div class="space-y-2">
             <div
               v-for="(ip, index) in taskConfig.destinationIPs"
@@ -77,39 +39,25 @@
                 placeholder="192.168.1.1"
                 class="flex-1"
               />
-              <Button
-                variant="outline"
-                size="sm"
-                @click="removeIP(index)"
-                :disabled="taskConfig.destinationIPs.length === 1"
-              >
-                Remove
-              </Button>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              @click="addIP"
-            >
-              Add IP Address
-            </Button>
+            <!-- Add IP Address button removed -->
           </div>
         </div>
 
         <!-- Cisco Device Credentials -->
         <div v-if="taskConfig.type === 'ssh' || taskConfig.type === 'telnet' || taskConfig.type === 'show-command' || taskConfig.type === 'config-verify'">
-          <Label>Device Credentials</Label>
+          <Label class="pb-1">Device Credentials</Label>
           <div class="grid grid-cols-3 gap-2">
             <div>
-              <Label class="text-xs">Username</Label>
+              <Label class="text-xs pb-1">Username</Label>
               <Input v-model="taskConfig.username" placeholder="admin" />
             </div>
             <div>
-              <Label class="text-xs">Password</Label>
+              <Label class="text-xs pb-1">Password</Label>
               <Input v-model="taskConfig.password" type="password" />
             </div>
             <div>
-              <Label class="text-xs">Enable Password</Label>
+              <Label class="text-xs pb-1">Enable Password</Label>
               <Input v-model="taskConfig.enablePassword" type="password" />
             </div>
           </div>
@@ -117,7 +65,7 @@
 
         <!-- Commands for Cisco devices -->
         <div v-if="taskConfig.type === 'show-command' || taskConfig.type === 'config-verify'">
-          <Label>Commands to Execute</Label>
+          <Label class="pb-1">Commands to Execute</Label>
           <div class="space-y-2">
             <div
               v-for="(command, index) in taskConfig.commands"
@@ -150,7 +98,7 @@
 
         <div class="grid grid-cols-2 gap-4">
           <div>
-            <Label>Expected Result</Label>
+            <Label class="pb-1">Expected Result</Label>
             <Select v-model="taskConfig.expectedResult">
               <SelectTrigger>
                 <SelectValue placeholder="Select expected result" />
@@ -166,7 +114,7 @@
           </div>
 
           <div>
-            <Label>Timeout (seconds)</Label>
+            <Label class="pb-1">Timeout (seconds)</Label>
             <Input
               v-model.number="taskConfig.timeout"
               type="number"
@@ -178,7 +126,7 @@
         </div>
 
         <div v-if="taskConfig.expectedResult === 'contains' || taskConfig.expectedResult === 'not-contains'">
-          <Label>Expected Output Text</Label>
+          <Label class="pb-1">Expected Output Text</Label>
           <Textarea
             v-model="taskConfig.expectedOutput"
             placeholder="Enter the text that should be present/absent in the command output"
@@ -187,7 +135,7 @@
         </div>
 
         <div>
-          <Label>Points</Label>
+          <Label class="pb-1">Points</Label>
           <Input
             v-model.number="taskConfig.points"
             type="number"
@@ -248,8 +196,7 @@ const emit = defineEmits<Emits>()
 
 const taskConfig = ref<TaskConfig>({
   id: '',
-  type: '',
-  destinationDevice: '',
+  type: 'ping',
   destinationIPs: [''],
   commands: [''],
   username: '',
@@ -260,16 +207,6 @@ const taskConfig = ref<TaskConfig>({
   timeout: 30
 })
 
-// Mock available devices - replace with actual data from canvas
-const availableDevices = ref([
-  { id: '1', name: 'Router-1', deviceType: 'cisco-router' },
-  { id: '2', name: 'Switch-1', deviceType: 'cisco-switch' },
-  { id: '3', name: 'PC-1', deviceType: 'pc' }
-])
-
-const addIP = () => {
-  taskConfig.value.destinationIPs.push('')
-}
 
 const removeIP = (index: number) => {
   taskConfig.value.destinationIPs.splice(index, 1)
@@ -303,8 +240,7 @@ watch(() => props.open, (isOpen) => {
   if (isOpen) {
     taskConfig.value = {
       id: '',
-      type: '',
-      destinationDevice: '',
+      type: 'ping',
       destinationIPs: [''],
       commands: [''],
       username: '',

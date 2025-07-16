@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import '@fontsource/bai-jamjuree';
 import '@fontsource-variable/roboto-mono';
+import { StagewiseToolbar } from '@stagewise/toolbar-vue';
 
 useSeoMeta({
         title: 'NetGrader',
@@ -19,7 +20,7 @@ useSeoMeta({
     </NuxtLayout>
     <!-- Stagewise Toolbar - Only renders in development mode and on client side -->
     <ClientOnly>
-      <StagewiseToolbar />
+      <StagewiseToolbar />  <!-- Don't forget to delete this line when uninstall Stagewise -->
     </ClientOnly>
     <!-- Toast notifications -->
     <Toaster 

@@ -288,6 +288,52 @@ export const usePlayCanvas = (playId?: string) => {
     }
   }
 
+  const deleteTask = (taskId: string) => {
+    nodes.value.forEach(node => {
+      if (node.tasks) {
+        node.tasks = node.tasks.filter(task => task.id !== taskId)
+      }
+    })
+  }
+
+  const updateTaskOrder = (reorderedTasks: TaskConfig[]) => {
+    // Update task order across all nodes
+    const taskMap = new Map<string, TaskConfig>()
+    reorderedTasks.forEach(task => {
+      taskMap.set(task.id, task)
+    })
+
+    nodes.value.forEach(node => {
+      if (node.tasks) {
+        node.tasks = node.tasks
+          .map(task => taskMap.get(task.id) || task)
+          .sort((a, b) => {
+            const indexA = reorderedTasks.findIndex(t => t.id === a.id)
+            const indexB = reorderedTasks.findIndex(t => t.id === b.id)
+            return indexA - indexB
+          })
+      }
+    })
+  }
+
+  const duplicateTask = (originalTask: TaskConfig, targetNodeId?: string) => {
+    const newTask: TaskConfig = {
+      ...originalTask,
+      id: `task-${Date.now()}`,
+    }
+
+    const targetNode = targetNodeId 
+      ? nodes.value.find(n => n.id === targetNodeId)
+      : selectedNode.value
+
+    if (targetNode) {
+      if (!targetNode.tasks) {
+        targetNode.tasks = []
+      }
+      targetNode.tasks.push(newTask)
+    }
+  }
+
   const removeNode = (nodeId: string) => {
   // Remove node
   nodes.value = nodes.value.filter(n => n.id !== nodeId)
@@ -314,6 +360,9 @@ export const usePlayCanvas = (playId?: string) => {
     selectNode,
     clearSelection,
     saveTask,
+    deleteTask,
+    updateTaskOrder,
+    duplicateTask,
     removeNode,
     setConnectionType,
     initiateConnection,

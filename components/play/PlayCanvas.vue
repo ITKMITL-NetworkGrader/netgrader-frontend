@@ -207,7 +207,6 @@ const {
   modalTitle,
   initiateConnection,
   handleInterfaceSelection,
-  cancelConnection,
   selectNode,
   clearSelection,
   saveTask

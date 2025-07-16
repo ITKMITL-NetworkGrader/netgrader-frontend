@@ -40,9 +40,7 @@ export interface Connection {
 export interface TaskConfig {
   id: string
   type: 'ping' | 'traceroute' | 'ssh' | 'telnet' | 'show-command' | 'config-verify'
-  destinationDevice: string
   destinationIPs: string[]
-  sourceInterface?: string
   username?: string
   password?: string
   enablePassword?: string
