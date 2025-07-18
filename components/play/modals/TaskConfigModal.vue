@@ -2,7 +2,9 @@
   <Dialog :open="open" @update:open="$emit('update:open', $event)">
     <DialogContent class="max-w-3xl max-h-[80vh] overflow-y-auto">
       <DialogHeader>
-        <DialogTitle>Configure Grading Task - {{ node?.name }}</DialogTitle>
+        <DialogTitle>
+          {{ editingTask ? 'Edit' : 'Configure' }} Grading Task - {{ node?.name }}
+        </DialogTitle>
         <DialogDescription>
           Set up automated grading tasks for this device
         </DialogDescription>
@@ -39,8 +41,22 @@
                 placeholder="192.168.1.1"
                 class="flex-1"
               />
+              <Button
+                variant="outline"
+                size="sm"
+                @click="removeIP(index)"
+                :disabled="taskConfig.destinationIPs.length === 1"
+              >
+                Remove
+              </Button>
             </div>
-            <!-- Add IP Address button removed -->
+            <Button
+              variant="outline"
+              size="sm"
+              @click="addIP"
+            >
+              Add IP Address
+            </Button>
           </div>
         </div>
 
@@ -151,7 +167,7 @@
           Cancel
         </Button>
         <Button @click="saveTask">
-          Save Task
+          {{ editingTask ? 'Update' : 'Save' }} Task
         </Button>
       </DialogFooter>
     </DialogContent>
@@ -184,6 +200,7 @@ import type { PlayNode, TaskConfig } from '@/types/play'
 interface Props {
   open: boolean
   node: PlayNode | null
+  editingTask?: TaskConfig | null
 }
 
 interface Emits {
@@ -207,6 +224,9 @@ const taskConfig = ref<TaskConfig>({
   timeout: 30
 })
 
+const addIP = () => {
+  taskConfig.value.destinationIPs.push('')
+}
 
 const removeIP = (index: number) => {
   taskConfig.value.destinationIPs.splice(index, 1)
@@ -228,27 +248,40 @@ const removeCommand = (index: number) => {
 const saveTask = () => {
   const newTask: TaskConfig = {
     ...taskConfig.value,
-    id: `task-${Date.now()}`
+    id: props.editingTask?.id || `task-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    // Clean up empty IPs and commands
+    destinationIPs: taskConfig.value.destinationIPs.filter(ip => ip.trim() !== ''),
+    commands: taskConfig.value.commands?.filter(cmd => cmd.trim() !== '') || []
   }
   
   emit('save', newTask)
   emit('update:open', false)
 }
 
-// Reset form when modal opens
-watch(() => props.open, (isOpen) => {
+// Initialize form when modal opens or editing task changes
+watch([() => props.open, () => props.editingTask], ([isOpen, editingTask]) => {
   if (isOpen) {
-    taskConfig.value = {
-      id: '',
-      type: 'ping',
-      destinationIPs: [''],
-      commands: [''],
-      username: '',
-      password: '',
-      enablePassword: '',
-      expectedResult: 'success',
-      points: 10,
-      timeout: 30
+    if (editingTask) {
+      // Edit mode - populate with existing task data
+      taskConfig.value = {
+        ...editingTask,
+        destinationIPs: editingTask.destinationIPs.length > 0 ? [...editingTask.destinationIPs] : [''],
+        commands: editingTask.commands && editingTask.commands.length > 0 ? [...editingTask.commands] : ['']
+      }
+    } else {
+      // Add mode - reset to defaults
+      taskConfig.value = {
+        id: '',
+        type: 'ping',
+        destinationIPs: [''],
+        commands: [''],
+        username: '',
+        password: '',
+        enablePassword: '',
+        expectedResult: 'success',
+        points: 10,
+        timeout: 30
+      }
     }
   }
 })

@@ -4,9 +4,6 @@
     <div class="border-b bg-white px-4 py-2 shadow-sm">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-4">
-          <NuxtLink to="/courses" class="text-blue-600 hover:text-blue-800">
-            ← Back to Courses
-          </NuxtLink>
           <div>
             <h1 class="text-xl font-semibold">Play Editor</h1>
             <p class="text-sm text-gray-600">Course: {{ course?.name }}</p>
@@ -33,13 +30,14 @@
           :play-id="playId" 
         />
         <TaskList 
+          class="w-80 border-l bg-white"
           :nodes="nodes" 
           @reorder="handleTaskReorder"
           @delete="handleTaskDelete"
           @edit="handleTaskEdit"
-          @duplicate="handleTaskDuplicate"
         />
       </div>
+      <!-- End of main content -->
     </div>
   </div>
 </template>
@@ -57,37 +55,39 @@ const userState = useUserState()
 const playId = computed(() => (route.params.id as string) || 'demo-play')
 
 // Use the play canvas composable
+const playCanvas = usePlayCanvas(playId.value)
 const { 
   nodes, 
   deleteTask, 
-  updateTaskOrder, 
-  duplicateTask 
-} = usePlayCanvas(playId.value)
+  updateTaskOrder,
+  editTask
+} = playCanvas
 
 // Add some mock tasks for testing
 onMounted(() => {
-  if (nodes.value.length > 0 && (!nodes.value[0].tasks || nodes.value[0].tasks.length === 0)) {
-    nodes.value[0].tasks = [
-      {
-        id: 'task-1',
-        type: 'ping',
-        destinationIPs: ['192.168.1.1'],
-        expectedResult: 'success',
-        points: 10,
-        timeout: 30
-      },
-      {
-        id: 'task-2',
-        type: 'ssh',
-        destinationIPs: ['192.168.1.2'],
-        username: 'admin',
-        password: 'cisco',
-        expectedResult: 'success',
-        points: 15,
-        timeout: 30
-      }
-    ]
-  }
+  // Remove mock tasks - let users add their own
+  // if (nodes.value.length > 0 && (!nodes.value[0].tasks || nodes.value[0].tasks.length === 0)) {
+  //   nodes.value[0].tasks = [
+  //     {
+  //       id: 'task-1',
+  //       type: 'ping',
+  //       destinationIPs: ['192.168.1.1'],
+  //       expectedResult: 'success',
+  //       points: 10,
+  //       timeout: 30
+  //     },
+  //     {
+  //       id: 'task-2',
+  //       type: 'ssh',
+  //       destinationIPs: ['192.168.1.2'],
+  //       username: 'admin',
+  //       password: 'cisco',
+  //       expectedResult: 'success',
+  //       points: 15,
+  //       timeout: 30
+  //     }
+  //   ]
+  // }
 })
 
 // Mock course data for demo
@@ -107,21 +107,14 @@ const handleTaskDelete = (taskId: string) => {
 }
 
 const handleTaskEdit = (task: TaskConfigWithNode) => {
-  // TODO: Implement task editing
-  console.log('Edit task:', task)
-}
-
-const handleTaskDuplicate = (task: TaskConfigWithNode) => {
-  duplicateTask(task, task.nodeId)
+  editTask(task.id)
 }
 
 const savePlay = async () => {
-  // Save play logic
   console.log('Saving play...')
 }
 
 const publishPlay = async () => {
-  // Publish play logic
   console.log('Publishing play...')
 }
 

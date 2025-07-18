@@ -60,7 +60,7 @@
         @move="moveNode"
         @node-click="handleNodeClick(graderNode)"
         @double-click="openInterfaceModal(graderNode)"
-        @contextmenu="openTaskModal(graderNode)"
+        @contextmenu="graderNode && openTaskModal(graderNode.id)"
       />
       
       <!-- Device Nodes -->
@@ -74,7 +74,7 @@
           @move="moveNode"
           @node-click="handleNodeClick(node)"
           @double-click="openInterfaceModal(node)"
-          @contextmenu="openTaskModal(node)"
+          @contextmenu="openTaskModal(node.id)"
         />
       </template>
 
@@ -105,16 +105,17 @@
       
       <!-- Task Configuration Modal -->
       <TaskConfigModal
-        v-model:open="showTaskModal"
+        v-model:open="isTaskModalOpen"
         :node="selectedNode"
-        @save="saveTask"
+        :editing-task="editingTask"
+        @save="handleTaskSave"
       />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useNuxtApp } from '#app'
 import GraderNode from './nodes/GraderNode.vue'
 import DeviceNode from './nodes/DeviceNode.vue'
@@ -122,7 +123,7 @@ import ConnectionWire from './connections/ConnectionWire.vue'
 import TaskConfigModal from './modals/TaskConfigModal.vue'
 import InterfaceSelectionModal from './modals/InterfaceSelectionModal.vue'
 import { usePlayCanvas } from '@/composables/usePlayCanvas'
-import type { PlayNode } from '@/types/play'
+import type { PlayNode, TaskConfig } from '@/types/play'
 import { toast } from 'vue-sonner'
 import 'vue-sonner/style.css'
 
@@ -189,9 +190,9 @@ onUnmounted(() => {
 const props = defineProps<Props>()
 
 const canvasRef = ref<HTMLElement>()
-const showTaskModal = ref(false)
 const mousePosition = ref<{ x: number; y: number } | null>(null)
 
+const playCanvas = usePlayCanvas(props.playId)
 const {
   nodes,
   connections,
@@ -203,14 +204,24 @@ const {
   removeNode,
   isInterfaceModalOpen,
   selectedConnectionType,
+  isTaskModalOpen,
+  editingTask,
   modalNode,
   modalTitle,
   initiateConnection,
   handleInterfaceSelection,
   selectNode,
   clearSelection,
+  openTaskModal,
   saveTask
-} = usePlayCanvas(props.playId)
+} = playCanvas
+
+// Reset editing task when modal closes  
+watch(isTaskModalOpen, (isOpen) => {
+  if (!isOpen) {
+    // Already handled by closeTaskModal in composable
+  }
+})
 
 const graderNode = computed(() => 
   nodes.value?.find(node => node.type === 'grader') || null
@@ -234,23 +245,31 @@ const onDrop = (event: DragEvent) => {
 }
 
 const handleNodeClick = (node: PlayNode) => {
-  console.log('=== NODE CLICK ===')
-  console.log('Node:', node.name)
-  console.log('selectedConnectionType:', selectedConnectionType.value)
-  console.log('connectingFrom:', connectingFrom.value)
-  console.log('Time:', Date.now())
-  
   if (!node) return
   
   if (selectedConnectionType.value) {
-    console.log('In connection mode, initiating connection for:', node.name)
     // If a connection type is selected, initiate wiring
     initiateConnection(node)
   } else {
-    console.log('Not in connection mode, selecting node:', node.name)
     // Otherwise, select the node
     selectNode(node.id)
   }
+}
+
+const handleTaskSave = (taskConfig: TaskConfig) => {
+  // Use the composable's saveTask function which handles reactivity
+  saveTask(taskConfig)
+  
+  // Force reactivity by triggering a change
+  nextTick(() => {
+    // Force a reactive update by reassigning the tasks array
+    if (selectedNode.value && selectedNode.value.tasks) {
+      selectedNode.value.tasks = [...selectedNode.value.tasks]
+    }
+  })
+  
+  // Close modal (handled by composable)
+  isTaskModalOpen.value = false
 }
 
 const getNodeName = (nodeId: string) => {
@@ -278,12 +297,6 @@ const getTemporaryConnectionPath = () => {
   const sourceY = sourceNode.position.y + canvasRect.top + 40
   
   return `M ${sourceX} ${sourceY} L ${mousePosition.value.x} ${mousePosition.value.y}`
-}
-
-const openTaskModal = (node: PlayNode) => {
-  if (!node) return
-  selectNode(node.id)
-  showTaskModal.value = true
 }
 
 const openInterfaceModal = (node: PlayNode) => {

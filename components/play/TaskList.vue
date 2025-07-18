@@ -1,8 +1,126 @@
+<template>
+  <div class="space-y-4 px-4 pt-4">
+    
+    <div class="items-center">
+      <h3 class="font-medium text-lg">Grading Tasks</h3>
+      <p class="text-sm text-gray-500">Drag and drop to reorder tasks</p>
+    </div>
+
+    <div v-if="tasks.length === 0" class="text-center py-8 text-gray-500">
+      <FileText class="w-12 h-12 mx-auto mb-2 text-gray-300" />
+      <p>No tasks configured yet</p>
+      <p class="text-sm">Click "Add Task" to create your first grading task</p>
+    </div>
+
+    <div 
+      v-else 
+      class="space-y-2"
+    >
+      <div
+        v-for="(task, index) in tasks"
+        :key="task.id"
+        :draggable="true"
+        @dragstart="onDragStart($event, index)"
+        @dragend="onDragEnd"
+        @dragover.prevent="onDragOver($event, index)"
+        @dragleave="onDragLeave"
+        @drop.prevent="onDrop($event, index)"
+        class="group relative p-4 border rounded-lg cursor-move hover:bg-gray-50 transition-colors"
+        :class="{ 'border-blue-300 bg-blue-50': dragOverIndex === index }"
+      >
+        <!-- Drag Handle -->
+        <div class="absolute left-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
+          <GripVertical class="w-4 h-4 text-gray-400" />
+        </div>
+
+        <div class="ml-6 flex items-start justify-between">
+          <div class="flex-1">
+            <div class="flex items-center gap-3 mb-2">
+              <component :is="getTaskIcon(task.type)" class="w-5 h-5 text-blue-600" />
+              <div>
+                <h4 class="font-medium text-sm">{{ getTaskTypeName(task.type) }}</h4>
+                <p class="text-xs text-gray-500">{{ task.points }} points</p>
+              </div>
+            </div>
+
+            <div class="space-y-1 text-xs text-gray-600">
+              <div v-if="task.destinationIPs?.length">
+                <span class="font-medium">Targets:</span>
+                {{ task.destinationIPs.filter(ip => ip.trim()).join(', ') }}
+              </div>
+              
+              <div v-if="task.commands?.length && (task.type === 'show-command' || task.type === 'config-verify')">
+                <span class="font-medium">Commands:</span>
+                {{ task.commands.filter(cmd => cmd.trim()).join(', ') }}
+              </div>
+              
+              <div>
+                <span class="font-medium">Expected:</span>
+                {{ getExpectedResultText(task.expectedResult) }}
+                <span v-if="task.expectedOutput" class="ml-1">
+                  ("{{ task.expectedOutput.substring(0, 30) }}{{ task.expectedOutput.length > 30 ? '...' : '' }}")
+                </span>
+              </div>
+              
+              <div>
+                <span class="font-medium">Timeout:</span>
+                {{ task.timeout }}s
+              </div>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="ghost"
+              class="h-8 w-8 p-0"
+              @click="$emit('edit', task)"
+            >
+              <Edit2 class="w-4 h-4" />
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              class="h-8 w-8 p-0 text-red-600 hover:text-red-700"
+              @click="$emit('delete', task.id)"
+            >
+              <Trash2 class="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="tasks.length > 0" class="mt-4 p-3 bg-gray-50 rounded-lg">
+      <div class="flex items-center justify-between text-sm">
+        <span class="font-medium">Total Points:</span>
+        <span class="font-bold">{{ totalPoints }}</span>
+      </div>
+    </div>
+  </div>
+</template>
+
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
-import { VueDraggable } from 'vue-draggable-plus'
+import { ref, computed } from 'vue'
+import { 
+  Edit2, 
+  Trash2, 
+  FileText,
+  GripVertical,
+  Wifi,
+  Route,
+  Terminal,
+  Phone,
+  Monitor,
+  CheckCircle
+} from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import type { TaskConfig, PlayNode } from '@/types/play'
+
+interface TaskConfigWithNode extends TaskConfig {
+  nodeId: string
+  nodeName: string
+}
 
 interface Props {
   nodes: PlayNode[]
@@ -11,186 +129,128 @@ interface Props {
 interface Emits {
   (e: 'reorder', tasks: TaskConfigWithNode[]): void
   (e: 'delete', taskId: string): void
-  (e: 'edit' | 'duplicate', task: TaskConfigWithNode): void
-}
-
-interface TaskConfigWithNode extends TaskConfig {
-  nodeId: string
-  nodeName: string
+  (e: 'edit', task: TaskConfigWithNode): void
 }
 
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
-// Compute all tasks from all nodes first
-const allTasks = computed<TaskConfigWithNode[]>(() => {
-  const tasks: TaskConfigWithNode[] = []
-  
-  if (props.nodes && Array.isArray(props.nodes)) {
-    props.nodes.forEach(node => {
-      if (node.tasks && Array.isArray(node.tasks) && node.tasks.length > 0) {
-        node.tasks.forEach(task => {
-          tasks.push({
-            ...task,
-            nodeId: node.id,
-            nodeName: node.name
-          })
-        })
-      }
-    })
-  }
-  
-  return tasks
+// Compute all tasks from all nodes
+const tasks = computed((): TaskConfigWithNode[] => {
+  if (!props.nodes) return []
+  return props.nodes.flatMap(node => 
+    (node.tasks || []).map((task: TaskConfig) => ({
+      ...task,
+      nodeId: node.id,
+      nodeName: node.name
+    }))
+  )
 })
 
-// Create a local copy of tasks for drag and drop
-const localTasks = ref<TaskConfigWithNode[]>([...allTasks.value])
-
-// Update local tasks when allTasks changes
-watch(allTasks, (newTasks) => {
-  localTasks.value = [...newTasks]
-}, { immediate: true })
+const draggedIndex = ref<number | null>(null)
+const dragOverIndex = ref<number | null>(null)
 
 const totalPoints = computed(() => {
-  if (!localTasks.value || !Array.isArray(localTasks.value)) {
-    return 0
-  }
-  return localTasks.value.reduce((sum, task) => sum + (task.points || 0), 0)
+  return tasks.value.reduce((sum: number, task: TaskConfigWithNode) => sum + (task.points || 0), 0)
 })
 
-const onDragEnd = () => {
-  emit('reorder', localTasks.value)
-}
-
-const getTaskTypeLabel = (type: string): string => {
-  const labels: Record<string, string> = {
-    ping: 'Ping Test',
-    traceroute: 'Traceroute',
-    ssh: 'SSH Connect',
-    telnet: 'Telnet Connect',
-    'show-command': 'Show Command',
-    'config-verify': 'Config Verify'
+const getTaskIcon = (type: string) => {
+  const icons = {
+    'ping': Wifi,
+    'traceroute': Route,
+    'ssh': Terminal,
+    'telnet': Phone,
+    'show-command': Monitor,
+    'config-verify': CheckCircle
   }
-  return labels[type] || type
+  return icons[type as keyof typeof icons] || Monitor
 }
 
-const getNodeName = (nodeId: string): string => {
-  const node = props.nodes.find(n => n.id === nodeId)
-  return node?.name || 'Unknown'
+const getTaskTypeName = (type: string) => {
+  const names = {
+    'ping': 'Ping Test',
+    'traceroute': 'Traceroute',
+    'ssh': 'SSH Connectivity',
+    'telnet': 'Telnet Connectivity',
+    'show-command': 'Show Command',
+    'config-verify': 'Config Verification'
+  }
+  return names[type as keyof typeof names] || type
 }
 
-const deleteTask = (taskId: string) => {
-  emit('delete', taskId)
+const getExpectedResultText = (result: string) => {
+  const results = {
+    'success': 'Success',
+    'failure': 'Failure',
+    'timeout': 'Timeout',
+    'contains': 'Output Contains',
+    'not-contains': 'Output Not Contains'
+  }
+  return results[result as keyof typeof results] || result
 }
 
-const editTask = (task: TaskConfigWithNode) => {
-  emit('edit', task)
+const onDragStart = (event: DragEvent, index: number) => {
+  draggedIndex.value = index
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('text/plain', index.toString())
+  }
 }
 
-const duplicateTask = (task: TaskConfigWithNode) => {
-  emit('duplicate', task)
+const onDragEnd = () => {
+  draggedIndex.value = null
+  dragOverIndex.value = null
+}
+
+const onDragOver = (event: DragEvent, index: number) => {
+  event.preventDefault()
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = 'move'
+  }
+  
+  // Only show drag over effect if we're dragging over a different item
+  if (draggedIndex.value !== null && draggedIndex.value !== index) {
+    dragOverIndex.value = index
+  }
+}
+
+const onDragLeave = (event: DragEvent) => {
+  // Only clear drag over if we're leaving the container entirely
+  const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
+  const x = event.clientX
+  const y = event.clientY
+  
+  if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
+    dragOverIndex.value = null
+  }
+}
+
+const onDrop = (event: DragEvent, dropIndex: number) => {
+  event.preventDefault()
+  
+  if (draggedIndex.value === null || draggedIndex.value === dropIndex) {
+    draggedIndex.value = null
+    dragOverIndex.value = null
+    return
+  }
+  
+  const newTasks = [...tasks.value]
+  const draggedTask = newTasks[draggedIndex.value]
+  
+  // Remove the dragged task
+  newTasks.splice(draggedIndex.value, 1)
+  
+  // Insert at the new position
+  // If dragging from higher index to lower index, use dropIndex
+  // If dragging from lower index to higher index, use dropIndex - 1 (since we removed one item)
+  const insertIndex = draggedIndex.value > dropIndex ? dropIndex : dropIndex - 1
+  
+  // Insert at the new position
+  newTasks.splice(insertIndex, 0, draggedTask)
+  
+  emit('reorder', newTasks)
+  
+  draggedIndex.value = null
+  dragOverIndex.value = null
 }
 </script>
-<template>
-  <div class="w-80 border-l bg-white h-full flex flex-col">
-    <div class="p-4 border-b">
-      <h2 class="text-lg font-semibold">Grading Tasks</h2>
-      <p class="text-sm text-gray-600">Drag to reorder tasks</p>
-    </div>
-    
-    <div class="flex-1 overflow-y-auto p-4">
-      <div v-if="localTasks.length === 0" class="text-center py-8 text-gray-500">
-        <div class="text-4xl mb-2">📝</div>
-        <p>No tasks created yet</p>
-        <p class="text-xs mt-1">Configure tasks for devices to get started</p>
-      </div>
-      
-      <VueDraggable
-        v-else
-        v-model="localTasks"
-        class="space-y-3"
-        :animation="300"
-        ghost-class="opacity-50"
-        chosen-class="ring-2 ring-blue-500"
-        @end="onDragEnd"
-      >
-        <div
-          v-for="task in localTasks"
-          :key="task.id"
-          class="bg-gray-50 border border-gray-200 rounded-lg p-3 cursor-move hover:shadow-md transition-shadow"
-        >
-          <div class="flex items-start justify-between mb-2">
-            <div class="flex items-center gap-2">
-              <div class="w-2 h-2 rounded-full bg-blue-500" />
-              <span class="font-medium text-sm">{{ getTaskTypeLabel(task.type) }}</span>
-              <span class="text-xs bg-gray-200 px-2 py-1 rounded">{{ task.points }}pts</span>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              class="h-6 w-6 p-0 text-red-500 hover:text-red-700"
-              @click="deleteTask(task.id)"
-            >
-              ×
-            </Button>
-          </div>
-          
-          <div class="text-xs text-gray-600 space-y-1">
-            <div v-if="task.destinationIPs && task.destinationIPs.length > 0">
-              <span class="font-medium">Target:</span>
-              {{ task.destinationIPs.join(', ') }}
-            </div>
-            
-            <div v-if="task.commands && task.commands.length > 0">
-              <span class="font-medium">Commands:</span>
-              {{ task.commands.join('; ') }}
-            </div>
-            
-            <div>
-              <span class="font-medium">Expected:</span>
-              {{ task.expectedResult || 'N/A' }}
-              <span v-if="task.timeout" class="ml-2">
-                ({{ task.timeout }}s timeout)
-              </span>
-            </div>
-            
-            <div v-if="task.expectedOutput">
-              <span class="font-medium">Output:</span>
-              {{ task.expectedOutput.slice(0, 50) }}{{ task.expectedOutput.length > 50 ? '...' : '' }}
-            </div>
-          </div>
-          
-          <div class="mt-2 flex items-center justify-between">
-            <span class="text-xs text-gray-500">
-              Node: {{ getNodeName(task.nodeId) }}
-            </span>
-            <div class="flex gap-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                class="h-6 px-2 text-xs"
-                @click="editTask(task)"
-              >
-                Edit
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                class="h-6 px-2 text-xs"
-                @click="duplicateTask(task)"
-              >
-                Duplicate
-              </Button>
-            </div>
-          </div>
-        </div>
-      </VueDraggable>
-    </div>
-    
-    <div class="p-4 border-t bg-gray-50">
-      <div class="text-xs text-gray-600">
-        Total: {{ localTasks.length }} tasks • {{ totalPoints }} points
-      </div>
-    </div>
-  </div>
-</template>

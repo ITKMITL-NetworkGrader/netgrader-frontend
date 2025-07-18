@@ -1,28 +1,67 @@
 import { ref, computed, watch } from 'vue'
 import type { PlayNode, Connection, TaskConfig, NetworkInterface } from '@/types/play'
 
+// Global state storage for different play instances
+const playStates = new Map<string, {
+  nodes: any,
+  connections: any,
+  selectedNodeId: any,
+  connectingFrom: any,
+  selectedConnectionType: any,
+  isInterfaceModalOpen: any,
+  isTaskModalOpen: any,
+  editingTask: any,
+  modalNode: any,
+  modalTitle: any
+}>()
+
 export const usePlayCanvas = (playId?: string) => {
-  const nodes = ref<PlayNode[]>([
-    {
-      id: 'grader-1',
-      type: 'grader',
-      name: 'Grader',
-      position: { x: 100, y: 100 },
-      interfaces: [
-        {
-          id: 'grader-int-1',
-          name: 'Control',
-          type: 'ethernet',
-          status: 'up'
-        }
-      ]
-    }
-  ])
+  const id = playId || 'default'
   
-  const connections = ref<Connection[]>([])
-  const selectedNodeId = ref<string | null>(null)
-  const connectingFrom = ref<{ nodeId: string; interfaceId: string } | null>(null)
-  const selectedConnectionType = ref<string | null>(null)
+  // Get or create state for this play instance
+  if (!playStates.has(id)) {
+    playStates.set(id, {
+      nodes: ref<PlayNode[]>([
+        {
+          id: 'grader-1',
+          type: 'grader',
+          name: 'Grader',
+          position: { x: 100, y: 100 },
+          interfaces: [
+            {
+              id: 'grader-int-1',
+              name: 'Control',
+              type: 'ethernet',
+              status: 'up'
+            }
+          ]
+        }
+      ]),
+      connections: ref<Connection[]>([]),
+      selectedNodeId: ref<string | null>(null),
+      connectingFrom: ref<{ nodeId: string; interfaceId: string } | null>(null),
+      selectedConnectionType: ref<string | null>(null),
+      isInterfaceModalOpen: ref(false),
+      modalNode: ref<PlayNode | null>(null),
+      modalTitle: ref(''),
+      isTaskModalOpen: ref(false),
+      editingTask: ref<TaskConfig | null>(null)
+    })
+  }
+  
+  const state = playStates.get(id)!
+  const nodes = state.nodes
+  const connections = state.connections
+  const selectedNodeId = state.selectedNodeId
+  const connectingFrom = state.connectingFrom
+  const selectedConnectionType = state.selectedConnectionType
+  
+  // Task editing state
+  const isInterfaceModalOpen = state.isInterfaceModalOpen
+  const modalNode = state.modalNode
+  const modalTitle = state.modalTitle
+  const isTaskModalOpen = state.isTaskModalOpen
+  const editingTask = state.editingTask
 
   // Debug watcher to track when selectedConnectionType changes
   watch(selectedConnectionType, (newVal, oldVal) => {
@@ -36,13 +75,8 @@ export const usePlayCanvas = (playId?: string) => {
     console.trace('Call stack:')
   })
 
-  // State for the new interface selection modal
-  const isInterfaceModalOpen = ref(false)
-  const modalNode = ref<PlayNode | null>(null)
-  const modalTitle = ref('')
-
   const selectedNode = computed(() => 
-    nodes.value.find(node => node.id === selectedNodeId.value) || null
+    nodes.value.find((node: PlayNode) => node.id === selectedNodeId.value) || null
   )
 
   const setConnectionType = (type: string | null) => {
@@ -284,7 +318,21 @@ export const usePlayCanvas = (playId?: string) => {
       if (!selectedNode.value.tasks) {
         selectedNode.value.tasks = []
       }
-      selectedNode.value.tasks.push(config)
+      
+      const existingTaskIndex = selectedNode.value.tasks.findIndex(
+        task => task.id === config.id
+      )
+      
+      if (existingTaskIndex !== -1) {
+        // Update existing task
+        selectedNode.value.tasks[existingTaskIndex] = config
+      } else {
+        // Add new task
+        selectedNode.value.tasks.push(config)
+      }
+      
+      // Force reactivity by reassigning the entire nodes array
+      nodes.value = [...nodes.value]
     }
   }
 
@@ -314,6 +362,9 @@ export const usePlayCanvas = (playId?: string) => {
           })
       }
     })
+    
+    // Force reactivity
+    nodes.value = [...nodes.value]
   }
 
   const duplicateTask = (originalTask: TaskConfig, targetNodeId?: string) => {
@@ -345,6 +396,37 @@ export const usePlayCanvas = (playId?: string) => {
   if (selectedNodeId.value === nodeId) selectedNodeId.value = null
 }
 
+const openTaskModal = (nodeId: string, task?: TaskConfig) => {
+  selectNode(nodeId)
+  editingTask.value = task || null
+  isTaskModalOpen.value = true
+}
+
+const closeTaskModal = () => {
+  isTaskModalOpen.value = false
+  editingTask.value = null
+}
+
+const editTask = (taskId: string) => {
+  // Find the task and node
+  for (const node of nodes.value) {
+    if (node.tasks) {
+      const task = node.tasks.find(t => t.id === taskId)
+      if (task) {
+        openTaskModal(node.id, task)
+        return
+      }
+    }
+  }
+}
+
+// Watch for modal close to reset editing task
+watch(isTaskModalOpen, (isOpen) => {
+  if (!isOpen) {
+    editingTask.value = null
+  }
+})
+
   return {
     nodes,
     connections,
@@ -355,6 +437,8 @@ export const usePlayCanvas = (playId?: string) => {
     isInterfaceModalOpen,
     modalNode,
     modalTitle,
+    isTaskModalOpen,
+    editingTask,
     addNode,
     moveNode,
     selectNode,
@@ -368,5 +452,8 @@ export const usePlayCanvas = (playId?: string) => {
     initiateConnection,
     handleInterfaceSelection,
     cancelConnection,
+    openTaskModal,
+    closeTaskModal,
+    editTask,
   }
 }
