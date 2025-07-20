@@ -11,6 +11,7 @@ export default defineNuxtConfig({
   runtimeConfig: {
     public: {
       backend1url: process.env.NUXT_BACKEND1_URL,
+      dev_env: process.env.NUXT_DEV_ENV,
     },
   },
   compatibilityDate: '2025-05-15',

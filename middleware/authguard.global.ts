@@ -1,5 +1,4 @@
 import { useUserState } from "~/composables/states";
-
 export interface GetResponse {
     message: string;
     user: User;
@@ -7,9 +6,14 @@ export interface GetResponse {
 
 export default defineNuxtRouteMiddleware(async (to, from) => {
     const userState = useUserState();
+    const config = useRuntimeConfig()
+    const dev_env = config.public.dev_env ?? false;
     const access_token = useCookie("access_token");
     const excludedRoutes = [ "/login", "/", "/demo", "/oat"];
-
+    if (dev_env) {
+        console.log("Development environment detected, skipping authentication check.");
+        return;
+    }
     if (!userState.value && access_token.value) {
         await $fetch<GetResponse>("/api/auth/me", {
             headers: {
