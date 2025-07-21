@@ -57,7 +57,7 @@ onMounted(() => {
                             <p class="text-sm text-gray-500 mb-4">Instructor: {{ course.instructor }}</p>
                         </CardContent>
                         <CardFooter class="p-0">
-                            <NuxtLink to="/courses/" class="hover:underline">
+                            <NuxtLink to="/courses/{{ course.id }}" class="hover:underline">
                                 <Button class="w-full">
                                     View Course
                                 </Button>
