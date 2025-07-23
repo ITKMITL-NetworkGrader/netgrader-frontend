@@ -3,6 +3,26 @@ import '@fontsource/bai-jamjuree';
 import '@fontsource-variable/roboto-mono';
 import { StagewiseToolbar } from '@stagewise/toolbar-vue';
 
+// Initialize dark mode
+useDarkMode()
+
+// Add script to head to apply dark mode immediately
+useHead({
+  script: [
+    {
+      innerHTML: `
+        (function() {
+          document.documentElement.classList.add('dark');
+          if (typeof localStorage !== 'undefined') {
+            localStorage.setItem('theme', 'dark');
+          }
+        })();
+      `,
+      type: 'text/javascript'
+    }
+  ]
+})
+
 useSeoMeta({
         title: 'NetGrader',
         ogTitle: 'NetGrader',

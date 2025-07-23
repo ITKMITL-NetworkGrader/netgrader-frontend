@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import { Button } from '@/components/ui/button'
+import { FlickeringGrid } from '@/components/ui/flickering-grid'
 
 const { $anime } = useNuxtApp()
-
-const vantaEffect = ref<unknown>(null)
 
 onMounted(() => {
     $anime({
@@ -25,46 +24,30 @@ onMounted(() => {
         opacity: [0, 1],
         duration: 2000,
     });
-    // Load Three.js
-    const threeScript = document.createElement('script')
-    threeScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js'
-    document.head.appendChild(threeScript)
-
-    threeScript.onload = () => {
-        // Load Vanta.js after Three.js is loaded
-        const vantaScript = document.createElement('script')
-        vantaScript.src = 'https://cdn.jsdelivr.net/npm/vanta@latest/dist/vanta.net.min.js'
-        document.head.appendChild(vantaScript)
-
-        vantaScript.onload = () => {
-            // Initialize Vanta effect
-            vantaEffect.value = (window as unknown as { VANTA: { NET: (config: unknown) => { destroy: () => void } } }).VANTA.NET({
-                el: "body",
-                mouseControls: true,
-                touchControls: true,
-                gyroControls: false,
-                minHeight: 200.00,
-                minWidth: 200.00,
-                scale: 1.00,
-                scaleMobile: 1.00,
-                color: 0xe4c090,
-                backgroundColor: 0xfdfbf7
-            })
-        }
-    }   
 });
-
-onBeforeUnmount(() => {
-    if (vantaEffect.value && typeof vantaEffect.value === 'object' && vantaEffect.value !== null && 'destroy' in vantaEffect.value) {
-        (vantaEffect.value as { destroy: () => void }).destroy()
-    }
-})
 
 </script>
 
 <template>
-    <div>
-        <div class="font-roboto-mono flex flex-col items-center justify-center min-h-[calc(100vh-theme(spacing.28))] text-center">
+    <div class="relative min-h-[calc(100vh-theme(spacing.28))] overflow-hidden">
+        <!-- FlickeringGrid Background -->
+        <ClientOnly>
+            <div class="absolute inset-0 w-full h-full">
+                <FlickeringGrid
+                    class="relative inset-0 z-0 [mask-image:radial-gradient(350px_circle_at_center,white,transparent)]"
+                    :square-size="4"
+                    :grid-gap="6"
+                    color="#60A5FA"
+                    :max-opacity="0.5"
+                    :flicker-chance="0.1"
+                    :width="800"
+                    :height="800"
+                />
+            </div>
+        </ClientOnly>
+        
+        <!-- Content -->
+        <div class="relative z-10 font-roboto-mono flex flex-col items-center justify-center min-h-[calc(100vh-theme(spacing.28))] text-center">
             <h1 id="hero-title" class="text-5xl font-semibold">NetGrader</h1>
             <p id="hero-subtitle" class="mt-2 text-xl">Your go-to platform for grading network configurations!</p>
             <div class="flex justify-center">

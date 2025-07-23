@@ -27,7 +27,7 @@ const teamMembers = [
       class="absolute inset-0 bg-gradient-to-t from-secondary/10 via-secondary/5 to-transparent pointer-events-none" />
 
     <div class="relative glass border-t border-border/30 supports-[backdrop-filter]:bg-background/60">
-      <div class="layout-container py-8">
+      <div class="layout-container py-8 mx-8 sm:mx-10 lg:mx-12">
         <!-- Main footer content -->
         <div class="flex flex-col lg:flex-row gap-6 lg:gap-8 justify-between items-start lg:items-center">
           <!-- Brand and copyright -->
