@@ -5,7 +5,7 @@
     :class="[
       'absolute w-20 h-20 border-2 rounded-lg cursor-move select-none',
       selected ? 'border-blue-500 shadow-lg' : 'border-gray-300',
-      'bg-white hover:shadow-md transition-shadow'
+      'bg-card hover:shadow-md transition-shadow'
     ]"
     @mousedown="onMouseDown"
     @click.stop="handleClick"

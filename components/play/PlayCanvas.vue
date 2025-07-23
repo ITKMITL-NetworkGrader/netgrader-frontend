@@ -1,7 +1,7 @@
 <template>
   <div 
     ref="canvasRef"
-    class="relative w-full h-full bg-gray-100"
+    class="relative w-full h-full bg-muted"
     @drop="onDrop"
     @dragover.prevent
     @dragenter.prevent
@@ -12,7 +12,7 @@
       <svg width="100%" height="100%">
         <defs>
           <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
-            <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#e5e7eb" stroke-width="1"/>
+            <path d="M 20 0 L 0 0 0 20" fill="none" stroke="currentColor" stroke-width="1" class="text-border"/>
           </pattern>
         </defs>
         <rect width="100%" height="100%" fill="url(#grid)" />
@@ -81,7 +81,7 @@
       <!-- Connection mode indicator -->
       <div 
         v-if="selectedConnectionType && !connectingFrom" 
-        class="absolute top-4 left-4 bg-green-100 border border-green-300 rounded px-3 py-1 text-sm z-10"
+        class="absolute top-4 left-4 bg-green-100 dark:bg-green-900/20 border border-green-300 dark:border-green-600 rounded px-3 py-1 text-sm z-10 text-green-800 dark:text-green-200"
       >
         Connection mode active: {{ selectedConnectionType }}. Click on a node to start wiring.
       </div>
@@ -89,7 +89,7 @@
       <!-- Connection status indicator -->
       <div 
         v-if="connectingFrom" 
-        class="absolute top-4 left-4 bg-blue-100 border border-blue-300 rounded px-3 py-1 text-sm z-10"
+        class="absolute top-4 left-4 bg-blue-100 dark:bg-blue-900/20 border border-blue-300 dark:border-blue-600 rounded px-3 py-1 text-sm z-10 text-blue-800 dark:text-blue-200"
       >
         Connecting from {{ getNodeName(connectingFrom.nodeId) }} ({{ getInterfaceName(connectingFrom.nodeId, connectingFrom.interfaceId) }})... Click on another node to complete connection
       </div>

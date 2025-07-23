@@ -15,11 +15,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Skeleton } from '@/components/ui/skeleton'
 import PartSidebar from '@/components/lab/PartSidebar.vue'
-import TextEditor from '@/components/lab/TextEditor.vue'
+import ClientOnlyTextEditor from '@/components/lab/ClientOnlyTextEditor.vue'
 import PlaySelectionModal from '@/components/lab/PlaySelectionModal.vue'
 import { useExamManagement } from '@/composables/useExamManagement'
 import { usePlayBank } from '@/composables/usePlayBank'
 import { useVariableResolver } from '@/composables/useVariableResolver'
+import { useFormValidation, validationRules } from '@/composables/useFormValidation'
+import { useApiErrorHandler } from '@/composables/useApiErrorHandler'
+import { useNotifications } from '@/composables/useNotifications'
+import { LoadingButton, LoadingSpinner } from '@/components/ui/loading-states'
 import { Home, BookOpen, Save, X, AlertTriangle, Clock, Users, Settings, Upload, Download, Eye, RefreshCw, FileText } from 'lucide-vue-next'
 import type { Play, PlayVariableBinding, ExamFormData, SubnetGenerationConfig, ExamConfiguration, Exam } from '@/types/lab'
 
@@ -52,6 +56,32 @@ const {
 
 // Variable resolver
 const { generateExamConfig } = useVariableResolver()
+
+// Form validation
+const {
+  addField,
+  setFieldValue,
+  touchField,
+  getFieldError,
+  hasFieldError,
+  isFormValid,
+  validateForm,
+  submitForm
+} = useFormValidation()
+
+// API error handling
+const { apiCall, error: apiError, isLoading: isApiLoading } = useApiErrorHandler()
+
+// Notifications
+const {
+  showSuccess,
+  showError,
+  showSaveSuccess,
+  showSaveError,
+  showUploadSuccess,
+  showUploadError,
+  showNetworkError
+} = useNotifications()
 
 // Form state
 const examTitle = ref('')
@@ -203,7 +233,7 @@ const handlePlaySelect = (play: Play, variables: PlayVariableBinding[]) => {
   const variableBindings = variables.reduce((acc, binding) => {
     acc[binding.variableName] = binding.value
     return acc
-  }, {} as Record<string, any>)
+  }, {} as Record<string, unknown>)
   
   updatePartPlay(play.id, variableBindings)
   showPlayModal.value = false
@@ -228,13 +258,12 @@ const handleFileUpload = (event: Event) => {
 
 const uploadStudentCSV = async () => {
   if (!csvFile.value) {
-    toast.error('Please select a CSV file first')
+    showError('Please select a CSV file first')
     return
   }
 
-  isUploadingCSV.value = true
-  try {
-    const text = await csvFile.value.text()
+  const result = await apiCall(async () => {
+    const text = await csvFile.value!.text()
     const lines = text.split('\n').filter(line => line.trim())
     const students: Array<{ studentId: string; name?: string }> = []
 
@@ -250,18 +279,21 @@ const uploadStudentCSV = async () => {
     }
 
     if (students.length === 0) {
-      toast.error('No valid student records found in CSV')
-      return
+      throw new Error('No valid student records found in CSV')
     }
 
-    enrolledStudents.value = students
+    return students
+  }, {
+    showErrorToast: false,
+    loadingState: false
+  })
+
+  if (result.success && result.data) {
+    enrolledStudents.value = result.data
     hasUnsavedChanges.value = true
-    toast.success(`${students.length} students enrolled successfully`)
-  } catch (error) {
-    console.error('CSV upload failed:', error)
-    toast.error('Failed to process CSV file')
-  } finally {
-    isUploadingCSV.value = false
+    showUploadSuccess(`${result.data.length} students enrolled`)
+  } else if (result.error) {
+    showUploadError(csvFile.value.name, result.error.message)
   }
 }
 
@@ -377,12 +409,12 @@ const loadExamData = async () => {
 
 // Save and cancel handlers
 const handleSave = async () => {
-  if (!canSave.value) {
-    toast.error('Please fix validation errors before saving')
-    return
-  }
+  const success = await submitForm(async () => {
+    if (!canSave.value) {
+      showError('Please fix validation errors before saving')
+      return
+    }
 
-  try {
     const examData: ExamFormData = {
       title: examTitle.value,
       description: examDescription.value,
@@ -391,22 +423,30 @@ const handleSave = async () => {
       subnetGenerationConfig: subnetConfig.value
     }
 
-    const response = await updateExam(examId.value, examData)
+    const result = await apiCall(async () => {
+      return await updateExam(examId.value, examData)
+    }, {
+      retries: 2,
+      showErrorToast: false
+    })
     
-    if (response.success) {
+    if (result.success && result.data?.success) {
       hasUnsavedChanges.value = false
-      toast.success('Exam updated successfully!')
+      showSaveSuccess('Exam')
       
       // Check if configurations need regeneration
       if (hasConfigurationChanges.value) {
         showConfigRegenerationDialog.value = true
       }
     } else {
-      toast.error(response.error?.message || 'Failed to update exam')
+      const errorMessage = result.error?.message || result.data?.error?.message || 'Failed to update exam'
+      showSaveError('Exam', () => handleSave())
+      throw new Error(errorMessage)
     }
-  } catch (error) {
-    console.error('Save error:', error)
-    toast.error('Failed to update exam. Please try again.')
+  })
+
+  if (!success) {
+    showError('Please fix validation errors before saving')
   }
 }
 
@@ -432,12 +472,21 @@ const handleCancelNavigation = () => {
   pendingNavigation.value = null
 }
 
+// Initialize validation fields
+const initializeValidation = () => {
+  addField('examTitle', examTitle.value, { ...validationRules.required, minLength: 3, maxLength: 100 })
+  addField('examDescription', examDescription.value, { maxLength: 500 })
+  addField('timeLimit', timeLimit.value, { ...validationRules.positiveNumber, min: 1, max: 480 })
+  addField('baseNetwork', subnetConfig.value.baseNetwork, validationRules.subnet)
+}
+
 // Initialize
 onMounted(async () => {
   await Promise.all([
     loadPlays(),
     loadExamData()
   ])
+  initializeValidation()
 })
 
 // Navigation guard
@@ -463,7 +512,7 @@ useHead({
 <template>
   <div class="min-h-screen bg-background">
     <!-- Header with Breadcrumb -->
-    <div class="border-b border-border bg-card">
+    <div class="">
       <div class="container mx-auto px-4 py-4">
         <Breadcrumb class="mb-4">
           <BreadcrumbList>
@@ -565,8 +614,16 @@ useHead({
                       id="exam-title"
                       v-model="examTitle"
                       placeholder="Enter exam title..."
-                      :class="{ 'border-destructive': !examTitle.trim() && examTitle !== '' }"
+                      :class="{ 
+                        'border-destructive focus:border-destructive focus:ring-destructive': hasFieldError('examTitle')
+                      }"
+                      @input="setFieldValue('examTitle', examTitle)"
+                      @blur="touchField('examTitle')"
                     />
+                    <div v-if="getFieldError('examTitle')" class="flex items-center space-x-1 text-sm text-destructive">
+                      <AlertTriangle class="w-4 h-4" />
+                      <span>{{ getFieldError('examTitle') }}</span>
+                    </div>
                   </div>
                   
                   <div class="space-y-2">
@@ -581,7 +638,16 @@ useHead({
                       min="1"
                       max="480"
                       placeholder="120"
+                      :class="{ 
+                        'border-destructive focus:border-destructive focus:ring-destructive': hasFieldError('timeLimit')
+                      }"
+                      @input="setFieldValue('timeLimit', timeLimit)"
+                      @blur="touchField('timeLimit')"
                     />
+                    <div v-if="getFieldError('timeLimit')" class="flex items-center space-x-1 text-sm text-destructive">
+                      <AlertTriangle class="w-4 h-4" />
+                      <span>{{ getFieldError('timeLimit') }}</span>
+                    </div>
                   </div>
                 </div>
                 
@@ -592,7 +658,16 @@ useHead({
                     v-model="examDescription"
                     placeholder="Describe the purpose and objectives of this exam..."
                     rows="3"
+                    :class="{ 
+                      'border-destructive focus:border-destructive focus:ring-destructive': hasFieldError('examDescription')
+                    }"
+                    @input="setFieldValue('examDescription', examDescription)"
+                    @blur="touchField('examDescription')"
                   />
+                  <div v-if="getFieldError('examDescription')" class="flex items-center space-x-1 text-sm text-destructive">
+                    <AlertTriangle class="w-4 h-4" />
+                    <span>{{ getFieldError('examDescription') }}</span>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -733,7 +808,16 @@ useHead({
                       id="base-network"
                       v-model="subnetConfig.baseNetwork"
                       placeholder="10.30.6.0/24"
+                      :class="{ 
+                        'border-destructive focus:border-destructive focus:ring-destructive': hasFieldError('baseNetwork')
+                      }"
+                      @input="setFieldValue('baseNetwork', subnetConfig.baseNetwork)"
+                      @blur="touchField('baseNetwork')"
                     />
+                    <div v-if="getFieldError('baseNetwork')" class="flex items-center space-x-1 text-sm text-destructive">
+                      <AlertTriangle class="w-4 h-4" />
+                      <span>{{ getFieldError('baseNetwork') }}</span>
+                    </div>
                   </div>
                 </div>
 
@@ -876,7 +960,7 @@ function generateConfig(studentId, examNumber) {
       </div>
 
       <!-- Main Editor Layout -->
-      <div class="flex-1 flex">
+      <div class="container mx-auto flex-1 flex px-4">
         <!-- Part Sidebar -->
         <PartSidebar
           :parts="parts"
@@ -891,7 +975,7 @@ function generateConfig(studentId, examNumber) {
 
         <!-- Content Editor -->
         <div class="flex-1 flex flex-col">
-          <TextEditor
+          <ClientOnlyTextEditor
             v-if="currentPartData"
             :model-value="currentPartData.content"
             :title="currentPartData.title"

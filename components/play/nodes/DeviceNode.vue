@@ -3,8 +3,8 @@
     :style="{ left: `${node.position.x}px`, top: `${node.position.y}px` }"
     :class="[
       'absolute border-2 rounded-lg cursor-pointer select-none',
-      selected ? 'border-blue-500 shadow-lg' : 'border-gray-300',
-      'bg-white hover:shadow-md transition-shadow',
+      selected ? 'border-primary shadow-lg' : 'border-border',
+      'bg-card hover:shadow-md transition-shadow',
       getNodeSize()
     ]"
     @mousedown="onMouseDown"
@@ -25,7 +25,7 @@
       <span class="text-xs font-medium truncate w-full text-center">
         {{ node.name }}
       </span>
-      <span v-if="node.model" class="text-xs text-gray-500 truncate w-full text-center">
+      <span v-if="node.model" class="text-xs text-muted-foreground truncate w-full text-center">
         {{ node.model }}
       </span>
       <span v-if="node.managementIP" class="text-xs text-blue-600 truncate w-full text-center">
@@ -38,7 +38,7 @@
     <!-- <div
       v-for="(interfaceItem, index) in visibleInterfaces"
       :key="`label-${interfaceItem.id}`"
-      class="absolute text-xs bg-white px-1 rounded border pointer-events-none"
+      class="absolute text-xs bg-card px-1 rounded border pointer-events-none"
       :style="getInterfaceLabelPosition(index)"
     >
       {{ interfaceItem.name }}
@@ -104,7 +104,7 @@ const getIconColor = () => {
     'cisco-switch': 'text-green-600',
     'cisco-router': 'text-orange-600'
   }
-  return colors[props.node.deviceType as keyof typeof colors] || 'text-gray-600'
+  return colors[props.node.deviceType as keyof typeof colors] || 'text-muted-foreground'
 }
 
 const getInterfaceColor = (interfaceItem: NetworkInterface) => {

@@ -2,10 +2,11 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Skeleton } from '@/components/ui/skeleton'
+import { PageLoadingState } from '@/components/ui/loading-states'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { AlertCircle } from 'lucide-vue-next'
 import PartSidebar from '@/components/lab/PartSidebar.vue'
-import TextEditor from '@/components/lab/TextEditor.vue'
+import ClientOnlyTextEditor from '@/components/lab/ClientOnlyTextEditor.vue'
 import GradingStatus from '@/components/lab/GradingStatus.vue'
 import { useLabManagement } from '@/composables/useLabManagement'
 import { useGradingStatus } from '@/composables/useGradingStatus'
@@ -199,20 +200,16 @@ onMounted(() => {
 <template>
   <div class="min-h-screen bg-background">
     <!-- Loading State -->
-    <div v-if="isLoading" class="flex h-screen">
-      <div class="w-64 border-r border-border p-4">
-        <Skeleton class="h-6 w-24 mb-4" />
-        <div class="space-y-2">
-          <Skeleton class="h-12 w-full" />
-          <Skeleton class="h-12 w-full" />
-          <Skeleton class="h-12 w-full" />
-        </div>
-      </div>
-      <div class="flex-1 p-4">
-        <Skeleton class="h-8 w-48 mb-4" />
-        <Skeleton class="h-64 w-full" />
-      </div>
-    </div>
+    <PageLoadingState 
+      v-if="isLoading"
+      content-type="generic"
+      :show-sidebar="true"
+      :show-header="true"
+      :show-header-description="true"
+      :show-header-actions="false"
+      :show-sidebar-actions="false"
+      :sidebar-items="3"
+    />
     
     <!-- Error State -->
     <div v-else-if="error" class="p-8">
@@ -258,7 +255,7 @@ onMounted(() => {
         
         <!-- Part Content -->
         <div class="flex-1 flex flex-col">
-          <TextEditor
+          <ClientOnlyTextEditor
             v-if="currentPartData"
             :model-value="resolvedContent"
             :title="currentPartData.title"

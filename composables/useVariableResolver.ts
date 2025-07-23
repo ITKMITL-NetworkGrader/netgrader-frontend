@@ -1,7 +1,12 @@
 import type { ExamConfiguration } from '~/types/lab'
 
 export const useVariableResolver = () => {
-  const resolveVariables = (
+  const { memoize } = usePerformanceOptimization()
+  
+  // Memoized variable resolution cache
+  const variableCache = new Map<string, string>()
+  // Memoized variable resolution for better performance
+  const resolveVariables = memoize((
     template: string,
     variables: Record<string, any>,
     studentId?: string,
@@ -37,9 +42,12 @@ export const useVariableResolver = () => {
     })
 
     return resolved
-  }
+  }, (template, variables, studentId, groupNumber) => 
+    `${template}-${JSON.stringify(variables)}-${studentId || ''}-${groupNumber || ''}`
+  )
 
-  const generateExamConfig = (studentId: string, examNumber: number): ExamConfiguration => {
+  // Memoized exam configuration generation
+  const generateExamConfig = memoize((studentId: string, examNumber: number): ExamConfiguration => {
     const student_id = Number(studentId)
 
     // Algorithm from requirements for subnet generation
@@ -66,7 +74,7 @@ export const useVariableResolver = () => {
       outInterfaceIpv6,
       generatedAnswers: generateDetailedAnswers(student_id, examNumber, dec2, dec3, vlan1, vlan2)
     }
-  }
+  }, (studentId, examNumber) => `${studentId}-${examNumber}`)
 
   const generateDetailedAnswers = (
     studentId: number,

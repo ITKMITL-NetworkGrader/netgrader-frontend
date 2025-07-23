@@ -12,7 +12,7 @@
         <div
           v-for="iface in availableInterfaces"
           :key="iface.id"
-          class="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
+          class="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-accent/50 transition-colors"
           @click="selectInterface(iface.id)"
         >
           <div 
@@ -21,13 +21,13 @@
           />
           <div class="flex-1">
             <p class="font-medium">{{ iface.name }}</p>
-            <p v-if="iface.ipAddress" class="text-sm text-gray-500">
+            <p v-if="iface.ipAddress" class="text-sm text-muted-foreground">
               {{ iface.ipAddress }}
             </p>
           </div>
-          <ChevronRight class="w-4 h-4 text-gray-400" />
+          <ChevronRight class="w-4 h-4 text-muted-foreground" />
         </div>
-        <div v-if="availableInterfaces.length === 0" class="text-center text-gray-500 py-4">
+        <div v-if="availableInterfaces.length === 0" class="text-center text-muted-foreground py-4">
           No available interfaces on this device.
         </div>
       </div>

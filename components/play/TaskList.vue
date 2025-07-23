@@ -2,14 +2,14 @@
   <div class="space-y-4 px-4 pt-4">
     
     <div class="items-center">
-      <h3 class="font-medium text-lg">Grading Tasks</h3>
-      <p class="text-sm text-gray-500">Drag and drop to reorder tasks</p>
+      <h3 class="font-medium text-lg text-foreground">Grading Tasks</h3>
+      <p class="text-sm text-muted-foreground">Drag and drop to reorder tasks</p>
     </div>
 
-    <div v-if="tasks.length === 0" class="text-center py-8 text-gray-500">
-      <FileText class="w-12 h-12 mx-auto mb-2 text-gray-300" />
+    <div v-if="tasks.length === 0" class="text-center py-8 text-muted-foreground">
+      <FileText class="w-12 h-12 mx-auto mb-2 text-muted-foreground/50" />
       <p>No tasks configured yet</p>
-      <p class="text-sm">Click "Add Task" to create your first grading task</p>
+      <p class="text-sm">Right click a device node to create your first grading task</p>
     </div>
 
     <div 
@@ -20,30 +20,30 @@
         v-for="(task, index) in tasks"
         :key="task.id"
         :draggable="true"
+        class="group relative p-4 border rounded-lg cursor-move hover:bg-accent/50 transition-colors border-border"
+        :class="{ 'border-primary bg-primary/10': dragOverIndex === index }"
         @dragstart="onDragStart($event, index)"
         @dragend="onDragEnd"
         @dragover.prevent="onDragOver($event, index)"
         @dragleave="onDragLeave"
         @drop.prevent="onDrop($event, index)"
-        class="group relative p-4 border rounded-lg cursor-move hover:bg-gray-50 transition-colors"
-        :class="{ 'border-blue-300 bg-blue-50': dragOverIndex === index }"
       >
         <!-- Drag Handle -->
         <div class="absolute left-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
-          <GripVertical class="w-4 h-4 text-gray-400" />
+          <GripVertical class="w-4 h-4 text-muted-foreground/50" />
         </div>
 
         <div class="ml-6 flex items-start justify-between">
           <div class="flex-1">
             <div class="flex items-center gap-3 mb-2">
-              <component :is="getTaskIcon(task.type)" class="w-5 h-5 text-blue-600" />
+              <component :is="getTaskIcon(task.type)" class="w-5 h-5 text-primary" />
               <div>
-                <h4 class="font-medium text-sm">{{ getTaskTypeName(task.type) }}</h4>
-                <p class="text-xs text-gray-500">{{ task.points }} points</p>
+                <h4 class="font-medium text-sm text-foreground">{{ getTaskTypeName(task.type) }}</h4>
+                <p class="text-xs text-muted-foreground">{{ task.points }} points</p>
               </div>
             </div>
 
-            <div class="space-y-1 text-xs text-gray-600">
+            <div class="space-y-1 text-xs text-muted-foreground">
               <div v-if="task.destinationIPs?.length">
                 <span class="font-medium">Targets:</span>
                 {{ task.destinationIPs.filter(ip => ip.trim()).join(', ') }}
@@ -81,7 +81,7 @@
             <Button
               size="sm"
               variant="ghost"
-              class="h-8 w-8 p-0 text-red-600 hover:text-red-700"
+              class="h-8 w-8 p-0 text-destructive hover:text-destructive/80"
               @click="$emit('delete', task.id)"
             >
               <Trash2 class="w-4 h-4" />
@@ -91,10 +91,10 @@
       </div>
     </div>
 
-    <div v-if="tasks.length > 0" class="mt-4 p-3 bg-gray-50 rounded-lg">
+    <div v-if="tasks.length > 0" class="mt-4 p-3 bg-muted/50 rounded-lg">
       <div class="flex items-center justify-between text-sm">
-        <span class="font-medium">Total Points:</span>
-        <span class="font-bold">{{ totalPoints }}</span>
+        <span class="font-medium text-foreground">Total Points:</span>
+        <span class="font-bold text-primary">{{ totalPoints }}</span>
       </div>
     </div>
   </div>

@@ -1,7 +1,7 @@
 <template>
-  <div class="w-64 bg-sidebar border-r border-sidebar-border h-full">
-    <div class="p-4">
-      <h3 class="font-semibold text-sidebar-foreground mb-4">
+  <div class="w-64 bg-sidebar/50 border-r border-sidebar-border/30 min-h-full flex flex-col">
+    <div class="p-4 flex-1">
+      <h3 class="font-semibold text-sidebar-foreground/90 mb-4">
         {{ mode === 'exam' ? 'Exam Parts' : 'Lab Parts' }}
       </h3>
       
@@ -12,8 +12,8 @@
           :class="[
             'flex items-center justify-between p-3 rounded-lg cursor-pointer transition-colors',
             currentPart === index 
-              ? 'bg-sidebar-accent text-sidebar-accent-foreground' 
-              : 'hover:bg-sidebar-accent/50',
+              ? 'bg-primary/15 text-primary border border-primary/20' 
+              : 'hover:bg-muted/70 hover:border hover:border-border/50',
             isPartDisabled(index) ? 'opacity-50 cursor-not-allowed' : ''
           ]"
           @click="selectPart(index)"
@@ -54,7 +54,7 @@
         Add Part
       </Button>
       
-      <div v-if="showProgress && totalParts > 0" class="mt-4 pt-4 border-t border-sidebar-border">
+      <div v-if="showProgress && totalParts > 0" class="mt-4 pt-4 border-t border-sidebar-border/30">
         <div class="text-sm text-muted-foreground mb-2">
           Progress: {{ completedParts }}/{{ totalParts }}
         </div>

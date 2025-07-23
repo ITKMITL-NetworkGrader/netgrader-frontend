@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Progress } from '@/components/ui/progress'
 import { AlertCircle, Clock, User, FileText } from 'lucide-vue-next'
 import PartSidebar from '@/components/lab/PartSidebar.vue'
-import TextEditor from '@/components/lab/TextEditor.vue'
+import ClientOnlyTextEditor from '@/components/lab/ClientOnlyTextEditor.vue'
 import GradingStatus from '@/components/lab/GradingStatus.vue'
 import StudentConfiguration from '@/components/exam/StudentConfiguration.vue'
 import { useExamManagement } from '@/composables/useExamManagement'
@@ -417,7 +417,7 @@ const handleSubmitGrading = async () => {
 }
 
 // Validate student answers against personalized configuration
-const validateCurrentAnswers = (answers: Record<string, any>) => {
+const validateCurrentAnswers = (answers: Record<string, unknown>) => {
   if (!studentConfig.value) {
     return { isValid: false, errors: ['Student configuration not available'], score: 0 }
   }
@@ -779,7 +779,7 @@ useHead({
         
         <!-- Part Content -->
         <div class="flex-1 flex flex-col">
-          <TextEditor
+          <ClientOnlyTextEditor
             v-if="currentPartData"
             :model-value="resolvedContent"
             :title="currentPartData.title"

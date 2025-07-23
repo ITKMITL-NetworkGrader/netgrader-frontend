@@ -1,0 +1,1 @@
+export { default as ValidatedTextarea } from './ValidatedTextarea.vue'

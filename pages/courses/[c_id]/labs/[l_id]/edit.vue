@@ -14,8 +14,9 @@ import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbP
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
+import { PageLoadingState } from '@/components/ui/loading-states'
 import PartSidebar from '@/components/lab/PartSidebar.vue'
-import TextEditor from '@/components/lab/TextEditor.vue'
+import ClientOnlyTextEditor from '@/components/lab/ClientOnlyTextEditor.vue'
 import PlaySelectionModal from '@/components/lab/PlaySelectionModal.vue'
 import GroupManagement from '@/components/lab/GroupManagement.vue'
 import { useLabManagement } from '@/composables/useLabManagement'
@@ -322,102 +323,16 @@ useHead({
 <template>
   <div class="min-h-screen bg-background">
     <!-- Loading State -->
-    <div v-if="isInitialLoading" class="min-h-screen">
-      <!-- Header Skeleton -->
-      <div class="border-b border-border bg-card">
-        <div class="container mx-auto px-4 py-4">
-          <div class="mb-4">
-            <Skeleton class="h-4 w-96 mb-2" />
-          </div>
-          <div class="flex items-center justify-between">
-            <div>
-              <Skeleton class="h-8 w-48 mb-2" />
-              <Skeleton class="h-4 w-64" />
-            </div>
-            <div class="flex items-center space-x-2">
-              <Skeleton class="h-6 w-20" />
-              <Skeleton class="h-6 w-16" />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Lab Configuration Skeleton -->
-      <div class="container mx-auto px-4 py-6">
-        <Card class="mb-6">
-          <CardHeader>
-            <Skeleton class="h-6 w-32 mb-2" />
-            <Skeleton class="h-4 w-64" />
-          </CardHeader>
-          <CardContent class="space-y-4">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div class="space-y-2">
-                <Skeleton class="h-4 w-20" />
-                <Skeleton class="h-10 w-full" />
-              </div>
-              <div class="space-y-2">
-                <Skeleton class="h-4 w-32" />
-                <Skeleton class="h-6 w-48" />
-              </div>
-            </div>
-            <div class="space-y-2">
-              <Skeleton class="h-4 w-24" />
-              <Skeleton class="h-20 w-full" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <!-- Editor Layout Skeleton -->
-      <div class="flex-1 flex">
-        <!-- Sidebar Skeleton -->
-        <div class="w-64 bg-sidebar border-r border-sidebar-border p-4">
-          <Skeleton class="h-6 w-20 mb-4" />
-          <div class="space-y-2">
-            <Skeleton class="h-12 w-full" />
-            <Skeleton class="h-12 w-full" />
-            <Skeleton class="h-12 w-full" />
-          </div>
-          <Skeleton class="h-10 w-full mt-4" />
-        </div>
-
-        <!-- Editor Skeleton -->
-        <div class="flex-1 flex flex-col">
-          <div class="border-b border-border p-4">
-            <Skeleton class="h-10 w-full" />
-          </div>
-          <div class="border-b border-border p-2">
-            <div class="flex items-center space-x-2">
-              <Skeleton class="h-8 w-8" />
-              <Skeleton class="h-8 w-8" />
-              <Skeleton class="h-8 w-20" />
-              <Skeleton class="h-8 w-16" />
-            </div>
-          </div>
-          <div class="flex-1 p-4">
-            <div class="space-y-4">
-              <Skeleton class="h-4 w-full" />
-              <Skeleton class="h-4 w-3/4" />
-              <Skeleton class="h-4 w-5/6" />
-              <Skeleton class="h-4 w-2/3" />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Action Bar Skeleton -->
-      <div class="border-t border-border bg-card">
-        <div class="container mx-auto px-4 py-4">
-          <div class="flex items-center justify-between">
-            <Skeleton class="h-4 w-32" />
-            <div class="flex items-center space-x-3">
-              <Skeleton class="h-10 w-20" />
-              <Skeleton class="h-10 w-24" />
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <PageLoadingState 
+      v-if="isInitialLoading"
+      content-type="editor"
+      :show-sidebar="true"
+      :show-header="true"
+      :show-header-description="true"
+      :show-header-actions="true"
+      :show-sidebar-actions="true"
+      :sidebar-items="3"
+    />
 
     <!-- Error State -->
     <div v-else-if="loadingError" class="min-h-screen flex items-center justify-center">
@@ -446,7 +361,7 @@ useHead({
     <!-- Main Content -->
     <div v-else>
       <!-- Header with Breadcrumb -->
-      <div class="border-b border-border bg-card">
+      <div class="border-b border-border">
         <div class="container mx-auto px-4 py-4">
           <Breadcrumb class="mb-4">
             <BreadcrumbList>
@@ -601,7 +516,7 @@ useHead({
       </div>
 
       <!-- Main Editor Layout -->
-      <div class="flex-1 flex">
+      <div class="container mx-auto flex-1 flex px-4">
         <!-- Part Sidebar -->
         <PartSidebar
           :parts="parts"
@@ -616,7 +531,7 @@ useHead({
 
         <!-- Content Editor -->
         <div class="flex-1 flex flex-col">
-          <TextEditor
+          <ClientOnlyTextEditor
             v-if="currentPartData"
             :model-value="currentPartData.content"
             :title="currentPartData.title"

@@ -8,13 +8,13 @@
           v-for="deviceItem in deviceTypes"
           :key="deviceItem.type"
           :draggable="true"
+          class="flex items-center gap-2 p-2 border rounded cursor-move hover:bg-muted/50"
           @dragstart="onDragStart($event, deviceItem.type)"
-          class="flex items-center gap-2 p-2 border rounded cursor-move hover:bg-gray-50"
         >
           <component :is="deviceItem.icon" class="w-5 h-5" :class="deviceItem.iconColor" />
           <div class="flex-1">
             <div class="text-sm font-medium">{{ deviceItem.name }}</div>
-            <div class="text-xs text-gray-500">{{ deviceItem.description }}</div>
+            <div class="text-xs text-muted-foreground">{{ deviceItem.description }}</div>
           </div>
         </div>
       </div>
@@ -30,8 +30,8 @@
           :class="[
             'flex items-center gap-2 p-2 border rounded cursor-pointer transition-colors',
             selectedConnectionType === connection.type 
-              ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200' 
-              : 'hover:bg-gray-50'
+              ? 'border-primary bg-primary/10 ring-2 ring-primary/20' 
+              : 'hover:bg-muted/50'
           ]"
           @click="selectConnectionType(connection.type)"
         >
@@ -41,9 +41,9 @@
           />
           <div class="flex-1">
             <div class="text-sm font-medium">{{ connection.name }}</div>
-            <div class="text-xs text-gray-500">{{ connection.description }}</div>
+            <div class="text-xs text-muted-foreground">{{ connection.description }}</div>
           </div>
-          <div v-if="selectedConnectionType === connection.type" class="w-2 h-2 bg-blue-500 rounded-full" />
+          <div v-if="selectedConnectionType === connection.type" class="w-2 h-2 bg-primary rounded-full" />
         </div>
       </div>
     </div>
@@ -53,7 +53,7 @@
       <h3 class="font-medium mb-2">Device Configuration</h3>
       <div v-if="selectedNode && selectedNode.type === 'device'" class="space-y-3">
         <div>
-          <label class="text-xs text-gray-600">Device Name</label>
+          <label class="text-xs text-muted-foreground">Device Name</label>
           <Input 
             v-model="selectedNode.name"
             class="text-sm"
@@ -61,7 +61,7 @@
         </div>
         
         <div v-if="selectedNode.deviceType !== 'pc'">
-          <label class="text-xs text-gray-600">Model</label>
+          <label class="text-xs text-muted-foreground">Model</label>
           <Select v-model="selectedNode.model">
             <SelectTrigger class="text-sm">
               <SelectValue placeholder="Select model" />
@@ -79,7 +79,7 @@
         </div>
 
         <div>
-          <label class="text-xs text-gray-600">Management IP</label>
+          <label class="text-xs text-muted-foreground">Management IP</label>
           <Input 
             v-model="selectedNode.managementIP"
             class="text-sm"
@@ -89,7 +89,7 @@
 
         <div class="space-y-2">
           <div class="flex items-center justify-between">
-            <label class="text-xs text-gray-600">Interfaces</label>
+            <label class="text-xs text-muted-foreground">Interfaces</label>
             <Button
               size="sm"
               variant="outline"
@@ -104,7 +104,7 @@
             <div
               v-for="interfaceItem in selectedNode.interfaces"
               :key="interfaceItem.id"
-              class="flex items-center justify-between p-1 text-xs bg-gray-50 rounded"
+              class="flex items-center justify-between p-1 text-xs bg-muted/50 rounded"
             >
               <span>{{ interfaceItem.name }}</span>
               <div class="flex items-center gap-1">
@@ -125,7 +125,7 @@
           </div>
         </div>
       </div>
-      <p v-else class="text-sm text-gray-500">
+      <p v-else class="text-sm text-muted-foreground">
         Select a device node to configure
       </p>
     </div>
@@ -144,7 +144,7 @@
     <!-- Instructions Section -->
     <div>
       <h3 class="font-medium mb-2">Instructions</h3>
-      <div class="space-y-2 text-sm text-gray-600">
+      <div class="space-y-2 text-sm text-muted-foreground">
         <p>• Drag devices to canvas</p>
         <p>• Select connection type, then click nodes to wire</p>
         <p>• Double-click nodes to configure interfaces</p>

@@ -4,7 +4,7 @@
     :class="[
       'absolute w-16 h-16 border-2 rounded-lg cursor-move select-none',
       selected ? 'border-blue-500 shadow-lg' : 'border-gray-300',
-      'bg-white hover:shadow-md transition-shadow'
+      'bg-card hover:shadow-md transition-shadow'
     ]"
     @mousedown="onMouseDown"
     @click.stop="$emit('select', node.id)"

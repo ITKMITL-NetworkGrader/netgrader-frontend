@@ -14,7 +14,7 @@ import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbP
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import PartSidebar from '@/components/lab/PartSidebar.vue'
-import TextEditor from '@/components/lab/TextEditor.vue'
+import ClientOnlyTextEditor from '@/components/lab/ClientOnlyTextEditor.vue'
 import PlaySelectionModal from '@/components/lab/PlaySelectionModal.vue'
 import GroupManagement from '@/components/lab/GroupManagement.vue'
 import { useLabManagement } from '@/composables/useLabManagement'
@@ -280,7 +280,7 @@ useHead({
 <template>
   <div class="min-h-screen bg-background">
     <!-- Header with Breadcrumb -->
-    <div class="border-b border-border bg-card">
+    <div class="">
       <div class="container mx-auto px-4 py-4">
         <Breadcrumb class="mb-4">
           <BreadcrumbList>
@@ -429,7 +429,7 @@ useHead({
     </div>
 
     <!-- Main Editor Layout -->
-    <div class="flex-1 flex">
+    <div class="container mx-auto flex-1 flex px-4">
       <!-- Part Sidebar -->
       <PartSidebar
         :parts="parts"
@@ -444,7 +444,7 @@ useHead({
 
       <!-- Content Editor -->
       <div class="flex-1 flex flex-col">
-        <TextEditor
+        <ClientOnlyTextEditor
           v-if="currentPartData"
           :model-value="currentPartData.content"
           :title="currentPartData.title"
@@ -476,8 +476,8 @@ useHead({
             </div>
             
             <!-- Success Indicator -->
-            <div v-else-if="canSave" class="flex items-center space-x-2 text-green-600">
-              <div class="w-2 h-2 bg-green-600 rounded-full"></div>
+            <div v-else-if="canSave" class="flex items-center space-x-2 text-green-600 dark:text-green-400">
+              <div class="w-2 h-2 bg-green-600 dark:bg-green-400 rounded-full" />
               <span class="text-sm">Ready to save</span>
             </div>
           </div>
@@ -507,7 +507,7 @@ useHead({
         <div v-if="validationErrors.length > 0" class="mt-3 pt-3 border-t">
           <div class="text-sm text-destructive space-y-1">
             <div v-for="error in validationErrors" :key="error" class="flex items-center space-x-2">
-              <div class="w-1 h-1 bg-destructive rounded-full"></div>
+              <div class="w-1 h-1 bg-destructive rounded-full" />
               <span>{{ error }}</span>
             </div>
           </div>

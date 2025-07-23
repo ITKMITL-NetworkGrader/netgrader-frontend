@@ -167,7 +167,7 @@
           Cancel
         </Button>
         <Button @click="saveTask">
-          {{ editingTask ? 'Update' : 'Save' }} Task
+          {{ editingTask ? 'Update' : 'Add' }} Task
         </Button>
       </DialogFooter>
     </DialogContent>

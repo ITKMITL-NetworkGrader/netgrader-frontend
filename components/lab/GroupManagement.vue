@@ -43,17 +43,27 @@
               type="file"
               accept=".csv"
               @change="handleFileSelect"
-              class="flex-1"
+              :class="[
+                'flex-1',
+                { 'border-destructive': fileError }
+              ]"
             />
-            <Button 
-              @click="uploadFile" 
-              :disabled="!selectedFile || isUploading"
+            <LoadingButton
+              @click="uploadFile"
+              :loading="isUploading"
+              :disabled="!selectedFile || !!fileError"
+              text="Upload"
+              loading-text="Uploading..."
               size="sm"
             >
-              <Upload class="w-4 h-4 mr-2" />
-              <span v-if="!isUploading">Upload</span>
-              <span v-else>Uploading...</span>
-            </Button>
+              <template #icon>
+                <Upload class="w-4 h-4 mr-2" />
+              </template>
+            </LoadingButton>
+          </div>
+          <div v-if="fileError" class="flex items-center space-x-1 text-sm text-destructive">
+            <AlertCircle class="w-4 h-4" />
+            <span>{{ fileError }}</span>
           </div>
         </div>
         
@@ -124,11 +134,12 @@
       
       <CardContent>
         <!-- Loading State -->
-        <div v-if="isLoading" class="flex items-center justify-center py-8">
-          <div class="flex items-center space-x-2">
-            <Loader2 class="w-5 h-5 animate-spin" />
-            <span>Loading groups...</span>
-          </div>
+        <div v-if="isLoading" class="py-8">
+          <LoadingSpinner 
+            size="md" 
+            text="Loading groups..." 
+            container-class="py-4"
+          />
         </div>
         
         <!-- Empty State -->
@@ -165,26 +176,30 @@
             <div class="flex items-center justify-between">
               <h4 class="font-medium">Group Details</h4>
               <div class="flex items-center space-x-2">
-                <Button 
-                  @click="balanceGroups" 
-                  variant="outline" 
+                <LoadingButton
+                  @click="balanceGroups"
+                  :loading="isBalancing"
+                  text="Balance Groups"
+                  loading-text="Balancing..."
+                  variant="outline"
                   size="sm"
-                  :disabled="isBalancing"
                 >
-                  <Scale class="w-4 h-4 mr-2" />
-                  <span v-if="!isBalancing">Balance Groups</span>
-                  <span v-else>Balancing...</span>
-                </Button>
-                <Button 
-                  @click="exportGroups" 
-                  variant="outline" 
+                  <template #icon>
+                    <Scale class="w-4 h-4 mr-2" />
+                  </template>
+                </LoadingButton>
+                <LoadingButton
+                  @click="exportGroups"
+                  :loading="isExporting"
+                  text="Export"
+                  loading-text="Exporting..."
+                  variant="outline"
                   size="sm"
-                  :disabled="isExporting"
                 >
-                  <Download class="w-4 h-4 mr-2" />
-                  <span v-if="!isExporting">Export</span>
-                  <span v-else>Exporting...</span>
-                </Button>
+                  <template #icon>
+                    <Download class="w-4 h-4 mr-2" />
+                  </template>
+                </LoadingButton>
               </div>
             </div>
             
@@ -307,6 +322,7 @@ import {
   Trash2,
   Loader2
 } from 'lucide-vue-next'
+import { LoadingButton, LoadingSpinner } from '@/components/ui/loading-states'
 import type { StudentGroup, Student } from '@/types/lab'
 
 interface Props {
@@ -354,6 +370,7 @@ const uploadOptions = ref<UploadOptions>({
 })
 
 const uploadStatus = ref<UploadStatus | null>(null)
+const fileError = ref<string | null>(null)
 
 const totalStudents = computed(() => {
   return props.groups.reduce((total, group) => total + group.students.length, 0)
@@ -392,9 +409,25 @@ const handleFileSelect = (event: Event) => {
   const target = event.target as HTMLInputElement
   const file = target.files?.[0]
   
+  fileError.value = null
+  uploadStatus.value = null
+  
   if (file) {
+    // Validate file type
+    if (!file.name.toLowerCase().endsWith('.csv')) {
+      fileError.value = 'Please select a CSV file'
+      selectedFile.value = null
+      return
+    }
+    
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      fileError.value = 'File size must be less than 5MB'
+      selectedFile.value = null
+      return
+    }
+    
     selectedFile.value = file
-    uploadStatus.value = null
   }
 }
 

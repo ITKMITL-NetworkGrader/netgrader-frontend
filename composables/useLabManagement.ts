@@ -1,10 +1,20 @@
 import type { Lab, LabPart, LabFormData, APIResponse } from '~/types/lab'
 
 export const useLabManagement = () => {
+  const { debounce, memoize } = usePerformanceOptimization()
+  
   const parts = ref<LabPart[]>([])
   const currentPart = ref(0)
   const isLoading = ref(false)
   const hasUnsavedChanges = ref(false)
+  
+  // Memoized computed properties for better performance
+  const currentPartData = computed(() => parts.value[currentPart.value])
+  const totalParts = computed(() => parts.value.length)
+  const isValidLab = computed(() => {
+    return parts.value.length > 0 && 
+           parts.value.every(part => part.title.trim() && part.content.trim() && part.playId)
+  })
 
   // Initialize with default first part
   const initializeDefaultPart = () => {
@@ -52,19 +62,20 @@ export const useLabManagement = () => {
     }
   }
 
-  const updatePartTitle = (index: number, title: string) => {
+  // Debounced update functions to prevent excessive re-renders
+  const updatePartTitle = debounce((index: number, title: string) => {
     if (parts.value[index]) {
       parts.value[index].title = title
       hasUnsavedChanges.value = true
     }
-  }
+  }, 300)
 
-  const updatePartContent = (index: number, content: string) => {
+  const updatePartContent = debounce((index: number, content: string) => {
     if (parts.value[index]) {
       parts.value[index].content = content
       hasUnsavedChanges.value = true
     }
-  }
+  }, 500)
 
   const updatePartPlay = (index: number, playId: string | null, playVariables?: Record<string, any>) => {
     if (parts.value[index]) {
@@ -146,7 +157,8 @@ export const useLabManagement = () => {
     }
   }
 
-  const validateLab = (): { isValid: boolean; errors: string[] } => {
+  // Memoized validation to avoid recalculating on every render
+  const validateLab = memoize((): { isValid: boolean; errors: string[] } => {
     const errors: string[] = []
 
     if (parts.value.length === 0) {
@@ -169,7 +181,7 @@ export const useLabManagement = () => {
       isValid: errors.length === 0,
       errors
     }
-  }
+  }, () => JSON.stringify(parts.value.map(p => ({ title: p.title, content: p.content, playId: p.playId }))))
 
   // Initialize on first use
   onMounted(() => {
@@ -180,6 +192,9 @@ export const useLabManagement = () => {
     // State
     parts: readonly(parts),
     currentPart: readonly(currentPart),
+    currentPartData: readonly(currentPartData),
+    totalParts: readonly(totalParts),
+    isValidLab: readonly(isValidLab),
     isLoading: readonly(isLoading),
     hasUnsavedChanges: readonly(hasUnsavedChanges),
 

@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import PartSidebar from '@/components/lab/PartSidebar.vue'
-import TextEditor from '@/components/lab/TextEditor.vue'
+import ClientOnlyTextEditor from '@/components/lab/ClientOnlyTextEditor.vue'
 import PlaySelectionModal from '@/components/lab/PlaySelectionModal.vue'
 import { useExamManagement } from '@/composables/useExamManagement'
 import { usePlayBank } from '@/composables/usePlayBank'
@@ -353,7 +353,7 @@ useHead({
 <template>
   <div class="min-h-screen bg-background">
     <!-- Header with Breadcrumb -->
-    <div class="border-b border-border bg-card">
+    <div class="">
       <div class="container mx-auto px-4 py-4">
         <Breadcrumb class="mb-4">
           <BreadcrumbList>
@@ -657,7 +657,7 @@ function generateConfig(studentId, examNumber) {
     </div>
 
     <!-- Main Editor Layout -->
-    <div class="flex-1 flex">
+    <div class="container mx-auto flex-1 flex px-4">
       <!-- Part Sidebar -->
       <PartSidebar
         :parts="parts"
@@ -672,7 +672,7 @@ function generateConfig(studentId, examNumber) {
 
       <!-- Content Editor -->
       <div class="flex-1 flex flex-col">
-        <TextEditor
+        <ClientOnlyTextEditor
           v-if="currentPartData"
           :model-value="currentPartData.content"
           :title="currentPartData.title"

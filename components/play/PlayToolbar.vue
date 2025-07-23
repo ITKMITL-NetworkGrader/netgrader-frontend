@@ -7,19 +7,19 @@
           v-for="deviceItem in deviceTypes"
           :key="deviceItem.type"
           :draggable="true"
+          class="flex items-center gap-2 p-2 border rounded cursor-move hover:bg-accent/50"
           @dragstart="onDragStart($event, deviceItem.type)"
-          class="flex items-center gap-2 p-2 border rounded cursor-move hover:bg-gray-50"
         >
           <component :is="deviceItem.icon" class="w-5 h-5" :class="deviceItem.iconColor" />
           <div class="flex-1">
             <div class="text-sm font-medium">{{ deviceItem.name }}</div>
-            <div class="text-xs text-gray-500">{{ deviceItem.description }}</div>
+            <div class="text-xs text-muted-foreground">{{ deviceItem.description }}</div>
           </div>
         </div>
       </div>
     </div>
 
-    <div>
+    <!-- <div>
       <h3 class="font-medium mb-2">Connection Types</h3>
       <div class="space-y-2">
         <div
@@ -29,7 +29,7 @@
             'flex items-center gap-2 p-2 border rounded cursor-pointer transition-colors',
             selectedConnectionType === connection.type 
               ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200' 
-              : 'hover:bg-gray-50'
+              : 'hover:bg-accent/50'
           ]"
           @click="selectConnectionType(connection.type)"
         >
@@ -39,17 +39,17 @@
           />
           <div class="flex-1">
             <div class="text-sm font-medium">{{ connection.name }}</div>
-            <div class="text-xs text-gray-500">{{ connection.description }}</div>
+            <div class="text-xs text-muted-foreground">{{ connection.description }}</div>
           </div>
           <div v-if="selectedConnectionType === connection.type" class="w-2 h-2 bg-blue-500 rounded-full" />
         </div>
       </div>
-    </div>
+    </div> -->
     <div>
-      <h3 class="font-medium mb-2">Create a Play task</h3>
+      <h3 class="font-medium mb-2">Device Properties</h3>
       <div v-if="selectedNode && selectedNode.type === 'device'" class="space-y-3">
         <div>
-          <label class="text-xs text-gray-600">Device Name</label>
+          <label class="text-xs text-muted-foreground">Device Name</label>
           <Input 
             v-model="selectedNode.name"
             class="text-sm"
@@ -57,7 +57,7 @@
         </div>
         
         <div v-if="selectedNode.deviceType !== 'pc'">
-          <label class="text-xs text-gray-600">Model</label>
+          <label class="text-xs text-muted-foreground">Model</label>
           <Select v-model="selectedNode.model">
             <SelectTrigger class="text-sm">
               <SelectValue placeholder="Select model" />
@@ -75,7 +75,7 @@
         </div>
 
         <div>
-          <label class="text-xs text-gray-600">Management IP</label>
+          <label class="text-xs text-muted-foreground">Management IP</label>
           <Input 
             v-model="selectedNode.managementIP"
             class="text-sm"
@@ -85,7 +85,7 @@
 
         <div class="space-y-2">
           <div class="flex items-center justify-between">
-            <label class="text-xs text-gray-600">Interfaces</label>
+            <label class="text-xs text-muted-foreground">Interfaces</label>
             <Button
               size="sm"
               variant="outline"
@@ -100,7 +100,7 @@
             <div
               v-for="interfaceItem in selectedNode.interfaces"
               :key="interfaceItem.id"
-              class="flex items-center justify-between p-1 text-xs bg-gray-50 rounded"
+              class="flex items-center justify-between p-1 text-xs bg-muted rounded"
             >
               <span>{{ interfaceItem.name }}</span>
               <div class="flex items-center gap-1">
@@ -121,12 +121,12 @@
           </div>
         </div>
       </div>
-      <p v-else class="text-sm text-gray-500">
-        Right click a device node to create a Play task
+      <p v-else class="text-sm text-muted-foreground">
+        Click on a device node to configure its properties here.
       </p>
     </div>
     <h3 class="font-medium mb-2">Wire up device nodes</h3>
-    <p class="text-sm text-gray-500">Double-click a device node to wire it up</p>
+    <p class="text-sm text-muted-foreground">Double-click a device node to wire it up</p>
     
 
     <!-- Interface Configuration Modal -->
