@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { toast } from 'vue-sonner'
 
 const userState = useUserState()
 const route = useRoute()
 const dropdownOpen = ref(false)
 const mobileMenuOpen = ref(false)
 const config = useRuntimeConfig()
-const backendUrl = config.public.backend1url
+const backendUrl = config.public.backendurl
 
 // Dark mode functionality
 
@@ -15,9 +16,15 @@ const logout = async () => {
     try {
         await $fetch(`${backendUrl}/v0/auth/logout`, {
             method: 'POST',
-            credentials: 'include'
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json'
+            }
         })
         userState.value = null
+        toast.success('Logged out successfully!', {
+            description: 'You have been logged out.',
+        })
         navigateTo('/', {
             replace: true,
         })

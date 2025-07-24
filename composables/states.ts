@@ -3,9 +3,9 @@ import type { PlayNode, Connection } from '@/types/play'
 export interface User {
     u_id: string;
     fullName: string;
-    role?: string;
-    iat: number;
-    exp: number;
+    lastLogin: string;
+    iat?: number;
+    exp?: number;
 }
 export interface NavBar {
     isOpen: boolean;

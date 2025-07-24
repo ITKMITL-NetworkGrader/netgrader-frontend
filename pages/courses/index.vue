@@ -3,7 +3,7 @@ import { onMounted } from 'vue'
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card'
 
 const config = useRuntimeConfig()
-const backendURL = config.public.backend1url
+const backendURL = config.public.backendurl
 interface CourseResponse {
     courses: Array<{
         id: number
@@ -16,6 +16,10 @@ interface CourseResponse {
 }
 const courses = await useFetch<CourseResponse>(backendURL + '/v0/courses', {
     method: 'GET',
+    credentials: 'include',
+    headers: {
+        'Content-Type': 'application/json',
+    }
 }).then(res => res.data.value?.courses || []).catch(err => {
     console.error('Failed to fetch courses:', err)
     return []

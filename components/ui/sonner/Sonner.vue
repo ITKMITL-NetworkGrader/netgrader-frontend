@@ -4,15 +4,15 @@
     class="toaster group"
     :toast-options="{
       classes: {
-        toast: 'group toast group-[.toaster]:bg-white group-[.toaster]:text-slate-950 group-[.toaster]:border-slate-200 group-[.toaster]:shadow-lg dark:group-[.toaster]:bg-slate-950 dark:group-[.toaster]:text-slate-50 dark:group-[.toaster]:border-slate-800',
-        description: 'group-[.toast]:text-slate-500 dark:group-[.toast]:text-slate-400',
-        actionButton: 'group-[.toast]:bg-slate-900 group-[.toast]:text-slate-50 dark:group-[.toast]:bg-slate-50 dark:group-[.toast]:text-slate-900',
-        cancelButton: 'group-[.toast]:bg-slate-100 group-[.toast]:text-slate-500 dark:group-[.toast]:bg-slate-800 dark:group-[.toast]:text-slate-400',
-        error: 'group-[.toaster]:bg-red-50 group-[.toaster]:text-red-900 group-[.toaster]:border-red-200 dark:group-[.toaster]:bg-red-900/10 dark:group-[.toaster]:text-red-400 dark:group-[.toaster]:border-red-900/20',
-        success: 'group-[.toaster]:bg-green-50 group-[.toaster]:text-green-900 group-[.toaster]:border-green-200 dark:group-[.toaster]:bg-green-900/10 dark:group-[.toaster]:text-green-400 dark:group-[.toaster]:border-green-900/20',
-        warning: 'group-[.toaster]:bg-yellow-50 group-[.toaster]:text-yellow-900 group-[.toaster]:border-yellow-200 dark:group-[.toaster]:bg-yellow-900/10 dark:group-[.toaster]:text-yellow-400 dark:group-[.toaster]:border-yellow-900/20',
-        info: 'group-[.toaster]:bg-blue-50 group-[.toaster]:text-blue-900 group-[.toaster]:border-blue-200 dark:group-[.toaster]:bg-blue-900/10 dark:group-[.toaster]:text-blue-400 dark:group-[.toaster]:border-blue-900/20'
-      }
+          toast: 'group toast group-[.toaster]:bg-card group-[.toaster]:text-card-foreground group-[.toaster]:border-border group-[.toaster]:shadow-lg',
+          description: 'group-[.toast]:text-muted-foreground',
+          actionButton: 'group-[.toast]:bg-primary group-[.toast]:text-primary-foreground hover:group-[.toast]:bg-primary/90',
+          cancelButton: 'group-[.toast]:bg-secondary group-[.toast]:text-secondary-foreground hover:group-[.toast]:bg-secondary/80',
+          error: 'group-[.toaster]:bg-destructive/10 group-[.toaster]:text-destructive-foreground group-[.toaster]:border-destructive/20 group-[.toaster]:shadow-lg [&_.toast-icon]:text-destructive',
+          success: 'group-[.toaster]:bg-green-900/10 group-[.toaster]:text-green-400 group-[.toaster]:border-green-900/20 group-[.toaster]:shadow-lg [&_.toast-icon]:text-green-400 dark:group-[.toaster]:bg-green-900/15 dark:group-[.toaster]:text-green-300 dark:group-[.toaster]:border-green-800/30',
+          warning: 'group-[.toaster]:bg-yellow-900/10 group-[.toaster]:text-yellow-400 group-[.toaster]:border-yellow-900/20 group-[.toaster]:shadow-lg [&_.toast-icon]:text-yellow-400 dark:group-[.toaster]:bg-yellow-900/15 dark:group-[.toaster]:text-yellow-300 dark:group-[.toaster]:border-yellow-800/30',
+          info: 'group-[.toaster]:bg-primary/10 group-[.toaster]:text-primary group-[.toaster]:border-primary/20 group-[.toaster]:shadow-lg [&_.toast-icon]:text-primary'
+        }
     }"
     v-bind="$attrs"
   />
@@ -30,7 +30,7 @@ defineOptions({
 
 
 /* Custom styling to match vue-sonner appearance */
-.toaster {
+/* .toaster {
   font-family: 'Bai Jamjuree', sans-serif !important;
   --normal-bg: #ffffff;
   --normal-border: #e2e8f0;
@@ -84,7 +84,7 @@ defineOptions({
   --info-border: rgba(30, 58, 138, 0.2);
   --info-text: #60a5fa;
   --info-description: #93c5fd;
-}
+} */
 
 /* Enhanced styling for better vue-sonner appearance */
 [data-sonner-toast] {
@@ -141,7 +141,7 @@ defineOptions({
 }
 
 [data-sonner-toast][data-type="warning"] {
-  background: var(--warning-bg) !important;
+  background: var(--bg) !important;
   border-color: var(--warning-border) !important;
   color: var(--warning-text) !important;
 }
@@ -159,7 +159,7 @@ defineOptions({
 }
 
 [data-sonner-toast][data-type="info"] {
-  background: var(--info-bg) !important;
+  background: var(--bg) !important;
   border-color: var(--info-border) !important;
   color: var(--info-text) !important;
 }
@@ -176,7 +176,6 @@ defineOptions({
   line-height: 1.4 !important;
 }
 
-/* Close button styling */
 [data-sonner-toast] [data-close-button] {
   position: absolute !important;
   right: 8px !important;
@@ -200,7 +199,6 @@ defineOptions({
   background: rgba(0, 0, 0, 0.05) !important;
 }
 
-/* Icon styling */
 [data-sonner-toast] [data-icon] {
   width: 20px !important;
   height: 20px !important;
@@ -208,7 +206,6 @@ defineOptions({
   flex-shrink: 0 !important;
 }
 
-/* Loading spinner */
 [data-sonner-toast] [data-loading-icon] {
   width: 16px !important;
   height: 16px !important;
@@ -216,7 +213,6 @@ defineOptions({
   flex-shrink: 0 !important;
 }
 
-/* Action button styling */
 [data-sonner-toast] [data-button] {
   margin-left: 12px !important;
   padding: 4px 8px !important;
@@ -232,4 +228,5 @@ defineOptions({
 [data-sonner-toast] [data-button]:hover {
   background: rgba(0, 0, 0, 0.05) !important;
 }
+
 </style>

@@ -5,26 +5,21 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { toast } from 'vue-sonner'
-import 'vue-sonner/style.css'
 import { LoaderCircle } from 'lucide-vue-next'
 
 // Type definitions
 interface LoginResponse {
   success: boolean
   message: string
-  isFirstTimeLogin: boolean
-  token: string
   user: {
-    id: string
     u_id: string
     fullName: string
-    role: string
     lastLogin: string
   }
 }
 
 const config = useRuntimeConfig()
-const backendURL = config.public.backend1url
+const backendURL = config.public.backendurl
 const { $anime } = useNuxtApp()
 
 onMounted(() => {
@@ -93,17 +88,14 @@ const validateUsername = (username: string) => {
   return usernameRegex.test(username)
 }
 
-const tokenCookie = useCookie('access_token')
 const userState = useUserState()
 const query = useRoute()
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
 const handleLogin = async () => {
-  // Reset errors
   usernameError.value = ''
   passwordError.value = ''
 
-  // Validate
   if (!username.value) {
     usernameError.value = 'Username is required'
     return
@@ -116,109 +108,73 @@ const handleLogin = async () => {
     passwordError.value = 'Password is required'
     return
   }
-  if (password.value.length < 6) {
-    passwordError.value = 'Password must be at least 6 characters'
-    return
-  }
 
   isLoading.value = true
-  
+
   try {
-    // First, let's test if the backend is reachable
-    const response = await $fetch(`${backendURL}/v0/auth/login`, {
+    const response = await $fetch<LoginResponse>(`${backendURL}/v0/auth/login`, {
       method: 'POST',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
-        'Accept': 'application/json'  // Explicitly request JSON
+        'Accept': 'application/json'
       },
       body: {
         username: username.value,
         password: password.value
       }
     })
-    
-    // Check if response is HTML (indicating wrong endpoint)
-    if (typeof response === 'string' && response.includes('<!DOCTYPE html>')) {
-      throw new Error('Backend API not found - receiving HTML instead of JSON. Please check your backend URL and ensure the API server is running.')
-    }
-    
-    // Check if response is valid JSON object
-    if (!response || typeof response !== 'object') {
-      throw new Error('Invalid response format from server')
-    }
-    
-    // Cast to expected type after validation
-    const loginResponse = response as LoginResponse
-    
-    if (!loginResponse.success) {
-      throw new Error(loginResponse.message || 'Login failed')
-    }
-    
-    toast.success('Login Successful', {
-      description: 'Welcome back! Redirecting...',
-    })
-    
-    tokenCookie.value = loginResponse.token
-    
-    // Use the user data from the login response directly
-    if (loginResponse.user && loginResponse.user.fullName) {
+    if (response.success) {
       userState.value = {
-        u_id: loginResponse.user.u_id,
-        fullName: loginResponse.user.fullName,
-        first_name: loginResponse.user.fullName.split(' ')[0] || '',
-        last_name: loginResponse.user.fullName.split(' ').slice(1).join(' ') || '',
-        role: loginResponse.user.role as "STUDENT" | "INSTRUCTOR"
+        u_id: response.user.u_id,
+        fullName: response.user.fullName,
+        lastLogin: response.user.lastLogin,
       }
-      
-      await sleep(1000)
+
       if (query.query.next) {
         await navigateTo(query.query.next as string, { replace: true })
       } else {
         await navigateTo('/courses', { replace: true })
       }
-    } else {
-      toast.error('Login Failure', {
-        description: 'Failed to retrieve user data. Please try again.',
+
+      toast.success(`Welcome back, ${userState.value.fullName}!`, {
+        description: 'Redirecting you now...',
       })
+
+    } else {
+      toast.error(response.message)
     }
-  } catch (error: unknown) {    
-    const err = error as { data?: string; statusCode?: number; message?: string }
-    
-    // Handle HTML response (wrong endpoint)
-    if (err.data && typeof err.data === 'string' && err.data.includes('<!DOCTYPE html>')) {
-      toast.error('Configuration Error', {
-        description: 'Cannot connect to authentication server. Please check server configuration.',
-      })
-    } else if (err.message?.includes('Backend API not found')) {
-      toast.error('Server Configuration Error', {
-        description: 'Backend API is not accessible. Please contact support.',
-      })
-    } else if (err.statusCode === 401) {
-      usernameError.value = 'Invalid username or password'
-      toast.error('Login Failure', {
-        description: 'Invalid username or password. Please try again.',
-      })
-    } else if (err.statusCode === 500) {
-      toast.error('Login Failure', {
-        description: 'Server error occurred. Please try again later.',
-      })
-    } else if (err.statusCode === 503) {
-      toast.error('Login Failure', {
-        description: 'Service temporarily unavailable. Please try again later.',
-      })
-    } else if (err.message?.includes('fetch') || err.message?.includes('network')) {
-      toast.error('Connection Error', {
-        description: 'Cannot connect to server. Please check your internet connection.',
-      })
+  } catch (error) {
+    console.error('Login error:', error)
+    if (error instanceof Error) {
+      if (error.message.includes('Network Error')) {
+        toast.error('Network error', {
+          description: 'Check your internet connections and try again. If the problem persists, contact TA.'
+        })
+      } else if (error.message.includes('401')) {
+        toast.error('Username or Password is invalid!', {
+          description: 'Please check your credentials and try again.'
+        })
+      } else if (error.message.includes('404')) {
+        toast.error('Server not found, please check your connection')
+      } else if (error.message.includes('500')) {
+        toast.error('Server error', {
+          description: 'Please try again later. If the problem persists, contact TA.'
+        })
+      } else {
+        toast.error('An unexpected error occurred')
+      }
     } else {
-      toast.error('Login Failure', {
-        description: err.message || 'Login failed. Please check your connection and try again.',
-      })
+      toast.error('An unexpected error occurred')
     }
   } finally {
     isLoading.value = false
   }
 }
+
+
+
+
 
 </script>
 
@@ -242,8 +198,7 @@ const handleLogin = async () => {
       <CardHeader class="text-center space-y-2">
         <div class="w-16 h-16 bg-primary rounded-2xl mx-auto flex items-center justify-center mb-4">
           <svg class="w-8 h-8 text-primary-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
               d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
           </svg>
         </div>
@@ -259,8 +214,7 @@ stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
           <div class="space-y-2">
             <Label for="username">Username</Label>
             <div class="relative">
-              <Input
-id="username" v-model="username" type="text" autocomplete="username" :class="[
+              <Input id="username" v-model="username" type="text" autocomplete="username" :class="[
                 'pl-4 pr-12 py-3 h-12 bg-background/50 backdrop-blur-sm rounded-xl border-2',
                 usernameError
                   ? 'border-destructive focus:border-destructive focus:ring-destructive/20'
@@ -268,8 +222,7 @@ id="username" v-model="username" type="text" autocomplete="username" :class="[
               ]" placeholder="Enter your IT username" :aria-invalid="!!usernameError" />
               <div class="absolute inset-y-0 right-0 flex items-center pr-3">
                 <svg class="w-5 h-5 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                     d="M12 12c1.656 0 3-1.344 3-3s-1.344-3-3-3-3 1.344-3 3 1.344 3 3 3zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
                 </svg>
               </div>
@@ -281,60 +234,27 @@ stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
           <div class="space-y-2">
             <Label for="password">Password</Label>
             <div class="relative">
-              <Input
-                id="password" 
-                v-model="password" 
-                :type="showPassword ? 'text' : 'password'" 
-                autocomplete="current-password" 
-                :class="[
+              <Input id="password" v-model="password" :type="showPassword ? 'text' : 'password'"
+                autocomplete="current-password" :class="[
                   'pl-4 pr-12 py-3 h-12 bg-background/50 backdrop-blur-sm rounded-xl border-2',
                   passwordError
                     ? 'border-destructive focus:border-destructive focus:ring-destructive/20'
                     : 'border-border focus:border-ring focus:ring-ring/20'
-                ]" 
-                placeholder="Enter your password" 
-                :aria-invalid="!!passwordError" 
-              />
-              <button
-                type="button"
+                ]" placeholder="Enter your password" :aria-invalid="!!passwordError" />
+              <button type="button"
                 class="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground hover:text-foreground transition-colors"
-                @click="togglePasswordVisibility"
-              >
+                @click="togglePasswordVisibility">
                 <!-- Eye Open Icon (when password is hidden) -->
-                <svg 
-                  v-if="!showPassword"
-                  class="w-5 h-5" 
-                  fill="none" 
-                  stroke="currentColor" 
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round" 
-                    stroke-linejoin="round" 
-                    stroke-width="2"
-                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" 
-                  />
-                  <path
-                    stroke-linecap="round" 
-                    stroke-linejoin="round" 
-                    stroke-width="2"
-                    d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" 
-                  />
+                <svg v-if="!showPassword" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                 </svg>
                 <!-- Eye Closed Icon (when password is visible) -->
-                <svg 
-                  v-else
-                  class="w-5 h-5" 
-                  fill="none" 
-                  stroke="currentColor" 
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round" 
-                    stroke-linejoin="round" 
-                    stroke-width="2"
-                    d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L8.464 8.464m1.414 1.414l4.242 4.242m-4.242-4.242L8.464 8.464m7.07 7.07l1.414 1.414M15.536 15.536l1.414 1.414M5.636 5.636l1.414 1.414m11.314 11.314l1.414 1.414" 
-                  />
+                <svg v-else class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L8.464 8.464m1.414 1.414l4.242 4.242m-4.242-4.242L8.464 8.464m7.07 7.07l1.414 1.414M15.536 15.536l1.414 1.414M5.636 5.636l1.414 1.414m11.314 11.314l1.414 1.414" />
                 </svg>
               </button>
             </div>
@@ -343,21 +263,18 @@ stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
 
           <!-- Remember Me & Forgot Password -->
           <div class="flex items-center justify-end">
-            <NuxtLink
-to="https://identity.it.kmitl.ac.th/auth/password/reset/request"
+            <NuxtLink to="https://identity.it.kmitl.ac.th/auth/password/reset/request"
               class="text-sm text-primary hover:text-primary/80 transition-colors">
               Forgot password?
             </NuxtLink>
           </div>
 
           <!-- Login Button -->
-          <Button
-type="submit" :disabled="isLoading"
+          <Button type="submit" :disabled="isLoading"
             class="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-3 px-6 rounded-xl transition-all duration-200 transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none">
             <span v-if="!isLoading" class="flex items-center justify-center">
               <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                   d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
               </svg>
               Sign In
