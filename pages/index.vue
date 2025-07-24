@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Button } from '@/components/ui/button'
 import { FlickeringGrid } from '@/components/ui/flickering-grid'
+import { TextReveal } from '@/components/ui/text-reveal';
 
 const { $anime } = useNuxtApp()
 
@@ -48,14 +49,14 @@ onMounted(() => {
         
         <!-- Content -->
         <div class="relative z-10 font-roboto-mono flex flex-col items-center justify-center min-h-[calc(100vh-theme(spacing.28))] text-center">
-            <h1 id="hero-title" class="text-5xl font-semibold">NetGrader</h1>
-            <p id="hero-subtitle" class="mt-2 text-xl">Your go-to platform for grading network configurations!</p>
+            <TextReveal class="text-center text-4xl font-bold" :delay=0.2>NetGrader</TextReveal>
+            <TextReveal class="mt-2 text-xl" :delay=0.5>Your go-to platform for grading network configurations!</TextReveal>
             <div class="flex justify-center">
                 <NuxtLink to="/courses" class="mt-2">
                     <Button id="get-started" class="mt-4 scale-100">
                         Get Started
                     </Button>
-                </NuxtLink>   
+                </NuxtLink>
             </div>
         </div>
     </div>
