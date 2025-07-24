@@ -1,3 +1,4 @@
+import { Type } from "lucide-vue-next";
 import { useUserState } from "~/composables/states";
 export interface GetResponse {
     message: string;
@@ -7,10 +8,9 @@ export interface GetResponse {
 export default defineNuxtRouteMiddleware(async (to, from) => {
     const userState = useUserState();
     const config = useRuntimeConfig()
-    const dev_env = config.public.dev_env ?? false;
     const access_token = useCookie("access_token");
     const excludedRoutes = [ "/login", "/", "/demo", "/oat"];
-    if (dev_env) {
+    if (config.public.env === "DEV") {
         console.log("Development environment detected, skipping authentication check.");
         return;
     }
