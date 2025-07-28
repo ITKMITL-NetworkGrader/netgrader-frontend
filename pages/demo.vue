@@ -12,7 +12,7 @@
         <div class="flex items-center gap-4">
           <!-- User info from navigation -->
           <span v-if="userState" class="text-sm text-gray-600">
-            {{ userState.first_name }} {{ userState.last_name }}
+            {{ userState.fullName }}
           </span>
           <div class="flex gap-2">
             <Button variant="outline" @click="savePlay">Save</Button>
