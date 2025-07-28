@@ -348,6 +348,10 @@ watch([examTitle, examDescription, timeLimit, subnetConfig], () => {
 useHead({
   title: 'Create Exam - NetGrader'
 })
+
+const getSubnetMask = (usableIPs: number): number => {
+  return usableIPs <= 0 ? 32 : Math.max(0, 32 - Math.ceil(Math.log2(usableIPs + 2)))
+}
 </script>
 
 <template>
@@ -583,10 +587,63 @@ useHead({
                 <div class="space-y-2">
                   <Label for="base-network">Base Network</Label>
                   <Input
-                    id="base-network"
-                    v-model="subnetConfig.baseNetwork"
-                    placeholder="10.30.6.0/24"
+                  id="base-network"
+                  v-model="subnetConfig.baseNetwork"
+                  placeholder="10.30.6.0/24"
                   />
+                </div>
+                
+                <div class="space-y-2">
+                  <Label>Network Configuration</Label>
+                  <div class="grid grid-cols-2 gap-2">
+                    <div class="space-y-1">
+                      <Label for="usable-ips" class="text-xs">Usable IPs</Label>
+                      <Input
+                        id="usable-ips"
+                        v-model.number="subnetConfig.usableIPs"
+                        type="number"
+                        min="1"
+                        max="2147483646"
+                        placeholder="254"
+                        @input="(e: Event) => {
+                          const target = e.target as HTMLInputElement;
+                          const value = parseInt(target.value);
+                          if (value >= 1 && value <= 2147483646) {
+                            subnetConfig.usableIPs = value;
+                            subnetConfig.subnetMask = getSubnetMask(value);
+                          } else {
+                            subnetConfig.usableIPs = Math.max(1, Math.min(value, 2147483646));
+                          }
+                        }"
+                      />
+                    </div>
+                    <div class="space-y-1">
+                      <Label for="subnet-mask" class="text-xs">Subnet Mask</Label>
+                      <div class="relative">
+                        <span class="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground">/</span>
+                        <Input
+                          id="subnet-mask"
+                          v-model.number="subnetConfig.subnetMask"
+                          type="number"
+                          min="1"
+                          max="30"
+                          placeholder="24"
+                          class="pl-6"
+                          @input="(e: Event) => {
+                            const target = e.target as HTMLInputElement;
+                            const value = parseInt(target.value);
+                            if (value >= 1 && value <= 30) {
+                              subnetConfig.subnetMask = value;
+                              subnetConfig.usableIPs = value === 32 ? 0 : Math.pow(2, 32 - value) - 2;
+                              console.log(value)
+                            } else {
+                              subnetConfig.subnetMask = Math.max(1, Math.min(value, 30));
+                            }
+                          }"
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
 

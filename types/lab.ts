@@ -42,6 +42,8 @@ export interface SubnetGenerationConfig {
     examNumber: { min: number, max: number }
     vlanRange: { min: number, max: number }
   }
+  usableIPs: number
+  subnetMask: number
 }
 
 export interface Play {
