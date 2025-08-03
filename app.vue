@@ -2,7 +2,7 @@
 import '@fontsource/bai-jamjuree';
 import '@fontsource-variable/roboto-mono';
 import { StagewiseToolbar } from '@stagewise/toolbar-vue';
-import { Toaster } from '@/components/ui/sonner'
+import { SonnerToaster as Toaster } from '@/components/ui/sonner'
 import 'vue-sonner/style.css'
 
 // Initialize dark mode

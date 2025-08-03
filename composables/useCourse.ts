@@ -5,20 +5,20 @@ interface Course {
   instructor: string
   createdAt: string
   updatedAt: string
+  visibility: 'public' | 'private'
 }
 
 interface CourseResponse {
   courses: Course[]
 }
 
-const config = useRuntimeConfig()
-const backendURL = config.public.backendurl
-
 export const useCourse = () => {
   const courses = ref<Course[]>([])
   const currentCourse = ref<Course | null>(null)
   const isLoading = ref(false)
   const error = ref<string | null>(null)
+  const config = useRuntimeConfig()
+  const backendURL = config.public.backendurl
 
   const fetchCourses = async () => {
     isLoading.value = true
