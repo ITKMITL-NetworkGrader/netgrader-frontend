@@ -12,9 +12,22 @@ interface CourseResponse {
   courses: Course[]
 }
 
+interface SingleCourseResponse {
+  course: Course
+  isEnrolled: boolean
+  role?: 'STUDENT' | 'INSTRUCTOR' | 'TA'
+}
+
 export const useCourse = () => {
   const courses = ref<Course[]>([])
   const currentCourse = ref<Course | null>(null)
+  const currentCourseEnrollment = ref<{
+    isEnrolled: boolean
+    role?: 'STUDENT' | 'INSTRUCTOR' | 'TA'
+  }>({
+    isEnrolled: false,
+    role: undefined
+  })
   const isLoading = ref(false)
   const error = ref<string | null>(null)
   const config = useRuntimeConfig()
@@ -40,11 +53,15 @@ export const useCourse = () => {
     error.value = null
     
     try {
-      const response = await $fetch<{ course: Course }>(`${backendURL}/v0/courses/${courseId}`, {
+      const response = await $fetch<SingleCourseResponse>(`${backendURL}/v0/courses/${courseId}`, {
         method: 'GET',
         credentials: 'include'
       })
       currentCourse.value = response.course
+      currentCourseEnrollment.value = {
+        isEnrolled: response.isEnrolled,
+        role: response.role
+      }
       return response.course
     } catch (err) {
       error.value = 'Failed to fetch course'
@@ -62,6 +79,7 @@ export const useCourse = () => {
   return {
     courses: readonly(courses),
     currentCourse: readonly(currentCourse),
+    currentCourseEnrollment: readonly(currentCourseEnrollment),
     isLoading: readonly(isLoading),
     error: readonly(error),
     fetchCourses,

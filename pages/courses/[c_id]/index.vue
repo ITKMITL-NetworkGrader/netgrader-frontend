@@ -39,29 +39,24 @@ const config = useRuntimeConfig()
 const backendURL = config.public.backendurl
 
 // Initialize composables
-const { currentCourse, isLoading, fetchCourse } = useCourse()
+const { currentCourse, isLoading, fetchCourse, currentCourseEnrollment } = useCourse()
 const user = useUserState()
 
-// Reactive data for enrollments
+// Reactive data for enrollments (for management purposes)
 const enrolledStudents = ref<EnrollmentsResponse['enrollments']>([])
 const isLoadingEnrollments = ref(false)
 
-// Check current user's role in this course
-const currentUserEnrollment = computed(() => {
-  if (!user.value?.u_id) return null
-  return enrolledStudents.value.find(enrollment => enrollment.u_id === user.value?.u_id)
+// Use enrollment data from useCourse composable
+const isEnrolled = computed(() => {
+  return currentCourseEnrollment.value.isEnrolled
 })
 
 const userRole = computed(() => {
-  return currentUserEnrollment.value?.u_role || null
+  return currentCourseEnrollment.value.role || null
 })
 
 const canManageCourse = computed(() => {
   return userRole.value === 'INSTRUCTOR' || userRole.value === 'TA'
-})
-
-const isEnrolled = computed(() => {
-  return !!currentUserEnrollment.value
 })
 
 // Modal states
@@ -82,7 +77,7 @@ const editForm = ref({
   visibility: 'public'
 })
 
-// Function to fetch enrollment data
+// Function to fetch enrollment data for management (only when needed)
 const fetchEnrollmentData = async () => {
   try {
     isLoadingEnrollments.value = true
@@ -116,10 +111,7 @@ const initializeForm = () => {
 // Fetch data on mount
 onMounted(async () => {
   try {
-    await Promise.all([
-      fetchCourse(courseId),
-    //   fetchEnrollmentData()
-    ])
+    await fetchCourse(courseId)
     initializeForm()
   } catch (error) {
     console.error('Failed to fetch course data:', error)
@@ -139,6 +131,13 @@ watch(enrolledStudents, () => {
     initializeForm()
   }
 }, { immediate: true })
+
+// Watch for when edit modal opens to fetch enrollment data
+watch(isEditModalOpen, (isOpen) => {
+  if (isOpen && canManageCourse.value) {
+    fetchEnrollmentData()
+  }
+})
 
 // Computed property for course title
 const courseTitle = computed(() => {
@@ -187,13 +186,12 @@ const enrollStudent = async () => {
         c_id: courseId,
       }
     })
-    
     if (response.success) {
       toast.success('Successfully enrolled in course!', {
         description: 'You may now access course materials, labs, and exams. Have fun!'
       })
-      // Refresh enrollment data
-      await fetchEnrollmentData()
+      // Refresh course data to update enrollment status
+      await fetchCourse(courseId)
     }
   } catch (error) {
     console.error('Failed to enroll in course:', error)
@@ -202,6 +200,14 @@ const enrollStudent = async () => {
     })
   }
 }
+
+// Debug logging to check enrollment data
+watchEffect(() => {
+  console.log('Current course enrollment:', currentCourseEnrollment.value)
+  console.log('Is enrolled:', isEnrolled.value)
+  console.log('User role:', userRole.value)
+  console.log('Can manage course:', canManageCourse.value)
+})
 </script>
 
 <template>
@@ -239,6 +245,15 @@ const enrollStudent = async () => {
             </div>
             
             <div v-else-if="currentCourse" class="space-y-6">
+                <!-- Debug info (remove in production) -->
+                <div class="bg-gray-100 p-4 rounded-lg text-sm" v-if="process.dev">
+                    <h3 class="font-bold mb-2">Debug Info:</h3>
+                    <p>Is Enrolled: {{ isEnrolled }}</p>
+                    <p>User Role: {{ userRole }}</p>
+                    <p>Can Manage: {{ canManageCourse }}</p>
+                    <p>Enrollment Object: {{ JSON.stringify(currentCourseEnrollment) }}</p>
+                </div>
+
                 <div class="relative">
                     <div class="h-48 rounded-lg overflow-hidden relative">
                         <div class="absolute inset-0 bg-gradient-to-r from-black/70 to-transparent z-10"></div>
@@ -308,7 +323,10 @@ const enrollStudent = async () => {
                                     </div>
                                     <div>
                                         <Label class="pb-2">Enrolled Students</Label>
-                                        <div v-if="editForm.enrolledStudents && editForm.enrolledStudents.length > 0">
+                                        <div v-if="isLoadingEnrollments" class="flex items-center justify-center py-8">
+                                            <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                                        </div>
+                                        <div v-else-if="editForm.enrolledStudents && editForm.enrolledStudents.length > 0">
                                             <Table>
                                                 <TableHeader>
                                                     <TableRow>
@@ -447,10 +465,15 @@ const enrollStudent = async () => {
                     </div>
 
                     <!-- Enrollment Button (Bottom Right) -->
-                    <div v-if="!isEnrolled && user" class="absolute bottom-4 right-4 z-30">
+                    <div v-if="!isEnrolled && userRole !== 'INSTRUCTOR'" class="absolute bottom-4 right-4 z-30">
                         <Button @click="enrollStudent" class="bg-primary hover:bg-primary/90 text-white">
                             Enroll in Course
                         </Button>
+                    </div>
+                    <div v-else-if="isEnrolled" class="absolute bottom-4 right-4 z-30">
+                        <div class="bg-green-100 text-green-800 px-4 py-2 rounded-lg font-medium">
+                            ✓ Enrolled as {{ userRole }}
+                        </div>
                     </div>
                 </div>
                 

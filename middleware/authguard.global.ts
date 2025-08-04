@@ -5,25 +5,27 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
     const userState = useUserState();
     const config = useRuntimeConfig()
     const backendURL = config.public.backendurl;
-    const access_token = useCookie("auth_token");
     const excludedRoutes = [ "/login", "/", "/demo", "/oat"];
-    if (config.public.env === "DEV") {
+    if (import.meta.dev) {
         console.log("Development environment detected, skipping authentication check.");
-        return;
+        // return;
     }
-    if (!userState.value && !access_token.value) {
-        await $fetch<User>(`${backendURL}/v0/auth/me`, {
+    if (!userState.value) {
+        const { data: userDataResponse, error } = await useFetch<User>(`${backendURL}/v0/auth/me`, {
             method: "GET",
             credentials: "include",
-        }).then((userDataResponse) => {
-            userState.value = userDataResponse;
-        }).catch((e) => {
-            console.error("Failed to fetch user data", e);
-            access_token.value = null;
-            console.log("Access token has been cleared");
         });
-    }
 
+        console.log("Fetching user data from backend");
+        console.log("User data response:", userDataResponse.value);
+
+        if (error.value) {
+            console.error("Failed to fetch user data", error.value);
+        } else if (userDataResponse.value) {
+            userState.value = userDataResponse.value;
+        }
+    }
+    
     if (!userState.value && !excludedRoutes.includes(to.path)) {
         console.log(userState.value, "User state is not set, redirecting to login I don't even know why");
         console.log("User not authenticated, redirecting to login");
