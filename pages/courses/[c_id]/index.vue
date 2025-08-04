@@ -171,7 +171,9 @@ const handleFileChange = () => {
 
 const enrollStudent = async () => {
   if (!user.value?.u_id) {
-    console.error('User not logged in')
+    toast.error('You must be logged in to enroll in a course.', {
+      description: 'Please log in and try again.'
+    })
     return
   }
   
@@ -245,14 +247,14 @@ watchEffect(() => {
             </div>
             
             <div v-else-if="currentCourse" class="space-y-6">
-                <!-- Debug info (remove in production) -->
-                <div class="bg-gray-100 p-4 rounded-lg text-sm" v-if="process.dev">
+                <!-- Debug info (remove in production)
+                <div class="bg-gray-100 p-4 rounded-lg text-sm">
                     <h3 class="font-bold mb-2">Debug Info:</h3>
                     <p>Is Enrolled: {{ isEnrolled }}</p>
                     <p>User Role: {{ userRole }}</p>
                     <p>Can Manage: {{ canManageCourse }}</p>
                     <p>Enrollment Object: {{ JSON.stringify(currentCourseEnrollment) }}</p>
-                </div>
+                </div> -->
 
                 <div class="relative">
                     <div class="h-48 rounded-lg overflow-hidden relative">

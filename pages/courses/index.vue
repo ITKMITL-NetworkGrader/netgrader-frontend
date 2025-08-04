@@ -76,7 +76,7 @@ const { data: coursesData, status } = await useFetch<CourseResponse>(backendURL 
       <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <div v-for="(course, index) in coursesData.courses" 
              :key="course._id"
-             class="flex flex-col bg-white border shadow-sm rounded-xl hover:shadow-lg transition dark:bg-slate-900 dark:border-gray-700 dark:shadow-slate-700/[.7] opacity-0 translate-y-4"
+             class="flex flex-col h-full bg-white border shadow-sm rounded-xl hover:shadow-lg transition dark:bg-slate-900 dark:border-gray-700 dark:shadow-slate-700/[.7] opacity-0 translate-y-4"
              :class="[
                 'animate-[fade-in-up_0.3s_ease-out_forwards]',
                 `animation-delay-${index * 100}`
@@ -85,11 +85,11 @@ const { data: coursesData, status } = await useFetch<CourseResponse>(backendURL 
                src="https://i.pinimg.com/736x/18/e3/ad/18e3ad7a432d41a6e2a57d1523e81c73.jpg"
                :alt="course.title + ' banner'">
           
-          <div class="p-6">
+          <div class="p-6 flex flex-col flex-grow">
             <CardHeader class="p-0 pb-2">
               <CardTitle class="text-xl text-gray-800 dark:text-gray-300">{{ course.title }}</CardTitle>
             </CardHeader>
-            <CardContent class="p-0 pb-2">
+            <CardContent class="p-0 pb-2 flex-grow">
               <p class="mt-2 text-gray-600 dark:text-gray-400">{{ course.description }}</p>
               <p class="mt-3 text-sm text-gray-500 dark:text-gray-500">Instructor: {{ course.instructor }}</p>
             </CardContent>

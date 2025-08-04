@@ -10,6 +10,13 @@ const mobileMenuOpen = ref(false)
 const config = useRuntimeConfig()
 const backendUrl = config.public.backendurl
 
+// Track if component is mounted to avoid hydration issues
+const isMounted = ref(false)
+
+onMounted(() => {
+    isMounted.value = true
+})
+
 // Dark mode functionality
 
 const logout = async () => {
@@ -33,6 +40,14 @@ const logout = async () => {
     }
 }
 
+// Check if user is actually authenticated (not just a string "false")
+const isAuthenticated = computed(() => {
+    return userState.value && 
+           typeof userState.value === 'object' && 
+           userState.value !== null &&
+           userState.value.u_id
+})
+
 // Navigation items configuration
 const navigationItems = computed(() => [
     {
@@ -44,13 +59,13 @@ const navigationItems = computed(() => [
     {
         label: 'Courses',
         to: '/courses',
-        show: !!userState.value,
+        show: isAuthenticated.value,
         active: route.path.startsWith('/courses')
     },
     {
         label: 'Manage',
         to: '/manage',
-        show: userState.value?.role === 'INSTRUCTOR',
+        show: isAuthenticated.value && userState.value?.role === 'INSTRUCTOR',
         active: route.path.startsWith('/manage')
     }
 ])
@@ -111,7 +126,7 @@ watch(() => route.path, () => {
                 
                 <!-- Login button for guests -->
                 <NuxtLink 
-                    v-if="!userState" 
+                    v-if="!isAuthenticated" 
                     to="/login"
                     class="inline-flex"
                 >
@@ -124,25 +139,25 @@ watch(() => route.path, () => {
                 </NuxtLink>
 
                 <!-- User dropdown for authenticated users -->
-                <DropdownMenu v-if="userState" v-model:open="dropdownOpen">
+                <DropdownMenu v-if="isAuthenticated" v-model:open="dropdownOpen">
                     <DropdownMenuTrigger as-child>
                     <button
                         class="flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
                         :class="{ 'bg-accent text-accent-foreground': dropdownOpen }"
                     >
                         <div class="w-6 h-6 rounded-full bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center text-primary-foreground text-xs font-semibold">
-                        {{ userState.fullName[0] }}
+                        {{ userState?.fullName?.[0] || '?' }}
                         </div>
                         <span class="font-bai-jamjuree hidden lg:inline">
-                        {{ userState.fullName }}
+                        {{ userState?.fullName || 'User' }}
                         </span>
                         <Icon name="lucide:chevron-down" class="w-4 h-4 transition-transform" :class="{ 'rotate-180': dropdownOpen }" />
                     </button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent class="w-56" align="end">
                     <div class="px-3 py-2 text-sm">
-                        <p class="font-medium">{{ userState.fullName }}</p>
-                        <p class="text-muted-foreground text-xs">{{ userState.u_id }}</p>
+                        <p class="font-medium">{{ userState?.fullName || 'User' }}</p>
+                        <p class="text-muted-foreground text-xs">{{ userState?.u_id }}</p>
                     </div>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem class="cursor-pointer">
@@ -212,7 +227,7 @@ watch(() => route.path, () => {
 
                 <!-- Mobile user section -->
                 <div class="mt-4 pt-4 border-t border-border/30">
-                    <div v-if="!userState">
+                    <div v-if="!isAuthenticated">
                     <NuxtLink to="/login" class="block">
                         <Button class="w-full btn-primary">
                         Login
@@ -222,13 +237,13 @@ watch(() => route.path, () => {
                     <div v-else class="space-y-3">
                     <div class="flex items-center gap-3">
                         <div class="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center text-primary-foreground text-sm font-semibold">
-                        {{ userState.fullName[0] }}
+                        {{ userState?.fullName?.[0] || '?' }}
                         </div>
                         <div class="min-w-0 flex-1">
                         <p class="font-medium text-sm font-bai-jamjuree truncate">
-                            {{ userState.fullName }}
+                            {{ userState?.fullName || 'User' }}
                         </p>
-                        <p class="text-muted-foreground text-xs truncate">{{ userState.role }}</p>
+                        <p class="text-muted-foreground text-xs truncate">{{ userState?.role || 'Student' }}</p>
                         </div>
                     </div>
                     <div class="flex gap-2">
