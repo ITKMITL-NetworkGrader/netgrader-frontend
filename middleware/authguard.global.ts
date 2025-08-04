@@ -6,14 +6,12 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
     const config = useRuntimeConfig()
     const backendURL = config.public.backendurl;
     const access_token = useCookie("auth_token");
-    console.log(access_token.value)
     const excludedRoutes = [ "/login", "/", "/demo", "/oat"];
     if (config.public.env === "DEV") {
         console.log("Development environment detected, skipping authentication check.");
         return;
     }
-    if (!userState.value && access_token.value) {
-        console.log(`${backendURL}/v0/auth/me`, "Fetching user data with access token");
+    if (!userState.value && !access_token.value) {
         await $fetch<User>(`${backendURL}/v0/auth/me`, {
             method: "GET",
             credentials: "include",
@@ -21,8 +19,8 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
             userState.value = userDataResponse;
         }).catch((e) => {
             console.error("Failed to fetch user data", e);
-            // access_token.value = null;
-            // console.log("Access token has been cleared");
+            access_token.value = null;
+            console.log("Access token has been cleared");
         });
     }
 

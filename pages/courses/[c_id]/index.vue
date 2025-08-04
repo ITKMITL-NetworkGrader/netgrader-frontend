@@ -210,15 +210,17 @@ const enrollStudent = async () => {
             <Breadcrumb class="mb-6">
                 <BreadcrumbList>
                     <BreadcrumbItem>
-                        <BreadcrumbLink href="/" class="flex items-center">
+                        <NuxtLink to="/" class="flex items-center">
                             <Home class="h-4 w-4" />
-                        </BreadcrumbLink>
+                        </NuxtLink>
                     </BreadcrumbItem>
                     <BreadcrumbSeparator>
                         <ChevronRight class="h-4 w-4" />
                     </BreadcrumbSeparator>
                     <BreadcrumbItem>
-                        <BreadcrumbLink href="/courses">Courses</BreadcrumbLink>
+                        <NuxtLink to="/courses" class="flex items-center">
+                            Courses
+                        </NuxtLink>
                     </BreadcrumbItem>
                     <BreadcrumbSeparator>
                         <ChevronRight class="h-4 w-4" />
