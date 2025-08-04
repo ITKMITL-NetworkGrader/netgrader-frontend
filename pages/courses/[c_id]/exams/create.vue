@@ -582,6 +582,25 @@ const getSubnetMask = (usableIPs: number): number => {
                       <SelectItem value="custom">Custom Algorithm</SelectItem>
                     </SelectContent>
                   </Select>
+                  <!-- Custom Algorithm Input -->
+              <div v-if="subnetConfig.algorithm === 'custom'" class="space-y-2">
+                <Label for="custom-algorithm">Custom Algorithm (JavaScript)</Label>
+                <Textarea
+                  id="custom-algorithm"
+                  v-model="subnetConfig.customAlgorithm"
+                  placeholder="// Custom subnet generation algorithm
+function generateConfig(studentId, examNumber) {
+  // Your custom logic here
+  return {
+    vlan1: ...,
+    vlan2: ...,
+    // etc.
+  };
+}"
+                  rows="8"
+                  class="font-mono text-sm"
+                />
+              </div>
                 </div>
                 
                 <div class="space-y-2">
@@ -647,25 +666,7 @@ const getSubnetMask = (usableIPs: number): number => {
                 </div>
               </div>
 
-              <!-- Custom Algorithm Input -->
-              <div v-if="subnetConfig.algorithm === 'custom'" class="space-y-2">
-                <Label for="custom-algorithm">Custom Algorithm (JavaScript)</Label>
-                <Textarea
-                  id="custom-algorithm"
-                  v-model="subnetConfig.customAlgorithm"
-                  placeholder="// Custom subnet generation algorithm
-function generateConfig(studentId, examNumber) {
-  // Your custom logic here
-  return {
-    vlan1: ...,
-    vlan2: ...,
-    // etc.
-  };
-}"
-                  rows="8"
-                  class="font-mono text-sm"
-                />
-              </div>
+              
 
               <!-- Variable Ranges -->
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4">

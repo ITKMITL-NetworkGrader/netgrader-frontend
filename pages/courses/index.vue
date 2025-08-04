@@ -91,6 +91,5 @@ console.log(courses)
       :staticity="10"
       refresh
     />
-    <div class="fixed left-0 bottom-0 right-0 h-24 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 opacity-30 blur-3xl animate-[move-gradient_10s_ease-in-out_infinite]"></div>
     </div>
 </template>
