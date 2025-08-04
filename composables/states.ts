@@ -3,7 +3,7 @@ import type { PlayNode, Connection } from '@/types/play'
 export interface User {
     u_id: string;
     fullName: string;
-    lastLogin: string;
+    lastLogin?: string;
     iat?: number;
     exp?: number;
 }

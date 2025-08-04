@@ -40,7 +40,10 @@ export const useCourse = () => {
     error.value = null
     
     try {
-      const response = await $fetch<{ course: Course }>(`${backendURL}/v0/courses/${courseId}`)
+      const response = await $fetch<{ course: Course }>(`${backendURL}/v0/courses/${courseId}`, {
+        method: 'GET',
+        credentials: 'include'
+      })
       currentCourse.value = response.course
       return response.course
     } catch (err) {

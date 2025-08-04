@@ -118,7 +118,7 @@ onMounted(async () => {
   try {
     await Promise.all([
       fetchCourse(courseId),
-      fetchEnrollmentData()
+    //   fetchEnrollmentData()
     ])
     initializeForm()
   } catch (error) {
