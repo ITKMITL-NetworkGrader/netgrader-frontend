@@ -5,6 +5,7 @@ import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/componen
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
 import { computed } from "vue";
 import { useColorMode } from "@vueuse/core";
+// import { ParticlesBg } from '@/components/ui/particles-bg';
 
 const isDark = computed(() => useColorMode().value == "dark");
 const config = useRuntimeConfig()
@@ -17,6 +18,7 @@ interface CourseResponse {
         instructor: string
         createdAt: string
         updatedAt: string
+        visibility: 'public' | 'private'
     }>
 }
 const courses = await useFetch<CourseResponse>(backendURL + '/v0/courses', {
