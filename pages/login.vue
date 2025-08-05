@@ -15,6 +15,7 @@ interface LoginResponse {
     u_id: string
     fullName: string
     lastLogin: string
+    role: "STUDENT" | "INSTRUCTOR" | "ADMIN"
   }
 }
 
@@ -129,17 +130,18 @@ const handleLogin = async () => {
         u_id: response.user.u_id,
         fullName: response.user.fullName,
         lastLogin: response.user.lastLogin,
+        role: response.user.role
       }
+      
+      toast.success(`Welcome back, ${response.user.fullName}!`, {
+        description: 'Redirecting you now...',
+      })
 
       if (query.query.next) {
         await navigateTo(query.query.next as string, { replace: true })
       } else {
         await navigateTo('/courses', { replace: true })
       }
-
-      toast.success(`Welcome back, ${userState.value.fullName}!`, {
-        description: 'Redirecting you now...',
-      })
 
     } else {
       toast.error(response.message)

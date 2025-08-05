@@ -3,7 +3,7 @@ export interface LabPart {
   title: string
   content: string
   playId: string | null
-  playVariables?: Record<string, any>
+  playVariables?: Record<string, unknown>
   order: number
   status?: 'not_submitted' | 'grading' | 'graded'
 }
@@ -61,13 +61,13 @@ export interface PlayVariable {
   name: string
   type: 'string' | 'number' | 'ip_address' | 'group_number' | 'vlan_id' | 'subnet'
   description: string
-  defaultValue?: any
+  defaultValue?: string | number
   required: boolean
 }
 
 export interface PlayVariableBinding {
   variableName: string
-  value: any
+  value: string | number
   source: 'static' | 'group' | 'student' | 'generated'
   generationRule?: string
 }
@@ -81,13 +81,6 @@ export interface GradingStep {
   variableFields?: string[]
 }
 
-export interface Student {
-  id: string
-  name: string
-  studentId: string
-  email: string
-}
-
 export interface StudentGroup {
   id: string
   courseId: string
@@ -96,23 +89,18 @@ export interface StudentGroup {
   createdAt: Date
 }
 
-export interface StudentEnrollment {
+export interface Student {
+  id: string
+  name: string
   studentId: string
-  courseId: string
-  groupNumber?: number
-  examConfig?: ExamConfiguration
+  email: string
 }
 
 export interface ExamConfiguration {
   studentId: string
-  vlan1: number
-  vlan2: number
-  ipv4Subnet: string
-  ipv6Subnet: string
-  outInterfaceIpv4: string
-  outInterfaceIpv6: string
-  generatedAt: Date | string
-  generatedAnswers: any
+  variables: Map<string, string | number>
+  subnets: string[]
+  vlans: number[]
 }
 
 export interface TaskResult {
@@ -122,7 +110,7 @@ export interface TaskResult {
   maxScore: number
   passed: boolean
   feedback?: string
-  resolvedVariables?: Record<string, any>
+  resolvedVariables?: Record<string, string | number>
 }
 
 export interface GradingSubmission {
@@ -134,7 +122,7 @@ export interface GradingSubmission {
   taskResults: TaskResult[]
   totalScore: number
   maxScore: number
-  resolvedVariables: Record<string, any>
+  resolvedVariables: Record<string, string | number>
   submittedAt: Date
   gradedAt?: Date
 }

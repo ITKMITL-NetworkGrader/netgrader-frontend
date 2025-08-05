@@ -1,45 +1,50 @@
-import { Type } from "lucide-vue-next";
 import { useUserState, type User } from "~/composables/states";
 
-export default defineNuxtRouteMiddleware(async (to, from) => {
+export default defineNuxtRouteMiddleware(async (to, _from) => {
     const userState = useUserState();
     const config = useRuntimeConfig()
     const backendURL = config.public.backendurl;
     const excludedRoutes = [ "/login", "/", "/demo", "/oat"];
     
-    // Always try to restore user state if it's not set, regardless of environment
-    if (!userState.value) {
+    // Always try to restore user state if it's not set, or if coming from login page
+    const shouldRefetchUser = !userState.value || 
+                              userState.value === false || 
+                              _from?.path === "/login";
+    
+    if (shouldRefetchUser) {
         try {
-            const { data: userDataResponse, error } = await useFetch<User>(`${backendURL}/v0/auth/me`, {
+            const userDataResponse = await $fetch<User>(`${backendURL}/v0/auth/me`, {
                 method: "GET",
                 credentials: "include",
-                server: true,  // Ensure this runs on server
-                default: () => null,
             });
 
-            console.log("Fetching user data from backend");
-            console.log("User data response:", userDataResponse.value);
-
-            if (error.value) {
-                console.error("Failed to fetch user data", error.value);
-            } else if (userDataResponse.value) {
-                userState.value = userDataResponse.value;
-                console.log("User state restored:", userState.value);
+            if (userDataResponse) {
+                userState.value = userDataResponse;
+                console.log("User data fetched:", userState.value);
+            } else {
+                userState.value = null; // Explicitly set to null when no data
             }
         } catch (err) {
             console.error("Error fetching user data:", err);
+            userState.value = null; // Explicitly set to null on error
         }
     }
+
+    // if (import.meta.dev) {
+    //     console.log("Development environment detected, skipping route protection.");
+    //     return;
+    // }
     
-    // In development, skip route protection but still restore state
-    if (import.meta.dev) {
-        console.log("Development environment detected, skipping route protection.");
-        return;
-    }
+    // Check if user is properly authenticated (not just a falsy value)
+    const isAuthenticated = userState.value && 
+                           typeof userState.value === 'object' && 
+                           userState.value !== null &&
+                           userState.value.u_id &&
+                           userState.value.role; // Ensure role is present
     
-    if (!userState.value && !excludedRoutes.includes(to.path)) {
-        console.log(userState.value, "User state is not set, redirecting to login");
-        console.log("User not authenticated, redirecting to login");
+    // Check authentication for protected routes
+    if (!isAuthenticated && !excludedRoutes.includes(to.path)) {
+        console.log("User is not authenticated, redirecting to login.");
         return navigateTo({
             path: "/login",
             query: {
@@ -49,11 +54,11 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
         });
     }
 
-    if (to.path === "/login" && userState.value) {
+    if (to.path === "/login" && isAuthenticated) {
         return navigateTo("/courses", { replace: true });
     }
 
-    if (to.path === "/manage" && userState.value?.role !== "INSTRUCTOR") {
+    if (to.path === "/manage" && (!isAuthenticated || !["INSTRUCTOR", "ADMIN"].includes(userState.value?.role || ""))) {
         return navigateTo("/courses", { replace: true });
     }
 });

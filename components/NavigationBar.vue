@@ -4,6 +4,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { toast } from 'vue-sonner'
 
 const userState = useUserState()
+const { canAccessManagePage } = useRoleGuard()
 const route = useRoute()
 const dropdownOpen = ref(false)
 const mobileMenuOpen = ref(false)
@@ -65,7 +66,7 @@ const navigationItems = computed(() => [
     {
         label: 'Manage',
         to: '/manage',
-        show: isAuthenticated.value && userState.value?.role === 'INSTRUCTOR',
+        show: isAuthenticated.value && canAccessManagePage.value,
         active: route.path.startsWith('/manage')
     }
 ])

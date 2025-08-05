@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { ChevronRight, Home } from 'lucide-vue-next'
+import { ChevronRight, Home, Lock } from 'lucide-vue-next'
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card'
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
 import { computed } from "vue";
@@ -19,6 +19,7 @@ interface CourseResponse {
         createdAt: string
         updatedAt: string
         visibility: 'public' | 'private'
+        requiresPassword: boolean
     }>
 }
 
@@ -87,7 +88,8 @@ const { data: coursesData, status } = await useFetch<CourseResponse>(backendURL 
           
           <div class="p-6 flex flex-col flex-grow">
             <CardHeader class="p-0 pb-2">
-              <CardTitle class="text-xl text-gray-800 dark:text-gray-300">{{ course.title }}</CardTitle>
+              <CardTitle v-if="course.requiresPassword" class="text-xl text-gray-800 dark:text-gray-300">{{ course.title }} <Lock class="inline-block scale-70" /></CardTitle>
+              <CardTitle v-else class="text-xl text-gray-800 dark:text-gray-300">{{ course.title }}</CardTitle>
             </CardHeader>
             <CardContent class="p-0 pb-2 flex-grow">
               <p class="mt-2 text-gray-600 dark:text-gray-400">{{ course.description }}</p>

@@ -3,11 +3,27 @@ import type { PlayNode, Connection } from '@/types/play'
 export interface User {
     u_id: string;
     fullName: string;
-    role?: "STUDENT" | "INSTRUCTOR" | "TA";
+    role: "STUDENT" | "INSTRUCTOR" | "ADMIN"; // Global Role
     lastLogin?: string;
     iat?: number;
     exp?: number;
 }
+
+export interface CourseRole {
+    courseId: string;
+    isEnrolled: boolean;
+    role: "STUDENT" | "INSTRUCTOR" | "TA"; // Course Role
+    enrollmentDate: string;
+}
+
+export interface Enrollment {
+    u_id: string;
+    c_id: string;
+    u_role: "STUDENT" | "INSTRUCTOR" | "TA";
+    enrollmentDate: string;
+    fullName: string;
+}
+
 export interface NavBar {
     isOpen: boolean;
 }
@@ -20,6 +36,10 @@ export interface PlayState {
 
 export const useUserState = () =>
   useState<User | undefined | null>("user-state", () => null);
+
+export const useCourseRoleState = () =>
+  useState<CourseRole | undefined | null>("course-role-state", () => null);
+
 export const useNavBarState = () =>
   useState<NavBar | undefined | null>("navbar-state", () => {
     return { isOpen: false };

@@ -10,16 +10,15 @@ import { Textarea } from '@/components/ui/textarea'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import { toast } from 'vue-sonner'
 
-interface EnrollmentsResponse{
-    success: boolean,
-    enrollments: Array<{
-        u_id: string,
-        c_id: string,
-        u_role: "INSTRUCTOR" | "STUDENT" | "TA",
-        enrollmentDate: string,
-    }>
+import type { Enrollment } from "~/composables/states";
+
+interface EnrollmentsResponse {
+    status: boolean,
+    enrollments: Enrollment[]
 }
 
 interface EnrollResponse {
@@ -40,10 +39,12 @@ const backendURL = config.public.backendurl
 
 // Initialize composables
 const { currentCourse, isLoading, fetchCourse, currentCourseEnrollment } = useCourse()
+const { canManageCurrentCourse } = useRoleGuard()
+const courseRoleState = useCourseRoleState()
 const user = useUserState()
 
 // Reactive data for enrollments (for management purposes)
-const enrolledStudents = ref<EnrollmentsResponse['enrollments']>([])
+const enrolledStudents = ref<Enrollment[]>([])
 const isLoadingEnrollments = ref(false)
 
 // Use enrollment data from useCourse composable
@@ -55,26 +56,29 @@ const userRole = computed(() => {
   return currentCourseEnrollment.value.role || null
 })
 
-const canManageCourse = computed(() => {
-  return userRole.value === 'INSTRUCTOR' || userRole.value === 'TA'
-})
+const canManageCourse = canManageCurrentCourse
 
 // Modal states
 const isEditModalOpen = ref(false)
 const isManageModalOpen = ref(false)
+const isEnrollModalOpen = ref(false)
+const isPasswordModalOpen = ref(false)
+const isConfirmEnrollModalOpen = ref(false)
+
+// Enrollment form data
+const enrollmentForm = ref({
+  password: '',
+  selectedRole: 'STUDENT' as 'STUDENT' | 'INSTRUCTOR' | 'TA'
+})
 
 // Form data for editing course
 const editForm = ref({
   title: '',
   description: '',
   bannerImage: '',
-  enrolledStudents: [] as Array<{
-    u_id: string,
-    c_id: string,
-    u_role: "INSTRUCTOR" | "STUDENT" | "TA",
-    enrollmentDate: string,
-  }>,
-  visibility: 'public'
+  password: '',
+  enrolledStudents: [] as Enrollment[],
+  isPrivate: false
 })
 
 // Function to fetch enrollment data for management (only when needed)
@@ -103,7 +107,8 @@ const initializeForm = () => {
   if (currentCourse.value) {
     editForm.value.title = currentCourse.value.title || ''
     editForm.value.description = currentCourse.value.description || ''
-    editForm.value.visibility = currentCourse.value.visibility || 'public'
+    editForm.value.password = currentCourse.value.password || ''
+    editForm.value.isPrivate = currentCourse.value.visibility === 'private'
     editForm.value.enrolledStudents = enrolledStudents.value || []
   }
 }
@@ -145,10 +150,37 @@ const courseTitle = computed(() => {
 })
 
 // Methods
-const saveEditChanges = () => {
-  // TODO: Implement save logic
-  console.log('Saving changes:', editForm.value)
-  isEditModalOpen.value = false
+const saveEditChanges = async () => {
+  try {
+    const updateData = {
+      title: editForm.value.title,
+      description: editForm.value.description,
+      password: editForm.value.password,
+      visibility: editForm.value.isPrivate ? 'private' : 'public'
+    }
+
+    await $fetch(`${backendURL}/v0/courses/${courseId}`, {
+      method: 'PUT',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: updateData
+    })
+
+    toast.success('Course updated successfully!', {
+      description: 'Your changes have been saved.'
+    })
+
+    // Refresh course data
+    await fetchCourse(courseId)
+    isEditModalOpen.value = false
+  } catch (error) {
+    console.error('Failed to update course:', error)
+    toast.error('Failed to update course', {
+      description: 'Please try again later.'
+    })
+  }
 }
 
 const removeStudent = (studentId: string) => {
@@ -177,28 +209,97 @@ const enrollStudent = async () => {
     return
   }
   
+  // Check if course requires password
+  if (currentCourse.value?.requiresPassword) {
+    isPasswordModalOpen.value = true
+  } else {
+    isConfirmEnrollModalOpen.value = true
+  }
+}
+
+const handlePasswordSubmit = () => {
+  if (!enrollmentForm.value.password) {
+    toast.error('Password is required', {
+      description: 'Please enter the course password.'
+    })
+    return
+  }
+  isPasswordModalOpen.value = false
+  isConfirmEnrollModalOpen.value = true
+}
+
+const confirmEnrollment = async () => {
   try {
+    const requestBody: {
+      c_id: string;
+      password?: string;
+      role?: 'STUDENT' | 'INSTRUCTOR' | 'TA';
+    } = {
+      c_id: courseId,
+    }
+    
+    // Add password if required
+    if (currentCourse.value?.requiresPassword) {
+      requestBody.password = enrollmentForm.value.password
+    }
+    
+    // Add role selection for admins
+    if (user.value?.role === 'ADMIN') {
+      requestBody.role = enrollmentForm.value.selectedRole
+    }
+
     const response = await $fetch<EnrollResponse>(`${backendURL}/v0/enrollments/`, {
       method: 'POST',
       credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: {
-        c_id: courseId,
-      }
+      body: requestBody
     })
+    
     if (response.success) {
       toast.success('Successfully enrolled in course!', {
         description: 'You may now access course materials, labs, and exams. Have fun!'
       })
+      
       // Refresh course data to update enrollment status
       await fetchCourse(courseId)
+      
+      // Force refresh the course role state by re-fetching enrollment status
+      try {
+        const enrollmentResponse = await $fetch<{
+          success: boolean;
+          enrollment: {
+            isEnrolled: boolean;
+            role: "STUDENT" | "INSTRUCTOR" | "TA";
+            enrollmentDate: string;
+          };
+        }>(`${backendURL}/v0/enrollments/status/${courseId}`, {
+          method: "GET",
+          credentials: "include",
+        });
+
+        if (enrollmentResponse?.success) {
+          courseRoleState.value = {
+            courseId,
+            isEnrolled: enrollmentResponse.enrollment.isEnrolled,
+            role: enrollmentResponse.enrollment.role,
+            enrollmentDate: enrollmentResponse.enrollment.enrollmentDate
+          };
+        }
+      } catch (err) {
+        console.error("Error refreshing course role:", err);
+      }
+      
+      // Reset form and close modals
+      enrollmentForm.value.password = ''
+      enrollmentForm.value.selectedRole = 'STUDENT'
+      isConfirmEnrollModalOpen.value = false
     }
   } catch (error) {
     console.error('Failed to enroll in course:', error)
-    toast.error('Failed to enroll in course', {
-      description: 'Please try again later or contact support.'
+    toast.error('Course password is invalid', {
+      description: 'Please check your password and try again.'
     })
   }
 }
@@ -214,7 +315,7 @@ watchEffect(() => {
 
 <template>
     <div class="min-h-screen bg-background">
-        <div class="container mx-auto p-4 pb-8">
+        <div class="mx-auto p-4 pb-8">
             <Breadcrumb class="mb-6">
                 <BreadcrumbList>
                     <BreadcrumbItem>
@@ -258,7 +359,7 @@ watchEffect(() => {
 
                 <div class="relative">
                     <div class="h-48 rounded-lg overflow-hidden relative">
-                        <div class="absolute inset-0 bg-gradient-to-r from-black/70 to-transparent z-10"></div>
+                        <div class="absolute inset-0 bg-gradient-to-r from-black/90 to-black/50 z-10"></div>
                         <img :src="currentCourse.bannerImage || 'https://i.pinimg.com/736x/18/e3/ad/18e3ad7a432d41a6e2a57d1523e81c73.jpg'" alt="Course banner" class="w-full h-full object-cover opacity-70">
                     </div>
                     <div class="absolute inset-0 p-6 flex flex-col justify-center z-20">
@@ -277,11 +378,13 @@ watchEffect(() => {
                                     <span class="text-xs">Edit Course</span>
                                 </Button>
                             </DialogTrigger>
-                            <DialogContent class="max-w-2xl max-h-[80vh] overflow-y-auto">
+                            <DialogContent class="min-w-[80vw] max-h-[90vh] overflow-hidden">
                                 <DialogHeader>
                                     <DialogTitle class="text-xl">Edit Course</DialogTitle>
                                 </DialogHeader>
-                                <div class="space-y-4">
+                                <div class="space-y-4 overflow-y-auto max-h-[70vh] pr-2"
+                                     style="scrollbar-width: thin; scrollbar-color: rgb(203 213 225) transparent;"
+                                >
                                     <div>
                                         <Label class="pb-2" for="course-title">Course Name</Label>
                                         <Input id="course-title" v-model="editForm.title" placeholder="Enter course name" />
@@ -295,85 +398,94 @@ watchEffect(() => {
                                         <Input id="banner-image" type="file" accept="image/*" @change="handleFileChange" />
                                     </div>
                                     <div>
-                                        <Label class="pb-2" for="course-visibility">Course Visibility</Label>
-                                        <div class="flex items-center space-x-4">
-                                            <div class="flex items-center space-x-2">
-                                                <input
-                                                    id="public"
-                                                    type="radio"
-                                                    value="public"
-                                                    v-model="editForm.visibility"
-                                                    class="h-4 w-4 text-primary border-gray-300 focus:ring-primary"
-                                                />
-                                                <Label for="public" class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                                                    Public
-                                                </Label>
-                                            </div>
-                                            <div class="flex items-center space-x-2">
-                                                <input
-                                                    id="private"
-                                                    type="radio"
-                                                    value="private"
-                                                    v-model="editForm.visibility"
-                                                    class="h-4 w-4 text-primary border-gray-300 focus:ring-primary"
-                                                />
-                                                <Label for="private" class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                                                    Private
-                                                </Label>
-                                            </div>
+                                        <Label class="pb-2" for="course-password">Course Password (Optional)</Label>
+                                        <Input 
+                                            id="course-password" 
+                                            v-model="editForm.password" 
+                                            type="password" 
+                                            placeholder="Enter course password" 
+                                        />
+                                        <p class="text-xs text-muted-foreground mt-1">
+                                            Leave empty if you don't want to require a password for enrollment
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <Label class="mb-2" for="course-visibility">Course Visibility</Label>
+                                        <div class="flex items-center space-x-3">
+                                            <Label for="visibility-switch" class="text-sm font-medium">
+                                                {{ editForm.isPrivate ? 'Private' : 'Public' }}
+                                            </Label>
+                                            <Switch 
+                                                id="visibility-switch"
+                                                v-model:checked="editForm.isPrivate"
+                                            />
+                                            <span class="text-xs text-muted-foreground">
+                                                {{ editForm.isPrivate ? 'Only enrolled students can see this course' : 'Anyone can see this course' }}
+                                            </span>
                                         </div>
                                     </div>
                                     <div>
                                         <Label class="pb-2">Enrolled Students</Label>
                                         <div v-if="isLoadingEnrollments" class="flex items-center justify-center py-8">
-                                            <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                                            <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
                                         </div>
-                                        <div v-else-if="editForm.enrolledStudents && editForm.enrolledStudents.length > 0">
-                                            <Table>
-                                                <TableHeader>
-                                                    <TableRow>
-                                                        <TableHead>Name</TableHead>
-                                                        <TableHead>Student ID</TableHead>
-                                                        <TableHead>Role</TableHead>
-                                                        <TableHead>Enrolled Date</TableHead>
-                                                        <TableHead class="w-[100px]">Action</TableHead>
-                                                    </TableRow>
-                                                </TableHeader>
-                                                <TableBody>
-                                                    <TableRow v-for="student in editForm.enrolledStudents" :key="student.u_id">
-                                                        <TableCell>{{ student.name || 'N/A' }}</TableCell>
-                                                        <TableCell>{{ student.studentId || student.u_id }}</TableCell>
-                                                        <TableCell>
-                                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
-                                                                  :class="{
-                                                                    'bg-blue-100 text-blue-800': student.u_role === 'STUDENT',
-                                                                    'bg-green-100 text-green-800': student.u_role === 'INSTRUCTOR',
-                                                                    'bg-yellow-100 text-yellow-800': student.u_role === 'TA'
-                                                                  }">
-                                                                {{ student.u_role }}
-                                                            </span>
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            {{ new Date(student.enrollmentDate).toLocaleDateString() }}
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            <Button variant="destructive" size="sm" @click="removeStudent(student.u_id)" 
-                                                                    :disabled="student.u_role === 'INSTRUCTOR'">
-                                                                <Trash2 class="h-4 w-4" />
-                                                            </Button>
-                                                        </TableCell>
-                                                    </TableRow>
-                                                </TableBody>
-                                            </Table>
+                                        <div v-else-if="editForm.enrolledStudents && editForm.enrolledStudents.length > 0" 
+                                             class="rounded-lg overflow-hidden">
+                                            <div class="overflow-x-auto max-h-96"
+                                                 style="scrollbar-width: thin; scrollbar-color: rgb(203 213 225) transparent;"
+                                            >
+                                                <Table>
+                                                    <TableHeader class="sticky top-0 z-10">
+                                                        <TableRow>
+                                                            <TableHead class="min-w-[150px]">Name</TableHead>
+                                                            <TableHead class="min-w-[120px]">Student ID</TableHead>
+                                                            <TableHead class="min-w-[100px]">Role</TableHead>
+                                                            <TableHead class="min-w-[120px]">Enrolled Date</TableHead>
+                                                            <TableHead class="w-[100px]">Action</TableHead>
+                                                        </TableRow>
+                                                    </TableHeader>
+                                                    <TableBody>
+                                                        <TableRow v-for="student in editForm.enrolledStudents" :key="student.u_id">
+                                                            <TableCell class="font-medium">{{ student.fullName || 'N/A' }}</TableCell>
+                                                            <TableCell>{{ student.u_id }}</TableCell>
+                                                            <TableCell>
+                                                                <span 
+                                                                    class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                                                                    :class="{
+                                                                        'bg-blue-100 text-blue-800': student.u_role === 'STUDENT',
+                                                                        'bg-green-100 text-green-800': student.u_role === 'INSTRUCTOR',
+                                                                        'bg-yellow-100 text-yellow-800': student.u_role === 'TA'
+                                                                    }"
+                                                                >
+                                                                    {{ student.u_role }}
+                                                                </span>
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                {{ new Date(student.enrollmentDate).toLocaleDateString() }}
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                <Button 
+                                                                    variant="destructive" 
+                                                                    size="sm" 
+                                                                    :disabled="student.u_role === 'INSTRUCTOR'"
+                                                                    @click="removeStudent(student.u_id)"
+                                                                >
+                                                                    <Trash2 class="h-4 w-4" />
+                                                                </Button>
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    </TableBody>
+                                                </Table>
+                                            </div>
                                         </div>
                                         <div v-else class="text-center py-8 text-muted-foreground border border-dashed border-gray-300 rounded-lg">
                                             <p>No students are currently enrolled in this course.</p>
                                         </div>
                                     </div>
-                                    <div class="flex justify-end space-x-2">
-                                        <Button variant="outline" @click="isEditModalOpen = false">Cancel</Button>
-                                        <Button @click="saveEditChanges">Save Changes</Button>
-                                    </div>
+                                </div>
+                                <div class="flex justify-end space-x-2 pt-4 border-t border-gray-200">
+                                    <Button variant="outline" @click="isEditModalOpen = false">Cancel</Button>
+                                    <Button @click="saveEditChanges">Save Changes</Button>
                                 </div>
                             </DialogContent>
                         </Dialog>
@@ -468,7 +580,7 @@ watchEffect(() => {
 
                     <!-- Enrollment Button (Bottom Right) -->
                     <div v-if="!isEnrolled && userRole !== 'INSTRUCTOR'" class="absolute bottom-4 right-4 z-30">
-                        <Button @click="enrollStudent" class="bg-primary hover:bg-primary/90 text-white">
+                        <Button class="bg-primary hover:bg-primary/90 text-white" @click="enrollStudent">
                             Enroll in Course
                         </Button>
                     </div>
@@ -478,6 +590,81 @@ watchEffect(() => {
                         </div>
                     </div>
                 </div>
+                
+                <!-- Password Modal -->
+                <Dialog v-model:open="isPasswordModalOpen">
+                    <DialogContent class="max-w-md">
+                        <DialogHeader>
+                            <DialogTitle>Course Password Required</DialogTitle>
+                        </DialogHeader>
+                        <div class="space-y-4">
+                            <p class="text-muted-foreground">This course requires a password to enroll.</p>
+                            <div>
+                                <Label for="course-password">Password</Label>
+                                <Input 
+                                    id="course-password" 
+                                    v-model="enrollmentForm.password" 
+                                    type="password" 
+                                    placeholder="Enter course password"
+                                    class="mt-2"
+                                />
+                            </div>
+                            <!-- Role selection for admins -->
+                            <div v-if="user?.role === 'ADMIN'">
+                                <Label for="enrollment-role" class="mb-2">Enroll as</Label>
+                                <Select v-model="enrollmentForm.selectedRole">
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Select role" />
+                                    </SelectTrigger>
+                                    <SelectContent class="mt-2">
+                                        <SelectItem value="STUDENT">Student</SelectItem>
+                                        <SelectItem value="TA">Teaching Assistant (TA)</SelectItem>
+                                        <SelectItem value="INSTRUCTOR">Instructor</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+                        <div class="flex justify-end space-x-2">
+                            <Button variant="outline" @click="isPasswordModalOpen = false">Cancel</Button>
+                            <Button @click="handlePasswordSubmit">Continue</Button>
+                        </div>
+                    </DialogContent>
+                </Dialog>
+
+                <!-- Confirmation Modal -->
+                <Dialog v-model:open="isConfirmEnrollModalOpen">
+                    <DialogContent class="max-w-md">
+                        <DialogHeader>
+                            <DialogTitle>Confirm Enrollment</DialogTitle>
+                        </DialogHeader>
+                        <div class="space-y-4">
+                            <p class="text-muted-foreground">
+                                Are you sure you want to enroll in <strong>{{ currentCourse?.title }}</strong>?
+                            </p>
+                            <!-- Role selection for admins (if no password required) -->
+                            <div v-if="user?.role === 'ADMIN' && !currentCourse?.requiresPassword">
+                                <Label for="enrollment-role-confirm" class="mb-2">Enroll as</Label>
+                                <Select v-model="enrollmentForm.selectedRole">
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Select role" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="STUDENT">Student</SelectItem>
+                                        <SelectItem value="TA">Teaching Assistant (TA)</SelectItem>
+                                        <SelectItem value="INSTRUCTOR">Instructor</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div v-if="user?.role === 'ADMIN'" class="text-sm text-muted-foreground">
+                                You will be enrolled as: <strong>{{ enrollmentForm.selectedRole }}</strong>
+                            </div>
+                        </div>
+                        <div class="flex justify-end space-x-2">
+                            <Button variant="outline" @click="isConfirmEnrollModalOpen = false">Cancel</Button>
+                            <Button @click="confirmEnrollment">Confirm Enrollment</Button>
+                        </div>
+                    </DialogContent>
+                </Dialog>
                 
                 <div class="flex">
                     <Accordion type="single" collapsible class="w-full">

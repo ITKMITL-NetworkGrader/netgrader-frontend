@@ -1,3 +1,5 @@
+import { useCourseRoleState } from "~/composables/states";
+
 interface Course {
   _id: string
   title: string
@@ -6,6 +8,7 @@ interface Course {
   createdAt: string
   updatedAt: string
   visibility: 'public' | 'private'
+  requiresPassword: boolean
 }
 
 interface CourseResponse {
@@ -14,24 +17,31 @@ interface CourseResponse {
 
 interface SingleCourseResponse {
   course: Course
-  isEnrolled: boolean
-  role?: 'STUDENT' | 'INSTRUCTOR' | 'TA'
+  enrollment: {
+    isEnrolled: boolean
+    role?: "STUDENT" | "INSTRUCTOR" | "TA"
+    enrollmentDate?: string
+  }
 }
 
 export const useCourse = () => {
   const courses = ref<Course[]>([])
   const currentCourse = ref<Course | null>(null)
-  const currentCourseEnrollment = ref<{
-    isEnrolled: boolean
-    role?: 'STUDENT' | 'INSTRUCTOR' | 'TA'
-  }>({
-    isEnrolled: false,
-    role: undefined
-  })
   const isLoading = ref(false)
   const error = ref<string | null>(null)
   const config = useRuntimeConfig()
   const backendURL = config.public.backendurl
+  const courseRoleState = useCourseRoleState()
+
+  // Get course role information from global state
+  const currentCourseEnrollment = computed(() => {
+    return courseRoleState.value || {
+      isEnrolled: false,
+      role: undefined,
+      courseId: '',
+      enrollmentDate: ''
+    }
+  })
 
   const fetchCourses = async () => {
     isLoading.value = true
@@ -58,10 +68,6 @@ export const useCourse = () => {
         credentials: 'include'
       })
       currentCourse.value = response.course
-      currentCourseEnrollment.value = {
-        isEnrolled: response.isEnrolled,
-        role: response.role
-      }
       return response.course
     } catch (err) {
       error.value = 'Failed to fetch course'
