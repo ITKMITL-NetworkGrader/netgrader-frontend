@@ -15,12 +15,38 @@ const config = useRuntimeConfig()
 const backendURL = config.public.backendurl
 const user = useUserState()
 
+// Type definitions
+interface Course {
+  _id: string
+  title: string
+  description: string
+  password?: string
+  visibility: 'private' | 'public'
+  createdAt: string
+  enrollmentCount?: number
+}
+
+interface EnrollmentResponse {
+  success: boolean
+  enrollments: Array<{
+    u_id: string
+    u_role: 'INSTRUCTOR' | 'STUDENT' | 'TA'
+    enrollmentDate: string
+    fullName: string
+  }>
+}
+
+interface CoursesResponse {
+  courses: Course[]
+}
+
 // Modal states
 const isCreateModalOpen = ref(false)
 const isEditModalOpen = ref(false)
 
 // Course data
-const userCourses = ref([])
+const userCourses = ref<Course[]>([])
+const totalCourses = ref(0)
 const isLoading = ref(false)
 const isCreating = ref(false)
 const isUpdating = ref(false)
@@ -42,18 +68,70 @@ const editForm = ref({
   isPrivate: false
 })
 
-// Fetch user's courses
-const fetchUserCourses = async () => {
+// Fetch enrollment count for a specific course
+const fetchEnrollmentCount = async (courseId: string): Promise<number> => {
   try {
-    isLoading.value = true
-    const response = await $fetch(`${backendURL}/v0/courses/my-courses`, {
+    const response = await $fetch<EnrollmentResponse>(`${backendURL}/v0/enrollments/${courseId}`, {
       method: 'GET',
       credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
       }
     })
-    userCourses.value = response.courses || []
+    return response.enrollments?.length || 0
+  } catch (error) {
+    console.error(`Failed to fetch enrollment count for course ${courseId}:`, error)
+    return 0
+  }
+}
+
+const fetchTotalCourses = async () => {
+  try {
+    isLoading.value = true
+    const response = await $fetch<CoursesResponse>(`${backendURL}/v0/courses`, {
+      method: 'GET',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    })
+    totalCourses.value = response.courses.length
+    console.log('Response:', response)
+    console.log('Total courses fetched:', totalCourses.value)
+  }
+  catch (error) {
+    console.error('Failed to fetch total courses:', error)
+    totalCourses.value = 0
+  } finally {
+    isLoading.value = false
+  }
+}
+
+// Fetch user's courses
+const fetchUserCourses = async () => {
+  try {
+    isLoading.value = true
+    const response = await $fetch<CoursesResponse>(`${backendURL}/v0/courses/created`, {
+      method: 'GET',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    })
+    const courses = response.courses || []
+    
+    // Fetch enrollment count for each course
+    const coursesWithEnrollments = await Promise.all(
+      courses.map(async (course: Course) => {
+        const enrollmentCount = await fetchEnrollmentCount(course._id)
+        return {
+          ...course,
+          enrollmentCount
+        }
+      })
+    )
+    
+    userCourses.value = coursesWithEnrollments
   } catch (error) {
     console.error('Failed to fetch user courses:', error)
     userCourses.value = []
@@ -73,7 +151,6 @@ const createCourse = async () => {
       password: createForm.value.password,
       visibility: createForm.value.isPrivate ? 'private' : 'public'
     }
-    console.log(courseData)
     await $fetch(`${backendURL}/v0/courses`, {
       method: 'POST',
       credentials: 'include',
@@ -97,6 +174,7 @@ const createCourse = async () => {
     isCreateModalOpen.value = false
     
     // Refresh courses list
+    await fetchTotalCourses()
     await fetchUserCourses()
   } catch (error) {
     console.error('Failed to create course:', error)
@@ -110,6 +188,7 @@ const createCourse = async () => {
 
 // Update course
 const updateCourse = async () => {
+  console.log(editForm.value.id)
   try {
     isUpdating.value = true
     
@@ -119,7 +198,6 @@ const updateCourse = async () => {
       password: editForm.value.password,
       visibility: editForm.value.isPrivate ? 'private' : 'public'
     }
-
     await $fetch(`${backendURL}/v0/courses/${editForm.value.id}`, {
       method: 'PUT',
       credentials: 'include',
@@ -161,6 +239,7 @@ const deleteCourse = async (courseId: string, courseName: string) => {
       description: 'The course has been permanently removed.'
     })
 
+    await fetchTotalCourses()
     await fetchUserCourses()
   } catch (error) {
     console.error('Failed to delete course:', error)
@@ -173,7 +252,7 @@ const deleteCourse = async (courseId: string, courseName: string) => {
 // Open edit modal with course data
 const openEditModal = (course: any) => {
   editForm.value = {
-    id: course.c_id,
+    id: course._id,
     title: course.title,
     description: course.description,
     password: course.password || '',
@@ -189,6 +268,7 @@ const navigateToCourse = (courseId: string) => {
 
 // Fetch courses on mount
 onMounted(() => {
+  fetchTotalCourses()
   fetchUserCourses()
 })
 </script>
@@ -216,12 +296,12 @@ onMounted(() => {
 
       <!-- My Courses Card -->
       <div class="grid gap-6 mb-8">
-        <Card class="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+        <Card class="bg-gradient-to-r from-blue-500 to-indigo-500 border-blue-800">
           <CardHeader>
             <div class="flex items-center justify-between">
               <div>
                 <CardTitle class="flex items-center gap-2 text-2xl">
-                  <BookOpen class="h-6 w-6 text-blue-600" />
+                  <BookOpen class="h-6 w-6 text-blue-400" />
                   My Courses
                 </CardTitle>
                 <CardDescription class="text-lg">
@@ -229,8 +309,9 @@ onMounted(() => {
                 </CardDescription>
               </div>
               <div class="text-right">
-                <div class="text-3xl font-bold text-blue-600">{{ userCourses.length }}</div>
-                <div class="text-sm text-muted-foreground">Total Courses</div>
+                <div class="text-3xl font-bold text-blue-400">{{ totalCourses }}</div>
+                <div v-if="totalCourses > 1" class="text-sm text-muted-foreground">Total Courses</div>
+                <div v-else class="text-sm text-muted-foreground">Total Course</div>
               </div>
             </div>
           </CardHeader>
@@ -334,10 +415,11 @@ onMounted(() => {
         <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           <Card
             v-for="course in userCourses"
-            :key="course.c_id"
+            :key="course._id"
             class="hover:shadow-lg transition-shadow cursor-pointer"
+            aria-describedby="course-card"
           >
-            <CardHeader @click="navigateToCourse(course.c_id)">
+            <CardHeader @click="navigateToCourse(course._id)">
               <div class="flex items-start justify-between">
                 <div class="flex-1">
                   <CardTitle class="text-lg line-clamp-2">{{ course.title }}</CardTitle>
@@ -359,9 +441,13 @@ onMounted(() => {
             <CardContent>
               <div class="flex items-center justify-between text-sm text-muted-foreground mb-4">
                 <div class="flex items-center gap-4">
-                  <span class="flex items-center gap-1">
+                  <span v-if="course.enrollmentCount > 1" class="flex items-center gap-1">
                     <Users class="h-4 w-4" />
                     {{ course.enrollmentCount || 0 }} students
+                  </span>
+                  <span v-else class="flex items-center gap-1">
+                    <Users class="h-4 w-4" />
+                    {{ course.enrollmentCount || 0 }} student
                   </span>
                   <span class="flex items-center gap-1">
                     <Calendar class="h-4 w-4" />
@@ -382,7 +468,7 @@ onMounted(() => {
                 <Button
                   variant="destructive"
                   size="sm"
-                  @click.stop="deleteCourse(course.c_id, course.title)"
+                  @click.stop="deleteCourse(course._id, course.title)"
                 >
                   <Trash2 class="h-4 w-4" />
                 </Button>
@@ -400,6 +486,7 @@ onMounted(() => {
           </DialogHeader>
           <div class="space-y-4">
             <div>
+              
               <Label for="edit-title">Course Title</Label>
               <Input
                 id="edit-title"
