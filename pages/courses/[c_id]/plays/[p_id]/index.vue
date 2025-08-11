@@ -1,18 +1,18 @@
 <template>
-  <div class="h-screen flex flex-col bg-background pt-16">
+  <div class="h-screen flex flex-col bg-gray-50 pt-16">
     <!-- Custom header for Play page -->
-    <div class="border-b bg-card px-4 py-2 shadow-sm">
+    <div class="border-b bg-white px-4 py-2 shadow-sm">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-4">
           <div>
             <h1 class="text-xl font-semibold">Play Editor</h1>
-            <p class="text-sm text-muted-foreground">Course: {{ course?.name }}</p>
+            <p class="text-sm text-gray-600">Course: {{ course?.name }}</p>
           </div>
         </div>
         <div class="flex items-center gap-4">
           <!-- User info from navigation -->
-          <span v-if="userState" class="text-sm text-muted-foreground">
-            {{ userState.first_name }} {{ userState.last_name }}
+          <span v-if="userState" class="text-sm text-gray-600">
+            {{ userState.fullName }}
           </span>
           <div class="flex gap-2">
             <Button variant="outline" @click="savePlay">Save</Button>
@@ -23,14 +23,14 @@
     </div>
     
     <div class="flex-1 flex">
-      <PlayToolbar class="w-64 border-r bg-card border-border" :play-id="playId" />
+      <PlayToolbar class="w-64 border-r bg-white" :play-id="playId" />
       <div class="flex-1 flex">
         <PlayCanvas 
           class="flex-1 w-full" 
           :play-id="playId" 
         />
         <TaskList 
-          class="w-80 border-l bg-card"
+          class="w-80 border-l bg-white"
           :nodes="nodes" 
           @reorder="handleTaskReorder"
           @delete="handleTaskDelete"
