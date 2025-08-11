@@ -19,9 +19,12 @@ import PartSidebar from '@/components/lab/PartSidebar.vue'
 import ClientOnlyTextEditor from '@/components/lab/ClientOnlyTextEditor.vue'
 import PlaySelectionModal from '@/components/lab/PlaySelectionModal.vue'
 import GroupManagement from '@/components/lab/GroupManagement.vue'
+import IPSchemaManager from '@/components/lab/IPSchemaManager.vue'
+import PlayCreationModal from '@/components/play/PlayCreationModal.vue'
 import { useLabManagement } from '@/composables/useLabManagement'
 import { usePlayBank } from '@/composables/usePlayBank'
 import { useGroupManagement } from '@/composables/useGroupManagement'
+import { useIPSchema } from '@/composables/useIPSchema'
 import { Home, BookOpen, Plus, Save, X, AlertTriangle, Loader2 } from 'lucide-vue-next'
 import type { Play, PlayVariableBinding, LabFormData, Lab } from '@/types/lab'
 
@@ -65,11 +68,23 @@ const {
   exportGroups
 } = useGroupManagement(courseId.value)
 
+// IP Schema management
+const {
+  schema,
+  isConfigured,
+  ipMappings,
+  configure,
+  generateIPs,
+  validateConfiguration
+} = useIPSchema()
+
 // Form state
 const labTitle = ref('')
 const labDescription = ref('')
 const groupsRequired = ref(false)
 const showPlayModal = ref(false)
+const showPlayCreationModal = ref(false)
+const showIPSchemaManager = ref(false)
 const showGroupManagement = ref(false)
 const showUnsavedDialog = ref(false)
 const pendingNavigation = ref<string | null>(null)
@@ -92,7 +107,8 @@ const selectedPlay = computed(() => {
 // Validation
 const canSave = computed(() => {
   const validation = validateLab()
-  return validation.isValid && labTitle.value.trim() !== '' && !isInitialLoading.value
+  const ipSchemaValid = !groupsRequired.value || isConfigured.value
+  return validation.isValid && labTitle.value.trim() !== '' && !isInitialLoading.value && ipSchemaValid
 })
 
 const validationErrors = computed(() => {
@@ -101,6 +117,10 @@ const validationErrors = computed(() => {
   
   if (!labTitle.value.trim()) {
     errors.unshift('Lab title is required')
+  }
+  
+  if (groupsRequired.value && !isConfigured.value) {
+    errors.push('IP schema configuration is required for group-based labs')
   }
   
   return errors
@@ -119,6 +139,11 @@ const loadLabData = async () => {
       labTitle.value = lab.title
       labDescription.value = lab.description
       groupsRequired.value = lab.groupsRequired
+      
+      // Load IP schema if available
+      if (lab.ipSchema) {
+        configure(lab.ipSchema)
+      }
       
       // Load groups if required
       if (lab.groupsRequired) {
@@ -160,6 +185,14 @@ const handleOpenPlayModal = () => {
   showPlayModal.value = true
 }
 
+const handleOpenPlayCreation = () => {
+  showPlayCreationModal.value = true
+}
+
+const handleOpenIPSchemaManager = () => {
+  showIPSchemaManager.value = true
+}
+
 const handlePlaySelect = (play: Play, variables: PlayVariableBinding[]) => {
   const variableBindings = variables.reduce((acc, binding) => {
     acc[binding.variableName] = binding.value
@@ -187,7 +220,8 @@ const handleSave = async () => {
       title: labTitle.value,
       description: labDescription.value,
       parts: parts.value.map(({ id, ...part }) => part),
-      groupsRequired: groupsRequired.value
+      groupsRequired: groupsRequired.value,
+      ipSchema: groupsRequired.value ? schema.value : undefined
     }
 
     const response = await updateLab(courseId.value, labId.value, labData)

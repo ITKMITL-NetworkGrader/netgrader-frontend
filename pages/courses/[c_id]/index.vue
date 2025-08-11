@@ -510,10 +510,12 @@ watchEffect(() => {
                                     <TabsContent value="labs" class="space-y-4">
                                         <div class="flex justify-between items-center pt-2">
                                             <h3 class="text-lg font-semibold">Course Labs</h3>
-                                            <Button @click="addLab">
-                                                <Plus class="h-4 w-4 mr-2" />
-                                                Add Lab
-                                            </Button>
+                                            <NuxtLink :to="`/courses/${courseId}/labs/create`" class="flex items-center">
+                                                <Button>
+                                                    <Plus class="h-4 w-4 mr-2" />
+                                                    Add Lab
+                                                </Button>
+                                            </NuxtLink>
                                         </div>
                                         <div class="grid gap-4">
                                             <Card v-for="(lab, index) in currentCourse.labs || []" :key="index">
@@ -543,10 +545,12 @@ watchEffect(() => {
                                     <TabsContent value="exams" class="space-y-4">
                                         <div class="flex justify-between items-center pt-2">
                                             <h3 class="text-lg font-semibold">Course Exams</h3>
-                                            <Button @click="addExam">
-                                                <Plus class="h-4 w-4 mr-2" />
-                                                Add Exam
-                                            </Button>
+                                            <NuxtLink :to="`/courses/${courseId}/exams/create`" class="flex items-center">
+                                                <Button>
+                                                    <Plus class="h-4 w-4 mr-2" />
+                                                    Add Exam
+                                                </Button>
+                                            </NuxtLink>
                                         </div>
                                         <div class="grid gap-4">
                                             <Card v-for="(exam, index) in currentCourse.exams || []" :key="index">

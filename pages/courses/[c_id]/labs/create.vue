@@ -17,9 +17,12 @@ import PartSidebar from '@/components/lab/PartSidebar.vue'
 import ClientOnlyTextEditor from '@/components/lab/ClientOnlyTextEditor.vue'
 import PlaySelectionModal from '@/components/lab/PlaySelectionModal.vue'
 import GroupManagement from '@/components/lab/GroupManagement.vue'
+import IPSchemaManager from '@/components/lab/IPSchemaManager.vue'
+import PlayCreationModal from '@/components/play/PlayCreationModal.vue'
 import { useLabManagement } from '@/composables/useLabManagement'
 import { usePlayBank } from '@/composables/usePlayBank'
 import { useGroupManagement } from '@/composables/useGroupManagement'
+import { useIPSchema } from '@/composables/useIPSchema'
 import { Home, BookOpen, Plus, Save, X, AlertTriangle } from 'lucide-vue-next'
 import type { Play, PlayVariableBinding, LabFormData } from '@/types/lab'
 
@@ -61,11 +64,23 @@ const {
   exportGroups
 } = useGroupManagement(courseId.value)
 
+// IP Schema management
+const {
+  schema,
+  isConfigured,
+  ipMappings,
+  configure,
+  generateIPs,
+  validateConfiguration
+} = useIPSchema()
+
 // Form state
 const labTitle = ref('')
 const labDescription = ref('')
 const groupsRequired = ref(false)
 const showPlayModal = ref(false)
+const showPlayCreationModal = ref(false)
+const showIPSchemaManager = ref(false)
 const showGroupManagement = ref(false)
 const showUnsavedDialog = ref(false)
 const pendingNavigation = ref<string | null>(null)
@@ -83,7 +98,8 @@ const selectedPlay = computed(() => {
 // Validation
 const canSave = computed(() => {
   const validation = validateLab()
-  return validation.isValid && labTitle.value.trim() !== ''
+  const ipSchemaValid = !groupsRequired.value || isConfigured.value
+  return validation.isValid && labTitle.value.trim() !== '' && ipSchemaValid
 })
 
 const validationErrors = computed(() => {
@@ -92,6 +108,10 @@ const validationErrors = computed(() => {
   
   if (!labTitle.value.trim()) {
     errors.unshift('Lab title is required')
+  }
+  
+  if (groupsRequired.value && !isConfigured.value) {
+    errors.push('IP schema configuration is required for group-based labs')
   }
   
   return errors
@@ -116,6 +136,14 @@ const handleContentUpdate = (content: string) => {
 
 const handleOpenPlayModal = () => {
   showPlayModal.value = true
+}
+
+const handleOpenPlayCreation = () => {
+  showPlayCreationModal.value = true
+}
+
+const handleOpenIPSchemaManager = () => {
+  showIPSchemaManager.value = true
 }
 
 const handlePlaySelect = (play: Play, variables: PlayVariableBinding[]) => {
@@ -145,7 +173,8 @@ const handleSave = async () => {
       title: labTitle.value,
       description: labDescription.value,
       parts: parts.value.map(({ id, ...part }) => part),
-      groupsRequired: groupsRequired.value
+      groupsRequired: groupsRequired.value,
+      ipSchema: groupsRequired.value ? schema.value : undefined
     }
 
     const response = await saveLab(courseId.value, labData)
@@ -379,13 +408,49 @@ useHead({
             />
           </div>
 
-          <!-- Group Management Section -->
-          <div v-if="groupsRequired" class="pt-4 border-t">
-            <div class="flex items-center justify-between mb-4">
+          <!-- IP Schema Configuration Section -->
+          <div v-if="groupsRequired" class="pt-4 border-t space-y-4">
+            <div class="flex items-center justify-between">
+              <div>
+                <h4 class="font-medium">Network Configuration</h4>
+                <p class="text-sm text-muted-foreground">
+                  Configure IP schema and device assignments for students
+                </p>
+              </div>
+              <Button
+                @click="handleOpenIPSchemaManager"
+                variant="outline"
+                size="sm"
+              >
+                <Plus class="w-4 h-4 mr-2" />
+                Configure Network
+              </Button>
+            </div>
+
+            <!-- IP Schema Status -->
+            <div v-if="isConfigured" class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+              <div class="flex items-center justify-between mb-2">
+                <div class="flex items-center space-x-2">
+                  <div class="w-2 h-2 bg-green-500 rounded-full"></div>
+                  <span class="text-sm font-medium text-green-800 dark:text-green-300">Network Schema Configured</span>
+                </div>
+                <Badge variant="secondary" class="text-xs">
+                  {{ Object.keys(ipMappings).length }} variables
+                </Badge>
+              </div>
+              <div class="text-sm text-green-700 dark:text-green-400 space-y-1">
+                <div>Base Network: <code class="bg-green-100 dark:bg-green-800 px-1 py-0.5 rounded">{{ schema.networkConfig?.baseNetwork }}/{{ schema.networkConfig?.subnetMask }}</code></div>
+                <div>{{ schema.devices?.length || 0 }} device{{ (schema.devices?.length || 0) !== 1 ? 's' : '' }} configured</div>
+                <div>{{ schema.students?.length || 0 }} student{{ (schema.students?.length || 0) !== 1 ? 's' : '' }} assigned</div>
+              </div>
+            </div>
+
+            <!-- Student Groups Section -->
+            <div class="flex items-center justify-between">
               <div>
                 <h4 class="font-medium">Student Groups</h4>
                 <p class="text-sm text-muted-foreground">
-                  Manage student groups for this lab
+                  Manage student group assignments
                 </p>
               </div>
               <Button
@@ -403,22 +468,24 @@ useHead({
                 {{ groups.length }} group{{ groups.length !== 1 ? 's' : '' }} configured
               </div>
               
-              <!-- Variable Preview -->
-              <div class="bg-muted/50 rounded-lg p-3">
-                <h5 class="text-sm font-medium mb-2">Variable Preview</h5>
+              <!-- IP Variable Preview -->
+              <div v-if="isConfigured && Object.keys(ipMappings).length > 0" class="bg-muted/50 rounded-lg p-3">
+                <h5 class="text-sm font-medium mb-2">IP Variable Preview</h5>
                 <p class="text-xs text-muted-foreground mb-2">
-                  Example of how group variables will be resolved:
+                  Example IP assignments for first group:
                 </p>
                 <div class="space-y-1 text-xs">
-                  <div class="flex justify-between">
-                    <span class="font-mono">192.168.{group_number}.1</span>
+                  <div 
+                    v-for="(ip, variable) in Object.entries(ipMappings).slice(0, 4)" 
+                    :key="variable"
+                    class="flex justify-between"
+                  >
+                    <span class="font-mono">{{ variable }}</span>
                     <span class="text-muted-foreground">→</span>
-                    <span class="font-mono">192.168.1.1, 192.168.2.1, ...</span>
+                    <span class="font-mono text-green-600 dark:text-green-400">{{ ip }}</span>
                   </div>
-                  <div class="flex justify-between">
-                    <span class="font-mono">vlan_{group_number}0</span>
-                    <span class="text-muted-foreground">→</span>
-                    <span class="font-mono">vlan_10, vlan_20, ...</span>
+                  <div v-if="Object.keys(ipMappings).length > 4" class="text-center text-muted-foreground">
+                    ... and {{ Object.keys(ipMappings).length - 4 }} more variables
                   </div>
                 </div>
               </div>
@@ -522,6 +589,36 @@ useHead({
       :is-loading="isPlaysLoading"
       @select-play="handlePlaySelect"
     />
+
+    <!-- Play Creation Modal -->
+    <PlayCreationModal
+      v-model:open="showPlayCreationModal"
+      :course-id="courseId"
+      :lab-id="null"
+      :part-id="currentPart"
+    />
+
+    <!-- IP Schema Manager Modal -->
+    <Dialog v-model:open="showIPSchemaManager">
+      <DialogContent class="max-w-6xl max-h-[90vh] overflow-hidden">
+        <DialogHeader>
+          <DialogTitle>Network Configuration</DialogTitle>
+          <DialogDescription>
+            Configure IP schema and device assignments for personalized student networks
+          </DialogDescription>
+        </DialogHeader>
+        
+        <div class="flex-1 overflow-y-auto">
+          <IPSchemaManager />
+        </div>
+        
+        <DialogFooter>
+          <Button @click="showIPSchemaManager = false" variant="outline">
+            Close
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
 
     <!-- Group Management Modal -->
     <Dialog v-model:open="showGroupManagement">
