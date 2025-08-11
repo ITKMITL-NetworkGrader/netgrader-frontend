@@ -329,7 +329,7 @@
         course: courseId,
         labOrExam: 'Lab',
         part: currentPartIndex !== null ? `Part ${currentPartIndex + 1}` : '',
-        availableDevices: []
+        availableDevices: availableDevices
       }"
       @play-created="handlePlayCreated"
     />
@@ -407,6 +407,38 @@ const labForm = reactive<LabFormData & { parts: LabPartWithTemp[] }>({
 const expandedParts = ref<Record<number, boolean>>({})
 const currentPartIndex = ref<number | null>(null)
 const showPlayCreationModal = ref(false)
+
+// Available devices for play creation
+const availableDevices = computed(() => {
+  if (!labForm.deviceIpMapping || labForm.deviceIpMapping.length === 0) {
+    return [
+      { value: 'router1', label: 'Router 1', icon: 'lucide:router' },
+      { value: 'pc1', label: 'PC 1', icon: 'lucide:monitor' },
+      { value: 'pc2', label: 'PC 2', icon: 'lucide:monitor' }
+    ]
+  }
+  
+  return labForm.deviceIpMapping.map(device => ({
+    value: device.deviceId,
+    label: device.deviceId.charAt(0).toUpperCase() + device.deviceId.slice(1).replace(/[_-]/g, ' '),
+    icon: getDeviceIcon(device.deviceId)
+  }))
+})
+
+const getDeviceIcon = (deviceId: string): string => {
+  const id = deviceId.toLowerCase()
+  
+  if (id.includes('router')) return 'lucide:router'
+  if (id.includes('switch')) return 'lucide:network'
+  if (id.includes('pc') || id.includes('computer')) return 'lucide:monitor'
+  if (id.includes('server')) return 'lucide:server'
+  if (id.includes('firewall') || id.includes('security')) return 'lucide:shield'
+  if (id.includes('phone') || id.includes('voip')) return 'lucide:phone'
+  if (id.includes('printer')) return 'lucide:printer'
+  if (id.includes('camera')) return 'lucide:camera'
+  
+  return 'lucide:cpu' // Default icon
+}
 
 // Validation
 const isLabValid = computed(() => {
