@@ -1,164 +1,98 @@
 <template>
   <div class="flex flex-col h-full border rounded-lg overflow-hidden">
-    <!-- Toolbar -->
-    <div v-if="!readonly" class="border-b border-border p-2 flex items-center space-x-2 bg-muted/30">
-      <!-- Formatting Controls -->
-      <div class="flex items-center space-x-1">
-        <button
-class="p-1 rounded hover:bg-muted" :class="{ 'bg-muted': editor?.isActive('bold') }" title="Bold (Ctrl+B)"
-          @click="toggleBold">
-          <Bold class="w-4 h-4" />
-        </button>
-        <button
-class="p-1 rounded hover:bg-muted" :class="{ 'bg-muted': editor?.isActive('italic') }"
-          title="Italic (Ctrl+I)" @click="toggleItalic">
-          <Italic class="w-4 h-4" />
-        </button>
-        <button
-class="p-1 rounded hover:bg-muted" :class="{ 'bg-muted': editor?.isActive('strike') }"
-          title="Strikethrough" @click="toggleStrikethrough">
-          <Strikethrough class="w-4 h-4" />
-        </button>
-      </div>
-      <div class="h-4 border-l border-border"/>
-      <!-- Headings -->
-      <div class="flex items-center space-x-1">
-        <button
-class="p-1 rounded hover:bg-muted" :class="{ 'bg-muted': editor?.isActive('heading', { level: 1 }) }"
-          title="Heading 1" @click="toggleHeading(1)">
-          <Heading1 class="w-4 h-4" />
-        </button>
-        <button
-class="p-1 rounded hover:bg-muted" :class="{ 'bg-muted': editor?.isActive('heading', { level: 2 }) }"
-          title="Heading 2" @click="toggleHeading(2)">
-          <Heading2 class="w-4 h-4" />
-        </button>
-        <button
-class="p-1 rounded hover:bg-muted" :class="{ 'bg-muted': editor?.isActive('heading', { level: 3 }) }"
-          title="Heading 3" @click="toggleHeading(3)">
-          <Heading3 class="w-4 h-4" />
-        </button>
-      </div>
-      <div class="h-4 border-l border-border"/>
-      <!-- List Controls -->
-      <div class="flex items-center space-x-1">
-        <button
-class="p-1 rounded hover:bg-muted" :class="{ 'bg-muted': editor?.isActive('bulletList') }"
-          title="Bullet List" @click="toggleBulletList">
-          <List class="w-4 h-4" />
-        </button>
-        <button
-class="p-1 rounded hover:bg-muted" :class="{ 'bg-muted': editor?.isActive('orderedList') }"
-          title="Numbered List" @click="toggleOrderedList">
-          <ListOrdered class="w-4 h-4" />
-        </button>
-      </div>
-      <div class="h-4 border-l border-border"/>
-      <!-- Code and Quote -->
-      <div class="flex items-center space-x-1">
-        <button
-class="p-1 rounded hover:bg-muted" :class="{ 'bg-muted': editor?.isActive('code') }" title="Inline Code"
-          @click="toggleCode">
-          <Code class="w-4 h-4" />
-        </button>
-        <button
-class="p-1 rounded hover:bg-muted" :class="{ 'bg-muted': editor?.isActive('blockquote') }"
-          title="Quote" @click="toggleBlockquote">
-          <Quote class="w-4 h-4" />
-        </button>
-      </div>
-      <div class="h-4 border-l border-border"/>
-      <!-- Horizontal Rule -->
-      <div class="flex items-center space-x-1">
-        <button class="p-1 rounded hover:bg-muted" title="Horizontal Rule" @click="addHorizontalRule">
-          <Minus class="w-4 h-4" />
-        </button>
-      </div>
-      <div class="flex-1"/>
-      <!-- Play Selection -->
-      <div class="flex items-center space-x-2">
-        <button
-class="px-3 py-1 text-sm border rounded hover:bg-muted flex items-center space-x-2"
-          @click="openPlayModal">
-          <Settings class="w-4 h-4" />
-          <span>Select Play</span>
-        </button>
-
-        <div v-if="!selectedPlay" class="flex items-center space-x-1">
-          <span class="text-sm text-muted-foreground">A Play must be selected to save this part</span>
-          <AlertCircle v-if="showValidation" class="w-4 h-4 text-destructive" />
-        </div>
-        <div v-else class="flex items-center space-x-1">
-          <span class="text-sm">{{ selectedPlay.title }}</span>
-          <button class="p-1 rounded hover:bg-muted text-destructive" @click="clearPlay">
-            <X class="w-3 h-3" />
-          </button>
-        </div>
-      </div>
-    </div>
-
     <!-- Part Title Input -->
     <div class="border-b border-border p-4">
       <div class="space-y-2">
         <Input
-v-model="partTitle" placeholder="Part Title (Required)" :class="[
-          'text-lg font-semibold',
-          {
-            'border-destructive focus:border-destructive focus:ring-destructive':
-              !readonly && showValidation && (!partTitle || !partTitle.trim())
-          }
-        ]" :readonly="readonly" @input="updateTitle" @blur="validateTitle" />
+          v-model="partTitle"
+          placeholder="Part Title (Required)"
+          :class="[
+            'text-lg font-semibold',
+            {
+              'border-destructive focus:border-destructive focus:ring-destructive':
+                !readonly && showValidation && (!partTitle || !partTitle.trim())
+            }
+          ]"
+          :readonly="readonly"
+          @input="updateTitle"
+          @blur="validateTitle"
+        />
         <div
-v-if="!readonly && showValidation && titleError"
-          class="flex items-center space-x-1 text-sm text-destructive">
+          v-if="!readonly && showValidation && titleError"
+          class="flex items-center space-x-1 text-sm text-destructive"
+        >
           <AlertCircle class="w-4 h-4" />
           <span>{{ titleError }}</span>
         </div>
       </div>
     </div>
 
-    <!-- Content Editor -->
-    <div class="flex-1 p-4 overflow-auto">
-      <EditorContent
-:editor="editor" class="min-h-96 prose prose-sm max-w-none focus:outline-none" :class="{
-        'cursor-text': !readonly,
-        'cursor-default': readonly,
-        'bg-muted/30': readonly,
-        'border border-destructive rounded-md p-2': !readonly && showValidation && contentError
-      }" />
-      <div
-v-if="!readonly && showValidation && contentError"
-        class="flex items-center space-x-1 text-sm text-destructive mt-2">
-        <AlertCircle class="w-4 h-4" />
-        <span>{{ contentError }}</span>
+    <!-- Content Editor with Play Selection -->
+    <div class="flex-1 flex flex-col">
+      <!-- Play Selection Header -->
+      <div v-if="!readonly" class="border-b border-border p-3 bg-muted/30">
+        <div class="flex items-center justify-between">
+          <span class="text-sm font-medium">Content & Play Configuration</span>
+          <div class="flex items-center space-x-2">
+            <button
+              class="px-3 py-1 text-sm border rounded hover:bg-muted flex items-center space-x-2"
+              @click="openPlayModal"
+            >
+              <Settings class="w-4 h-4" />
+              <span>Select Play</span>
+            </button>
+
+            <div v-if="!selectedPlay" class="flex items-center space-x-1">
+              <span class="text-sm text-muted-foreground">A Play must be selected to save this part</span>
+              <AlertCircle v-if="showValidation" class="w-4 h-4 text-destructive" />
+            </div>
+            <div v-else class="flex items-center space-x-1">
+              <span class="text-sm">{{ selectedPlay.title }}</span>
+              <button class="p-1 rounded hover:bg-muted text-destructive" @click="clearPlay">
+                <X class="w-3 h-3" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quill Editor -->
+      <div class="flex-1 p-4">
+        <ClientOnly>
+          <QuillEditor
+            v-model:content="content"
+            :options="quillOptions"
+            :disabled="readonly"
+            content-type="html"
+            class="h-full"
+            :class="{
+              'border border-destructive rounded-md': !readonly && showValidation && contentError
+            }"
+            @text-change="handleContentChange"
+          />
+          <template #fallback>
+            <div class="h-full border rounded-md p-4 bg-gray-50">
+              <p class="text-gray-500">Loading editor...</p>
+            </div>
+          </template>
+        </ClientOnly>
+        <div
+          v-if="!readonly && showValidation && contentError"
+          class="flex items-center space-x-1 text-sm text-destructive mt-2"
+        >
+          <AlertCircle class="w-4 h-4" />
+          <span>{{ contentError }}</span>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
-import { useEditor, EditorContent } from '@tiptap/vue-3'
-import StarterKit from '@tiptap/starter-kit'
-import Placeholder from '@tiptap/extension-placeholder'
-
+import { ref, computed, watch, nextTick } from 'vue'
 import { Input } from '@/components/ui/input'
-import {
-  Bold,
-  Italic,
-  Strikethrough,
-  Code,
-  Settings,
-  X,
-  AlertCircle,
-  Heading1,
-  Heading2,
-  Heading3,
-  List,
-  ListOrdered,
-  Quote,
-  Minus
-} from 'lucide-vue-next'
+import { Settings, X, AlertCircle } from 'lucide-vue-next'
+import '@vueup/vue-quill/dist/vue-quill.snow.css'
 
 interface Play {
   id: string
@@ -189,38 +123,39 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<Emits>()
 
-const { debounce, throttle, memoize } = usePerformanceOptimization()
+// Dynamic import for Quill Editor
+const { QuillEditor } = await import('@vueup/vue-quill')
 
 // State
 const partTitle = ref(props.title)
+const content = ref(props.modelValue)
 
 // Validation states
 const titleError = ref<string | null>(null)
 const contentError = ref<string | null>(null)
 
-// Initialize editor
-const editor = useEditor({
-  content: props.modelValue,
-  editable: !props.readonly,
-  extensions: [
-    StarterKit,
-    Placeholder.configure({
-      placeholder: 'Type "/" for commands, or start writing...',
-    }),
-  ],
-  onUpdate: debounce(({ editor }) => {
-    const html = editor.getHTML()
-    emit('update:modelValue', html)
-    if (props.showValidation) {
-      validateContent()
-    }
-  }, 300),
-})
+// Quill configuration
+const quillOptions = computed(() => ({
+  theme: 'snow',
+  placeholder: 'Start writing your lab instructions...',
+  modules: {
+    toolbar: props.readonly ? false : [
+      [{ 'header': [1, 2, 3, false] }],
+      ['bold', 'italic', 'underline', 'strike'],
+      [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+      ['blockquote', 'code-block'],
+      [{ 'color': [] }, { 'background': [] }],
+      ['link'],
+      ['clean']
+    ]
+  },
+  readOnly: props.readonly
+}))
 
 // Watch for prop changes
 watch(() => props.modelValue, (newValue) => {
-  if (editor.value && newValue !== editor.value.getHTML()) {
-    editor.value.commands.setContent(newValue)
+  if (newValue !== content.value) {
+    content.value = newValue
   }
 })
 
@@ -230,19 +165,33 @@ watch(() => props.title, (newTitle) => {
   }
 })
 
-watch(() => props.readonly, (readonly) => {
-  if (editor.value) {
-    editor.value.setEditable(!readonly)
+// Handle content changes with debouncing
+let contentChangeTimeout: NodeJS.Timeout | null = null
+const handleContentChange = () => {
+  if (contentChangeTimeout) {
+    clearTimeout(contentChangeTimeout)
   }
-})
+  contentChangeTimeout = setTimeout(() => {
+    emit('update:modelValue', content.value)
+    if (props.showValidation) {
+      validateContent()
+    }
+  }, 300)
+}
 
-// Debounced title update
-const updateTitle = debounce(() => {
-  emit('update:title', partTitle.value)
-  if (props.showValidation) {
-    validateTitle()
+// Handle title changes with debouncing
+let titleChangeTimeout: NodeJS.Timeout | null = null
+const updateTitle = () => {
+  if (titleChangeTimeout) {
+    clearTimeout(titleChangeTimeout)
   }
-}, 300)
+  titleChangeTimeout = setTimeout(() => {
+    emit('update:title', partTitle.value)
+    if (props.showValidation) {
+      validateTitle()
+    }
+  }, 300)
+}
 
 const validateTitle = () => {
   if (!props.readonly && props.showValidation) {
@@ -259,53 +208,17 @@ const validateTitle = () => {
 }
 
 const validateContent = () => {
-  if (!props.readonly && props.showValidation && editor.value) {
-    const textContent = editor.value.getText()
-    if (!textContent.trim()) {
+  if (!props.readonly && props.showValidation) {
+    // Extract text content from HTML
+    const textContent = content.value.replace(/<[^>]*>/g, '').trim()
+    if (!textContent) {
       contentError.value = 'Part content is required'
-    } else if (textContent.trim().length < 10) {
+    } else if (textContent.length < 10) {
       contentError.value = 'Part content must be at least 10 characters'
     } else {
       contentError.value = null
     }
   }
-}
-
-// Editor commands
-const toggleBold = () => {
-  editor.value?.chain().focus().toggleBold().run()
-}
-
-const toggleItalic = () => {
-  editor.value?.chain().focus().toggleItalic().run()
-}
-
-const toggleStrikethrough = () => {
-  editor.value?.chain().focus().toggleStrike().run()
-}
-
-const toggleHeading = (level: 1 | 2 | 3) => {
-  editor.value?.chain().focus().toggleHeading({ level }).run()
-}
-
-const toggleBulletList = () => {
-  editor.value?.chain().focus().toggleBulletList().run()
-}
-
-const toggleOrderedList = () => {
-  editor.value?.chain().focus().toggleOrderedList().run()
-}
-
-const toggleCode = () => {
-  editor.value?.chain().focus().toggleCode().run()
-}
-
-const toggleBlockquote = () => {
-  editor.value?.chain().focus().toggleBlockquote().run()
-}
-
-const addHorizontalRule = () => {
-  editor.value?.chain().focus().setHorizontalRule().run()
 }
 
 // Play modal functions
@@ -317,81 +230,51 @@ const clearPlay = () => {
   emit('clear-play')
 }
 
-// Clean up
+// Cleanup
 onBeforeUnmount(() => {
-  editor.value?.destroy()
+  if (contentChangeTimeout) {
+    clearTimeout(contentChangeTimeout)
+  }
+  if (titleChangeTimeout) {
+    clearTimeout(titleChangeTimeout)
+  }
 })
 </script>
 
 <style>
-.ProseMirror p.is-editor-empty:first-child::before {
-  content: attr(data-placeholder);
-  float: left;
-  color: #adb5bd;
-  pointer-events: none;
-  height: 0;
+/* Custom Quill styles */
+.ql-container {
+  font-size: 14px;
+  height: calc(100% - 42px) !important;
 }
 
-.ProseMirror:focus {
-  outline: none;
+.ql-editor {
+  min-height: 200px;
+  line-height: 1.6;
 }
 
-/* Add some basic styling for the editor content */
-.ProseMirror h1 {
-  font-size: 1.75rem;
-  font-weight: 700;
-  margin-top: 1rem;
-  margin-bottom: 0.5rem;
+.ql-editor.ql-blank::before {
+  color: #6b7280;
+  font-style: normal;
 }
 
-.ProseMirror h2 {
-  font-size: 1.5rem;
-  font-weight: 600;
-  margin-top: 1rem;
-  margin-bottom: 0.5rem;
+/* Ensure toolbar is visible but not too prominent */
+.ql-toolbar {
+  border-bottom: 1px solid #e5e7eb;
+  background: #f9fafb;
 }
 
-.ProseMirror h3 {
-  font-size: 1.25rem;
-  font-weight: 600;
-  margin-top: 1rem;
-  margin-bottom: 0.5rem;
+/* Make the editor area fill available space */
+.quill-editor {
+  height: 100%;
 }
 
-.ProseMirror p {
-  margin-bottom: 0.5rem;
-}
-
-.ProseMirror ul {
-  list-style-type: disc;
-  padding-left: 1.5rem;
-  margin-bottom: 0.5rem;
-}
-
-.ProseMirror ol {
-  list-style-type: decimal;
-  padding-left: 1.5rem;
-  margin-bottom: 0.5rem;
-}
-
-.ProseMirror blockquote {
-  border-left: 3px solid #e2e8f0;
-  padding-left: 1rem;
-  margin-left: 0;
-  margin-right: 0;
-  font-style: italic;
-}
-
-.ProseMirror code {
-  background-color: rgba(0, 0, 0, 0.05);
-  border-radius: 3px;
-  padding: 0.2em 0.4em;
-  font-family: monospace;
-}
-
-.ProseMirror hr {
+.ql-container.ql-snow {
   border: none;
-  border-top: 2px solid #e2e8f0;
-  margin: 1rem 0;
+}
+
+.ql-toolbar.ql-snow {
+  border: none;
+  border-bottom: 1px solid #e5e7eb;
 }
 </style>

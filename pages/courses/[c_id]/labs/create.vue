@@ -1,491 +1,276 @@
-<script setup lang="ts">
-import { ref, computed, onBeforeUnmount, onMounted, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { toast } from 'vue-sonner'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
-import { Label } from '@/components/ui/label'
-import { Separator } from '@/components/ui/separator'
-import { Badge } from '@/components/ui/badge'
-import { Switch } from '@/components/ui/switch'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import PartSidebar from '@/components/lab/PartSidebar.vue'
-import ClientOnlyTextEditor from '@/components/lab/ClientOnlyTextEditor.vue'
-import PlaySelectionModal from '@/components/lab/PlaySelectionModal.vue'
-import GroupManagement from '@/components/lab/GroupManagement.vue'
-import IPSchemaManager from '@/components/lab/IPSchemaManager.vue'
-import PlayCreationModal from '@/components/play/PlayCreationModal.vue'
-import { useLabManagement } from '@/composables/useLabManagement'
-import { usePlayBank } from '@/composables/usePlayBank'
-import { useGroupManagement } from '@/composables/useGroupManagement'
-import { useIPSchema } from '@/composables/useIPSchema'
-import { Home, BookOpen, Plus, Save, X, AlertTriangle } from 'lucide-vue-next'
-import type { Play, PlayVariableBinding, LabFormData } from '@/types/lab'
-
-// Route and navigation
-const route = useRoute()
-const router = useRouter()
-const courseId = computed(() => route.params.c_id as string)
-
-// Lab management
-const {
-  parts,
-  currentPart,
-  isLoading: isLabLoading,
-  hasUnsavedChanges,
-  addPart,
-  selectPart,
-  updatePartTitle,
-  updatePartContent,
-  updatePartPlay,
-  saveLab,
-  validateLab
-} = useLabManagement()
-
-// Play bank integration
-const {
-  plays,
-  isLoading: isPlaysLoading,
-  loadPlays
-} = usePlayBank()
-
-// Group management
-const {
-  groups,
-  isLoading: isGroupsLoading,
-  loadGroups,
-  uploadStudentCSV,
-  assignStudentToGroup,
-  balanceGroups,
-  exportGroups
-} = useGroupManagement(courseId.value)
-
-// IP Schema management
-const {
-  schema,
-  isConfigured,
-  ipMappings,
-  configure,
-  generateIPs,
-  validateConfiguration
-} = useIPSchema()
-
-// Form state
-const labTitle = ref('')
-const labDescription = ref('')
-const groupsRequired = ref(false)
-const showPlayModal = ref(false)
-const showPlayCreationModal = ref(false)
-const showIPSchemaManager = ref(false)
-const showGroupManagement = ref(false)
-const showUnsavedDialog = ref(false)
-const pendingNavigation = ref<string | null>(null)
-
-// Current part data
-const currentPartData = computed(() => {
-  return parts.value[currentPart.value] || null
-})
-
-const selectedPlay = computed(() => {
-  if (!currentPartData.value?.playId) return null
-  return plays.value.find(play => play.id === currentPartData.value?.playId) || null
-})
-
-// Validation
-const canSave = computed(() => {
-  const validation = validateLab()
-  const ipSchemaValid = !groupsRequired.value || isConfigured.value
-  return validation.isValid && labTitle.value.trim() !== '' && ipSchemaValid
-})
-
-const validationErrors = computed(() => {
-  const validation = validateLab()
-  const errors = [...validation.errors]
-  
-  if (!labTitle.value.trim()) {
-    errors.unshift('Lab title is required')
-  }
-  
-  if (groupsRequired.value && !isConfigured.value) {
-    errors.push('IP schema configuration is required for group-based labs')
-  }
-  
-  return errors
-})
-
-// Event handlers
-const handlePartSelect = (index: number) => {
-  selectPart(index)
-}
-
-const handleAddPart = () => {
-  addPart()
-}
-
-const handleTitleUpdate = (title: string) => {
-  updatePartTitle(currentPart.value, title)
-}
-
-const handleContentUpdate = (content: string) => {
-  updatePartContent(currentPart.value, content)
-}
-
-const handleOpenPlayModal = () => {
-  showPlayModal.value = true
-}
-
-const handleOpenPlayCreation = () => {
-  showPlayCreationModal.value = true
-}
-
-const handleOpenIPSchemaManager = () => {
-  showIPSchemaManager.value = true
-}
-
-const handlePlaySelect = (play: Play, variables: PlayVariableBinding[]) => {
-  const variableBindings = variables.reduce((acc, binding) => {
-    acc[binding.variableName] = binding.value
-    return acc
-  }, {} as Record<string, any>)
-  
-  updatePartPlay(currentPart.value, play.id, variableBindings)
-  showPlayModal.value = false
-  toast.success(`Play "${play.name}" selected for Part ${currentPart.value + 1}`)
-}
-
-const handleClearPlay = () => {
-  updatePartPlay(currentPart.value, null)
-  toast.info(`Play cleared from Part ${currentPart.value + 1}`)
-}
-
-const handleSave = async () => {
-  if (!canSave.value) {
-    toast.error('Please fix validation errors before saving')
-    return
-  }
-
-  try {
-    const labData: LabFormData = {
-      title: labTitle.value,
-      description: labDescription.value,
-      parts: parts.value.map(({ id, ...part }) => part),
-      groupsRequired: groupsRequired.value,
-      ipSchema: groupsRequired.value ? schema.value : undefined
-    }
-
-    const response = await saveLab(courseId.value, labData)
-    
-    if (response.success) {
-      toast.success('Lab created successfully!')
-      router.push(`/courses/${courseId.value}/labs`)
-    } else {
-      toast.error(response.error?.message || 'Failed to create lab')
-    }
-  } catch (error) {
-    console.error('Save error:', error)
-    toast.error('Failed to create lab. Please try again.')
-  }
-}
-
-const handleCancel = () => {
-  if (hasUnsavedChanges.value) {
-    pendingNavigation.value = `/courses/${courseId.value}/labs`
-    showUnsavedDialog.value = true
-  } else {
-    router.push(`/courses/${courseId.value}/labs`)
-  }
-}
-
-const handleConfirmNavigation = () => {
-  if (pendingNavigation.value) {
-    router.push(pendingNavigation.value)
-  }
-  showUnsavedDialog.value = false
-  pendingNavigation.value = null
-}
-
-const handleCancelNavigation = () => {
-  showUnsavedDialog.value = false
-  pendingNavigation.value = null
-}
-
-// Group management event handlers
-const handleUploadCSV = async (file: File, options: { hasGroups: boolean; autoBalance: boolean }) => {
-  try {
-    await uploadStudentCSV(file, options.hasGroups)
-    toast.success('Student list uploaded successfully')
-    await loadGroups()
-  } catch (error) {
-    console.error('CSV upload failed:', error)
-    toast.error('Failed to upload student list')
-  }
-}
-
-const handleRefreshGroups = async () => {
-  try {
-    await loadGroups()
-    toast.success('Groups refreshed')
-  } catch (error) {
-    console.error('Failed to refresh groups:', error)
-    toast.error('Failed to refresh groups')
-  }
-}
-
-const handleBalanceGroups = async () => {
-  try {
-    await balanceGroups()
-    toast.success('Groups balanced successfully')
-    await loadGroups()
-  } catch (error) {
-    console.error('Failed to balance groups:', error)
-    toast.error('Failed to balance groups')
-  }
-}
-
-const handleExportGroups = async () => {
-  try {
-    await exportGroups()
-    toast.success('Groups exported successfully')
-  } catch (error) {
-    console.error('Failed to export groups:', error)
-    toast.error('Failed to export groups')
-  }
-}
-
-const handleAssignStudent = async (studentId: string, groupNumber: number) => {
-  try {
-    await assignStudentToGroup(studentId, groupNumber)
-    toast.success('Student assigned to group')
-    await loadGroups()
-  } catch (error) {
-    console.error('Failed to assign student:', error)
-    toast.error('Failed to assign student to group')
-  }
-}
-
-const handleEditGroup = (group: any) => {
-  // For now, just show a toast - this could be expanded to open an edit modal
-  toast.info(`Edit functionality for Group ${group.groupNumber} - Coming soon`)
-}
-
-const handleDeleteGroup = async (group: any) => {
-  // This would need to be implemented in the useGroupManagement composable
-  toast.info(`Delete functionality for Group ${group.groupNumber} - Coming soon`)
-}
-
-// Navigation guard
-onBeforeUnmount(() => {
-  if (hasUnsavedChanges.value) {
-    // In a real app, you might want to show a browser confirmation dialog
-    console.warn('Leaving page with unsaved changes')
-  }
-})
-
-// Load initial data
-onMounted(async () => {
-  await Promise.all([
-    loadPlays(),
-    groupsRequired.value ? loadGroups() : Promise.resolve()
-  ])
-})
-
-// Watch for groups requirement changes
-watch(groupsRequired, async (newValue) => {
-  if (newValue && groups.value.length === 0) {
-    await loadGroups()
-  }
-})
-
-// Page title
-useHead({
-  title: 'Create Lab - NetGrader'
-})
-</script>
-
 <template>
-  <div class="min-h-screen bg-background">
-    <!-- Header with Breadcrumb -->
-    <div class="">
-      <div class="container mx-auto px-4 py-4">
-        <Breadcrumb class="mb-4">
-          <BreadcrumbList>
-            <BreadcrumbItem>
-              <BreadcrumbLink href="/" class="flex items-center">
-                <Home class="w-4 h-4 mr-1" />
-                Home
-              </BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <BreadcrumbLink :href="`/courses/${courseId}`">
-                Course {{ courseId }}
-              </BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <BreadcrumbLink :href="`/courses/${courseId}/labs`">
-                Labs
-              </BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <BreadcrumbPage>Create Lab</BreadcrumbPage>
-            </BreadcrumbItem>
-          </BreadcrumbList>
-        </Breadcrumb>
+  <div class="min-h-screen bg-background p-4 pb-8">
+    <!-- Breadcrumb Navigation -->
+    <Breadcrumb class="mb-6">
+      <BreadcrumbList>
+        <BreadcrumbItem>
+          <NuxtLink to="/" class="flex items-center">
+            <Home class="h-4 w-4" />
+          </NuxtLink>
+        </BreadcrumbItem>
+        <BreadcrumbSeparator>
+          <ChevronRight class="h-4 w-4" />
+        </BreadcrumbSeparator>
+        <BreadcrumbItem>
+          <NuxtLink to="/courses" class="flex items-center">
+            Courses
+          </NuxtLink>
+        </BreadcrumbItem>
+        <BreadcrumbSeparator>
+          <ChevronRight class="h-4 w-4" />
+        </BreadcrumbSeparator>
+        <BreadcrumbItem>
+          <NuxtLink :to="`/courses/${courseId}`" class="flex items-center">
+            {{ courseTitle }}
+          </NuxtLink>
+        </BreadcrumbItem>
+        <BreadcrumbSeparator>
+          <ChevronRight class="h-4 w-4" />
+        </BreadcrumbSeparator>
+        <BreadcrumbItem>
+          <NuxtLink :to="`/courses/${courseId}/labs`" class="flex items-center">
+            Labs
+          </NuxtLink>
+        </BreadcrumbItem>
+        <BreadcrumbSeparator>
+          <ChevronRight class="h-4 w-4" />
+        </BreadcrumbSeparator>
+        <BreadcrumbItem>
+          <BreadcrumbPage>Create Lab</BreadcrumbPage>
+        </BreadcrumbItem>
+      </BreadcrumbList>
+    </Breadcrumb>
 
-        <div class="flex items-center justify-between">
-          <div>
-            <h1 class="text-3xl font-bold text-foreground">Create Lab</h1>
-            <p class="text-muted-foreground mt-1">
-              Design a new laboratory exercise for your course
-            </p>
-          </div>
-          
-          <div class="flex items-center space-x-2">
-            <Badge v-if="hasUnsavedChanges" variant="secondary">
-              Unsaved Changes
-            </Badge>
-            <Badge v-if="parts.length > 0" variant="outline">
-              {{ parts.length }} Part{{ parts.length !== 1 ? 's' : '' }}
-            </Badge>
+    <div class="max-w-6xl mx-auto">
+      <!-- Header -->
+      <div class="mb-8">
+        <h1 class="text-3xl font-bold mb-2">Create New Lab</h1>
+        <p class="text-muted-foreground">Design a comprehensive lab with multiple parts, IP schema, and grading tasks</p>
+      </div>
+
+      <!-- Progress Steps -->
+      <div class="mb-8">
+        <div class="flex items-center space-x-4">
+          <div v-for="(step, index) in steps" :key="step.id" class="flex items-center">
+            <div
+              class="flex items-center justify-center w-8 h-8 rounded-full border-2 transition-colors"
+              :class="{
+                'bg-primary text-primary-foreground border-primary': currentStep >= index + 1,
+                'border-muted-foreground text-muted-foreground': currentStep < index + 1
+              }"
+            >
+              <Check v-if="currentStep > index + 1" class="w-4 h-4" />
+              <span v-else class="text-sm font-medium">{{ index + 1 }}</span>
+            </div>
+            <span
+              class="ml-2 text-sm transition-colors"
+              :class="{
+                'text-foreground font-medium': currentStep >= index + 1,
+                'text-muted-foreground': currentStep < index + 1
+              }"
+            >
+              {{ step.title }}
+            </span>
+            <ChevronRight
+              v-if="index < steps.length - 1"
+              class="w-4 h-4 mx-4 text-muted-foreground"
+            />
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- Lab Configuration -->
-    <div class="container mx-auto px-4 py-6">
+      <!-- Main Content -->
       <Card class="mb-6">
-        <CardHeader>
-          <CardTitle class="flex items-center">
-            <BookOpen class="w-5 h-5 mr-2" />
-            Lab Information
-          </CardTitle>
-          <CardDescription>
-            Configure the basic information for your lab
-          </CardDescription>
-        </CardHeader>
-        <CardContent class="space-y-4">
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div class="space-y-2">
-              <Label for="lab-title">Lab Title *</Label>
-              <Input
-                id="lab-title"
-                v-model="labTitle"
-                placeholder="Enter lab title..."
-                :class="{ 'border-destructive': !labTitle.trim() && labTitle !== '' }"
-              />
-            </div>
-            
-            <div class="space-y-2">
-              <Label for="groups-required" class="flex items-center space-x-2">
-                <span>Group Management</span>
-              </Label>
-              <div class="flex items-center space-x-2">
-                <Switch
-                  id="groups-required"
-                  v-model:checked="groupsRequired"
+        <CardContent class="p-6">
+          <!-- Step 1: Basic Information -->
+          <div v-if="currentStep === 1">
+            <h2 class="text-xl font-semibold mb-4">Lab Information</h2>
+            <div class="space-y-4">
+              <div>
+                <Label for="lab-title">Lab Title *</Label>
+                <Input
+                  id="lab-title"
+                  v-model="labForm.title"
+                  placeholder="Enter lab title"
+                  class="mt-1"
+                  :class="{ 'border-destructive': showValidation && !labForm.title.trim() }"
                 />
-                <Label for="groups-required" class="text-sm text-muted-foreground">
-                  Enable group-based assignments
+                <p v-if="showValidation && !labForm.title.trim()" class="text-sm text-destructive mt-1">
+                  Lab title is required
+                </p>
+              </div>
+              <div>
+                <Label for="lab-description">Description *</Label>
+                <Textarea
+                  id="lab-description"
+                  v-model="labForm.description"
+                  placeholder="Describe what students will learn and accomplish in this lab"
+                  rows="4"
+                  class="mt-1"
+                  :class="{ 'border-destructive': showValidation && !labForm.description.trim() }"
+                />
+                <p v-if="showValidation && !labForm.description.trim()" class="text-sm text-destructive mt-1">
+                  Lab description is required
+                </p>
+              </div>
+              <div>
+                <Label class="flex items-center space-x-2">
+                  <Switch v-model:checked="labForm.groupsRequired" />
+                  <span>Requires Student Groups</span>
                 </Label>
+                <p class="text-sm text-muted-foreground mt-1">
+                  Enable this if students need to work in groups and upload group assignments
+                </p>
               </div>
             </div>
           </div>
-          
-          <div class="space-y-2">
-            <Label for="lab-description">Description</Label>
-            <Textarea
-              id="lab-description"
-              v-model="labDescription"
-              placeholder="Describe the purpose and objectives of this lab..."
-              rows="3"
+
+          <!-- Step 2: IP Schema Configuration -->
+          <div v-if="currentStep === 2">
+            <h2 class="text-xl font-semibold mb-4">IP Address Configuration</h2>
+            <IPSchemaManager
+              v-model:schema="labForm.ipSchema"
+              v-model:device-mapping="labForm.deviceIpMapping"
+              :show-validation="showValidation"
             />
           </div>
 
-          <!-- IP Schema Configuration Section -->
-          <div v-if="groupsRequired" class="pt-4 border-t space-y-4">
-            <div class="flex items-center justify-between">
-              <div>
-                <h4 class="font-medium">Network Configuration</h4>
-                <p class="text-sm text-muted-foreground">
-                  Configure IP schema and device assignments for students
-                </p>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                @click="handleOpenIPSchemaManager"
-              >
-                <Plus class="w-4 h-4 mr-2" />
-                Configure Network
+          <!-- Step 3: Lab Parts -->
+          <div v-if="currentStep === 3">
+            <div class="flex items-center justify-between mb-4">
+              <h2 class="text-xl font-semibold">Lab Parts</h2>
+              <Button variant="outline" size="sm" @click="addLabPart">
+                <Plus class="w-4 h-4 mr-1" />
+                Add Part
               </Button>
             </div>
 
-            <!-- IP Schema Status -->
-            <div v-if="isConfigured" class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
-              <div class="flex items-center justify-between mb-2">
-                <div class="flex items-center space-x-2">
-                  <div class="w-2 h-2 bg-green-500 rounded-full"/>
-                  <span class="text-sm font-medium text-green-800 dark:text-green-300">Network Schema Configured</span>
-                </div>
-                <Badge variant="secondary" class="text-xs">
-                  {{ Object.keys(ipMappings).length }} variables
-                </Badge>
-              </div>
-              <div class="text-sm text-green-700 dark:text-green-400 space-y-1">
-                <div>Base Network: <code class="bg-green-100 dark:bg-green-800 px-1 py-0.5 rounded">{{ schema.networkConfig?.baseNetwork }}/{{ schema.networkConfig?.subnetMask }}</code></div>
-                <div>{{ schema.devices?.length || 0 }} device{{ (schema.devices?.length || 0) !== 1 ? 's' : '' }} configured</div>
-                <div>{{ schema.students?.length || 0 }} student{{ (schema.students?.length || 0) !== 1 ? 's' : '' }} assigned</div>
-              </div>
-            </div>
-
-            <!-- Student Groups Section -->
-            <div class="flex items-center justify-between">
-              <div>
-                <h4 class="font-medium">Student Groups</h4>
-                <p class="text-sm text-muted-foreground">
-                  Manage student group assignments
-                </p>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                @click="showGroupManagement = true"
-              >
-                <Plus class="w-4 h-4 mr-2" />
-                Manage Groups
+            <div v-if="labForm.parts.length === 0" class="text-center py-8 border-2 border-dashed border-muted rounded-lg">
+              <p class="text-muted-foreground mb-2">No lab parts added yet</p>
+              <Button variant="outline" @click="addLabPart">
+                <Plus class="w-4 h-4 mr-1" />
+                Add Your First Part
               </Button>
             </div>
-            
-            <div v-if="groups.length > 0" class="space-y-3">
-              <div class="text-sm text-muted-foreground">
-                {{ groups.length }} group{{ groups.length !== 1 ? 's' : '' }} configured
-              </div>
-              
-              <!-- IP Variable Preview -->
-              <div v-if="isConfigured && Object.keys(ipMappings).length > 0" class="bg-muted/50 rounded-lg p-3">
-                <h5 class="text-sm font-medium mb-2">IP Variable Preview</h5>
-                <p class="text-xs text-muted-foreground mb-2">
-                  Example IP assignments for first group:
-                </p>
-                <div class="space-y-1 text-xs">
-                  <div 
-                    v-for="(ip, variable) in Object.entries(ipMappings).slice(0, 4)" 
-                    :key="variable"
-                    class="flex justify-between"
-                  >
-                    <span class="font-mono">{{ variable }}</span>
-                    <span class="text-muted-foreground">→</span>
-                    <span class="font-mono text-green-600 dark:text-green-400">{{ ip }}</span>
+
+            <div v-else class="space-y-4">
+              <div
+                v-for="(part, index) in labForm.parts"
+                :key="part.tempId"
+                class="border rounded-lg"
+              >
+                <div
+                  class="flex items-center justify-between p-4 cursor-pointer hover:bg-muted/50"
+                  @click="togglePartExpanded(index)"
+                >
+                  <div class="flex items-center space-x-3">
+                    <div class="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-medium">
+                      {{ index + 1 }}
+                    </div>
+                    <div>
+                      <h3 class="font-medium">
+                        {{ part.title || `Part ${index + 1}` }}
+                      </h3>
+                      <p class="text-sm text-muted-foreground">
+                        {{ part.selectedPlay ? `Play: ${part.selectedPlay.title}` : 'No play selected' }}
+                      </p>
+                    </div>
                   </div>
-                  <div v-if="Object.keys(ipMappings).length > 4" class="text-center text-muted-foreground">
-                    ... and {{ Object.keys(ipMappings).length - 4 }} more variables
+                  <div class="flex items-center space-x-2">
+                    <Badge
+                      :variant="part.selectedPlay ? 'default' : 'destructive'"
+                    >
+                      {{ part.selectedPlay ? 'Configured' : 'Needs Play' }}
+                    </Badge>
+                    <ChevronDown
+                      class="w-4 h-4 transition-transform"
+                      :class="{ 'transform rotate-180': expandedParts[index] }"
+                    />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      class="text-destructive hover:text-destructive"
+                      @click.stop="removeLabPart(index)"
+                    >
+                      <Trash2 class="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+
+                <Transition name="expand">
+                  <div v-if="expandedParts[index]" class="border-t">
+                    <div class="h-96">
+                      <TextEditor
+                        v-model="part.textMd"
+                        v-model:title="part.title"
+                        :selected-play="part.selectedPlay"
+                        :show-validation="showValidation"
+                        @open-play-modal="openPlayModal(index)"
+                        @clear-play="clearPlay(index)"
+                      />
+                    </div>
+                  </div>
+                </Transition>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 4: Review & Save -->
+          <div v-if="currentStep === 4">
+            <h2 class="text-xl font-semibold mb-4">Review Lab</h2>
+            <div class="space-y-6">
+              <!-- Basic Information -->
+              <div>
+                <h3 class="font-medium mb-2">Basic Information</h3>
+                <dl class="grid grid-cols-1 gap-2 text-sm">
+                  <div class="grid grid-cols-3">
+                    <dt class="font-medium text-muted-foreground">Title:</dt>
+                    <dd class="col-span-2">{{ labForm.title }}</dd>
+                  </div>
+                  <div class="grid grid-cols-3">
+                    <dt class="font-medium text-muted-foreground">Description:</dt>
+                    <dd class="col-span-2">{{ labForm.description }}</dd>
+                  </div>
+                  <div class="grid grid-cols-3">
+                    <dt class="font-medium text-muted-foreground">Groups Required:</dt>
+                    <dd class="col-span-2">{{ labForm.groupsRequired ? 'Yes' : 'No' }}</dd>
+                  </div>
+                </dl>
+              </div>
+
+              <!-- IP Schema -->
+              <div v-if="labForm.ipSchema">
+                <h3 class="font-medium mb-2">IP Configuration</h3>
+                <dl class="grid grid-cols-1 gap-2 text-sm">
+                  <div class="grid grid-cols-3">
+                    <dt class="font-medium text-muted-foreground">Base Network:</dt>
+                    <dd class="col-span-2">{{ labForm.ipSchema.baseNetwork }}/{{ labForm.ipSchema.subnetMask }}</dd>
+                  </div>
+                  <div class="grid grid-cols-3">
+                    <dt class="font-medium text-muted-foreground">Strategy:</dt>
+                    <dd class="col-span-2">{{ labForm.ipSchema.allocationStrategy }}</dd>
+                  </div>
+                </dl>
+              </div>
+
+              <!-- Parts Summary -->
+              <div>
+                <h3 class="font-medium mb-2">Lab Parts ({{ labForm.parts.length }})</h3>
+                <div class="space-y-2">
+                  <div
+                    v-for="(part, index) in labForm.parts"
+                    :key="part.tempId"
+                    class="flex items-center justify-between p-3 border rounded"
+                  >
+                    <div>
+                      <span class="font-medium">{{ part.title || `Part ${index + 1}` }}</span>
+                      <p class="text-sm text-muted-foreground">
+                        {{ part.selectedPlay ? `Play: ${part.selectedPlay.title}` : 'No play configured' }}
+                      </p>
+                    </div>
+                    <Badge :variant="part.selectedPlay ? 'default' : 'destructive'">
+                      {{ part.selectedPlay ? 'Ready' : 'Missing Play' }}
+                    </Badge>
                   </div>
                 </div>
               </div>
@@ -493,102 +278,47 @@ useHead({
           </div>
         </CardContent>
       </Card>
-    </div>
 
-    <!-- Main Editor Layout -->
-    <div class="container mx-auto flex-1 flex px-4">
-      <!-- Part Sidebar -->
-      <PartSidebar
-        :parts="parts"
-        :current-part="currentPart"
-        :can-add-parts="true"
-        :show-status="false"
-        :user-role="'lecturer'"
-        :sequential-access="false"
-        @select-part="handlePartSelect"
-        @add-part="handleAddPart"
-      />
-
-      <!-- Content Editor -->
-      <div class="flex-1 flex flex-col">
-        <ClientOnlyTextEditor
-          v-if="currentPartData"
-          :model-value="currentPartData.content"
-          :title="currentPartData.title"
-          :selected-play="selectedPlay"
-          @update:model-value="handleContentUpdate"
-          @update:title="handleTitleUpdate"
-          @open-play-modal="handleOpenPlayModal"
-          @clear-play="handleClearPlay"
-        />
-        
-        <div v-else class="flex-1 flex items-center justify-center text-muted-foreground">
-          <div class="text-center">
-            <BookOpen class="w-12 h-12 mx-auto mb-4 opacity-50" />
-            <p>No parts available. Click "Add Part" to get started.</p>
-          </div>
+      <!-- Navigation -->
+      <div class="flex items-center justify-between">
+        <div>
+          <Button
+            v-if="currentStep > 1"
+            variant="outline"
+            :disabled="isSubmitting"
+            @click="previousStep"
+          >
+            <ChevronLeft class="w-4 h-4 mr-1" />
+            Previous
+          </Button>
+        </div>
+        <div class="flex items-center space-x-2">
+          <Button
+            variant="outline"
+            :disabled="isSubmitting"
+            @click="saveDraft"
+          >
+            Save Draft
+          </Button>
+          <Button
+            v-if="currentStep < steps.length"
+            :disabled="isSubmitting"
+            @click="nextStep"
+          >
+            Next
+            <ChevronRight class="w-4 h-4 ml-1" />
+          </Button>
+          <Button
+            v-else
+            :disabled="isSubmitting || !isLabValid"
+            @click="submitLab"
+          >
+            <Loader2 v-if="isSubmitting" class="w-4 h-4 mr-2 animate-spin" />
+            Create Lab
+          </Button>
         </div>
       </div>
     </div>
-
-    <!-- Action Bar -->
-    <div class="border-t border-border bg-card">
-      <div class="container mx-auto px-4 py-4">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center space-x-4">
-            <!-- Validation Errors -->
-            <div v-if="validationErrors.length > 0" class="flex items-center space-x-2 text-destructive">
-              <AlertTriangle class="w-4 h-4" />
-              <span class="text-sm">{{ validationErrors.length }} error{{ validationErrors.length !== 1 ? 's' : '' }}</span>
-            </div>
-            
-            <!-- Success Indicator -->
-            <div v-else-if="canSave" class="flex items-center space-x-2 text-green-600 dark:text-green-400">
-              <div class="w-2 h-2 bg-green-600 dark:bg-green-400 rounded-full" />
-              <span class="text-sm">Ready to save</span>
-            </div>
-          </div>
-
-          <div class="flex items-center space-x-3">
-            <Button
-              variant="outline"
-              :disabled="isLabLoading"
-              @click="handleCancel"
-            >
-              <X class="w-4 h-4 mr-2" />
-              Cancel
-            </Button>
-            
-            <Button
-              :disabled="!canSave || isLabLoading"
-              @click="handleSave"
-            >
-              <Save v-if="!isLabLoading" class="w-4 h-4 mr-2" />
-              <div v-else class="w-4 h-4 mr-2 animate-spin rounded-full border-2 border-current border-t-transparent"/>
-              {{ isLabLoading ? 'Saving...' : 'Save Lab' }}
-            </Button>
-          </div>
-        </div>
-        
-        <!-- Validation Errors List -->
-        <div v-if="validationErrors.length > 0" class="mt-3 pt-3 border-t">
-          <div class="text-sm text-destructive space-y-1">
-            <div v-for="error in validationErrors" :key="error" class="flex items-center space-x-2">
-              <div class="w-1 h-1 bg-destructive rounded-full" />
-              <span>{{ error }}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Play Selection Modal -->
-    <PlaySelectionModal
-      v-model:open="showPlayModal"
-      :plays="plays"
-      :is-loading="isPlaysLoading"
-      @select-play="handlePlaySelect"
-    />
 
     <!-- Play Creation Modal -->
     <PlayCreationModal
@@ -596,86 +326,247 @@ useHead({
       :context-info="{
         course: courseId,
         labOrExam: 'Lab',
-        part: `Part ${currentPart + 1}`,
+        part: currentPartIndex !== null ? `Part ${currentPartIndex + 1}` : '',
         availableDevices: []
       }"
+      @play-created="handlePlayCreated"
     />
-
-    <!-- IP Schema Manager Modal -->
-    <Dialog v-model:open="showIPSchemaManager">
-      <DialogContent class="max-w-6xl max-h-[90vh] overflow-hidden">
-        <DialogHeader>
-          <DialogTitle>Network Configuration</DialogTitle>
-          <DialogDescription>
-            Configure IP schema and device assignments for personalized student networks
-          </DialogDescription>
-        </DialogHeader>
-        
-        <div class="flex-1 overflow-y-auto">
-          <IPSchemaManager />
-        </div>
-        
-        <DialogFooter>
-          <Button variant="outline" @click="showIPSchemaManager = false">
-            Close
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-
-    <!-- Group Management Modal -->
-    <Dialog v-model:open="showGroupManagement">
-      <DialogContent class="max-w-4xl max-h-[80vh] overflow-hidden">
-        <DialogHeader>
-          <DialogTitle>Group Management</DialogTitle>
-          <DialogDescription>
-            Manage student groups for this lab
-          </DialogDescription>
-        </DialogHeader>
-        
-        <div class="max-h-[60vh] overflow-y-auto">
-          <GroupManagement
-            v-if="groupsRequired"
-            :course-id="courseId"
-            :groups="groups"
-            :is-loading="isGroupsLoading"
-            @upload-csv="handleUploadCSV"
-            @refresh-groups="handleRefreshGroups"
-            @balance-groups="handleBalanceGroups"
-            @export-groups="handleExportGroups"
-            @assign-student="handleAssignStudent"
-            @edit-group="handleEditGroup"
-            @delete-group="handleDeleteGroup"
-          />
-        </div>
-        
-        <DialogFooter>
-          <Button variant="outline" @click="showGroupManagement = false">
-            Close
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-
-    <!-- Unsaved Changes Dialog -->
-    <AlertDialog v-model:open="showUnsavedDialog">
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Unsaved Changes</AlertDialogTitle>
-          <AlertDialogDescription>
-            You have unsaved changes that will be lost if you leave this page. 
-            Are you sure you want to continue?
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel @click="handleCancelNavigation">
-            Stay on Page
-          </AlertDialogCancel>
-          <AlertDialogAction class="bg-destructive text-destructive-foreground hover:bg-destructive/90" @click="handleConfirmNavigation">
-            Leave Without Saving
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
   </div>
 </template>
+
+<script setup lang="ts">
+import { ref, computed, reactive } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
+import { toast } from 'vue-sonner'
+import { 
+  Home, 
+  ChevronRight, 
+  ChevronLeft, 
+  ChevronDown, 
+  Check, 
+  Plus, 
+  Trash2, 
+  Loader2 
+} from 'lucide-vue-next'
+
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
+import { Badge } from '@/components/ui/badge'
+import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
+
+import TextEditor from '@/components/lab/TextEditor.vue'
+import IPSchemaManager from '@/components/lab/IPSchemaManager.vue'
+import PlayCreationModal from '@/components/play/PlayCreationModal.vue'
+
+import type { LabFormData, LabPart, IpSchema, DeviceIpMapping } from '@/types/lab'
+
+// Route setup
+const route = useRoute()
+const router = useRouter()
+const courseId = route.params.c_id as string
+
+// Get course info for breadcrumb
+const { currentCourse } = useCourse()
+const courseTitle = computed(() => currentCourse.value?.title || `Course ${courseId}`)
+
+// Wizard steps
+const steps = [
+  { id: 1, title: 'Basic Info' },
+  { id: 2, title: 'IP Configuration' }, 
+  { id: 3, title: 'Lab Parts' },
+  { id: 4, title: 'Review' }
+]
+
+const currentStep = ref(1)
+const showValidation = ref(false)
+const isSubmitting = ref(false)
+
+// Form data
+interface LabPartWithTemp extends Omit<LabPart, 'part_id'> {
+  tempId: string
+  selectedPlay?: { id: string; title: string; description: string } | null
+}
+
+const labForm = reactive<LabFormData & { parts: LabPartWithTemp[] }>({
+  title: '',
+  description: '',
+  type: 'lab',
+  groupsRequired: false,
+  ipSchema: undefined,
+  deviceIpMapping: undefined,
+  parts: []
+})
+
+// Part management
+const expandedParts = ref<Record<number, boolean>>({})
+const currentPartIndex = ref<number | null>(null)
+const showPlayCreationModal = ref(false)
+
+// Validation
+const isLabValid = computed(() => {
+  return labForm.title.trim() && 
+         labForm.description.trim() && 
+         labForm.parts.length > 0 &&
+         labForm.parts.every(part => part.title.trim() && part.selectedPlay)
+})
+
+// Methods
+const nextStep = () => {
+  showValidation.value = true
+  
+  if (currentStep.value === 1) {
+    if (!labForm.title.trim() || !labForm.description.trim()) {
+      toast.error('Please fill in all required fields')
+      return
+    }
+  }
+  
+  if (currentStep.value === 3) {
+    if (labForm.parts.length === 0) {
+      toast.error('Please add at least one lab part')
+      return
+    }
+    
+    const invalidParts = labForm.parts.filter(part => !part.title.trim() || !part.selectedPlay)
+    if (invalidParts.length > 0) {
+      toast.error('All parts must have a title and selected play')
+      return
+    }
+  }
+  
+  currentStep.value++
+}
+
+const previousStep = () => {
+  currentStep.value--
+}
+
+const addLabPart = () => {
+  const newPart: LabPartWithTemp = {
+    tempId: `temp-${Date.now()}`,
+    title: `Part ${labForm.parts.length + 1}`,
+    textMd: '',
+    order: labForm.parts.length + 1,
+    total_points: 0,
+    ipSchema: null,
+    deviceIpMapping: null,
+    plays: [],
+    selectedPlay: null
+  }
+  
+  labForm.parts.push(newPart)
+  expandedParts.value[labForm.parts.length - 1] = true
+}
+
+const removeLabPart = (index: number) => {
+  labForm.parts.splice(index, 1)
+  delete expandedParts.value[index]
+  
+  // Reorder remaining parts
+  labForm.parts.forEach((part, i) => {
+    part.order = i + 1
+  })
+}
+
+const togglePartExpanded = (index: number) => {
+  expandedParts.value[index] = !expandedParts.value[index]
+}
+
+const openPlayModal = (partIndex: number) => {
+  currentPartIndex.value = partIndex
+  showPlayCreationModal.value = true
+}
+
+const clearPlay = (partIndex: number) => {
+  labForm.parts[partIndex].selectedPlay = null
+}
+
+const handlePlayCreated = (play: any) => {
+  if (currentPartIndex.value !== null) {
+    labForm.parts[currentPartIndex.value].selectedPlay = {
+      id: play.id || play.play_id,
+      title: play.name,
+      description: play.description || ''
+    }
+  }
+  currentPartIndex.value = null
+}
+
+const saveDraft = async () => {
+  toast.success('Draft saved locally')
+}
+
+const submitLab = async () => {
+  if (!isLabValid.value) {
+    toast.error('Please complete all required fields and configurations')
+    return
+  }
+
+  isSubmitting.value = true
+  
+  try {
+    // Transform the form data to match the expected API format
+    const labData = {
+      ...labForm,
+      parts: labForm.parts.map((part, index) => ({
+        title: part.title,
+        textMd: part.textMd,
+        order: index + 1,
+        total_points: part.total_points,
+        ipSchema: part.ipSchema,
+        deviceIpMapping: part.deviceIpMapping,
+        plays: part.selectedPlay ? [{
+          play_id: part.selectedPlay.id,
+          name: part.selectedPlay.title,
+          description: part.selectedPlay.description,
+          source_device: '',
+          target_device: '',
+          total_points: part.total_points,
+          ansible_tasks: []
+        }] : []
+      }))
+    }
+
+    // TODO: Make API call to create lab
+    console.log('Creating lab:', labData)
+    
+    toast.success('Lab created successfully!')
+    router.push(`/courses/${courseId}/labs`)
+    
+  } catch (error) {
+    console.error('Failed to create lab:', error)
+    toast.error('Failed to create lab. Please try again.')
+  } finally {
+    isSubmitting.value = false
+  }
+}
+
+// Initialize with at least one part
+onMounted(() => {
+  addLabPart()
+})
+</script>
+
+<style>
+.expand-enter-active,
+.expand-leave-active {
+  transition: all 0.3s ease;
+  overflow: hidden;
+}
+
+.expand-enter-from,
+.expand-leave-to {
+  height: 0;
+  opacity: 0;
+}
+
+.expand-enter-to,
+.expand-leave-from {
+  height: 384px; /* h-96 */
+  opacity: 1;
+}
+</style>
