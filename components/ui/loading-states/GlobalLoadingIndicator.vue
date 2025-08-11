@@ -49,10 +49,10 @@
                   <span class="text-muted-foreground">{{ operation.progress || 0 }}%</span>
                   <Button
                     v-if="operation.cancellable"
-                    @click="cancelOperation(operation.id)"
                     variant="ghost"
                     size="sm"
                     class="h-6 w-6 p-0"
+                    @click="cancelOperation(operation.id)"
                   >
                     <X class="w-3 h-3" />
                   </Button>
@@ -64,10 +64,10 @@
         
         <CardFooter v-if="operations.some(op => op.cancellable)" class="pt-3">
           <Button 
-            @click="cancelAllOperations"
-            variant="outline" 
-            size="sm"
+            variant="outline"
+            size="sm" 
             class="w-full"
+            @click="cancelAllOperations"
           >
             Cancel All
           </Button>

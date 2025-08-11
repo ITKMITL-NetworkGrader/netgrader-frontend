@@ -45,10 +45,10 @@
       
       <Button
         v-if="canAddParts"
-        @click="addPart"
         class="w-full mt-4"
         variant="outline"
         size="sm"
+        @click="addPart"
       >
         <Plus class="w-4 h-4 mr-2" />
         Add Part

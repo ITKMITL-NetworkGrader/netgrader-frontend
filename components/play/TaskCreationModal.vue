@@ -171,7 +171,7 @@
                   Define expected results and validation criteria
                 </CardDescription>
               </div>
-              <Button @click="addTestCase" size="sm">
+              <Button size="sm" @click="addTestCase">
                 <Icon name="lucide:plus" class="w-4 h-4 mr-2" />
                 Add Test Case
               </Button>
@@ -197,10 +197,10 @@
                     Test Case {{ index + 1 }}
                   </Badge>
                   <Button
-                    @click="removeTestCase(index)"
                     variant="ghost"
                     size="sm"
                     class="w-8 h-8 p-0 text-destructive hover:text-destructive"
+                    @click="removeTestCase(index)"
                   >
                     <Icon name="lucide:x" class="w-4 h-4" />
                   </Button>
@@ -298,10 +298,10 @@
           </div>
 
           <div class="flex items-center space-x-3">
-            <Button @click="closeModal" variant="outline">
+            <Button variant="outline" @click="closeModal">
               Cancel
             </Button>
-            <Button @click="saveTask" :disabled="!canSave">
+            <Button :disabled="!canSave" @click="saveTask">
               <Icon name="lucide:save" class="w-4 h-4 mr-2" />
               {{ isEditing ? 'Update Task' : 'Create Task' }}
             </Button>

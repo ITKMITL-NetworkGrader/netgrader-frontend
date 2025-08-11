@@ -14,10 +14,10 @@
           {{ groups.length }}/32 Groups
         </Badge>
         <Button 
-          @click="refreshGroups" 
           variant="ghost" 
-          size="sm"
+          size="sm" 
           :disabled="isLoading"
+          @click="refreshGroups"
         >
           <RefreshCw :class="['w-4 h-4', isLoading && 'animate-spin']" />
         </Button>
@@ -42,19 +42,19 @@
               ref="fileInputRef"
               type="file"
               accept=".csv"
-              @change="handleFileSelect"
               :class="[
                 'flex-1',
                 { 'border-destructive': fileError }
               ]"
+              @change="handleFileSelect"
             />
             <LoadingButton
-              @click="uploadFile"
               :loading="isUploading"
               :disabled="!selectedFile || !!fileError"
               text="Upload"
               loading-text="Uploading..."
               size="sm"
+              @click="uploadFile"
             >
               <template #icon>
                 <Upload class="w-4 h-4 mr-2" />
@@ -75,7 +75,7 @@
               v-model="uploadOptions.hasGroups"
               type="checkbox"
               class="rounded border-border"
-            />
+            >
             <Label for="hasGroups" class="text-sm">
               CSV includes group assignments (column: group_number)
             </Label>
@@ -88,7 +88,7 @@
               type="checkbox"
               class="rounded border-border"
               :disabled="uploadOptions.hasGroups"
-            />
+            >
             <Label for="autoBalance" class="text-sm">
               Auto-balance groups evenly
             </Label>
@@ -102,8 +102,8 @@
             <div><strong>Without groups:</strong> student_id,name,email</div>
             <div><strong>With groups:</strong> student_id,name,email,group_number</div>
             <div class="mt-2">
-              <strong>Example:</strong><br/>
-              61234567,John Doe,john@example.com,1<br/>
+              <strong>Example:</strong><br>
+              61234567,John Doe,john@example.com,1<br>
               61234568,Jane Smith,jane@example.com,1
             </div>
           </div>
@@ -177,24 +177,24 @@
               <h4 class="font-medium">Group Details</h4>
               <div class="flex items-center space-x-2">
                 <LoadingButton
-                  @click="balanceGroups"
                   :loading="isBalancing"
                   text="Balance Groups"
                   loading-text="Balancing..."
                   variant="outline"
                   size="sm"
+                  @click="balanceGroups"
                 >
                   <template #icon>
                     <Scale class="w-4 h-4 mr-2" />
                   </template>
                 </LoadingButton>
                 <LoadingButton
-                  @click="exportGroups"
                   :loading="isExporting"
                   text="Export"
                   loading-text="Exporting..."
                   variant="outline"
                   size="sm"
+                  @click="exportGroups"
                 >
                   <template #icon>
                     <Download class="w-4 h-4 mr-2" />
@@ -219,17 +219,17 @@
                   
                   <div class="flex items-center space-x-1">
                     <Button 
-                      @click="editGroup(group)" 
                       variant="ghost" 
-                      size="sm"
+                      size="sm" 
+                      @click="editGroup(group)"
                     >
                       <Edit class="w-3 h-3" />
                     </Button>
                     <Button 
-                      @click="deleteGroup(group)" 
                       variant="ghost" 
-                      size="sm"
+                      size="sm" 
                       class="text-destructive hover:text-destructive"
+                      @click="deleteGroup(group)"
                     >
                       <Trash2 class="w-3 h-3" />
                     </Button>

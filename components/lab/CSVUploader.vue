@@ -15,13 +15,15 @@
             @click="updateStrategy('group_based')"
           >
             <div class="flex items-start space-x-3">
-              <div class="w-5 h-5 rounded-full border-2 mt-0.5"
+              <div
+class="w-5 h-5 rounded-full border-2 mt-0.5"
                    :class="{ 
                      'border-primary bg-primary': allocationStrategy === 'group_based',
                      'border-muted-foreground': allocationStrategy !== 'group_based'
                    }">
-                <div v-if="allocationStrategy === 'group_based'" 
-                     class="w-2 h-2 bg-primary-foreground rounded-full m-0.5"></div>
+                <div
+v-if="allocationStrategy === 'group_based'" 
+                     class="w-2 h-2 bg-primary-foreground rounded-full m-0.5"/>
               </div>
               <div>
                 <h4 class="font-medium">Group-Based (Labs)</h4>
@@ -41,13 +43,15 @@
             @click="updateStrategy('student_id_based')"
           >
             <div class="flex items-start space-x-3">
-              <div class="w-5 h-5 rounded-full border-2 mt-0.5"
+              <div
+class="w-5 h-5 rounded-full border-2 mt-0.5"
                    :class="{ 
                      'border-primary bg-primary': allocationStrategy === 'student_id_based',
                      'border-muted-foreground': allocationStrategy !== 'student_id_based'
                    }">
-                <div v-if="allocationStrategy === 'student_id_based'" 
-                     class="w-2 h-2 bg-primary-foreground rounded-full m-0.5"></div>
+                <div
+v-if="allocationStrategy === 'student_id_based'" 
+                     class="w-2 h-2 bg-primary-foreground rounded-full m-0.5"/>
               </div>
               <div>
                 <h4 class="font-medium">Student ID-Based (Exams)</h4>
@@ -66,17 +70,17 @@
           <Label>Student Data</Label>
           <div class="flex items-center space-x-2">
             <Button
-              @click="showSampleModal = true"
               variant="outline"
               size="sm"
+              @click="showSampleModal = true"
             >
               <Icon name="lucide:eye" class="w-4 h-4 mr-2" />
               View Sample
             </Button>
             <Button
-              @click="downloadSample"
               variant="outline"
               size="sm"
+              @click="downloadSample"
             >
               <Icon name="lucide:download" class="w-4 h-4 mr-2" />
               Download Sample
@@ -107,8 +111,8 @@
             ref="fileInput"
             type="file"
             accept=".csv,.txt"
-            @change="handleFileSelect"
             class="hidden"
+            @change="handleFileSelect"
           >
           
           <Button @click="$refs.fileInput?.click()">
@@ -125,7 +129,7 @@
 
     <!-- Processing Status -->
     <div v-if="isProcessing" class="flex items-center justify-center space-x-3 p-4 bg-muted/50 rounded-lg">
-      <div class="w-5 h-5 animate-spin rounded-full border-2 border-current border-t-transparent"></div>
+      <div class="w-5 h-5 animate-spin rounded-full border-2 border-current border-t-transparent"/>
       <span>Processing CSV file...</span>
     </div>
 
@@ -158,7 +162,8 @@
       </Alert>
 
       <!-- Success and Stats -->
-      <div v-if="validationResult.isValid && validationResult.stats" 
+      <div
+v-if="validationResult.isValid && validationResult.stats" 
            class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
         <div class="flex items-center space-x-2 mb-3">
           <Icon name="lucide:check-circle" class="w-5 h-5 text-green-600 dark:text-green-400" />
@@ -202,13 +207,15 @@
       <div class="flex items-center justify-between">
         <h4 class="font-medium">Loaded Students ({{ students.length }})</h4>
         <div class="flex items-center space-x-2">
-          <Button @click="balanceGroups" variant="outline" size="sm" 
-                  v-if="allocationStrategy === 'group_based'">
+          <Button
+v-if="allocationStrategy === 'group_based'" variant="outline" size="sm" 
+                  @click="balanceGroups">
             <Icon name="lucide:balance-scale" class="w-4 h-4 mr-2" />
             Balance Groups
           </Button>
-          <Button @click="clearStudents" variant="outline" size="sm" 
-                  class="text-destructive hover:text-destructive">
+          <Button
+variant="outline" size="sm" class="text-destructive hover:text-destructive" 
+                  @click="clearStudents">
             <Icon name="lucide:x" class="w-4 h-4 mr-2" />
             Clear
           </Button>
@@ -281,7 +288,7 @@
         </div>
         
         <DialogFooter>
-          <Button @click="showSampleModal = false" variant="outline">
+          <Button variant="outline" @click="showSampleModal = false">
             Close
           </Button>
         </DialogFooter>

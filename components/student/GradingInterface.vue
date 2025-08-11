@@ -62,17 +62,17 @@
 
                   <div class="flex items-center space-x-3">
                     <Button 
-                      @click="startGrading" 
-                      :disabled="!canSubmit || isSubmitting"
+                      :disabled="!canSubmit || isSubmitting" 
                       size="lg"
                       class="px-6"
+                      @click="startGrading"
                     >
                       <Icon v-if="isSubmitting" name="lucide:loader-2" class="w-4 h-4 mr-2 animate-spin" />
                       <Icon v-else name="lucide:play" class="w-4 h-4 mr-2" />
                       {{ isSubmitting ? 'Starting...' : 'Start Grading' }}
                     </Button>
 
-                    <Button @click="showPreview = true" variant="outline" size="lg">
+                    <Button variant="outline" size="lg" @click="showPreview = true">
                       <Icon name="lucide:eye" class="w-4 h-4 mr-2" />
                       Preview Tests
                     </Button>
@@ -151,7 +151,7 @@
               </div>
 
               <!-- Results Button -->
-              <Button @click="showResults = true" class="w-full">
+              <Button class="w-full" @click="showResults = true">
                 <Icon name="lucide:clipboard-list" class="w-4 h-4 mr-2" />
                 View Detailed Results
               </Button>
@@ -174,12 +174,12 @@
                   </p>
                   
                   <div class="flex items-center space-x-3">
-                    <Button @click="startGrading" variant="outline">
+                    <Button variant="outline" @click="startGrading">
                       <Icon name="lucide:refresh-cw" class="w-4 h-4 mr-2" />
                       Retry Grading
                     </Button>
                     
-                    <Button @click="reportIssue" variant="outline">
+                    <Button variant="outline" @click="reportIssue">
                       <Icon name="lucide:bug" class="w-4 h-4 mr-2" />
                       Report Issue
                     </Button>
@@ -233,7 +233,7 @@
         </div>
         
         <DialogFooter>
-          <Button @click="showPreview = false" variant="outline">
+          <Button variant="outline" @click="showPreview = false">
             Close
           </Button>
           <Button @click="showPreview = false; startGrading()">

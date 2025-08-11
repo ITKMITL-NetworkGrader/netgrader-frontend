@@ -12,8 +12,9 @@
         <Badge variant="outline">Not Submitted</Badge>
       </div>
 
-      <Button class="w-full" @click="submitForGrading"
-        :disabled="isSubmitting || !canSubmit || (timeRemaining !== undefined && timeRemaining <= 0)" size="lg">
+      <Button
+class="w-full" :disabled="isSubmitting || !canSubmit || (timeRemaining !== undefined && timeRemaining <= 0)"
+        size="lg" @click="submitForGrading">
         <span v-if="!isSubmitting" class="flex items-center">
           <Send class="w-4 h-4 mr-2" />
           Submit for Grading
@@ -51,7 +52,8 @@
         </Badge>
       </div>
 
-      <LoadingProgress :progress="gradingProgress" title="Grading Progress"
+      <LoadingProgress
+:progress="gradingProgress" title="Grading Progress"
         :description="currentTask ? `Currently grading: ${currentTask}` : 'Processing your submission...'"
         :steps="gradingSteps" />
 
@@ -86,7 +88,8 @@
             {{ Math.round((totalScore / maxScore) * 100) }}%
           </span>
         </div>
-        <Progress :value="(totalScore / maxScore) * 100" class="w-full"
+        <Progress
+:value="(totalScore / maxScore) * 100" class="w-full"
           :class="getProgressClass(totalScore, maxScore)" />
       </div>
 
@@ -94,7 +97,8 @@
       <div class="space-y-2">
         <h5 class="font-medium text-sm">Task Results</h5>
         <div class="space-y-2 max-h-48 overflow-y-auto">
-          <div v-for="task in taskResults" :key="task.id"
+          <div
+v-for="task in taskResults" :key="task.id"
             class="flex items-center justify-between p-2 rounded border bg-card">
             <div class="flex items-center space-x-2">
               <div :class="task.passed ? 'text-green-600' : 'text-red-600'">
@@ -129,7 +133,7 @@
           <span v-else>Downloading...</span>
         </Button>
 
-        <Button variant="ghost" size="sm" v-if="allowResubmission" @click="resubmit">
+        <Button v-if="allowResubmission" variant="ghost" size="sm" @click="resubmit">
           <RotateCcw class="w-4 h-4 mr-2" />
           Resubmit
         </Button>
@@ -156,11 +160,11 @@
       </div>
 
       <div class="flex space-x-2">
-        <Button variant="outline" @click="retryGrading" size="sm">
+        <Button variant="outline" size="sm" @click="retryGrading">
           <RefreshCw class="w-4 h-4 mr-2" />
           Retry
         </Button>
-        <Button variant="ghost" @click="reportIssue" size="sm">
+        <Button variant="ghost" size="sm" @click="reportIssue">
           <Flag class="w-4 h-4 mr-2" />
           Report Issue
         </Button>

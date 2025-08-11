@@ -21,9 +21,9 @@
         </div>
         <Button 
           v-if="cancellable" 
+          variant="outline"
+          size="sm" 
           @click="$emit('cancel')"
-          variant="outline" 
-          size="sm"
         >
           Cancel
         </Button>

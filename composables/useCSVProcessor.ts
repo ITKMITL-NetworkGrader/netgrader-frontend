@@ -186,7 +186,7 @@ export const useCSVProcessor = () => {
     const currentYear = new Date().getFullYear() % 100
     const lines: string[] = []
     
-    let groupCount = Math.ceil(studentCount / 3) // ~3 students per group
+    const groupCount = Math.ceil(studentCount / 3) // ~3 students per group
     
     for (let i = 1; i <= studentCount; i++) {
       const studentIndex = String(i).padStart(4, '0')
@@ -230,7 +230,7 @@ export const useCSVProcessor = () => {
     
     // Start group numbering after existing groups
     const existingGroups = new Set(studentsWithGroups.map(s => s.groupNumber!))
-    let nextGroupNumber = existingGroups.size > 0 ? Math.max(...existingGroups) + 1 : 1
+    const nextGroupNumber = existingGroups.size > 0 ? Math.max(...existingGroups) + 1 : 1
     
     const balanced = [...studentsWithGroups]
     

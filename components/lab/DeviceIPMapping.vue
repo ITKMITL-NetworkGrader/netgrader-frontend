@@ -41,8 +41,8 @@
                 <Input
                   :id="`device-name-${index}`"
                   :model-value="device.deviceName"
-                  @update:model-value="updateDevice(index, { deviceName: $event })"
                   placeholder="e.g., Router 1"
+                  @update:model-value="updateDevice(index, { deviceName: $event })"
                 />
               </div>
 
@@ -52,8 +52,8 @@
                 <Input
                   :id="`ip-variable-${index}`"
                   :model-value="device.ipVariable"
-                  @update:model-value="updateDevice(index, { ipVariable: $event })"
                   placeholder="e.g., router1_ip"
+                  @update:model-value="updateDevice(index, { ipVariable: $event })"
                 />
                 <p class="text-xs text-muted-foreground">
                   Used in task configurations: <code>{{ '{' }}{{ device.ipVariable }}{{ '}' }}</code>
@@ -67,11 +67,11 @@
                   <Input
                     :id="`host-offset-${index}`"
                     :model-value="device.hostOffset"
-                    @update:model-value="updateDevice(index, { hostOffset: Number($event) })"
                     type="number"
                     min="1"
                     max="254"
                     class="flex-1"
+                    @update:model-value="updateDevice(index, { hostOffset: Number($event) })"
                   />
                   <Popover>
                     <PopoverTrigger as-child>
@@ -104,9 +104,9 @@
               <Textarea
                 :id="`description-${index}`"
                 :model-value="device.description"
-                @update:model-value="updateDevice(index, { description: $event })"
                 placeholder="Describe this device's role..."
                 rows="2"
+                @update:model-value="updateDevice(index, { description: $event })"
               />
             </div>
 
@@ -121,17 +121,17 @@
           <!-- Actions -->
           <div class="flex items-center space-x-2 ml-4">
             <Button
-              @click="duplicateDevice(index)"
               variant="outline"
               size="sm"
+              @click="duplicateDevice(index)"
             >
               <Icon name="lucide:copy" class="w-4 h-4" />
             </Button>
             <Button
-              @click="removeDevice(index)"
               variant="outline"
               size="sm"
               class="text-destructive hover:text-destructive"
+              @click="removeDevice(index)"
             >
               <Icon name="lucide:trash-2" class="w-4 h-4" />
             </Button>
@@ -162,19 +162,19 @@
       </div>
       <div class="flex items-center space-x-2">
         <Button
-          @click="sortDevices"
           variant="outline"
           size="sm"
+          @click="sortDevices"
         >
           <Icon name="lucide:arrow-up-down" class="w-4 h-4 mr-2" />
           Sort by Offset
         </Button>
         <Button
-          @click="clearAllDevices"
           variant="outline"
           size="sm"
           class="text-destructive hover:text-destructive"
           :disabled="devices.length === 0"
+          @click="clearAllDevices"
         >
           <Icon name="lucide:trash-2" class="w-4 h-4 mr-2" />
           Clear All
@@ -193,8 +193,7 @@ import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { AlertCircle } from 'lucide-vue-next'
-import type { DeviceConfig } from '@/types/ipSchema'
-import type { NetworkInfo } from '@/types/ipSchema'
+import type { DeviceConfig, NetworkInfo  } from '@/types/ipSchema'
 
 // Props
 interface Props {

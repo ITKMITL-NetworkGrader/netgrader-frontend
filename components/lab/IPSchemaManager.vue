@@ -34,8 +34,8 @@
             </CardDescription>
           </div>
           <Button 
-            @click="showDeviceModal = true" 
-            size="sm"
+            size="sm" 
+            @click="showDeviceModal = true"
           >
             <Icon name="lucide:plus" class="w-4 h-4 mr-2" />
             Add Device
@@ -132,10 +132,10 @@
             <Button 
               v-for="template in deviceTemplates"
               :key="template.deviceId"
-              @click="addDeviceFromTemplate(template)"
               variant="outline"
               size="sm"
               class="text-left justify-start h-auto p-3"
+              @click="addDeviceFromTemplate(template)"
             >
               <div>
                 <div class="font-medium">{{ template.deviceName }}</div>
@@ -175,9 +175,9 @@
               />
             </div>
             <Button 
-              @click="addCustomDevice"
               :disabled="!isCustomDeviceValid"
               class="w-full"
+              @click="addCustomDevice"
             >
               Add Custom Device
             </Button>
@@ -185,7 +185,7 @@
         </div>
         
         <DialogFooter>
-          <Button @click="showDeviceModal = false" variant="outline">
+          <Button variant="outline" @click="showDeviceModal = false">
             Cancel
           </Button>
         </DialogFooter>

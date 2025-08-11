@@ -102,10 +102,10 @@
                 
                 <!-- Expand/Collapse Button -->
                 <Button
-                  @click="toggleTaskExpansion(result.taskName)"
                   variant="ghost"
                   size="sm"
                   class="w-8 h-8 p-0"
+                  @click="toggleTaskExpansion(result.taskName)"
                 >
                   <Icon 
                     :name="isTaskExpanded(result.taskName) ? 'lucide:chevron-up' : 'lucide:chevron-down'" 
@@ -162,10 +162,10 @@
                     Raw Output
                   </h4>
                   <Button
-                    @click="copyToClipboard(result.rawOutput)"
                     variant="ghost"
                     size="sm"
                     class="text-xs"
+                    @click="copyToClipboard(result.rawOutput)"
                   >
                     <Icon name="lucide:copy" class="w-3 h-3 mr-1" />
                     Copy
@@ -198,11 +198,12 @@
         </div>
 
         <!-- Empty State -->
-        <div v-if="filteredResults.length === 0 && results.length > 0" 
+        <div
+v-if="filteredResults.length === 0 && results.length > 0" 
              class="text-center py-12 text-muted-foreground">
           <Icon name="lucide:filter-x" class="w-12 h-12 mx-auto mb-4 opacity-50" />
           <p>No tasks match the current filter.</p>
-          <Button @click="filterStatus = 'all'" variant="outline" size="sm" class="mt-2">
+          <Button variant="outline" size="sm" class="mt-2" @click="filterStatus = 'all'">
             Clear Filter
           </Button>
         </div>
@@ -212,18 +213,18 @@
       <DialogFooter class="pt-4 border-t">
         <div class="flex items-center justify-between w-full">
           <div class="flex items-center space-x-3">
-            <Button @click="downloadResults" variant="outline" size="sm">
+            <Button variant="outline" size="sm" @click="downloadResults">
               <Icon name="lucide:download" class="w-4 h-4 mr-2" />
               Download PDF
             </Button>
-            <Button @click="exportJSON" variant="outline" size="sm">
+            <Button variant="outline" size="sm" @click="exportJSON">
               <Icon name="lucide:file-json" class="w-4 h-4 mr-2" />
               Export JSON
             </Button>
           </div>
           
           <div class="flex items-center space-x-3">
-            <Button @click="requestRegrade" variant="outline">
+            <Button variant="outline" @click="requestRegrade">
               <Icon name="lucide:refresh-cw" class="w-4 h-4 mr-2" />
               Request Regrade
             </Button>

@@ -142,10 +142,10 @@ const handleKeydown = (event: KeyboardEvent) => {
                 <div class="mb-4 p-4 bg-gray-100 rounded-lg min-h-[200px] max-h-[400px] overflow-y-auto">
                     <div v-for="message in messages" :key="message.id" class="mb-2">
                         <div class="font-semibold text-sm text-gray-600">{{ message.sender }}:</div>
-                        <div class="text-gray-800" v-html="renderMarkdown(message.text)"></div>
+                        <div class="text-gray-800" v-html="renderMarkdown(message.text)"/>
                     </div>
                 </div>
-                <form @submit.prevent="sendMessage" class="flex gap-2">
+                <form class="flex gap-2" @submit.prevent="sendMessage">
                     <Textarea 
                         v-model="currentMessage" 
                         placeholder="Type your message..."
@@ -153,7 +153,7 @@ const handleKeydown = (event: KeyboardEvent) => {
                         rows="2"
                         :disabled="isLoading"
                         @keydown="handleKeydown"
-                    ></Textarea>
+                    />
                     <Button 
                         type="submit" 
                         class="px-4 py-2 text-white rounded-lg disabled:opacity-50"

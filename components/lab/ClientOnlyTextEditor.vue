@@ -12,18 +12,18 @@
       <div class="flex flex-col h-full border rounded-lg overflow-hidden">
         <div class="border-b border-border p-2 flex items-center space-x-2 bg-muted/30">
           <!-- Toolbar placeholder -->
-          <div class="h-6 w-full bg-muted/50 animate-pulse rounded"></div>
+          <div class="h-6 w-full bg-muted/50 animate-pulse rounded"/>
         </div>
         <div class="border-b border-border p-4">
           <!-- Title placeholder -->
-          <div class="h-10 w-full bg-muted/50 animate-pulse rounded"></div>
+          <div class="h-10 w-full bg-muted/50 animate-pulse rounded"/>
         </div>
         <div class="flex-1 p-4">
           <!-- Content placeholder -->
           <div class="space-y-2">
-            <div class="h-4 w-full bg-muted/50 animate-pulse rounded"></div>
-            <div class="h-4 w-3/4 bg-muted/50 animate-pulse rounded"></div>
-            <div class="h-4 w-5/6 bg-muted/50 animate-pulse rounded"></div>
+            <div class="h-4 w-full bg-muted/50 animate-pulse rounded"/>
+            <div class="h-4 w-3/4 bg-muted/50 animate-pulse rounded"/>
+            <div class="h-4 w-5/6 bg-muted/50 animate-pulse rounded"/>
           </div>
         </div>
       </div>

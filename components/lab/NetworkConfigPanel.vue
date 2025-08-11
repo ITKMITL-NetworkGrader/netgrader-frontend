@@ -70,10 +70,10 @@
           :class="{ 'border-destructive': gatewayError }"
         />
         <Button 
-          @click="suggestGateway" 
-          variant="outline"
+          variant="outline" 
           size="sm"
           :disabled="!canSuggestGateway"
+          @click="suggestGateway"
         >
           <Icon name="lucide:lightbulb" class="w-4 h-4 mr-1" />
           Suggest

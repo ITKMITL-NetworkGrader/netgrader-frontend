@@ -418,9 +418,9 @@ useHead({
                 </p>
               </div>
               <Button
-                @click="handleOpenIPSchemaManager"
                 variant="outline"
                 size="sm"
+                @click="handleOpenIPSchemaManager"
               >
                 <Plus class="w-4 h-4 mr-2" />
                 Configure Network
@@ -431,7 +431,7 @@ useHead({
             <div v-if="isConfigured" class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
               <div class="flex items-center justify-between mb-2">
                 <div class="flex items-center space-x-2">
-                  <div class="w-2 h-2 bg-green-500 rounded-full"></div>
+                  <div class="w-2 h-2 bg-green-500 rounded-full"/>
                   <span class="text-sm font-medium text-green-800 dark:text-green-300">Network Schema Configured</span>
                 </div>
                 <Badge variant="secondary" class="text-xs">
@@ -454,9 +454,9 @@ useHead({
                 </p>
               </div>
               <Button
-                @click="showGroupManagement = true"
                 variant="outline"
                 size="sm"
+                @click="showGroupManagement = true"
               >
                 <Plus class="w-4 h-4 mr-2" />
                 Manage Groups
@@ -551,20 +551,20 @@ useHead({
 
           <div class="flex items-center space-x-3">
             <Button
-              @click="handleCancel"
               variant="outline"
               :disabled="isLabLoading"
+              @click="handleCancel"
             >
               <X class="w-4 h-4 mr-2" />
               Cancel
             </Button>
             
             <Button
-              @click="handleSave"
               :disabled="!canSave || isLabLoading"
+              @click="handleSave"
             >
               <Save v-if="!isLabLoading" class="w-4 h-4 mr-2" />
-              <div v-else class="w-4 h-4 mr-2 animate-spin rounded-full border-2 border-current border-t-transparent"></div>
+              <div v-else class="w-4 h-4 mr-2 animate-spin rounded-full border-2 border-current border-t-transparent"/>
               {{ isLabLoading ? 'Saving...' : 'Save Lab' }}
             </Button>
           </div>
@@ -613,7 +613,7 @@ useHead({
         </div>
         
         <DialogFooter>
-          <Button @click="showIPSchemaManager = false" variant="outline">
+          <Button variant="outline" @click="showIPSchemaManager = false">
             Close
           </Button>
         </DialogFooter>
@@ -647,7 +647,7 @@ useHead({
         </div>
         
         <DialogFooter>
-          <Button @click="showGroupManagement = false" variant="outline">
+          <Button variant="outline" @click="showGroupManagement = false">
             Close
           </Button>
         </DialogFooter>
@@ -668,7 +668,7 @@ useHead({
           <AlertDialogCancel @click="handleCancelNavigation">
             Stay on Page
           </AlertDialogCancel>
-          <AlertDialogAction @click="handleConfirmNavigation" class="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+          <AlertDialogAction class="bg-destructive text-destructive-foreground hover:bg-destructive/90" @click="handleConfirmNavigation">
             Leave Without Saving
           </AlertDialogAction>
         </AlertDialogFooter>

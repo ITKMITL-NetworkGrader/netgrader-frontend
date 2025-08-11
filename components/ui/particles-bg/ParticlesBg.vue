@@ -4,7 +4,7 @@
     :class="$props.class"
     aria-hidden="true"
   >
-    <canvas ref="canvasRef"></canvas>
+    <canvas ref="canvasRef"/>
   </div>
 </template>
 

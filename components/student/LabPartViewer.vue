@@ -43,7 +43,7 @@
         <div class="p-6">
           <!-- Rich Markdown Content -->
           <div class="prose prose-slate dark:prose-invert max-w-none">
-            <div v-html="renderedContent" class="rendered-markdown"></div>
+            <div class="rendered-markdown" v-html="renderedContent"/>
           </div>
 
           <!-- Interactive Elements -->

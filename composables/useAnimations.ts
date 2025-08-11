@@ -396,7 +396,7 @@ export const useAnimations = () => {
 }
 
 // CSS injection for animations
-if (process.client) {
+if (import.meta.client) {
   const style = document.createElement('style')
   style.textContent = `
     @keyframes ripple-animation {

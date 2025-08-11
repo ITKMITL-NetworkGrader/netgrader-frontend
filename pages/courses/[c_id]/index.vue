@@ -344,7 +344,7 @@ watchEffect(() => {
             </Breadcrumb>
             
             <div v-if="isLoading" class="flex items-center justify-center py-12">
-                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"/>
             </div>
             
             <div v-else-if="currentCourse" class="space-y-6">
@@ -359,7 +359,7 @@ watchEffect(() => {
 
                 <div class="relative">
                     <div class="h-48 rounded-lg overflow-hidden relative">
-                        <div class="absolute inset-0 bg-gradient-to-r from-black/90 to-black/50 z-10"></div>
+                        <div class="absolute inset-0 bg-gradient-to-r from-black/90 to-black/50 z-10"/>
                         <img :src="currentCourse.bannerImage || 'https://i.pinimg.com/736x/18/e3/ad/18e3ad7a432d41a6e2a57d1523e81c73.jpg'" alt="Course banner" class="w-full h-full object-cover opacity-70">
                     </div>
                     <div class="absolute inset-0 p-6 flex flex-col justify-center z-20">
@@ -382,7 +382,8 @@ watchEffect(() => {
                                 <DialogHeader>
                                     <DialogTitle class="text-xl">Edit Course</DialogTitle>
                                 </DialogHeader>
-                                <div class="space-y-4 overflow-y-auto max-h-[70vh] pr-2"
+                                <div
+class="space-y-4 overflow-y-auto max-h-[70vh] pr-2"
                                      style="scrollbar-width: thin; scrollbar-color: rgb(203 213 225) transparent;"
                                 >
                                     <div>
@@ -429,9 +430,11 @@ watchEffect(() => {
                                         <div v-if="isLoadingEnrollments" class="flex items-center justify-center py-8">
                                             <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
                                         </div>
-                                        <div v-else-if="editForm.enrolledStudents && editForm.enrolledStudents.length > 0" 
+                                        <div
+v-else-if="editForm.enrolledStudents && editForm.enrolledStudents.length > 0" 
                                              class="rounded-lg overflow-hidden">
-                                            <div class="overflow-x-auto max-h-96"
+                                            <div
+class="overflow-x-auto max-h-96"
                                                  style="scrollbar-width: thin; scrollbar-color: rgb(203 213 225) transparent;"
                                             >
                                                 <Table>

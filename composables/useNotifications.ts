@@ -76,7 +76,7 @@ export const useNotifications = () => {
     let message = error.message
     
     // Add error code if available
-    if (error.code && process.dev) {
+    if (error.code && import.meta.dev) {
       message += ` (${error.code})`
     }
 

@@ -380,14 +380,14 @@ onMounted(() => {
                   </div>
                   <div class="flex justify-end space-x-2 pt-4">
                     <Button variant="outline" @click="isCreateModalOpen = false">Cancel</Button>
-                    <Button @click="createCourse" :disabled="isCreating || !createForm.title">
+                    <Button :disabled="isCreating || !createForm.title" @click="createCourse">
                       {{ isCreating ? 'Creating...' : 'Create Course' }}
                     </Button>
                   </div>
                 </DialogContent>
               </Dialog>
 
-              <Button variant="outline" @click="fetchUserCourses" :disabled="isLoading">
+              <Button variant="outline" :disabled="isLoading" @click="fetchUserCourses">
                 {{ isLoading ? 'Refreshing...' : 'Refresh Courses' }}
               </Button>
             </div>
@@ -459,8 +459,8 @@ onMounted(() => {
                 <Button
                   variant="outline"
                   size="sm"
-                  @click.stop="openEditModal(course)"
                   class="flex-1"
+                  @click.stop="openEditModal(course)"
                 >
                   <Edit class="h-4 w-4 mr-1" />
                   Edit
@@ -536,7 +536,7 @@ onMounted(() => {
           </div>
           <div class="flex justify-end space-x-2 pt-4">
             <Button variant="outline" @click="isEditModalOpen = false">Cancel</Button>
-            <Button @click="updateCourse" :disabled="isUpdating || !editForm.title">
+            <Button :disabled="isUpdating || !editForm.title" @click="updateCourse">
               {{ isUpdating ? 'Updating...' : 'Update Course' }}
             </Button>
           </div>

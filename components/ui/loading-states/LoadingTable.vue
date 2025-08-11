@@ -21,7 +21,7 @@
           </TableRow>
         </TableHeader>
         <TableBody>
-          <TableRow v-if="loading" v-for="row in skeletonRows" :key="row">
+          <TableRow v-for="row in skeletonRows" v-if="loading" :key="row">
             <TableCell v-for="(header, index) in headers" :key="index">
               <Skeleton class="h-4 w-full" />
             </TableCell>

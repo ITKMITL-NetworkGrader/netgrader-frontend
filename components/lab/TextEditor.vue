@@ -1,74 +1,85 @@
 <template>
   <div class="flex flex-col h-full border rounded-lg overflow-hidden">
     <!-- Toolbar -->
-    <div class="border-b border-border p-2 flex items-center space-x-2 bg-muted/30" v-if="!readonly">
+    <div v-if="!readonly" class="border-b border-border p-2 flex items-center space-x-2 bg-muted/30">
       <!-- Formatting Controls -->
       <div class="flex items-center space-x-1">
-        <button @click="toggleBold" class="p-1 rounded hover:bg-muted" :class="{ 'bg-muted': editor?.isActive('bold') }"
-          title="Bold (Ctrl+B)">
+        <button
+class="p-1 rounded hover:bg-muted" :class="{ 'bg-muted': editor?.isActive('bold') }" title="Bold (Ctrl+B)"
+          @click="toggleBold">
           <Bold class="w-4 h-4" />
         </button>
-        <button @click="toggleItalic" class="p-1 rounded hover:bg-muted"
-          :class="{ 'bg-muted': editor?.isActive('italic') }" title="Italic (Ctrl+I)">
+        <button
+class="p-1 rounded hover:bg-muted" :class="{ 'bg-muted': editor?.isActive('italic') }"
+          title="Italic (Ctrl+I)" @click="toggleItalic">
           <Italic class="w-4 h-4" />
         </button>
-        <button @click="toggleStrikethrough" class="p-1 rounded hover:bg-muted"
-          :class="{ 'bg-muted': editor?.isActive('strike') }" title="Strikethrough">
+        <button
+class="p-1 rounded hover:bg-muted" :class="{ 'bg-muted': editor?.isActive('strike') }"
+          title="Strikethrough" @click="toggleStrikethrough">
           <Strikethrough class="w-4 h-4" />
         </button>
       </div>
       <div class="h-4 border-l border-border"/>
       <!-- Headings -->
       <div class="flex items-center space-x-1">
-        <button @click="toggleHeading(1)" class="p-1 rounded hover:bg-muted"
-          :class="{ 'bg-muted': editor?.isActive('heading', { level: 1 }) }" title="Heading 1">
+        <button
+class="p-1 rounded hover:bg-muted" :class="{ 'bg-muted': editor?.isActive('heading', { level: 1 }) }"
+          title="Heading 1" @click="toggleHeading(1)">
           <Heading1 class="w-4 h-4" />
         </button>
-        <button @click="toggleHeading(2)" class="p-1 rounded hover:bg-muted"
-          :class="{ 'bg-muted': editor?.isActive('heading', { level: 2 }) }" title="Heading 2">
+        <button
+class="p-1 rounded hover:bg-muted" :class="{ 'bg-muted': editor?.isActive('heading', { level: 2 }) }"
+          title="Heading 2" @click="toggleHeading(2)">
           <Heading2 class="w-4 h-4" />
         </button>
-        <button @click="toggleHeading(3)" class="p-1 rounded hover:bg-muted"
-          :class="{ 'bg-muted': editor?.isActive('heading', { level: 3 }) }" title="Heading 3">
+        <button
+class="p-1 rounded hover:bg-muted" :class="{ 'bg-muted': editor?.isActive('heading', { level: 3 }) }"
+          title="Heading 3" @click="toggleHeading(3)">
           <Heading3 class="w-4 h-4" />
         </button>
       </div>
       <div class="h-4 border-l border-border"/>
       <!-- List Controls -->
       <div class="flex items-center space-x-1">
-        <button @click="toggleBulletList" class="p-1 rounded hover:bg-muted"
-          :class="{ 'bg-muted': editor?.isActive('bulletList') }" title="Bullet List">
+        <button
+class="p-1 rounded hover:bg-muted" :class="{ 'bg-muted': editor?.isActive('bulletList') }"
+          title="Bullet List" @click="toggleBulletList">
           <List class="w-4 h-4" />
         </button>
-        <button @click="toggleOrderedList" class="p-1 rounded hover:bg-muted"
-          :class="{ 'bg-muted': editor?.isActive('orderedList') }" title="Numbered List">
+        <button
+class="p-1 rounded hover:bg-muted" :class="{ 'bg-muted': editor?.isActive('orderedList') }"
+          title="Numbered List" @click="toggleOrderedList">
           <ListOrdered class="w-4 h-4" />
         </button>
       </div>
       <div class="h-4 border-l border-border"/>
       <!-- Code and Quote -->
       <div class="flex items-center space-x-1">
-        <button @click="toggleCode" class="p-1 rounded hover:bg-muted" :class="{ 'bg-muted': editor?.isActive('code') }"
-          title="Inline Code">
+        <button
+class="p-1 rounded hover:bg-muted" :class="{ 'bg-muted': editor?.isActive('code') }" title="Inline Code"
+          @click="toggleCode">
           <Code class="w-4 h-4" />
         </button>
-        <button @click="toggleBlockquote" class="p-1 rounded hover:bg-muted"
-          :class="{ 'bg-muted': editor?.isActive('blockquote') }" title="Quote">
+        <button
+class="p-1 rounded hover:bg-muted" :class="{ 'bg-muted': editor?.isActive('blockquote') }"
+          title="Quote" @click="toggleBlockquote">
           <Quote class="w-4 h-4" />
         </button>
       </div>
       <div class="h-4 border-l border-border"/>
       <!-- Horizontal Rule -->
       <div class="flex items-center space-x-1">
-        <button @click="addHorizontalRule" class="p-1 rounded hover:bg-muted" title="Horizontal Rule">
+        <button class="p-1 rounded hover:bg-muted" title="Horizontal Rule" @click="addHorizontalRule">
           <Minus class="w-4 h-4" />
         </button>
       </div>
       <div class="flex-1"/>
       <!-- Play Selection -->
       <div class="flex items-center space-x-2">
-        <button @click="openPlayModal"
-          class="px-3 py-1 text-sm border rounded hover:bg-muted flex items-center space-x-2">
+        <button
+class="px-3 py-1 text-sm border rounded hover:bg-muted flex items-center space-x-2"
+          @click="openPlayModal">
           <Settings class="w-4 h-4" />
           <span>Select Play</span>
         </button>
@@ -79,7 +90,7 @@
         </div>
         <div v-else class="flex items-center space-x-1">
           <span class="text-sm">{{ selectedPlay.title }}</span>
-          <button @click="clearPlay" class="p-1 rounded hover:bg-muted text-destructive">
+          <button class="p-1 rounded hover:bg-muted text-destructive" @click="clearPlay">
             <X class="w-3 h-3" />
           </button>
         </div>
@@ -89,14 +100,16 @@
     <!-- Part Title Input -->
     <div class="border-b border-border p-4">
       <div class="space-y-2">
-        <Input v-model="partTitle" placeholder="Part Title (Required)" :class="[
+        <Input
+v-model="partTitle" placeholder="Part Title (Required)" :class="[
           'text-lg font-semibold',
           {
             'border-destructive focus:border-destructive focus:ring-destructive':
               !readonly && showValidation && (!partTitle || !partTitle.trim())
           }
         ]" :readonly="readonly" @input="updateTitle" @blur="validateTitle" />
-        <div v-if="!readonly && showValidation && titleError"
+        <div
+v-if="!readonly && showValidation && titleError"
           class="flex items-center space-x-1 text-sm text-destructive">
           <AlertCircle class="w-4 h-4" />
           <span>{{ titleError }}</span>
@@ -106,13 +119,15 @@
 
     <!-- Content Editor -->
     <div class="flex-1 p-4 overflow-auto">
-      <EditorContent :editor="editor" class="min-h-96 prose prose-sm max-w-none focus:outline-none" :class="{
+      <EditorContent
+:editor="editor" class="min-h-96 prose prose-sm max-w-none focus:outline-none" :class="{
         'cursor-text': !readonly,
         'cursor-default': readonly,
         'bg-muted/30': readonly,
         'border border-destructive rounded-md p-2': !readonly && showValidation && contentError
       }" />
-      <div v-if="!readonly && showValidation && contentError"
+      <div
+v-if="!readonly && showValidation && contentError"
         class="flex items-center space-x-1 text-sm text-destructive mt-2">
         <AlertCircle class="w-4 h-4" />
         <span>{{ contentError }}</span>

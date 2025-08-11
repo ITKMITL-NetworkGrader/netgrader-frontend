@@ -1,8 +1,8 @@
 <template>
   <div class="skeleton-card animate-pulse" :class="containerClass">
     <div v-if="showHeader" class="skeleton-header mb-4">
-      <div class="skeleton-title h-6 bg-muted rounded-md mb-2" :style="{ width: titleWidth }"></div>
-      <div v-if="showSubtitle" class="skeleton-subtitle h-4 bg-muted/70 rounded-md" :style="{ width: subtitleWidth }"></div>
+      <div class="skeleton-title h-6 bg-muted rounded-md mb-2" :style="{ width: titleWidth }"/>
+      <div v-if="showSubtitle" class="skeleton-subtitle h-4 bg-muted/70 rounded-md" :style="{ width: subtitleWidth }"/>
     </div>
     
     <div class="skeleton-content space-y-3">
@@ -11,7 +11,7 @@
         :key="line"
         class="skeleton-line h-4 bg-muted/50 rounded-md"
         :style="{ width: getLineWidth(line) }"
-      ></div>
+      />
     </div>
     
     <div v-if="showActions" class="skeleton-actions flex space-x-2 mt-4">
@@ -20,7 +20,7 @@
         :key="action"
         class="skeleton-action h-9 bg-muted/60 rounded-md"
         :style="{ width: actionWidth }"
-      ></div>
+      />
     </div>
   </div>
 </template>

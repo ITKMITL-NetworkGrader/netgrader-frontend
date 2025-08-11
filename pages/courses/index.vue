@@ -1,9 +1,8 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, computed  } from 'vue'
 import { ChevronRight, Home, Lock } from 'lucide-vue-next'
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card'
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
-import { computed } from "vue";
 import { useColorMode } from "@vueuse/core";
 
 const isDark = computed(() => useColorMode().value == "dark");
@@ -64,25 +63,27 @@ const { data: coursesData, status } = await useFetch<CourseResponse>(backendURL 
       <!-- Loading state -->
       <div v-if="status === 'pending'" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <div v-for="i in 6" :key="i" class="animate-pulse">
-          <div class="bg-gray-200 dark:bg-gray-700 h-48 rounded-t-xl"></div>
+          <div class="bg-gray-200 dark:bg-gray-700 h-48 rounded-t-xl"/>
           <div class="p-6 space-y-3">
-            <div class="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4"></div>
-            <div class="h-3 bg-gray-200 dark:bg-gray-700 rounded w-full"></div>
-            <div class="h-3 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div>
+            <div class="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4"/>
+            <div class="h-3 bg-gray-200 dark:bg-gray-700 rounded w-full"/>
+            <div class="h-3 bg-gray-200 dark:bg-gray-700 rounded w-1/2"/>
           </div>
         </div>
       </div>
       
       <!-- Courses grid -->
       <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <div v-for="(course, index) in coursesData.courses" 
+        <div
+v-for="(course, index) in coursesData.courses" 
              :key="course._id"
              class="flex flex-col h-full bg-white border shadow-sm rounded-xl hover:shadow-lg transition dark:bg-slate-900 dark:border-gray-700 dark:shadow-slate-700/[.7] opacity-0 translate-y-4"
              :class="[
                 'animate-[fade-in-up_0.3s_ease-out_forwards]',
                 `animation-delay-${index * 100}`
              ]">
-          <img class="w-full h-48 object-cover rounded-t-xl hover:scale-105 transition-transform duration-500" 
+          <img
+class="w-full h-48 object-cover rounded-t-xl hover:scale-105 transition-transform duration-500" 
                src="https://i.pinimg.com/736x/18/e3/ad/18e3ad7a432d41a6e2a57d1523e81c73.jpg"
                :alt="course.title + ' banner'">
           

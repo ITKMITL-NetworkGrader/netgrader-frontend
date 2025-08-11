@@ -51,18 +51,18 @@ export const useVariableResolver = () => {
     const student_id = Number(studentId)
 
     // Algorithm from requirements for subnet generation
-    let dec2_1 = (student_id / 1000000 - 61) * 10
-    let dec2_2 = (student_id % 1000) / 250
-    let dec2 = Math.floor(dec2_1 + dec2_2)
-    let dec3 = Math.floor((student_id % 1000) % 250)
+    const dec2_1 = (student_id / 1000000 - 61) * 10
+    const dec2_2 = (student_id % 1000) / 250
+    const dec2 = Math.floor(dec2_1 + dec2_2)
+    const dec3 = Math.floor((student_id % 1000) % 250)
 
-    let vlan1 = Math.floor((student_id / 1000000 - 61) * 400 + (student_id % 1000))
-    let vlan2 = Math.floor((student_id / 1000000 - 61) * 500 + (student_id % 1000))
+    const vlan1 = Math.floor((student_id / 1000000 - 61) * 400 + (student_id % 1000))
+    const vlan2 = Math.floor((student_id / 1000000 - 61) * 500 + (student_id % 1000))
 
-    let ipv4Subnet = `172.${dec2}.${dec3}.64/26`
-    let ipv6Subnet = `2001:${dec2}:${dec3}::/48`
-    let outInterfaceIpv4 = `10.30.6.${190 + examNumber}`
-    let outInterfaceIpv6 = `2001:db8:dada:aaaa::${190 + examNumber}`
+    const ipv4Subnet = `172.${dec2}.${dec3}.64/26`
+    const ipv6Subnet = `2001:${dec2}:${dec3}::/48`
+    const outInterfaceIpv4 = `10.30.6.${190 + examNumber}`
+    const outInterfaceIpv6 = `2001:db8:dada:aaaa::${190 + examNumber}`
 
     return {
       studentId,
@@ -217,10 +217,10 @@ export const useVariableResolver = () => {
   ): { resolvedContent: string; resolvedVariables: Record<string, any> } => {
     // Extract networking details from student configuration using student ID algorithm
     const student_id = Number(studentConfig.studentId)
-    let dec2_1 = (student_id / 1000000 - 61) * 10
-    let dec2_2 = (student_id % 1000) / 250
-    let dec2 = Math.floor(dec2_1 + dec2_2)
-    let dec3 = Math.floor((student_id % 1000) % 250)
+    const dec2_1 = (student_id / 1000000 - 61) * 10
+    const dec2_2 = (student_id % 1000) / 250
+    const dec2 = Math.floor(dec2_1 + dec2_2)
+    const dec3 = Math.floor((student_id % 1000) % 250)
 
     // Enhanced subnet calculations for more comprehensive personalization
     const subnetParts = studentConfig.ipv4Subnet.split('/')

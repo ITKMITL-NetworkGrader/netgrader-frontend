@@ -112,8 +112,8 @@
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  @click.stop="previewPlay(play)"
                   class="text-xs"
+                  @click.stop="previewPlay(play)"
                 >
                   <Eye class="w-3 h-3 mr-1" />
                   Preview Tasks
@@ -125,7 +125,8 @@
       </div>
       
       <!-- Variable Configuration Section -->
-      <div v-if="selectedPlay && selectedPlay.variables && selectedPlay.variables.length > 0" 
+      <div
+v-if="selectedPlay && selectedPlay.variables && selectedPlay.variables.length > 0" 
            class="border-t pt-4">
         <h4 class="font-medium mb-3">Configure Variables</h4>
         <div class="grid gap-3 max-h-32 overflow-y-auto">
@@ -195,8 +196,8 @@
             Cancel
           </Button>
           <Button 
-            @click="confirm" 
-            :disabled="!selectedPlayId || !isVariableConfigValid"
+            :disabled="!selectedPlayId || !isVariableConfigValid" 
+            @click="confirm"
           >
             Select Play
           </Button>

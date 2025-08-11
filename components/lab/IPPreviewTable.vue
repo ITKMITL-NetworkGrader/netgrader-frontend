@@ -9,11 +9,11 @@
         </p>
       </div>
       <div class="flex items-center space-x-2">
-        <Button @click="refreshPreview" variant="outline" size="sm">
+        <Button variant="outline" size="sm" @click="refreshPreview">
           <Icon name="lucide:refresh-cw" class="w-4 h-4 mr-2" />
           Refresh
         </Button>
-        <Button @click="exportPreview" variant="outline" size="sm">
+        <Button variant="outline" size="sm" @click="exportPreview">
           <Icon name="lucide:download" class="w-4 h-4 mr-2" />
           Export
         </Button>
@@ -50,14 +50,16 @@
             <tr>
               <th class="text-left p-3 font-medium">Student ID</th>
               <th v-if="hasGroups" class="text-left p-3 font-medium">Group</th>
-              <th v-for="deviceType in deviceTypes" :key="deviceType" 
+              <th
+v-for="deviceType in deviceTypes" :key="deviceType" 
                   class="text-left p-3 font-medium">
                 {{ deviceType }}
               </th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="assignment in displayedAssignments" 
+            <tr
+v-for="assignment in displayedAssignments" 
                 :key="assignment.studentId" 
                 class="border-b hover:bg-muted/25 transition-colors">
               <!-- Student ID -->
@@ -82,16 +84,17 @@
               
               <!-- Device IPs -->
               <td v-for="deviceType in deviceTypes" :key="deviceType" class="p-3">
-                <div v-if="getDeviceIP(assignment, deviceType)" 
+                <div
+v-if="getDeviceIP(assignment, deviceType)" 
                      class="flex items-center space-x-2">
                   <code class="bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300 px-2 py-1 rounded text-xs font-mono">
                     {{ getDeviceIP(assignment, deviceType) }}
                   </code>
                   <Button
-                    @click="copyToClipboard(getDeviceIP(assignment, deviceType)!)"
                     variant="ghost"
                     size="sm"
                     class="w-6 h-6 p-0"
+                    @click="copyToClipboard(getDeviceIP(assignment, deviceType)!)"
                   >
                     <Icon name="lucide:copy" class="w-3 h-3" />
                   </Button>
@@ -111,7 +114,8 @@
         Variable Reference
       </h5>
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
-        <div v-for="device in uniqueDevices" :key="device.variableName"
+        <div
+v-for="device in uniqueDevices" :key="device.variableName"
              class="flex items-center justify-between p-2 bg-background rounded">
           <span class="font-medium">{{ device.deviceId }}</span>
           <code class="text-primary bg-primary/10 px-2 py-1 rounded">

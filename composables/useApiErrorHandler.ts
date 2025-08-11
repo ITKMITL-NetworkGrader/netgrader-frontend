@@ -199,7 +199,7 @@ export const useApiErrorHandler = () => {
 
   // Show detailed error in development
   const showDetailedError = (err: ApiError) => {
-    if (process.dev) {
+    if (import.meta.dev) {
       console.group('API Error Details')
       console.error('Code:', err.code)
       console.error('Message:', err.message)

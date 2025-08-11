@@ -286,7 +286,7 @@ export const usePlayCreation = () => {
   const autoSaveKey = computed(() => `netgrader_play_autosave_${playData.value.name || 'new'}`)
 
   const saveToLocalStorage = () => {
-    if (process.client && hasUnsavedChanges.value) {
+    if (import.meta.client && hasUnsavedChanges.value) {
       localStorage.setItem(autoSaveKey.value, JSON.stringify({
         data: playData.value,
         timestamp: Date.now()
@@ -295,7 +295,7 @@ export const usePlayCreation = () => {
   }
 
   const loadFromLocalStorage = (): boolean => {
-    if (process.client) {
+    if (import.meta.client) {
       const saved = localStorage.getItem(autoSaveKey.value)
       if (saved) {
         try {
@@ -315,7 +315,7 @@ export const usePlayCreation = () => {
   }
 
   const clearLocalStorage = () => {
-    if (process.client) {
+    if (import.meta.client) {
       localStorage.removeItem(autoSaveKey.value)
     }
   }

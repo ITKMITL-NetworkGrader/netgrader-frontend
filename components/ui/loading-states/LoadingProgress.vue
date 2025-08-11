@@ -40,7 +40,7 @@
     </div>
     
     <div v-if="showCancel" class="flex justify-end">
-      <Button @click="$emit('cancel')" variant="outline" size="sm">
+      <Button variant="outline" size="sm" @click="$emit('cancel')">
         Cancel
       </Button>
     </div>

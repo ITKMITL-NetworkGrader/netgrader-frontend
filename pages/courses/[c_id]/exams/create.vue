@@ -499,15 +499,15 @@ const getSubnetMask = (usableIPs: number): number => {
                     <Input
                       type="file"
                       accept=".csv"
-                      @change="handleFileUpload"
                       class="max-w-xs"
+                      @change="handleFileUpload"
                     />
                     <Button
-                      @click="uploadStudentCSV"
                       :disabled="!csvFile || isUploadingCSV"
+                      @click="uploadStudentCSV"
                     >
                       <Upload v-if="!isUploadingCSV" class="w-4 h-4 mr-2" />
-                      <div v-else class="w-4 h-4 mr-2 animate-spin rounded-full border-2 border-current border-t-transparent"></div>
+                      <div v-else class="w-4 h-4 mr-2 animate-spin rounded-full border-2 border-current border-t-transparent"/>
                       {{ isUploadingCSV ? 'Processing...' : 'Upload' }}
                     </Button>
                   </div>
@@ -519,9 +519,9 @@ const getSubnetMask = (usableIPs: number): number => {
                 <div class="flex items-center justify-between">
                   <h4 class="font-medium">Enrolled Students ({{ enrolledStudents.length }})</h4>
                   <Button
-                    @click="previewSubnetGeneration"
                     variant="outline"
                     size="sm"
+                    @click="previewSubnetGeneration"
                   >
                     <Eye class="w-4 h-4 mr-2" />
                     Preview Configurations
@@ -542,10 +542,10 @@ const getSubnetMask = (usableIPs: number): number => {
                         </div>
                       </div>
                       <Button
-                        @click="removeStudent(index)"
                         variant="ghost"
                         size="sm"
                         class="text-destructive hover:text-destructive"
+                        @click="removeStudent(index)"
                       >
                         <X class="w-4 h-4" />
                       </Button>
@@ -763,27 +763,27 @@ function generateConfig(studentId, examNumber) {
             
             <!-- Success Indicator -->
             <div v-else-if="canSave" class="flex items-center space-x-2 text-green-600">
-              <div class="w-2 h-2 bg-green-600 rounded-full"></div>
+              <div class="w-2 h-2 bg-green-600 rounded-full"/>
               <span class="text-sm">Ready to save</span>
             </div>
           </div>
 
           <div class="flex items-center space-x-3">
             <Button
-              @click="handleCancel"
               variant="outline"
               :disabled="isExamLoading"
+              @click="handleCancel"
             >
               <X class="w-4 h-4 mr-2" />
               Cancel
             </Button>
             
             <Button
-              @click="handleSave"
               :disabled="!canSave || isExamLoading"
+              @click="handleSave"
             >
               <Save v-if="!isExamLoading" class="w-4 h-4 mr-2" />
-              <div v-else class="w-4 h-4 mr-2 animate-spin rounded-full border-2 border-current border-t-transparent"></div>
+              <div v-else class="w-4 h-4 mr-2 animate-spin rounded-full border-2 border-current border-t-transparent"/>
               {{ isExamLoading ? 'Saving...' : 'Save Exam' }}
             </Button>
           </div>
@@ -793,7 +793,7 @@ function generateConfig(studentId, examNumber) {
         <div v-if="validationErrors.length > 0" class="mt-3 pt-3 border-t">
           <div class="text-sm text-destructive space-y-1">
             <div v-for="error in validationErrors" :key="error" class="flex items-center space-x-2">
-              <div class="w-1 h-1 bg-destructive rounded-full"></div>
+              <div class="w-1 h-1 bg-destructive rounded-full"/>
               <span>{{ error }}</span>
             </div>
           </div>
@@ -863,7 +863,7 @@ function generateConfig(studentId, examNumber) {
         </div>
         
         <DialogFooter>
-          <Button @click="showSubnetPreview = false" variant="outline">
+          <Button variant="outline" @click="showSubnetPreview = false">
             Close
           </Button>
         </DialogFooter>
@@ -884,7 +884,7 @@ function generateConfig(studentId, examNumber) {
           <AlertDialogCancel @click="handleCancelNavigation">
             Stay on Page
           </AlertDialogCancel>
-          <AlertDialogAction @click="handleConfirmNavigation" class="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+          <AlertDialogAction class="bg-destructive text-destructive-foreground hover:bg-destructive/90" @click="handleConfirmNavigation">
             Leave Without Saving
           </AlertDialogAction>
         </AlertDialogFooter>

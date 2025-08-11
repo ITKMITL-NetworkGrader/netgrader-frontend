@@ -30,9 +30,9 @@
                   <Input
                     id="play-name"
                     :model-value="playData.name"
-                    @update:model-value="updatePlay({ name: $event })"
                     placeholder="e.g., Ping Test PC1 → PC2"
                     :class="{ 'border-destructive': !playData.name.trim() }"
+                    @update:model-value="updatePlay({ name: $event })"
                   />
                 </div>
 
@@ -42,9 +42,9 @@
                   <Textarea
                     id="play-description"
                     :model-value="playData.description || ''"
-                    @update:model-value="updatePlay({ description: $event })"
                     placeholder="Describe what this play tests..."
                     rows="3"
+                    @update:model-value="updatePlay({ description: $event })"
                   />
                 </div>
 
@@ -148,8 +148,8 @@
           <div class="flex items-center justify-between mb-4">
             <h3 class="text-lg font-semibold">Tasks</h3>
             <Button 
-              @click="openTaskModal()"
               :disabled="!canAddTask"
+              @click="openTaskModal()"
             >
               <Icon name="lucide:plus" class="w-4 h-4 mr-2" />
               Add Task
@@ -178,11 +178,11 @@
           <div class="flex items-center space-x-4">
             <!-- Auto-save indicator -->
             <div v-if="hasUnsavedChanges" class="flex items-center space-x-2 text-sm text-muted-foreground">
-              <div class="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></div>
+              <div class="w-2 h-2 bg-amber-500 rounded-full animate-pulse"/>
               <span>Auto-saving...</span>
             </div>
             <div v-else class="flex items-center space-x-2 text-sm text-muted-foreground">
-              <div class="w-2 h-2 bg-green-500 rounded-full"></div>
+              <div class="w-2 h-2 bg-green-500 rounded-full"/>
               <span>Saved</span>
             </div>
 
@@ -204,7 +204,7 @@
                   Import JSON
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem @click="resetPlay" class="text-destructive">
+                <DropdownMenuItem class="text-destructive" @click="resetPlay">
                   <Icon name="lucide:trash-2" class="w-4 h-4 mr-2" />
                   Reset Play
                 </DropdownMenuItem>
@@ -214,14 +214,14 @@
 
           <div class="flex items-center space-x-3">
             <Button 
-              @click="closeModal" 
-              variant="outline"
+              variant="outline" 
+              @click="closeModal"
             >
               Cancel
             </Button>
             <Button 
-              @click="savePlay"
               :disabled="!canSave"
+              @click="savePlay"
             >
               <Icon v-if="isSaving" name="lucide:loader-2" class="w-4 h-4 mr-2 animate-spin" />
               <Icon v-else name="lucide:save" class="w-4 h-4 mr-2" />
@@ -260,10 +260,10 @@
         </div>
         
         <DialogFooter>
-          <Button @click="showImportDialog = false" variant="outline">
+          <Button variant="outline" @click="showImportDialog = false">
             Cancel
           </Button>
-          <Button @click="importPlay" :disabled="!importData.trim()">
+          <Button :disabled="!importData.trim()" @click="importPlay">
             Import
           </Button>
         </DialogFooter>

@@ -380,11 +380,11 @@ useHead({
         <CardContent>
           <p class="text-muted-foreground mb-4">{{ loadingError }}</p>
           <div class="flex space-x-2">
-            <Button @click="loadLabData" variant="outline">
+            <Button variant="outline" @click="loadLabData">
               <Loader2 v-if="isInitialLoading" class="w-4 h-4 mr-2 animate-spin" />
               Try Again
             </Button>
-            <Button @click="router.push(`/courses/${courseId}/labs`)" variant="ghost">
+            <Button variant="ghost" @click="router.push(`/courses/${courseId}/labs`)">
               Back to Labs
             </Button>
           </div>
@@ -510,9 +510,9 @@ useHead({
                   </p>
                 </div>
                 <Button
-                  @click="showGroupManagement = true"
                   variant="outline"
                   size="sm"
+                  @click="showGroupManagement = true"
                 >
                   <Plus class="w-4 h-4 mr-2" />
                   Manage Groups
@@ -598,24 +598,24 @@ useHead({
               
               <!-- Success Indicator -->
               <div v-else-if="canSave" class="flex items-center space-x-2 text-green-600">
-                <div class="w-2 h-2 bg-green-600 rounded-full"></div>
+                <div class="w-2 h-2 bg-green-600 rounded-full"/>
                 <span class="text-sm">Ready to save</span>
               </div>
             </div>
 
             <div class="flex items-center space-x-3">
               <Button
-                @click="handleCancel"
                 variant="outline"
                 :disabled="isLabLoading"
+                @click="handleCancel"
               >
                 <X class="w-4 h-4 mr-2" />
                 Cancel
               </Button>
               
               <Button
-                @click="handleSave"
                 :disabled="!canSave || isLabLoading"
+                @click="handleSave"
               >
                 <Save v-if="!isLabLoading" class="w-4 h-4 mr-2" />
                 <Loader2 v-else class="w-4 h-4 mr-2 animate-spin" />
@@ -628,7 +628,7 @@ useHead({
           <div v-if="validationErrors.length > 0" class="mt-3 pt-3 border-t">
             <div class="text-sm text-destructive space-y-1">
               <div v-for="error in validationErrors" :key="error" class="flex items-center space-x-2">
-                <div class="w-1 h-1 bg-destructive rounded-full"></div>
+                <div class="w-1 h-1 bg-destructive rounded-full"/>
                 <span>{{ error }}</span>
               </div>
             </div>
@@ -671,7 +671,7 @@ useHead({
           </div>
           
           <DialogFooter>
-            <Button @click="showGroupManagement = false" variant="outline">
+            <Button variant="outline" @click="showGroupManagement = false">
               Close
             </Button>
           </DialogFooter>
@@ -692,7 +692,7 @@ useHead({
             <AlertDialogCancel @click="handleCancelNavigation">
               Stay on Page
             </AlertDialogCancel>
-            <AlertDialogAction @click="handleConfirmNavigation" class="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+            <AlertDialogAction class="bg-destructive text-destructive-foreground hover:bg-destructive/90" @click="handleConfirmNavigation">
               Leave Without Saving
             </AlertDialogAction>
           </AlertDialogFooter>

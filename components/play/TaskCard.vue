@@ -129,8 +129,8 @@
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem 
-                @click.stop="$emit('remove')" 
-                class="text-destructive focus:text-destructive"
+                class="text-destructive focus:text-destructive" 
+                @click.stop="$emit('remove')"
               >
                 <Icon name="lucide:trash-2" class="w-4 h-4 mr-2" />
                 Delete

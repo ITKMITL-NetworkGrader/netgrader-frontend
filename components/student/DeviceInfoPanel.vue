@@ -34,7 +34,8 @@
     <div class="flex-1 overflow-y-auto">
       <div class="p-4 space-y-3">
         <!-- Empty State -->
-        <div v-if="devices.length === 0 && Object.keys(ipMappings).length === 0" 
+        <div
+v-if="devices.length === 0 && Object.keys(ipMappings).length === 0" 
              class="text-center py-8 text-muted-foreground">
           <Icon name="lucide:server-off" class="w-8 h-8 mx-auto mb-2 opacity-50" />
           <p class="text-sm">No devices assigned</p>
@@ -69,10 +70,10 @@
                 </code>
                 <div class="flex items-center justify-end mt-1">
                   <Button
-                    @click="copyToClipboard(ip)"
                     variant="ghost"
                     size="sm"
                     class="w-6 h-6 p-0"
+                    @click="copyToClipboard(ip)"
                   >
                     <Icon name="lucide:copy" class="w-3 h-3" />
                   </Button>
@@ -104,8 +105,9 @@
                   </div>
                   
                   <Badge :variant="getStatusBadgeVariant(device.status)" class="text-xs">
-                    <div class="w-2 h-2 rounded-full mr-1"
-                         :class="getStatusDotClass(device.status)"></div>
+                    <div
+class="w-2 h-2 rounded-full mr-1"
+                         :class="getStatusDotClass(device.status)"/>
                     {{ device.status.charAt(0).toUpperCase() + device.status.slice(1) }}
                   </Badge>
                 </div>
@@ -119,10 +121,10 @@
                         {{ device.ipAddress }}
                       </code>
                       <Button
-                        @click="copyToClipboard(device.ipAddress)"
                         variant="ghost"
                         size="sm"
                         class="w-6 h-6 p-0"
+                        @click="copyToClipboard(device.ipAddress)"
                       >
                         <Icon name="lucide:copy" class="w-3 h-3" />
                       </Button>
@@ -147,12 +149,12 @@
     <!-- Quick Actions -->
     <div class="p-4 border-t border-border bg-card">
       <div class="space-y-2">
-        <Button @click="refreshStatus" variant="outline" size="sm" class="w-full">
+        <Button variant="outline" size="sm" class="w-full" @click="refreshStatus">
           <Icon name="lucide:refresh-cw" class="w-4 h-4 mr-2" />
           Refresh Status
         </Button>
         
-        <Button @click="exportInfo" variant="outline" size="sm" class="w-full">
+        <Button variant="outline" size="sm" class="w-full" @click="exportInfo">
           <Icon name="lucide:download" class="w-4 h-4 mr-2" />
           Export Info
         </Button>
@@ -171,7 +173,7 @@
         
         <div class="space-y-4">
           <div class="flex items-center space-x-2">
-            <div class="w-4 h-4 animate-spin rounded-full border-2 border-current border-t-transparent"></div>
+            <div class="w-4 h-4 animate-spin rounded-full border-2 border-current border-t-transparent"/>
             <span class="text-sm">Testing connection...</span>
           </div>
           
