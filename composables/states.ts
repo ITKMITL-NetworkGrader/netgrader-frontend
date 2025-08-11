@@ -1,4 +1,14 @@
-import type { PlayNode, Connection } from '@/types/play'
+// Legacy play types - consider removing if not needed
+interface PlayNode {
+    id: string;
+    type: string;
+}
+
+interface Connection {
+    id: string;
+    source: string;
+    target: string;
+}
 
 export interface User {
     u_id: string;
