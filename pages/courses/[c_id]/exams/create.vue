@@ -284,10 +284,12 @@
                   <div v-if="expandedParts[index]" class="border-t">
                     <div class="h-96">
                       <TextEditor
-                        v-model="part.textMd"
-                        v-model:title="part.title"
+                        :model-value="part.textMd"
+                        :title="part.title"
                         :selected-play="part.selectedPlay"
                         :show-validation="showValidation"
+                        @update:model-value="updatePartContent(index, $event)"
+                        @update:title="updatePartTitle(index, $event)"
                         @open-play-modal="openPlayModal(index)"
                         @clear-play="clearPlay(index)"
                       />
@@ -649,6 +651,18 @@ const openPlayModal = (partIndex: number) => {
 
 const clearPlay = (partIndex: number) => {
   examForm.parts[partIndex].selectedPlay = null
+}
+
+const updatePartContent = (partIndex: number, content: string) => {
+  if (examForm.parts[partIndex]) {
+    examForm.parts[partIndex].textMd = content
+  }
+}
+
+const updatePartTitle = (partIndex: number, title: string) => {
+  if (examForm.parts[partIndex]) {
+    examForm.parts[partIndex].title = title
+  }
 }
 
 const handlePlayCreated = (play: any) => {
