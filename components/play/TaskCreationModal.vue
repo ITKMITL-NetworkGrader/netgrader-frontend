@@ -117,7 +117,7 @@
                     >
                       <div class="flex items-center space-x-2">
                         <Icon :name="device.icon" class="w-4 h-4" />
-                        <span>{{ device.label }} ({{ '{{' + device.value + '_ip}}' }})</span>
+                        <span>{{ device.label }} ({{ getDeviceVariableName(device.value) }})</span>
                       </div>
                     </SelectItem>
                   </SelectGroup>
@@ -401,6 +401,10 @@ const taskPreview = computed(() => {
 })
 
 // Methods
+const getDeviceVariableName = (deviceValue: string): string => {
+  return `{{${deviceValue}_ip}}`
+}
+
 const addTestCase = () => {
   const defaultTestCase: TestCase = {
     description: '',
