@@ -8,7 +8,7 @@
           Network Configuration
         </CardTitle>
         <CardDescription>
-          Configure the base network settings for IP address generation
+          Configure management IP generation for student outer routers (used by grader to SSH into networks)
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -30,19 +30,47 @@
               Device IP Mapping
             </CardTitle>
             <CardDescription>
-              Define network devices and their IP variable assignments
+              Select device presets below to quickly configure common network devices
             </CardDescription>
           </div>
           <Button 
+            variant="outline"
             size="sm" 
             @click="showDeviceModal = true"
           >
             <Icon name="lucide:plus" class="w-4 h-4 mr-2" />
-            Add Device
+            Add Custom Device
           </Button>
         </div>
       </CardHeader>
       <CardContent>
+        <!-- Device Preset Buttons -->
+        <div class="mb-6">
+          <div class="flex items-center justify-between mb-3">
+            <Label class="text-sm font-medium">Device Presets</Label>
+            <span class="text-xs text-muted-foreground">Click to apply preset configuration</span>
+          </div>
+          <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
+            <Button 
+              v-for="template in deviceTemplates"
+              :key="template.deviceId"
+              variant="outline"
+              size="sm"
+              class="justify-start h-auto p-3 text-left"
+              @click="addDeviceFromTemplate(template)"
+            >
+              <div class="flex items-center space-x-2">
+                <Icon :name="getDeviceIcon(template.deviceId)" class="w-4 h-4 flex-shrink-0" />
+                <div class="min-w-0">
+                  <div class="text-sm font-medium truncate">{{ template.deviceName }}</div>
+                  <div class="text-xs text-muted-foreground truncate">{{ template.description || 'Preset configuration' }}</div>
+                </div>
+              </div>
+            </Button>
+          </div>
+        </div>
+
+        <!-- Device List -->
         <DeviceIPMapping 
           :devices="deviceConfigs"
           :network-info="networkInfo"
@@ -60,7 +88,7 @@
           Student Data
         </CardTitle>
         <CardDescription>
-          Upload student roster in CSV format (StudentID;GroupNumber)
+          Upload student roster in CSV format (comma-separated values)
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -338,6 +366,21 @@ const addCustomDevice = () => {
     
     showDeviceModal.value = false
   }
+}
+
+const getDeviceIcon = (deviceId: string): string => {
+  const id = deviceId.toLowerCase()
+  
+  if (id.includes('router')) return 'lucide:router'
+  if (id.includes('switch')) return 'lucide:network'
+  if (id.includes('pc') || id.includes('computer')) return 'lucide:monitor'
+  if (id.includes('server')) return 'lucide:server'
+  if (id.includes('firewall') || id.includes('security')) return 'lucide:shield'
+  if (id.includes('phone') || id.includes('voip')) return 'lucide:phone'
+  if (id.includes('printer')) return 'lucide:printer'
+  if (id.includes('camera')) return 'lucide:camera'
+  
+  return 'lucide:cpu' // Default icon
 }
 
 // Initialize if model value provided

@@ -120,8 +120,8 @@ v-if="allocationStrategy === 'student_id_based'"
           </Button>
           
           <div class="mt-4 text-sm text-muted-foreground">
-            <p><strong>Format:</strong> StudentID;GroupNumber</p>
-            <p><strong>Example:</strong> 65070232;1</p>
+            <p><strong>Format:</strong> {{ csvFormat }}</p>
+            <p><strong>Example:</strong> {{ csvExample }}</p>
           </div>
         </div>
       </div>
@@ -228,6 +228,7 @@ variant="outline" size="sm" class="text-destructive hover:text-destructive"
             <tr>
               <th class="text-left p-2">Student ID</th>
               <th v-if="allocationStrategy === 'group_based'" class="text-left p-2">Group</th>
+              <th v-else class="text-left p-2">Name</th>
               <th class="text-left p-2">Status</th>
             </tr>
           </thead>
@@ -239,6 +240,10 @@ variant="outline" size="sm" class="text-destructive hover:text-destructive"
                   Group {{ student.groupNumber }}
                 </Badge>
                 <span v-else class="text-muted-foreground italic">No group</span>
+              </td>
+              <td v-else class="p-2">
+                <span v-if="student.fullName" class="text-sm">{{ student.fullName }}</span>
+                <span v-else class="text-muted-foreground italic text-sm">No name</span>
               </td>
               <td class="p-2">
                 <Badge v-if="validateStudentId(student.studentId)" variant="secondary" class="text-xs">
@@ -268,11 +273,20 @@ variant="outline" size="sm" class="text-destructive hover:text-destructive"
           <div>
             <h4 class="font-medium mb-2">Required Format:</h4>
             <code class="block bg-muted p-3 rounded text-sm">
-              StudentID;GroupNumber<br>
-              65070232;1<br>
-              65070233;1<br>
-              65070234;2<br>
-              65070235;2
+              <template v-if="allocationStrategy === 'group_based'">
+                StudentID, GroupNumber<br>
+                65070232, 1<br>
+                65070233, 1<br>
+                65070234, 2<br>
+                65070235, 2
+              </template>
+              <template v-else>
+                StudentID, Name<br>
+                65070232, John Doe<br>
+                65070233, Jane Smith<br>
+                65070234, Bob Johnson<br>
+                65070235, Alice Brown
+              </template>
             </code>
           </div>
           
@@ -280,8 +294,9 @@ variant="outline" size="sm" class="text-destructive hover:text-destructive"
             <p><strong>Rules:</strong></p>
             <ul class="list-disc list-inside space-y-1 ml-2">
               <li>Student ID must be exactly 8 digits</li>
-              <li>Group number is required for labs, optional for exams</li>
-              <li>Use semicolon (;) as separator</li>
+              <li v-if="allocationStrategy === 'group_based'">Group number is required for lab assignments</li>
+              <li v-else>Student name is optional for exams</li>
+              <li>Use comma (,) as separator</li>
               <li>No headers in the file</li>
             </ul>
           </div>
@@ -334,6 +349,23 @@ const showSampleModal = ref(false)
 const fileInput = ref<HTMLInputElement>()
 const dropZone = ref<HTMLElement>()
 
+// Computed properties for dynamic CSV format
+const csvFormat = computed(() => {
+  if (props.allocationStrategy === 'group_based') {
+    return 'StudentID, GroupNumber'
+  } else {
+    return 'StudentID, Name (optional)'
+  }
+})
+
+const csvExample = computed(() => {
+  if (props.allocationStrategy === 'group_based') {
+    return '65070232, 1'
+  } else {
+    return '65070232, John Doe'
+  }
+})
+
 // Methods
 const updateStrategy = (strategy: 'group_based' | 'student_id_based') => {
   emit('update:strategy', strategy)
@@ -370,7 +402,7 @@ const processFile = async (file: File) => {
 
   try {
     const content = await readFileContent(file)
-    const result = parseCSV(content)
+    const result = parseCSV(content, undefined, props.allocationStrategy)
     validationResult.value = result
 
     if (result.isValid && result.parsedData) {

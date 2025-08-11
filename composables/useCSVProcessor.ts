@@ -4,14 +4,14 @@ export const useCSVProcessor = () => {
   
   const defaultConfig: CSVUploadConfig = {
     hasHeaders: false,
-    separator: ';',
+    separator: ',',
     expectedColumns: {
       studentId: 0,
       groupNumber: 1
     }
   }
   
-  const parseCSV = (csvContent: string, config: CSVUploadConfig = defaultConfig): CSVValidationResult => {
+  const parseCSV = (csvContent: string, config: CSVUploadConfig = defaultConfig, allocationStrategy: 'group_based' | 'student_id_based' = 'group_based'): CSVValidationResult => {
     const errors: string[] = []
     const warnings: string[] = []
     const parsedData: StudentCSVRow[] = []
@@ -55,7 +55,7 @@ export const useCSVProcessor = () => {
         }
         
         const studentIdRaw = columns[config.expectedColumns.studentId]?.trim()
-        const groupNumberRaw = columns[config.expectedColumns.groupNumber]?.trim()
+        const secondColumnRaw = columns[config.expectedColumns.groupNumber]?.trim()
         
         // Validate Student ID
         if (!studentIdRaw) {
@@ -78,16 +78,24 @@ export const useCSVProcessor = () => {
         
         processedStudentIds.add(studentIdRaw)
         
-        // Process Group Number (optional)
+        // Process second column based on allocation strategy
         let groupNumber: number | undefined
-        if (groupNumberRaw) {
-          const groupNum = parseInt(groupNumberRaw)
-          if (isNaN(groupNum) || groupNum < 1 || groupNum > 99) {
-            errors.push(`Row ${lineNumber}: Group number "${groupNumberRaw}" must be a number between 1 and 99`)
-            continue
+        let fullName: string | undefined
+        
+        if (allocationStrategy === 'group_based') {
+          // Process Group Number
+          if (secondColumnRaw) {
+            const groupNum = parseInt(secondColumnRaw)
+            if (isNaN(groupNum) || groupNum < 1 || groupNum > 99) {
+              errors.push(`Row ${lineNumber}: Group number "${secondColumnRaw}" must be a number between 1 and 99`)
+              continue
+            }
+            groupNumber = groupNum
+            groupNumbers.add(groupNum)
           }
-          groupNumber = groupNum
-          groupNumbers.add(groupNum)
+        } else {
+          // Process Name for student_id_based
+          fullName = secondColumnRaw || undefined
         }
         
         // Validate Student ID structure (65XXYYYY format)
@@ -105,7 +113,7 @@ export const useCSVProcessor = () => {
         parsedData.push({
           studentId: studentIdRaw,
           groupNumber,
-          fullName: undefined // Could be extended to include full name from CSV
+          fullName
         })
       }
       
@@ -196,7 +204,7 @@ export const useCSVProcessor = () => {
       
       if (includeGroups) {
         const groupNumber = Math.ceil(i / 3) // Distribute into groups of 3
-        line += `;${groupNumber}`
+        line += `,${groupNumber}`
       }
       
       lines.push(line)
@@ -209,7 +217,7 @@ export const useCSVProcessor = () => {
     return students.map(student => {
       let line = student.studentId
       if (student.groupNumber !== undefined) {
-        line += `;${student.groupNumber}`
+        line += `,${student.groupNumber}`
       }
       return line
     }).join('\n')
