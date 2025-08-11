@@ -593,9 +593,12 @@ useHead({
     <!-- Play Creation Modal -->
     <PlayCreationModal
       v-model:open="showPlayCreationModal"
-      :course-id="courseId"
-      :lab-id="null"
-      :part-id="currentPart"
+      :context-info="{
+        course: courseId,
+        labOrExam: 'Lab',
+        part: `Part ${currentPart + 1}`,
+        availableDevices: []
+      }"
     />
 
     <!-- IP Schema Manager Modal -->

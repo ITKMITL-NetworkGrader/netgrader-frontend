@@ -292,7 +292,7 @@ import type { PlayFormData, TaskFormData } from '@/types/lab'
 // Props
 interface Props {
   open: boolean
-  contextInfo: {
+  contextInfo?: {
     course: string
     labOrExam: string
     part: string
@@ -305,7 +305,13 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   open: false,
   isEditing: false,
-  initialData: undefined
+  initialData: undefined,
+  contextInfo: () => ({
+    course: '',
+    labOrExam: '',
+    part: '',
+    availableDevices: []
+  })
 })
 
 // Emits
@@ -352,7 +358,7 @@ const isOpen = computed({
 })
 
 const availableDevices = computed(() => {
-  return props.contextInfo.availableDevices || [
+  return props.contextInfo?.availableDevices || [
     { value: 'pc1', label: 'PC 1', icon: 'lucide:monitor' },
     { value: 'pc2', label: 'PC 2', icon: 'lucide:monitor' },
     { value: 'router1', label: 'Router 1', icon: 'lucide:router' },

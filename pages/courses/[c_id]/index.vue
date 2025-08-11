@@ -187,16 +187,6 @@ const removeStudent = (studentId: string) => {
   editForm.value.enrolledStudents = editForm.value.enrolledStudents.filter(s => s.u_id !== studentId)
 }
 
-const addLab = () => {
-  // TODO: Implement add lab logic
-  console.log('Adding new lab')
-}
-
-const addExam = () => {
-  // TODO: Implement add exam logic
-  console.log('Adding new exam')
-}
-
 const handleFileChange = () => {
     // TODO: Implement file upload logic
 }
