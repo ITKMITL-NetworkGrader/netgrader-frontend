@@ -1,5 +1,5 @@
 <template>
-  <Dialog :open="open" @update:open="$emit('update:open', $event)">
+  <Dialog :open="open" @update:open="handleOpenChange">
     <DialogContent class="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
       <DialogHeader>
         <DialogTitle class="flex items-center text-xl">
@@ -71,61 +71,14 @@
             />
           </div>
 
-          <!-- Source Device -->
-          <div class="space-y-2">
-            <Label for="source-device">Source Device *</Label>
-            <Select v-model:model-value="playForm.source_device">
-              <SelectTrigger id="source-device">
-                <SelectValue placeholder="Select the device that will execute tasks" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectLabel>Available Devices</SelectLabel>
-                  <SelectItem
-                    v-for="device in contextInfo.availableDevices"
-                    :key="device.value"
-                    :value="device.value"
-                  >
-                    <div class="flex items-center space-x-2">
-                      <Icon :name="device.icon" class="w-4 h-4" />
-                      <span>{{ device.label }}</span>
-                    </div>
-                  </SelectItem>
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-            <p class="text-xs text-muted-foreground">
-              The device that will run the automated tasks (usually a router or PC)
-            </p>
-          </div>
-
-          <!-- Target Device (Optional) -->
-          <div class="space-y-2">
-            <Label for="target-device">Target Device (Optional)</Label>
-            <Select v-model:model-value="playForm.target_device">
-              <SelectTrigger id="target-device">
-                <SelectValue placeholder="Select target device (if applicable)" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectLabel>Available Devices</SelectLabel>
-                  <SelectItem value="">None (tasks will specify targets)</SelectItem>
-                  <SelectItem
-                    v-for="device in contextInfo.availableDevices.filter(d => d.value !== playForm.source_device)"
-                    :key="device.value"
-                    :value="device.value"
-                  >
-                    <div class="flex items-center space-x-2">
-                      <Icon :name="device.icon" class="w-4 h-4" />
-                      <span>{{ device.label }}</span>
-                    </div>
-                  </SelectItem>
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-            <p class="text-xs text-muted-foreground">
-              Optional default target for tasks (can be overridden in individual tasks)
-            </p>
+          <!-- Note about device selection -->
+          <div class="bg-muted/50 p-4 rounded-lg">
+            <div class="flex items-start space-x-2">
+              <Icon name="lucide:info" class="w-4 h-4 mt-0.5 text-muted-foreground" />
+              <div class="text-sm text-muted-foreground">
+                <p><strong>Device Selection:</strong> Source and target devices will be selected for each individual task based on the task template requirements and available devices from your Device IP Mapping.</p>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -218,14 +171,6 @@
               <div v-if="playForm.description" class="grid grid-cols-3 text-sm">
                 <span class="text-muted-foreground">Description:</span>
                 <span class="col-span-2">{{ playForm.description }}</span>
-              </div>
-              <div class="grid grid-cols-3 text-sm">
-                <span class="text-muted-foreground">Source Device:</span>
-                <span class="col-span-2 font-medium">{{ getDeviceLabel(playForm.source_device) }}</span>
-              </div>
-              <div v-if="playForm.target_device" class="grid grid-cols-3 text-sm">
-                <span class="text-muted-foreground">Target Device:</span>
-                <span class="col-span-2 font-medium">{{ getDeviceLabel(playForm.target_device) }}</span>
               </div>
               <div class="grid grid-cols-3 text-sm">
                 <span class="text-muted-foreground">Total Points:</span>
@@ -374,7 +319,7 @@ const isCreating = ref(false)
 const playForm = ref<PlayFormData>({
   name: '',
   description: '',
-  source_device: '',
+  source_device: '', // Will be determined by tasks
   target_device: '',
   tasks: []
 })
@@ -392,14 +337,13 @@ const totalPoints = computed(() => {
 
 const canProceedToNext = computed(() => {
   if (currentStep.value === 1) {
-    return playForm.value.name.trim() !== '' && playForm.value.source_device !== ''
+    return playForm.value.name.trim() !== ''
   }
   return true
 })
 
 const canCreatePlay = computed(() => {
-  return playForm.value.name.trim() !== '' && 
-         playForm.value.source_device !== '' &&
+  return playForm.value.name.trim() !== '' &&
          playForm.value.tasks.length > 0
 })
 
@@ -458,11 +402,6 @@ const handleTaskSaved = (taskData: TaskFormData) => {
   editingTaskIndex.value = null
 }
 
-const getDeviceLabel = (deviceValue: string): string => {
-  const device = props.contextInfo.availableDevices.find(d => d.value === deviceValue)
-  return device?.label || deviceValue
-}
-
 const getTemplateName = (templateId: string): string => {
   const template = getTemplateById(templateId)
   return template?.name || templateId
@@ -488,7 +427,7 @@ const resetForm = () => {
   playForm.value = {
     name: '',
     description: '',
-    source_device: '',
+    source_device: '', // Will be determined by tasks
     target_device: '',
     tasks: []
   }
@@ -496,6 +435,10 @@ const resetForm = () => {
   showValidation.value = false
   editingTask.value = null
   editingTaskIndex.value = null
+}
+
+const handleOpenChange = (value: boolean) => {
+  emit('update:open', value)
 }
 
 const handleCancel = () => {
@@ -514,10 +457,19 @@ const handleCreate = async () => {
     // Simulate API call
     await new Promise(resolve => setTimeout(resolve, 500))
     
+    // Determine source device from the first task that has source_device parameter
+    let sourceDevice = ''
+    for (const task of playForm.value.tasks) {
+      if (task.parameters.source_device) {
+        sourceDevice = task.parameters.source_device as string
+        break
+      }
+    }
+    
     const newPlay = {
       name: playForm.value.name.trim(),
       description: playForm.value.description.trim() || undefined,
-      source_device: playForm.value.source_device,
+      source_device: sourceDevice,
       target_device: playForm.value.target_device || undefined,
       tasks: playForm.value.tasks,
       total_points: totalPoints.value,

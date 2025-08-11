@@ -240,15 +240,23 @@ import type { NetworkConfig, DeviceConfig } from '@/types/ipSchema'
 // Props
 interface Props {
   modelValue?: any
+  schema?: any
+  deviceMapping?: any
+  showValidation?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  modelValue: undefined
+  modelValue: undefined,
+  schema: undefined,
+  deviceMapping: undefined,
+  showValidation: false
 })
 
 // Emits
 const emit = defineEmits<{
   'update:modelValue': [value: any]
+  'update:schema': [value: any]
+  'update:deviceMapping': [value: any]
   'validation:change': [isValid: boolean]
 }>()
 
@@ -261,6 +269,8 @@ const {
   allocationStrategy,
   isNetworkValid,
   networkInfo,
+  hasDeviceConfigs,
+  hasStudents,
   canGenerateIPs,
   previewAssignments,
   validateConfiguration,
@@ -303,17 +313,62 @@ watch(validationResult, (result) => {
   emit('validation:change', result.isValid)
 }, { immediate: true })
 
+// Flag to prevent recursive updates
+const isLoadingFromProps = ref(false)
+
+// Watch for prop changes to reload data
+watch(() => [props.schema, props.deviceMapping], (newValues, oldValues) => {
+  if (!newValues || isLoadingFromProps.value) return
+  
+  const [newSchema, newDeviceMapping] = newValues
+  const [oldSchema, oldDeviceMapping] = oldValues || [null, null]
+  
+  // Only reload if the props actually changed
+  const schemaChanged = JSON.stringify(newSchema) !== JSON.stringify(oldSchema)
+  const mappingChanged = JSON.stringify(newDeviceMapping) !== JSON.stringify(oldDeviceMapping)
+  
+  if ((schemaChanged || mappingChanged) && newSchema && newDeviceMapping) {
+    isLoadingFromProps.value = true
+    ipSchema.loadFromIpSchema(newSchema, newDeviceMapping)
+    nextTick(() => {
+      isLoadingFromProps.value = false
+    })
+  }
+}, { deep: true, immediate: true })
+
+watch(() => props.modelValue, (newValue) => {
+  if (newValue) {
+    const { ipSchema: schema, deviceIpMapping, students: studentData } = newValue
+    if (schema && deviceIpMapping) {
+      ipSchema.loadFromIpSchema(schema, deviceIpMapping)
+    }
+    if (studentData) {
+      ipSchema.updateStudents(studentData)
+    }
+  }
+}, { deep: true })
+
 // Watch for model value changes
 watch(() => [networkConfig.value, deviceConfigs.value, students.value, allocationStrategy.value], () => {
-  if (canGenerateIPs.value) {
+  // Don't emit updates if we're currently loading from props
+  if (isLoadingFromProps.value) return
+  
+  // Always emit device mapping if we have devices and network config, regardless of students
+  if (isNetworkValid.value && hasDeviceConfigs.value) {
     const schema = ipSchema.createIpSchema()
     const deviceMapping = ipSchema.createDeviceIpMapping()
+    
+    // Emit both the combined model value and individual values
     emit('update:modelValue', {
       ipSchema: schema,
       deviceIpMapping: deviceMapping,
       students: students.value,
       allocationStrategy: allocationStrategy.value
     })
+    
+    // Emit individual v-model updates
+    emit('update:schema', schema)
+    emit('update:deviceMapping', deviceMapping)
   }
 }, { deep: true })
 
@@ -383,14 +438,20 @@ const getDeviceIcon = (deviceId: string): string => {
   return 'lucide:cpu' // Default icon
 }
 
-// Initialize if model value provided
-if (props.modelValue) {
-  const { ipSchema: schema, deviceIpMapping, students: studentData } = props.modelValue
-  if (schema && deviceIpMapping) {
-    ipSchema.loadFromIpSchema(schema, deviceIpMapping)
+// Initialize if model value or individual props provided
+onMounted(() => {
+  if (props.schema && props.deviceMapping) {
+    // Initialize from individual props (v-model:schema and v-model:device-mapping)
+    ipSchema.loadFromIpSchema(props.schema, props.deviceMapping)
+  } else if (props.modelValue) {
+    // Initialize from combined model value
+    const { ipSchema: schema, deviceIpMapping, students: studentData } = props.modelValue
+    if (schema && deviceIpMapping) {
+      ipSchema.loadFromIpSchema(schema, deviceIpMapping)
+    }
+    if (studentData) {
+      ipSchema.updateStudents(studentData)
+    }
   }
-  if (studentData) {
-    ipSchema.updateStudents(studentData)
-  }
-}
+})
 </script>

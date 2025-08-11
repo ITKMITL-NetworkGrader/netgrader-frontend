@@ -1,6 +1,6 @@
 <template>
   <Dialog v-model:open="isOpen">
-    <DialogContent class="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+    <DialogContent class="min-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
       <DialogHeader>
         <DialogTitle class="flex items-center">
           <Icon name="lucide:plus-circle" class="w-5 h-5 mr-2 text-primary" />
@@ -113,11 +113,11 @@
                     <SelectItem
                       v-for="device in availableDevices"
                       :key="device.value"
-                      :value="`{{${device.value}_ip}}`"
+                      :value="getDeviceParameterValue(param.name, device.value)"
                     >
                       <div class="flex items-center space-x-2">
                         <Icon :name="device.icon" class="w-4 h-4" />
-                        <span>{{ device.label }} ({{ getDeviceVariableName(device.value) }})</span>
+                        <span>{{ device.label }}</span>
                       </div>
                     </SelectItem>
                   </SelectGroup>
@@ -280,7 +280,7 @@
               <div><strong>Parameters:</strong></div>
               <div class="ml-4 space-y-1">
                 <div v-for="(value, key) in localTask.parameters" :key="key" class="font-mono text-xs">
-                  {{ key }}: <code class="bg-background px-1 py-0.5 rounded">{{ value }}</code>
+                  {{ key }}: <code class="bg-background px-1 py-0.5 rounded">{{ getParameterDisplayValue(key, value) }}</code>
                 </div>
               </div>
               <div><strong>Test Cases:</strong> {{ localTask.test_cases.length }}</div>
@@ -405,6 +405,15 @@ const getDeviceVariableName = (deviceValue: string): string => {
   return `{{${deviceValue}_ip}}`
 }
 
+const getDeviceParameterValue = (paramName: string, deviceValue: string): string => {
+  // For source_device parameter, use just the device name
+  if (paramName === 'source_device') {
+    return deviceValue
+  }
+  // For IP-related parameters, use the IP variable format
+  return `{{${deviceValue}_ip}}`
+}
+
 const addTestCase = () => {
   const defaultTestCase: TestCase = {
     description: '',
@@ -475,6 +484,27 @@ const getExpectedResultPlaceholder = (comparisonType: string): string => {
     default:
       return 'Expected result'
   }
+}
+
+const getParameterDisplayValue = (paramName: string, value: any): string => {
+  // Handle source_device parameter - show as is since it's just the device name
+  if (paramName === 'source_device') {
+    return value
+  }
+  
+  // Handle IP variable format like {{pc1_ip}}
+  if (typeof value === 'string' && value.match(/^\{\{(\w+)_ip\}\}$/)) {
+    const deviceName = value.match(/^\{\{(\w+)_ip\}\}$/)?.[1]
+    if (deviceName) {
+      // Convert device ID to friendly name (pc1 -> PC 1, router1 -> Router 1)
+      const friendlyName = deviceName.charAt(0).toUpperCase() + 
+                          deviceName.slice(1).replace(/(\d+)/, ' $1')
+      return `${friendlyName}'s IP address`
+    }
+  }
+  
+  // For all other values, return as is
+  return String(value)
 }
 
 // Watch for template changes to update parameters

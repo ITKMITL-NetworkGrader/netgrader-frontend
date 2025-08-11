@@ -59,6 +59,12 @@ export const useTaskTemplates = () => {
       category: 'connectivity',
       parameters: [
         {
+          name: 'source_device',
+          type: 'device_variable',
+          description: 'Device that will execute the ping command',
+          required: true
+        },
+        {
           name: 'target_ip',
           type: 'device_variable',
           description: 'Target IP address to ping',
@@ -94,6 +100,12 @@ export const useTaskTemplates = () => {
       category: 'connectivity',
       parameters: [
         {
+          name: 'source_device',
+          type: 'device_variable',
+          description: 'Device that will execute the traceroute command',
+          required: true
+        },
+        {
           name: 'target_ip',
           type: 'device_variable',
           description: 'Target IP address for traceroute',
@@ -121,6 +133,12 @@ export const useTaskTemplates = () => {
       description: 'Test SSH connection to remote host',
       category: 'connectivity',
       parameters: [
+        {
+          name: 'source_device',
+          type: 'device_variable',
+          description: 'Device that will initiate the SSH connection',
+          required: true
+        },
         {
           name: 'target_ip',
           type: 'device_variable',
@@ -157,6 +175,12 @@ export const useTaskTemplates = () => {
       category: 'connectivity',
       parameters: [
         {
+          name: 'source_device',
+          type: 'device_variable',
+          description: 'Device that will initiate the Telnet connection',
+          required: true
+        },
+        {
           name: 'target_ip',
           type: 'device_variable',
           description: 'Target IP address for Telnet connection',
@@ -184,6 +208,12 @@ export const useTaskTemplates = () => {
       description: 'Test HTTP service availability and content',
       category: 'service',
       parameters: [
+        {
+          name: 'source_device',
+          type: 'device_variable',
+          description: 'Device that will make the HTTP request',
+          required: true
+        },
         {
           name: 'url',
           type: 'url',
@@ -213,6 +243,12 @@ export const useTaskTemplates = () => {
       category: 'security',
       parameters: [
         {
+          name: 'source_device',
+          type: 'device_variable',
+          description: 'Device that will perform the port scan',
+          required: true
+        },
+        {
           name: 'target_ip',
           type: 'device_variable',
           description: 'Target IP address to scan',
@@ -239,6 +275,12 @@ export const useTaskTemplates = () => {
       description: 'Perform DNS resolution test',
       category: 'connectivity',
       parameters: [
+        {
+          name: 'source_device',
+          type: 'device_variable',
+          description: 'Device that will perform the DNS lookup',
+          required: true
+        },
         {
           name: 'hostname',
           type: 'string',
@@ -267,9 +309,15 @@ export const useTaskTemplates = () => {
       category: 'configuration',
       parameters: [
         {
+          name: 'source_device',
+          type: 'device_variable',
+          description: 'Device that will initiate the backup',
+          required: true
+        },
+        {
           name: 'target_ip',
           type: 'device_variable',
-          description: 'Target device IP address',
+          description: 'Target device IP address to backup',
           required: true
         },
         {

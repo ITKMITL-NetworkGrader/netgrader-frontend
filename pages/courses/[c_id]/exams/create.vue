@@ -514,11 +514,7 @@ const showPlayCreationModal = ref(false)
 // Available devices for play creation
 const availableDevices = computed(() => {
   if (!examForm.deviceIpMapping || examForm.deviceIpMapping.length === 0) {
-    return [
-      { value: 'router1', label: 'Router 1', icon: 'lucide:router' },
-      { value: 'pc1', label: 'PC 1', icon: 'lucide:monitor' },
-      { value: 'pc2', label: 'PC 2', icon: 'lucide:monitor' }
-    ]
+    return []
   }
   
   return examForm.deviceIpMapping.map(device => ({
