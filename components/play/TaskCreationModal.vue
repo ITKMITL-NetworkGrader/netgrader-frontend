@@ -117,7 +117,7 @@
                     >
                       <div class="flex items-center space-x-2">
                         <Icon :name="device.icon" class="w-4 h-4" />
-                        <span>{{ device.label }} ({{{{ device.value }}_ip}})</span>
+                        <span>{{ device.label }} ({{ '{{' + device.value + '_ip}}' }})</span>
                       </div>
                     </SelectItem>
                   </SelectGroup>
