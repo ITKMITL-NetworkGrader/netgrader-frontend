@@ -263,12 +263,9 @@ export const useIPSchema = () => {
   }
   
   const getCommonDeviceTemplates = () => [
-    { deviceId: 'pc1', deviceName: 'PC 1', hostOffset: 10, description: 'Student workstation 1' },
-    { deviceId: 'pc2', deviceName: 'PC 2', hostOffset: 20, description: 'Student workstation 2' },
-    { deviceId: 'router1', deviceName: 'Router 1', hostOffset: 1, description: 'Main router' },
-    { deviceId: 'switch1', deviceName: 'Switch 1', hostOffset: 2, description: 'Access switch' },
-    { deviceId: 'server1', deviceName: 'Server 1', hostOffset: 100, description: 'Application server' },
-    { deviceId: 'firewall1', deviceName: 'Firewall 1', hostOffset: 254, description: 'Security gateway' }
+    { deviceId: 'pc1', deviceName: 'PC 1', hostOffset: 10, description: 'Student workstation' },
+    { deviceId: 'router1', deviceName: 'Router 1', hostOffset: 1, description: 'Main network router' },
+    { deviceId: 'switch1', deviceName: 'Switch 1', hostOffset: 2, description: 'Network switch' }
   ]
   
   return {

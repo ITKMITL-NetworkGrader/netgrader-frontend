@@ -24,7 +24,7 @@
               <Input
                 id="task-name"
                 v-model="localTask.name"
-                placeholder="e.g., Ping from PC1 to PC2"
+                placeholder="e.g., Ping from PC1 to Router1"
                 :class="{ 'border-destructive': !localTask.name.trim() }"
               />
             </div>

@@ -62,7 +62,7 @@
               <div class="flex items-center space-x-2">
                 <Icon :name="getDeviceIcon(template.deviceId)" class="w-4 h-4 flex-shrink-0" />
                 <div class="min-w-0">
-                  <div class="text-sm font-medium truncate">{{ template.deviceName }}</div>
+                  <div class="text-sm font-medium truncate">{{ getNextDeviceName(template) }}</div>
                   <div class="text-xs text-muted-foreground truncate">{{ template.description || 'Preset configuration' }}</div>
                 </div>
               </div>
@@ -156,6 +156,11 @@
         </DialogHeader>
         
         <div class="space-y-4">
+          <div>
+            <Label class="text-sm font-medium">Use these presets to customize your new device</Label>
+            <p class="text-xs text-muted-foreground mt-1">Click any preset to populate the form fields below, then modify as needed</p>
+          </div>
+          
           <div class="grid grid-cols-2 gap-2">
             <Button 
               v-for="template in deviceTemplates"
@@ -163,7 +168,7 @@
               variant="outline"
               size="sm"
               class="text-left justify-start h-auto p-3"
-              @click="addDeviceFromTemplate(template)"
+              @click="populateCustomDeviceForm(template)"
             >
               <div>
                 <div class="font-medium">{{ template.deviceName }}</div>
@@ -308,6 +313,71 @@ const isCustomDeviceValid = computed(() => {
          !deviceConfigs.value.some(d => d.deviceId === customDevice.value.deviceId.trim())
 })
 
+const isDeviceTemplateUsed = (deviceId: string): boolean => {
+  return deviceConfigs.value.some(d => d.deviceId === deviceId)
+}
+
+const getNextDeviceNumber = (templateId: string): number => {
+  const prefix = templateId.replace(/\d+$/, '') // Remove trailing numbers (pc1 -> pc)
+  const existingDevices = deviceConfigs.value.filter(d => d.deviceId.startsWith(prefix))
+  
+  // Find the highest number used
+  let maxNumber = 0
+  existingDevices.forEach(device => {
+    const match = device.deviceId.match(/(\d+)$/)
+    if (match) {
+      const number = parseInt(match[1])
+      if (number > maxNumber) {
+        maxNumber = number
+      }
+    }
+  })
+  
+  return maxNumber + 1
+}
+
+const getNextHostOffset = (templateId: string, deviceNumber: number): number => {
+  const baseTemplate = deviceTemplates.value.find(t => t.deviceId === templateId)
+  if (!baseTemplate) return deviceNumber
+  
+  // Calculate offset based on device type
+  if (templateId.startsWith('pc')) {
+    return deviceNumber * 10 // pc1=10, pc2=20, pc3=30
+  } else if (templateId.startsWith('router')) {
+    return deviceNumber // router1=1, router2=2, router3=3
+  } else if (templateId.startsWith('switch')) {
+    return deviceNumber + 1 // switch1=2, switch2=3, switch3=4
+  }
+  
+  return deviceNumber
+}
+
+const getNextDeviceName = (template: any): string => {
+  const nextNumber = getNextDeviceNumber(template.deviceId)
+  const deviceType = template.deviceName.replace(/\s+\d+$/, '') // Remove " 1" from "PC 1"
+  return `${deviceType} ${nextNumber}`
+}
+
+const generateNextDeviceFromTemplate = (template: any) => {
+  const nextNumber = getNextDeviceNumber(template.deviceId)
+  const deviceType = template.deviceId.replace(/\d+$/, '') // pc1 -> pc
+  const nextDeviceId = `${deviceType}${nextNumber}`
+  const nextHostOffset = getNextHostOffset(template.deviceId, nextNumber)
+  
+  // Check for host offset conflicts and increment if needed
+  let finalHostOffset = nextHostOffset
+  while (deviceConfigs.value.some(d => d.hostOffset === finalHostOffset)) {
+    finalHostOffset++
+  }
+  
+  return {
+    deviceId: nextDeviceId,
+    deviceName: getNextDeviceName(template),
+    hostOffset: finalHostOffset,
+    description: template.description
+  }
+}
+
 // Watch for validation changes
 watch(validationResult, (result) => {
   emit('validation:change', result.isValid)
@@ -394,11 +464,18 @@ const handleStrategyUpdate = (strategy: 'group_based' | 'student_id_based') => {
 }
 
 const addDeviceFromTemplate = (template: any) => {
-  // Check if device already exists
-  const exists = deviceConfigs.value.some(d => d.deviceId === template.deviceId)
-  if (!exists) {
-    ipSchema.addDeviceConfig(template)
-    showDeviceModal.value = false
+  // Generate the next incremented device
+  const nextDevice = generateNextDeviceFromTemplate(template)
+  ipSchema.addDeviceConfig(nextDevice)
+}
+
+const populateCustomDeviceForm = (template: any) => {
+  // Populate the custom device form with template data
+  customDevice.value = {
+    deviceId: template.deviceId,
+    deviceName: template.deviceName,
+    hostOffset: template.hostOffset,
+    description: template.description || ''
   }
 }
 
@@ -429,8 +506,6 @@ const getDeviceIcon = (deviceId: string): string => {
   if (id.includes('router')) return 'lucide:router'
   if (id.includes('switch')) return 'lucide:network'
   if (id.includes('pc') || id.includes('computer')) return 'lucide:monitor'
-  if (id.includes('server')) return 'lucide:server'
-  if (id.includes('firewall') || id.includes('security')) return 'lucide:shield'
   if (id.includes('phone') || id.includes('voip')) return 'lucide:phone'
   if (id.includes('printer')) return 'lucide:printer'
   if (id.includes('camera')) return 'lucide:camera'
