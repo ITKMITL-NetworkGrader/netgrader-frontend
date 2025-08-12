@@ -121,18 +121,14 @@
                 </div>
               </div>
               <div>
-                <Label for="exam-description">Description *</Label>
+                <Label for="exam-description">Description</Label>
                 <Textarea
                   id="exam-description"
                   v-model="examForm.description"
-                  placeholder="Describe the purpose and objectives of this exam"
+                  placeholder="Describe the purpose and objectives of this exam (optional)"
                   rows="4"
                   class="mt-1"
-                  :class="{ 'border-destructive': showValidation && !examForm.description.trim() }"
                 />
-                <p v-if="showValidation && !examForm.description.trim()" class="text-sm text-destructive mt-1">
-                  Exam description is required
-                </p>
               </div>
             </div>
           </div>
@@ -214,7 +210,9 @@
             <IPSchemaManager
               v-model:schema="examForm.ipSchema"
               v-model:device-mapping="examForm.deviceIpMapping"
+              :model-value="examForm.ipSchemaData"
               :show-validation="showValidation"
+              @update:model-value="handleIPSchemaUpdate"
             />
           </div>
 
@@ -255,15 +253,15 @@
                         {{ part.title || `Part ${index + 1}` }}
                       </h3>
                       <p class="text-sm text-muted-foreground">
-                        {{ part.selectedPlay ? `Play: ${part.selectedPlay.title}` : 'No play selected' }}
+                        {{ part.plays ? `Play: ${part.plays.name}` : 'No play selected' }}
                       </p>
                     </div>
                   </div>
                   <div class="flex items-center space-x-2">
                     <Badge
-                      :variant="part.selectedPlay ? 'default' : 'destructive'"
+                      :variant="part.plays ? 'default' : 'destructive'"
                     >
-                      {{ part.selectedPlay ? 'Configured' : 'Needs Play' }}
+                      {{ part.plays ? 'Configured' : 'Needs Play' }}
                     </Badge>
                     <ChevronDown
                       class="w-4 h-4 transition-transform"
@@ -286,7 +284,7 @@
                       <TextEditor
                         :model-value="part.textMd"
                         :title="part.title"
-                        :selected-play="part.selectedPlay"
+                        :selected-play="part.plays"
                         :show-validation="showValidation"
                         @update:model-value="updatePartContent(index, $event)"
                         @update:title="updatePartTitle(index, $event)"
@@ -361,11 +359,11 @@
                     <div>
                       <span class="font-medium">{{ part.title || `Part ${index + 1}` }}</span>
                       <p class="text-sm text-muted-foreground">
-                        {{ part.selectedPlay ? `Play: ${part.selectedPlay.title}` : 'No play configured' }}
+                        {{ part.plays ? `Play: ${part.plays.name}` : 'No play configured' }}
                       </p>
                     </div>
-                    <Badge :variant="part.selectedPlay ? 'default' : 'destructive'">
-                      {{ part.selectedPlay ? 'Ready' : 'Missing Play' }}
+                    <Badge :variant="part.plays ? 'default' : 'destructive'">
+                      {{ part.plays ? 'Ready' : 'Missing Play' }}
                     </Badge>
                   </div>
                 </div>
@@ -423,7 +421,8 @@
         course: courseId,
         labOrExam: 'Exam',
         part: currentPartIndex !== null ? `Part ${currentPartIndex + 1}` : '',
-        availableDevices: availableDevices
+        availableDevices: availableDevices,
+        availableDestinationDevices: availableDestinationDevices
       }"
       @play-created="handlePlayCreated"
     />
@@ -487,10 +486,9 @@ const isSubmitting = ref(false)
 // Form data
 interface ExamPartWithTemp extends Omit<LabPart, 'part_id'> {
   tempId: string
-  selectedPlay?: { id: string; title: string; description: string } | null
 }
 
-const examForm = reactive<LabFormData & { parts: ExamPartWithTemp[]; timeLimit: number }>({
+const examForm = reactive<LabFormData & { parts: ExamPartWithTemp[]; timeLimit: number; ipSchemaData?: any }>({
   title: '',
   description: '',
   type: 'exam',
@@ -498,6 +496,7 @@ const examForm = reactive<LabFormData & { parts: ExamPartWithTemp[]; timeLimit: 
   timeLimit: 120, // 2 hours default
   ipSchema: undefined,
   deviceIpMapping: undefined,
+  ipSchemaData: undefined,
   parts: []
 })
 
@@ -520,8 +519,24 @@ const availableDevices = computed(() => {
   return examForm.deviceIpMapping.map(device => ({
     value: device.deviceId,
     label: device.deviceId.charAt(0).toUpperCase() + device.deviceId.slice(1).replace(/[_-]/g, ' '),
-    icon: getDeviceIcon(device.deviceId)
+    icon: getDeviceIcon(device.deviceId),
+    isInternet: false
   }))
+})
+
+// Available destination devices (includes Internet option)
+const availableDestinationDevices = computed(() => {
+  const devices = [...availableDevices.value]
+  
+  // Add Internet as a special destination option
+  devices.push({
+    value: 'internet',
+    label: 'Internet',
+    icon: 'lucide:globe',
+    isInternet: true
+  })
+  
+  return devices
 })
 
 const getDeviceIcon = (deviceId: string): string => {
@@ -537,14 +552,136 @@ const getDeviceIcon = (deviceId: string): string => {
   return 'lucide:cpu' // Default icon
 }
 
+const generateDevicesArray = (deviceMapping: any[], students: any[]): any[] => {
+  // Generate devices array based on device mapping and students
+  // This is a basic implementation - you may need to customize based on your IP generation logic
+  return deviceMapping.map(device => ({
+    id: device.deviceId,
+    ip_address: generateExampleIP(device, students[0]?.studentId || '123'), // Use first student for example
+    ansible_connection: getDefaultConnection(device.deviceId),
+    credentials: getDefaultCredentials(device.deviceId),
+    platform: getDevicePlatform(device.deviceId),
+    jump_host: null,
+    ssh_args: null,
+    use_persistent_connection: false
+  }))
+}
+
+const generateExampleIP = (device: any, studentId: string): string => {
+  // Basic IP generation - you may want to use your existing IP generation logic
+  if (examForm.ipSchema?.baseNetwork) {
+    const baseNet = examForm.ipSchema.baseNetwork.split('.')
+    const hostOffset = device.hostOffset || 10
+    return `${baseNet[0]}.${baseNet[1]}.${parseInt(baseNet[2]) + 1}.${hostOffset}`
+  }
+  return `192.168.1.${device.hostOffset || 10}`
+}
+
+const getDefaultConnection = (deviceId: string): string => {
+  const id = deviceId.toLowerCase()
+  if (id.includes('router') || id.includes('switch')) {
+    return 'ansible.netcommon.network_cli'
+  }
+  return 'ssh'
+}
+
+const getDefaultCredentials = (deviceId: string): any => {
+  const id = deviceId.toLowerCase()
+  if (id.includes('router') || id.includes('firewall')) {
+    return {
+      ansible_user: 'admin',
+      ansible_password: 'admin123'
+    }
+  } else if (id.includes('server')) {
+    return {
+      ansible_user: 'ubuntu',
+      ansible_password: 'server123'
+    }
+  }
+  return {
+    ansible_user: 'student',
+    ansible_password: 'student123'
+  }
+}
+
+const getDevicePlatform = (deviceId: string): string | null => {
+  const id = deviceId.toLowerCase()
+  if (id.includes('cisco') || id.includes('router')) {
+    return 'cisco.ios.ios'
+  }
+  return null
+}
+
+// Comprehensive validation function
+const validateExam = (): { isValid: boolean; errors: string[] } => {
+  const errors: string[] = []
+  
+  // Basic information validation
+  if (!examForm.title.trim()) {
+    errors.push('Exam title is required')
+  }
+  
+  if (!examForm.timeLimit || examForm.timeLimit < 1) {
+    errors.push('Time limit is required and must be at least 1 minute')
+  }
+  
+  // Student enrollment validation
+  if (enrolledStudents.value.length === 0) {
+    errors.push('At least one student must be enrolled')
+  }
+  
+  // IP Schema validation based on scope
+  const selectedScope = examForm.ipSchemaData?.scope || examForm.ipSchema?.scope
+  
+  if (selectedScope === 'lab') {
+    // Lab-wide scope: require lab-level IP schema and device mapping
+    if (!examForm.deviceIpMapping || examForm.deviceIpMapping.length < 2) {
+      errors.push('At least 2 devices must be created in Device IP Mapping')
+    }
+    
+    const ipSchemaStudents = examForm.ipSchemaData?.students || []
+    if (ipSchemaStudents.length === 0) {
+      errors.push('Student CSV is required before creating an Exam')
+    }
+  } else if (selectedScope === 'part') {
+    // Part-specific scope: each part should have its own IP schema (validation will be done during part creation)
+    // No lab-level IP schema validation required
+  }
+  
+  // Parts validation
+  if (examForm.parts.length === 0) {
+    errors.push('At least one exam part must be created')
+  } else {
+    examForm.parts.forEach((part, index) => {
+      if (!part.title.trim()) {
+        errors.push(`Part ${index + 1}: Title is required`)
+      }
+      
+      if (!part.textMd.trim()) {
+        errors.push(`Part ${index + 1}: Content is required`)
+      }
+      
+      if (!part.plays) {
+        errors.push(`Part ${index + 1}: A play must be selected`)
+      } else {
+        // Validate that the selected play has tasks
+        if (!part.plays.play_id && !part.plays.name) {
+          errors.push(`Part ${index + 1}: Selected play is invalid`)
+        }
+      }
+    })
+  }
+  
+  return {
+    isValid: errors.length === 0,
+    errors
+  }
+}
+
 // Validation
 const isExamValid = computed(() => {
-  return examForm.title.trim() && 
-         examForm.description.trim() && 
-         examForm.timeLimit > 0 &&
-         enrolledStudents.value.length > 0 &&
-         examForm.parts.length > 0 &&
-         examForm.parts.every(part => part.title.trim() && part.selectedPlay)
+  const validation = validateExam()
+  return validation.isValid
 })
 
 // Methods
@@ -552,8 +689,13 @@ const nextStep = () => {
   showValidation.value = true
   
   if (currentStep.value === 1) {
-    if (!examForm.title.trim() || !examForm.description.trim() || !examForm.timeLimit || examForm.timeLimit < 1) {
-      toast.error('Please fill in all required fields')
+    if (!examForm.title.trim()) {
+      toast.error('Exam title is required')
+      return
+    }
+    
+    if (!examForm.timeLimit || examForm.timeLimit < 1) {
+      toast.error('Time limit is required and must be at least 1 minute')
       return
     }
   }
@@ -565,13 +707,39 @@ const nextStep = () => {
     }
   }
   
+  if (currentStep.value === 3) {
+    // Validate based on IP schema scope
+    const selectedScope = examForm.ipSchemaData?.scope || examForm.ipSchema?.scope
+    
+    if (selectedScope === 'lab') {
+      // Lab-wide scope: validate IP schema configuration
+      if (!examForm.deviceIpMapping || examForm.deviceIpMapping.length < 2) {
+        toast.error('At least 2 devices must be created in Device IP Mapping to proceed')
+        return
+      }
+      
+      const ipSchemaStudents = examForm.ipSchemaData?.students || []
+      if (ipSchemaStudents.length === 0) {
+        toast.error('Student CSV must be uploaded in IP configuration before proceeding')
+        return
+      }
+    } else if (selectedScope === 'part') {
+      // Part-specific scope: just ensure scope is selected
+      toast.success('Part-specific scope selected. You can configure IP schemas for each part individually.')
+    } else {
+      // No scope selected
+      toast.error('Please select an IP schema scope to proceed')
+      return
+    }
+  }
+  
   if (currentStep.value === 4) {
     if (examForm.parts.length === 0) {
       toast.error('Please add at least one exam part')
       return
     }
     
-    const invalidParts = examForm.parts.filter(part => !part.title.trim() || !part.selectedPlay)
+    const invalidParts = examForm.parts.filter(part => !part.title.trim() || !part.plays)
     if (invalidParts.length > 0) {
       toast.error('All parts must have a title and selected play')
       return
@@ -648,8 +816,7 @@ const addExamPart = () => {
     total_points: 0,
     ipSchema: null,
     deviceIpMapping: null,
-    plays: [],
-    selectedPlay: null
+    plays: null as any
   }
   
   examForm.parts.push(newPart)
@@ -676,8 +843,41 @@ const openPlayModal = (partIndex: number) => {
 }
 
 const clearPlay = (partIndex: number) => {
-  examForm.parts[partIndex].selectedPlay = null
+  examForm.parts[partIndex].plays = null as any
 }
+
+const handleIPSchemaUpdate = (data: any) => {
+  if (data) {
+    examForm.ipSchemaData = data
+    examForm.ipSchema = data.ipSchema
+    examForm.deviceIpMapping = data.deviceIpMapping
+    
+    // Sync students data from IP schema to enrolledStudents
+    if (data.students && data.students.length > 0) {
+      enrolledStudents.value = data.students.map((student: any) => ({
+        studentId: student.studentId,
+        name: student.fullName || student.name
+      }))
+    }
+  }
+}
+
+// Watch enrolledStudents changes and sync to IP schema
+watch(enrolledStudents, (newStudents) => {
+  if (newStudents.length > 0) {
+    // Update the ipSchemaData to include students for proper persistence
+    if (examForm.ipSchemaData) {
+      examForm.ipSchemaData = {
+        ...examForm.ipSchemaData,
+        students: newStudents.map(student => ({
+          studentId: student.studentId,
+          fullName: student.name,
+          name: student.name
+        }))
+      }
+    }
+  }
+}, { deep: true })
 
 const updatePartContent = (partIndex: number, content: string) => {
   if (examForm.parts[partIndex]) {
@@ -693,22 +893,39 @@ const updatePartTitle = (partIndex: number, title: string) => {
 
 const handlePlayCreated = (play: any) => {
   if (currentPartIndex.value !== null) {
-    examForm.parts[currentPartIndex.value].selectedPlay = {
-      id: play.id || play.play_id,
-      title: play.name,
-      description: play.description || ''
+    examForm.parts[currentPartIndex.value].plays = {
+      play_id: play.id || play.play_id,
+      name: play.name,
+      description: play.description || '',
+      source_device: play.source_device || '',
+      target_device: play.target_device || '',
+      total_points: play.total_points || 0,
+      ansible_tasks: play.ansible_tasks || []
     }
   }
   currentPartIndex.value = null
 }
 
 const saveDraft = async () => {
+  // Validate exam title requirement for draft saving
+  if (!examForm.title.trim()) {
+    toast.error('Exam title is required to save draft')
+    return
+  }
+  
   toast.success('Draft saved locally')
 }
 
 const submitExam = async () => {
-  if (!isExamValid.value) {
-    toast.error('Please complete all required fields and configurations')
+  const validation = validateExam()
+  
+  if (!validation.isValid) {
+    // Show detailed error messages for unmet requirements
+    const errorMessage = validation.errors.length > 1 
+      ? `Please fix the following issues:\n• ${validation.errors.join('\n• ')}`
+      : validation.errors[0]
+    
+    toast.error(errorMessage)
     return
   }
 
@@ -716,24 +933,40 @@ const submitExam = async () => {
   
   try {
     // Transform the form data to match the expected API format
+    const selectedScope = examForm.ipSchemaData?.scope || examForm.ipSchema?.scope
+    
     const examData = {
-      ...examForm,
+      title: examForm.title,
+      type: examForm.type,
+      description: examForm.description,
+      courseId: courseId,
+      groupsRequired: examForm.groupsRequired,
+      timeLimit: examForm.timeLimit,
+      ...(selectedScope === 'lab' && {
+        ipSchema: {
+          ...examForm.ipSchema,
+          reservedSubnets: examForm.ipSchema?.reservedSubnets || []
+        },
+        deviceIpMapping: examForm.deviceIpMapping,
+        devices: generateDevicesArray(examForm.deviceIpMapping || [], enrolledStudents.value)
+      }),
       parts: examForm.parts.map((part, index) => ({
+        part_id: `part${index + 1}`,
         title: part.title,
         textMd: part.textMd,
         order: index + 1,
         total_points: part.total_points,
-        ipSchema: part.ipSchema,
-        deviceIpMapping: part.deviceIpMapping,
-        plays: part.selectedPlay ? [{
-          play_id: part.selectedPlay.id,
-          name: part.selectedPlay.title,
-          description: part.selectedPlay.description,
-          source_device: '',
-          target_device: '',
-          total_points: part.total_points,
-          ansible_tasks: []
-        }] : []
+        ...(selectedScope === 'part' && {
+          ipSchema: part.ipSchema || {
+            scope: 'part',
+            baseNetwork: '192.168.1.0',
+            subnetMask: 24,
+            allocationStrategy: 'group_based',
+            variablesMapping: []
+          },
+          deviceIpMapping: part.deviceIpMapping || []
+        }),
+        play: part.plays || null // Note: singular 'play' not 'plays'
       })),
       enrolledStudents: enrolledStudents.value
     }

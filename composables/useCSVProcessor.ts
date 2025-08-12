@@ -103,11 +103,16 @@ export const useCSVProcessor = () => {
         const facultyPart = studentIdRaw.substring(2, 4)
         const indexPart = studentIdRaw.substring(4, 8)
         
-        // Basic validation of year (should be reasonable)
+        // Basic validation of year (Buddhist calendar - Thai year = Gregorian year + 543)
         const year = parseInt(yearPart)
-        const currentYear = new Date().getFullYear() % 100
-        if (year < (currentYear - 10) || year > currentYear) {
-          warnings.push(`Row ${lineNumber}: Student ID year "${yearPart}" seems unusual (${2000 + year})`)
+        const currentGregorianYear = new Date().getFullYear()
+        const currentBuddhistYear = currentGregorianYear + 543
+        const currentBuddhistYearShort = currentBuddhistYear % 100
+        
+        // Allow reasonable range: current year and up to 10 years in the past
+        if (year < (currentBuddhistYearShort - 10) || year > currentBuddhistYearShort) {
+          const fullBuddhistYear = year < 50 ? 2500 + year : 2400 + year // Handle year wrapping
+          warnings.push(`Row ${lineNumber}: Student ID year "${yearPart}" seems unusual (Buddhist year ${fullBuddhistYear})`)
         }
         
         parsedData.push({
@@ -179,26 +184,34 @@ export const useCSVProcessor = () => {
     const facultyPart = studentId.substring(2, 4)
     const indexPart = studentId.substring(4, 8)
     
+    // Convert to Buddhist year (assuming the year part represents Buddhist calendar)
+    const year = parseInt(yearPart)
+    const fullBuddhistYear = year < 50 ? 2500 + year : 2400 + year // Handle year wrapping
+    
     return {
       isValid: true,
       info: {
-        year: 2000 + parseInt(yearPart),
+        year: fullBuddhistYear,
         faculty: facultyPart,
         index: indexPart,
-        formatted: `${yearPart}-${facultyPart}-${indexPart}`
+        formatted: `${yearPart}-${facultyPart}-${indexPart}`,
+        gregorianYear: fullBuddhistYear - 543 // For reference
       }
     }
   }
   
   const generateSampleCSV = (includeGroups: boolean = true, studentCount: number = 10): string => {
-    const currentYear = new Date().getFullYear() % 100
+    // Use Buddhist calendar year (Gregorian + 543)
+    const currentGregorianYear = new Date().getFullYear()
+    const currentBuddhistYear = currentGregorianYear + 543
+    const currentBuddhistYearShort = currentBuddhistYear % 100
     const lines: string[] = []
     
     const groupCount = Math.ceil(studentCount / 3) // ~3 students per group
     
     for (let i = 1; i <= studentCount; i++) {
       const studentIndex = String(i).padStart(4, '0')
-      const studentId = `${currentYear}07${studentIndex}`
+      const studentId = `${currentBuddhistYearShort.toString().padStart(2, '0')}07${studentIndex}`
       
       let line = studentId
       

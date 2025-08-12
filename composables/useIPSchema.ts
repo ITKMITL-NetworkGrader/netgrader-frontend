@@ -22,6 +22,7 @@ export const useIPSchema = () => {
   const deviceConfigs = ref<DeviceConfig[]>([])
   const students = ref<StudentCSVRow[]>([])
   const allocationStrategy = ref<'group_based' | 'student_id_based'>('group_based')
+  const scope = ref<'lab' | 'part'>('lab')
   
   // Computed properties
   const isNetworkValid = computed(() => {
@@ -106,6 +107,10 @@ export const useIPSchema = () => {
   const setAllocationStrategy = (strategy: 'group_based' | 'student_id_based') => {
     allocationStrategy.value = strategy
   }
+
+  const setScope = (newScope: 'lab' | 'part') => {
+    scope.value = newScope
+  }
   
   const generateFullIPAssignments = (): IPGenerationResult | null => {
     if (!canGenerateIPs.value) return null
@@ -120,11 +125,10 @@ export const useIPSchema = () => {
   
   const createIpSchema = (): IpSchema => {
     return {
-      scope: allocationStrategy.value === 'group_based' ? 'lab' : 'exam',
+      scope: scope.value,
       baseNetwork: networkConfig.value.baseNetwork,
       subnetMask: networkConfig.value.subnetMask,
-      gateway: networkConfig.value.gateway,
-      allocationStrategy: allocationStrategy.value === 'group_based' ? 'group_based' : 'student_id_based',
+      allocationStrategy: allocationStrategy.value,
       variablesMapping: deviceConfigs.value.map(device => ({
         name: device.ipVariable,
         hostOffset: device.hostOffset,
@@ -170,6 +174,7 @@ export const useIPSchema = () => {
     deviceConfigs.value = []
     students.value = []
     allocationStrategy.value = 'group_based'
+    scope.value = 'lab'
   }
   
   const loadFromIpSchema = (schema: IpSchema, deviceMappings: DeviceIpMapping[]) => {
@@ -177,12 +182,13 @@ export const useIPSchema = () => {
     networkConfig.value = {
       baseNetwork: schema.baseNetwork,
       subnetMask: schema.subnetMask,
-      gateway: schema.gateway,
+      gateway: '',
       description: ''
     }
     
-    // Update allocation strategy
-    allocationStrategy.value = schema.allocationStrategy === 'group_based' ? 'group_based' : 'student_id_based'
+    // Update scope and allocation strategy
+    scope.value = schema.scope
+    allocationStrategy.value = schema.allocationStrategy
     
     // Update device configs
     deviceConfigs.value = deviceMappings.map(mapping => {
@@ -274,6 +280,7 @@ export const useIPSchema = () => {
     deviceConfigs: readonly(deviceConfigs),
     students: readonly(students),
     allocationStrategy: readonly(allocationStrategy),
+    scope: readonly(scope),
     
     // Computed
     isNetworkValid,
@@ -290,6 +297,7 @@ export const useIPSchema = () => {
     removeDeviceConfig,
     updateStudents,
     setAllocationStrategy,
+    setScope,
     generateFullIPAssignments,
     createIpSchema,
     createDeviceIpMapping,

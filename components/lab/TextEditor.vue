@@ -45,7 +45,7 @@
             <AlertCircle v-if="showValidation" class="w-4 h-4 text-destructive" />
           </div>
           <div v-else class="flex items-center space-x-1">
-            <span class="text-sm">{{ selectedPlay.title }}</span>
+            <span class="text-sm">{{ selectedPlay.name }}</span>
             <button class="p-1 rounded hover:bg-muted text-destructive" @click="clearPlay">
               <X class="w-3 h-3" />
             </button>

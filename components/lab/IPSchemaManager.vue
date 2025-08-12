@@ -1,7 +1,95 @@
 <template>
   <div class="space-y-6">
-    <!-- Network Configuration Section -->
+    <!-- Scope Selection Section -->
     <Card>
+      <CardHeader>
+        <CardTitle class="flex items-center">
+          <Icon name="lucide:layers" class="w-5 h-5 mr-2" />
+          IP Schema Scope
+        </CardTitle>
+        <CardDescription>
+          Choose whether the IP schema applies to the entire lab/exam or to individual parts
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div 
+            class="border-2 rounded-lg p-4 cursor-pointer transition-colors"
+            :class="{ 
+              'border-primary bg-primary/5': scope === 'lab',
+              'border-border hover:border-primary/50': scope !== 'lab'
+            }"
+            @click="setScope('lab')"
+          >
+            <div class="flex items-start space-x-3">
+              <div
+                class="w-5 h-5 rounded-full border-2 mt-0.5"
+                :class="{ 
+                  'border-primary bg-primary': scope === 'lab',
+                  'border-muted-foreground': scope !== 'lab'
+                }"
+              >
+                <div
+                  v-if="scope === 'lab'" 
+                  class="w-2 h-2 bg-primary-foreground rounded-full m-0.5"
+                />
+              </div>
+              <div>
+                <h4 class="font-medium">Lab-wide Scope</h4>
+                <p class="text-sm text-muted-foreground">
+                  Single IP schema applies to all parts of the lab/exam. All parts share the same network configuration.
+                </p>
+              </div>
+            </div>
+          </div>
+          
+          <div 
+            class="border-2 rounded-lg p-4 cursor-pointer transition-colors"
+            :class="{ 
+              'border-primary bg-primary/5': scope === 'part',
+              'border-border hover:border-primary/50': scope !== 'part'
+            }"
+            @click="setScope('part')"
+          >
+            <div class="flex items-start space-x-3">
+              <div
+                class="w-5 h-5 rounded-full border-2 mt-0.5"
+                :class="{ 
+                  'border-primary bg-primary': scope === 'part',
+                  'border-muted-foreground': scope !== 'part'
+                }"
+              >
+                <div
+                  v-if="scope === 'part'" 
+                  class="w-2 h-2 bg-primary-foreground rounded-full m-0.5"
+                />
+              </div>
+              <div>
+                <h4 class="font-medium">Part-specific Scope</h4>
+                <p class="text-sm text-muted-foreground">
+                  Each part can have its own IP schema. Allows different network configurations per part.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div v-if="scope === 'part'" class="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+          <div class="flex items-start space-x-2">
+            <Icon name="lucide:info" class="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
+            <div class="text-sm">
+              <p class="font-medium text-blue-900 dark:text-blue-100">Part-specific IP Schemas</p>
+              <p class="text-blue-700 dark:text-blue-300 mt-1">
+                When using part-specific scope, each part in your lab/exam can be assigned its own IP schema during part creation. This allows for progressive complexity or different network topologies per part.
+              </p>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+
+    <!-- Network Configuration Section -->
+    <Card v-if="scope === 'lab'">
       <CardHeader>
         <CardTitle class="flex items-center">
           <Icon name="lucide:network" class="w-5 h-5 mr-2" />
@@ -21,7 +109,7 @@
     </Card>
 
     <!-- Device Configuration Section -->
-    <Card>
+    <Card v-if="scope === 'lab'">
       <CardHeader>
         <div class="flex items-center justify-between">
           <div>
@@ -81,7 +169,7 @@
     </Card>
 
     <!-- CSV Upload Section -->
-    <Card>
+    <Card v-if="scope === 'lab'">
       <CardHeader>
         <CardTitle class="flex items-center">
           <Icon name="lucide:upload" class="w-5 h-5 mr-2" />
@@ -102,7 +190,7 @@
     </Card>
 
     <!-- IP Preview Section -->
-    <Card v-if="canGenerateIPs && previewAssignments?.success">
+    <Card v-if="scope === 'lab' && canGenerateIPs && previewAssignments?.success">
       <CardHeader>
         <CardTitle class="flex items-center">
           <Icon name="lucide:eye" class="w-5 h-5 mr-2" />
@@ -272,6 +360,8 @@ const {
   deviceConfigs,
   students,
   allocationStrategy,
+  scope,
+  setScope,
   isNetworkValid,
   networkInfo,
   hasDeviceConfigs,
@@ -419,24 +509,25 @@ watch(() => props.modelValue, (newValue) => {
 }, { deep: true })
 
 // Watch for model value changes
-watch(() => [networkConfig.value, deviceConfigs.value, students.value, allocationStrategy.value], () => {
+watch(() => [networkConfig.value, deviceConfigs.value, students.value, allocationStrategy.value, scope.value], () => {
   // Don't emit updates if we're currently loading from props
   if (isLoadingFromProps.value) return
   
-  // Always emit device mapping if we have devices and network config, regardless of students
-  if (isNetworkValid.value && hasDeviceConfigs.value) {
-    const schema = ipSchema.createIpSchema()
-    const deviceMapping = ipSchema.createDeviceIpMapping()
-    
-    // Emit both the combined model value and individual values
-    emit('update:modelValue', {
-      ipSchema: schema,
-      deviceIpMapping: deviceMapping,
-      students: students.value,
-      allocationStrategy: allocationStrategy.value
-    })
-    
-    // Emit individual v-model updates
+  // Always emit the scope, even if other validations fail
+  const schema = ipSchema.createIpSchema()
+  const deviceMapping = scope.value === 'lab' && hasDeviceConfigs.value ? ipSchema.createDeviceIpMapping() : []
+  
+  // Emit combined model value with scope always included
+  emit('update:modelValue', {
+    scope: scope.value,
+    ipSchema: schema,
+    deviceIpMapping: deviceMapping,
+    students: students.value,
+    allocationStrategy: allocationStrategy.value
+  })
+  
+  // Emit individual v-model updates only for lab scope
+  if (scope.value === 'lab' && isNetworkValid.value && hasDeviceConfigs.value) {
     emit('update:schema', schema)
     emit('update:deviceMapping', deviceMapping)
   }
@@ -515,18 +606,35 @@ const getDeviceIcon = (deviceId: string): string => {
 
 // Initialize if model value or individual props provided
 onMounted(() => {
-  if (props.schema && props.deviceMapping) {
-    // Initialize from individual props (v-model:schema and v-model:device-mapping)
-    ipSchema.loadFromIpSchema(props.schema, props.deviceMapping)
-  } else if (props.modelValue) {
-    // Initialize from combined model value
-    const { ipSchema: schema, deviceIpMapping, students: studentData } = props.modelValue
+  // Always prioritize modelValue if it exists, regardless of individual props
+  if (props.modelValue) {
+    const { scope: modelScope, ipSchema: schema, deviceIpMapping, students: studentData } = props.modelValue
+    
+    // Set scope if provided in model value
+    if (modelScope) {
+      ipSchema.setScope(modelScope)
+    }
+    
     if (schema && deviceIpMapping) {
       ipSchema.loadFromIpSchema(schema, deviceIpMapping)
     }
-    if (studentData) {
+    if (studentData && studentData.length > 0) {
       ipSchema.updateStudents(studentData)
     }
+  } else if (props.schema && props.deviceMapping) {
+    // Only use individual props if no combined model value exists
+    ipSchema.loadFromIpSchema(props.schema, props.deviceMapping)
   }
+  
+  // Ensure we always emit an initial scope value
+  setTimeout(() => {
+    emit('update:modelValue', {
+      scope: scope.value,
+      ipSchema: ipSchema.createIpSchema(),
+      deviceIpMapping: [],
+      students: [],
+      allocationStrategy: allocationStrategy.value
+    })
+  }, 100)
 })
 </script>

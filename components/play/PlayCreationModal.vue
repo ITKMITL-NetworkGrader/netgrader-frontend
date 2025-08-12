@@ -251,6 +251,7 @@
       v-model:open="showTaskModal"
       :task-data="editingTask"
       :available-devices="contextInfo.availableDevices"
+      :available-destination-devices="contextInfo.availableDestinationDevices"
       :is-editing="isEditingTask"
       @save:task="handleTaskSaved"
     />
@@ -285,7 +286,8 @@ interface ContextInfo {
   course: string
   labOrExam: string
   part: string
-  availableDevices: Array<{ value: string; label: string; icon: string }>
+  availableDevices: Array<{ value: string; label: string; icon: string; isInternet?: boolean }>
+  availableDestinationDevices: Array<{ value: string; label: string; icon: string; isInternet?: boolean }>
 }
 
 interface Props {
@@ -347,11 +349,24 @@ const canCreatePlay = computed(() => {
          playForm.value.tasks.length > 0
 })
 
+// Additional validation for play creation step transitions
+const canProceedFromTasks = computed(() => {
+  return playForm.value.tasks.length > 0
+})
+
 // Methods
 const nextStep = () => {
   showValidation.value = true
   
-  if (canProceedToNext.value) {
+  if (currentStep.value === 1 && canProceedToNext.value) {
+    currentStep.value++
+    showValidation.value = false
+  } else if (currentStep.value === 2) {
+    // Validate that at least one task is created before proceeding to review
+    if (!canProceedFromTasks.value) {
+      toast.error('At least one task must be created to create a play')
+      return
+    }
     currentStep.value++
     showValidation.value = false
   } else {

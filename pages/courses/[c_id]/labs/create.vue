@@ -100,18 +100,14 @@
                 </p>
               </div>
               <div>
-                <Label for="lab-description">Description *</Label>
+                <Label for="lab-description">Description</Label>
                 <Textarea
                   id="lab-description"
                   v-model="labForm.description"
-                  placeholder="Describe what students will learn and accomplish in this lab"
+                  placeholder="Describe what students will learn and accomplish in this lab (optional)"
                   rows="4"
                   class="mt-1"
-                  :class="{ 'border-destructive': showValidation && !labForm.description.trim() }"
                 />
-                <p v-if="showValidation && !labForm.description.trim()" class="text-sm text-destructive mt-1">
-                  Lab description is required
-                </p>
               </div>
               <div>
                 <Label class="flex items-center space-x-2">
@@ -131,7 +127,9 @@
             <IPSchemaManager
               v-model:schema="labForm.ipSchema"
               v-model:device-mapping="labForm.deviceIpMapping"
+              :model-value="labForm.ipSchemaData"
               :show-validation="showValidation"
+              @update:model-value="handleIPSchemaUpdate"
             />
           </div>
 
@@ -172,15 +170,15 @@
                         {{ part.title || `Part ${index + 1}` }}
                       </h3>
                       <p class="text-sm text-muted-foreground">
-                        {{ part.selectedPlay ? `Play: ${part.selectedPlay.title}` : 'No play selected' }}
+                        {{ part.plays ? `Play: ${part.plays.name}` : 'No play selected' }}
                       </p>
                     </div>
                   </div>
                   <div class="flex items-center space-x-2">
                     <Badge
-                      :variant="part.selectedPlay ? 'default' : 'destructive'"
+                      :variant="part.plays ? 'default' : 'destructive'"
                     >
-                      {{ part.selectedPlay ? 'Configured' : 'Needs Play' }}
+                      {{ part.plays ? 'Configured' : 'Needs Play' }}
                     </Badge>
                     <ChevronDown
                       class="w-4 h-4 transition-transform"
@@ -203,7 +201,7 @@
                       <TextEditor
                         :model-value="part.textMd"
                         :title="part.title"
-                        :selected-play="part.selectedPlay"
+                        :selected-play="part.plays"
                         :show-validation="showValidation"
                         @update:model-value="updatePartContent(index, $event)"
                         @update:title="updatePartTitle(index, $event)"
@@ -219,7 +217,109 @@
 
           <!-- Step 4: Review & Save -->
           <div v-if="currentStep === 4">
-            <h2 class="text-xl font-semibold mb-4">Review Lab</h2>
+            <div class="flex items-center justify-between mb-4">
+              <h2 class="text-xl font-semibold">Review Lab</h2>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                @click="showDebugInfo = !showDebugInfo"
+                class="flex items-center space-x-2"
+              >
+                <Icon name="lucide:bug" class="w-4 h-4" />
+                <span>{{ showDebugInfo ? 'Hide' : 'Show' }} Debug Info</span>
+              </Button>
+            </div>
+            
+            <!-- Debug Information Panel -->
+            <Card v-if="showDebugInfo" class="mb-6 bg-muted/30 border-dashed">
+              <CardHeader>
+                <CardTitle class="text-base flex items-center">
+                  <Icon name="lucide:bug" class="w-4 h-4 mr-2" />
+                  Debug Information (Submission Data Preview)
+                </CardTitle>
+                <CardDescription>
+                  This shows the complete data structure that will be sent to the backend
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div class="space-y-4">
+                  <!-- Basic Lab Data -->
+                  <div>
+                    <h4 class="font-medium text-sm mb-2">Basic Lab Information:</h4>
+                    <pre class="bg-background p-3 rounded text-xs overflow-auto max-h-32"><code>{{
+                      JSON.stringify({
+                        title: labForm.title,
+                        description: labForm.description,
+                        type: labForm.type,
+                        groupsRequired: labForm.groupsRequired,
+                        courseId: courseId
+                      }, null, 2)
+                    }}</code></pre>
+                  </div>
+                  
+                  <!-- IP Schema Data -->
+                  <div>
+                    <h4 class="font-medium text-sm mb-2">IP Schema Configuration:</h4>
+                    <pre class="bg-background p-3 rounded text-xs overflow-auto max-h-32"><code>{{
+                      JSON.stringify(labForm.ipSchema || {}, null, 2)
+                    }}</code></pre>
+                  </div>
+                  
+                  <!-- Device Mapping -->
+                  <div>
+                    <h4 class="font-medium text-sm mb-2">Device IP Mapping:</h4>
+                    <pre class="bg-background p-3 rounded text-xs overflow-auto max-h-32"><code>{{
+                      JSON.stringify(labForm.deviceIpMapping || [], null, 2)
+                    }}</code></pre>
+                  </div>
+                  
+                  <!-- Students Data -->
+                  <div>
+                    <h4 class="font-medium text-sm mb-2">Students Data:</h4>
+                    <pre class="bg-background p-3 rounded text-xs overflow-auto max-h-32"><code>{{
+                      JSON.stringify(labForm.students || [], null, 2)
+                    }}</code></pre>
+                  </div>
+                  
+                  <!-- Parts Data -->
+                  <div>
+                    <h4 class="font-medium text-sm mb-2">Lab Parts ({{ labForm.parts.length }}):</h4>
+                    <pre class="bg-background p-3 rounded text-xs overflow-auto max-h-40"><code>{{
+                      JSON.stringify(labForm.parts.map((part, index) => ({
+                        partNumber: index + 1,
+                        title: part.title,
+                        textMd: part.textMd.substring(0, 100) + (part.textMd.length > 100 ? '...' : ''),
+                        order: part.order,
+                        total_points: part.total_points,
+                        plays: part.plays ? {
+                          play_id: part.plays.play_id,
+                          name: part.plays.name,
+                          description: part.plays.description
+                        } : null,
+                        hasContent: !!part.textMd.trim(),
+                        hasPlay: !!part.plays
+                      })), null, 2)
+                    }}</code></pre>
+                  </div>
+                  
+                  <!-- Validation Status -->
+                  <div>
+                    <h4 class="font-medium text-sm mb-2">Validation Status:</h4>
+                    <pre class="bg-background p-3 rounded text-xs overflow-auto max-h-32"><code>{{
+                      JSON.stringify({
+                        isLabValid: isLabValid,
+                        validationResult: validateLab(),
+                        deviceCount: labForm.deviceIpMapping?.length || 0,
+                        studentCount: labForm.students?.length || 0,
+                        partCount: labForm.parts.length,
+                        partsWithPlays: labForm.parts.filter(p => p.plays).length
+                      }, null, 2)
+                    }}</code></pre>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            
             <div class="space-y-6">
               <!-- Basic Information -->
               <div>
@@ -267,11 +367,11 @@
                     <div>
                       <span class="font-medium">{{ part.title || `Part ${index + 1}` }}</span>
                       <p class="text-sm text-muted-foreground">
-                        {{ part.selectedPlay ? `Play: ${part.selectedPlay.title}` : 'No play configured' }}
+                        {{ part.plays ? `Play: ${part.plays.name}` : 'No play configured' }}
                       </p>
                     </div>
-                    <Badge :variant="part.selectedPlay ? 'default' : 'destructive'">
-                      {{ part.selectedPlay ? 'Ready' : 'Missing Play' }}
+                    <Badge :variant="part.plays ? 'default' : 'destructive'">
+                      {{ part.plays ? 'Ready' : 'Missing Play' }}
                     </Badge>
                   </div>
                 </div>
@@ -329,7 +429,8 @@
         course: courseId,
         labOrExam: 'Lab',
         part: currentPartIndex !== null ? `Part ${currentPartIndex + 1}` : '',
-        availableDevices: availableDevices
+        availableDevices: availableDevices,
+        availableDestinationDevices: availableDestinationDevices
       }"
       @play-created="handlePlayCreated"
     />
@@ -390,16 +491,17 @@ const isSubmitting = ref(false)
 // Form data
 interface LabPartWithTemp extends Omit<LabPart, 'part_id'> {
   tempId: string
-  selectedPlay?: { id: string; title: string; description: string } | null
 }
 
-const labForm = reactive<LabFormData & { parts: LabPartWithTemp[] }>({
+const labForm = reactive<LabFormData & { parts: LabPartWithTemp[]; ipSchemaData?: any; students?: any[] }>({
   title: '',
   description: '',
   type: 'lab',
   groupsRequired: false,
   ipSchema: undefined,
   deviceIpMapping: undefined,
+  ipSchemaData: undefined,
+  students: [],
   parts: []
 })
 
@@ -407,6 +509,7 @@ const labForm = reactive<LabFormData & { parts: LabPartWithTemp[] }>({
 const expandedParts = ref<Record<number, boolean>>({})
 const currentPartIndex = ref<number | null>(null)
 const showPlayCreationModal = ref(false)
+const showDebugInfo = ref(true)
 
 // Available devices for play creation
 const availableDevices = computed(() => {
@@ -417,8 +520,24 @@ const availableDevices = computed(() => {
   return labForm.deviceIpMapping.map(device => ({
     value: device.deviceId,
     label: device.deviceId.charAt(0).toUpperCase() + device.deviceId.slice(1).replace(/[_-]/g, ' '),
-    icon: getDeviceIcon(device.deviceId)
+    icon: getDeviceIcon(device.deviceId),
+    isInternet: false
   }))
+})
+
+// Available destination devices (includes Internet option)
+const availableDestinationDevices = computed(() => {
+  const devices = [...availableDevices.value]
+  
+  // Add Internet as a special destination option
+  devices.push({
+    value: 'internet',
+    label: 'Internet',
+    icon: 'lucide:globe',
+    isInternet: true
+  })
+  
+  return devices
 })
 
 const getDeviceIcon = (deviceId: string): string => {
@@ -434,12 +553,126 @@ const getDeviceIcon = (deviceId: string): string => {
   return 'lucide:cpu' // Default icon
 }
 
+const generateDevicesArray = (deviceMapping: any[], students: any[]): any[] => {
+  // Generate devices array based on device mapping and students
+  // This is a basic implementation - you may need to customize based on your IP generation logic
+  return deviceMapping.map(device => ({
+    id: device.deviceId,
+    ip_address: generateExampleIP(device, students[0]?.studentId || '123'), // Use first student for example
+    ansible_connection: getDefaultConnection(device.deviceId),
+    credentials: getDefaultCredentials(device.deviceId),
+    platform: getDevicePlatform(device.deviceId),
+    jump_host: null,
+    ssh_args: null,
+    use_persistent_connection: false
+  }))
+}
+
+const generateExampleIP = (device: any, studentId: string): string => {
+  // Basic IP generation - you may want to use your existing IP generation logic
+  if (labForm.ipSchema?.baseNetwork) {
+    const baseNet = labForm.ipSchema.baseNetwork.split('.')
+    const hostOffset = device.hostOffset || 10
+    return `${baseNet[0]}.${baseNet[1]}.${parseInt(baseNet[2]) + 1}.${hostOffset}`
+  }
+  return `192.168.1.${device.hostOffset || 10}`
+}
+
+const getDefaultConnection = (deviceId: string): string => {
+  const id = deviceId.toLowerCase()
+  if (id.includes('router') || id.includes('switch')) {
+    return 'ansible.netcommon.network_cli'
+  }
+  return 'ssh'
+}
+
+const getDefaultCredentials = (deviceId: string): any => {
+  const id = deviceId.toLowerCase()
+  if (id.includes('router') || id.includes('firewall')) {
+    return {
+      ansible_user: 'admin',
+      ansible_password: 'admin123'
+    }
+  } else if (id.includes('server')) {
+    return {
+      ansible_user: 'ubuntu',
+      ansible_password: 'server123'
+    }
+  }
+  return {
+    ansible_user: 'student',
+    ansible_password: 'student123'
+  }
+}
+
+const getDevicePlatform = (deviceId: string): string | null => {
+  const id = deviceId.toLowerCase()
+  if (id.includes('cisco') || id.includes('router')) {
+    return 'cisco.ios.ios'
+  }
+  return null
+}
+
+// Comprehensive validation function
+const validateLab = (): { isValid: boolean; errors: string[] } => {
+  const errors: string[] = []
+  
+  // Basic information validation
+  if (!labForm.title.trim()) {
+    errors.push('Lab title is required')
+  }
+  
+  // IP Schema validation based on scope
+  const selectedScope = labForm.ipSchemaData?.scope || labForm.ipSchema?.scope
+  
+  if (selectedScope === 'lab') {
+    // Lab-wide scope: require lab-level IP schema and device mapping
+    if (!labForm.deviceIpMapping || labForm.deviceIpMapping.length < 2) {
+      errors.push('At least 2 devices must be created in Device IP Mapping')
+    }
+    
+    if (!labForm.students || labForm.students.length === 0) {
+      errors.push('Student CSV is required before creating a Lab')
+    }
+  } else if (selectedScope === 'part') {
+    // Part-specific scope: each part should have its own IP schema (validation will be done during part creation)
+    // No lab-level IP schema validation required
+  }
+  
+  // Parts validation
+  if (labForm.parts.length === 0) {
+    errors.push('At least one lab part must be created')
+  } else {
+    labForm.parts.forEach((part, index) => {
+      if (!part.title.trim()) {
+        errors.push(`Part ${index + 1}: Title is required`)
+      }
+      
+      if (!part.textMd.trim()) {
+        errors.push(`Part ${index + 1}: Content is required`)
+      }
+      
+      if (!part.plays) {
+        errors.push(`Part ${index + 1}: A play must be selected`)
+      } else {
+        // Validate that the selected play has tasks
+        if (!part.plays.play_id && !part.plays.name) {
+          errors.push(`Part ${index + 1}: Selected play is invalid`)
+        }
+      }
+    })
+  }
+  
+  return {
+    isValid: errors.length === 0,
+    errors
+  }
+}
+
 // Validation
 const isLabValid = computed(() => {
-  return labForm.title.trim() && 
-         labForm.description.trim() && 
-         labForm.parts.length > 0 &&
-         labForm.parts.every(part => part.title.trim() && part.selectedPlay)
+  const validation = validateLab()
+  return validation.isValid
 })
 
 // Methods
@@ -447,8 +680,33 @@ const nextStep = () => {
   showValidation.value = true
   
   if (currentStep.value === 1) {
-    if (!labForm.title.trim() || !labForm.description.trim()) {
-      toast.error('Please fill in all required fields')
+    if (!labForm.title.trim()) {
+      toast.error('Lab title is required')
+      return
+    }
+  }
+  
+  if (currentStep.value === 2) {
+    // Validate based on IP schema scope
+    const selectedScope = labForm.ipSchemaData?.scope || labForm.ipSchema?.scope
+    
+    if (selectedScope === 'lab') {
+      // Lab-wide scope: validate IP schema configuration
+      if (!labForm.deviceIpMapping || labForm.deviceIpMapping.length < 2) {
+        toast.error('At least 2 devices must be created in Device IP Mapping to proceed')
+        return
+      }
+      
+      if (!labForm.students || labForm.students.length === 0) {
+        toast.error('Student CSV must be uploaded before proceeding to lab parts')
+        return
+      }
+    } else if (selectedScope === 'part') {
+      // Part-specific scope: just ensure scope is selected
+      toast.success('Part-specific scope selected. You can configure IP schemas for each part individually.')
+    } else {
+      // No scope selected
+      toast.error('Please select an IP schema scope to proceed')
       return
     }
   }
@@ -459,7 +717,7 @@ const nextStep = () => {
       return
     }
     
-    const invalidParts = labForm.parts.filter(part => !part.title.trim() || !part.selectedPlay)
+    const invalidParts = labForm.parts.filter(part => !part.title.trim() || !part.plays)
     if (invalidParts.length > 0) {
       toast.error('All parts must have a title and selected play')
       return
@@ -482,8 +740,7 @@ const addLabPart = () => {
     total_points: 0,
     ipSchema: null,
     deviceIpMapping: null,
-    plays: [],
-    selectedPlay: null
+    plays: null as any
   }
   
   labForm.parts.push(newPart)
@@ -510,7 +767,16 @@ const openPlayModal = (partIndex: number) => {
 }
 
 const clearPlay = (partIndex: number) => {
-  labForm.parts[partIndex].selectedPlay = null
+  labForm.parts[partIndex].plays = null as any
+}
+
+const handleIPSchemaUpdate = (data: any) => {
+  if (data) {
+    labForm.ipSchemaData = data
+    labForm.ipSchema = data.ipSchema
+    labForm.deviceIpMapping = data.deviceIpMapping
+    labForm.students = data.students || []
+  }
 }
 
 const updatePartContent = (partIndex: number, content: string) => {
@@ -527,61 +793,148 @@ const updatePartTitle = (partIndex: number, title: string) => {
 
 const handlePlayCreated = (play: any) => {
   if (currentPartIndex.value !== null) {
-    labForm.parts[currentPartIndex.value].selectedPlay = {
-      id: play.id || play.play_id,
-      title: play.name,
-      description: play.description || ''
+    labForm.parts[currentPartIndex.value].plays = {
+      play_id: play.id || play.play_id,
+      name: play.name,
+      description: play.description || '',
+      source_device: play.source_device || '',
+      target_device: play.target_device || '',
+      total_points: play.total_points || 0,
+      ansible_tasks: play.ansible_tasks || []
     }
   }
   currentPartIndex.value = null
 }
 
 const saveDraft = async () => {
+  // Validate lab name requirement for draft saving
+  if (!labForm.title.trim()) {
+    toast.error('Lab name is required to save draft')
+    return
+  }
+  
   toast.success('Draft saved locally')
 }
 
 const submitLab = async () => {
-  if (!isLabValid.value) {
-    toast.error('Please complete all required fields and configurations')
+  console.group('🔍 LAB SUBMISSION DEBUG')
+  
+  const validation = validateLab()
+  
+  console.log('📋 Validation Check:', {
+    isValid: validation.isValid,
+    errors: validation.errors,
+    timestamp: new Date().toISOString()
+  })
+  
+  if (!validation.isValid) {
+    // Show detailed error messages for unmet requirements
+    const errorMessage = validation.errors.length > 1 
+      ? `Please fix the following issues:\n• ${validation.errors.join('\n• ')}`
+      : validation.errors[0]
+    
+    console.error('❌ Validation Failed:', validation.errors)
+    toast.error(errorMessage)
+    console.groupEnd()
     return
   }
+
+  console.log('✅ Validation Passed - Preparing submission data...')
+  
+  // Log raw form data
+  console.log('📝 Raw Form Data:', {
+    basic: {
+      title: labForm.title,
+      description: labForm.description,
+      type: labForm.type,
+      groupsRequired: labForm.groupsRequired,
+      courseId: courseId
+    },
+    ipSchema: labForm.ipSchema,
+    deviceIpMapping: labForm.deviceIpMapping,
+    students: labForm.students,
+    parts: labForm.parts.map(p => ({
+      title: p.title,
+      hasContent: !!p.textMd?.trim(),
+      contentLength: p.textMd?.length || 0,
+      hasPlay: !!p.plays,
+      playId: p.plays?.play_id,
+      playTitle: p.plays?.name
+    }))
+  })
 
   isSubmitting.value = true
   
   try {
     // Transform the form data to match the expected API format
+    const selectedScope = labForm.ipSchemaData?.scope || labForm.ipSchema?.scope
+    
     const labData = {
-      ...labForm,
+      title: labForm.title,
+      type: labForm.type,
+      description: labForm.description,
+      courseId: courseId,
+      groupsRequired: labForm.groupsRequired,
+      ...(selectedScope === 'lab' && {
+        ipSchema: {
+          ...labForm.ipSchema,
+          reservedSubnets: labForm.ipSchema?.reservedSubnets || []
+        },
+        deviceIpMapping: labForm.deviceIpMapping,
+        devices: generateDevicesArray(labForm.deviceIpMapping || [], labForm.students || [])
+      }),
       parts: labForm.parts.map((part, index) => ({
+        part_id: `part${index + 1}`,
         title: part.title,
         textMd: part.textMd,
         order: index + 1,
         total_points: part.total_points,
-        ipSchema: part.ipSchema,
-        deviceIpMapping: part.deviceIpMapping,
-        plays: part.selectedPlay ? [{
-          play_id: part.selectedPlay.id,
-          name: part.selectedPlay.title,
-          description: part.selectedPlay.description,
-          source_device: '',
-          target_device: '',
-          total_points: part.total_points,
-          ansible_tasks: []
-        }] : []
+        ...(selectedScope === 'part' && {
+          ipSchema: part.ipSchema || {
+            scope: 'part',
+            baseNetwork: '192.168.1.0',
+            subnetMask: 24,
+            allocationStrategy: 'group_based',
+            variablesMapping: []
+          },
+          deviceIpMapping: part.deviceIpMapping || []
+        }),
+        play: part.plays || null // Note: singular 'play' not 'plays'
       }))
     }
 
+    // Detailed submission data logging
+    console.log('🚀 Final Submission Data:', labData)
+    console.log('📊 Data Summary:', {
+      title: labData.title,
+      type: labData.type,
+      courseId: labData.courseId,
+      deviceCount: labData.deviceIpMapping?.length || 0,
+      studentCount: labData.students?.length || 0,
+      partCount: labData.parts?.length || 0,
+      totalPoints: labData.parts?.reduce((sum, part) => sum + (part.total_points || 0), 0) || 0,
+      hasIPSchema: !!labData.ipSchema,
+      submissionTime: new Date().toISOString()
+    })
+
     // TODO: Make API call to create lab
-    console.log('Creating lab:', labData)
+    console.log('📡 Sending to backend...')
     
     toast.success('Lab created successfully!')
+    console.log('✅ Lab creation successful!')
     router.push(`/courses/${courseId}/labs`)
     
   } catch (error) {
-    console.error('Failed to create lab:', error)
+    console.error('❌ Failed to create lab:', error)
+    console.error('Error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      timestamp: new Date().toISOString()
+    })
     toast.error('Failed to create lab. Please try again.')
   } finally {
     isSubmitting.value = false
+    console.groupEnd()
   }
 }
 
