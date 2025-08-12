@@ -54,6 +54,23 @@
       </div>
     </div>
 
+    <!-- Part-Specific Context Info -->
+    <div v-if="partSpecific && currentPartConfig" class="border-b border-border p-3 bg-blue-50 dark:bg-blue-900/20 flex-shrink-0">
+      <div class="flex items-start space-x-2">
+        <Icon name="lucide:info" class="w-4 h-4 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
+        <div class="text-xs">
+          <p class="font-medium text-blue-900 dark:text-blue-100">Part-Specific Network Context</p>
+          <p class="text-blue-700 dark:text-blue-300 mt-1">
+            This part has its own network topology. Available devices: 
+            <span class="font-mono">{{ availableDevicesList }}</span>
+          </p>
+          <p class="text-blue-700 dark:text-blue-300 mt-1">
+            Use variables like <code class="bg-blue-100 dark:bg-blue-800 px-1 rounded">{{ variableExample }}</code> in your instructions to reference device IP addresses.
+          </p>
+        </div>
+      </div>
+    </div>
+
     <!-- Toolbar -->
     <div v-show="!readonly" class="border-b border-border p-2 flex items-center space-x-2 bg-background shadow-sm flex-shrink-0">
       <!-- Formatting Controls -->
@@ -228,6 +245,8 @@ interface Props {
   readonly?: boolean
   selectedPlay?: Play | null
   showValidation?: boolean
+  partSpecific?: boolean
+  currentPartConfig?: any
 }
 
 interface Emits {
@@ -240,7 +259,9 @@ interface Emits {
 const props = withDefaults(defineProps<Props>(), {
   readonly: false,
   selectedPlay: null,
-  showValidation: false
+  showValidation: false,
+  partSpecific: false,
+  currentPartConfig: null
 })
 
 const emit = defineEmits<Emits>()
@@ -251,6 +272,16 @@ const partTitle = ref(props.title)
 // Validation states
 const titleError = ref<string | null>(null)
 const contentError = ref<string | null>(null)
+
+// Part-specific computed properties
+const availableDevicesList = computed(() => {
+  if (!props.partSpecific || !props.currentPartConfig?.deviceIpMapping) {
+    return 'None configured'
+  }
+  return props.currentPartConfig.deviceIpMapping.map((d: any) => d.deviceId).join(', ')
+})
+
+const variableExample = computed(() => '{{device_ip}}')
 
 // Initialize editor
 const editor = useEditor({

@@ -207,12 +207,25 @@
           <!-- Step 3: IP Schema Configuration -->
           <div v-if="currentStep === 3">
             <h2 class="text-xl font-semibold mb-4">Network Configuration</h2>
+            
+            <!-- Lab-wide scope: Use existing IPSchemaManager -->
             <IPSchemaManager
+              v-if="!examForm.ipSchemaData?.scope || examForm.ipSchemaData?.scope === 'lab'"
               v-model:schema="examForm.ipSchema"
               v-model:device-mapping="examForm.deviceIpMapping"
               :model-value="examForm.ipSchemaData"
               :show-validation="showValidation"
               @update:model-value="handleIPSchemaUpdate"
+            />
+            
+            <!-- Part-specific scope: Use new PartSpecificIPManager -->
+            <PartSpecificIPManager
+              v-else-if="examForm.ipSchemaData?.scope === 'part'"
+              :parts="examForm.parts"
+              :global-students="enrolledStudents"
+              :model-value="examForm.partSpecificData"
+              @update:model-value="handlePartSpecificUpdate"
+              @update:part="handlePartUpdate"
             />
           </div>
 
@@ -286,6 +299,8 @@
                         :title="part.title"
                         :selected-play="part.plays"
                         :show-validation="showValidation"
+                        :part-specific="examForm.ipSchemaData?.scope === 'part'"
+                        :current-part-config="examForm.ipSchemaData?.scope === 'part' ? part : null"
                         @update:model-value="updatePartContent(index, $event)"
                         @update:title="updatePartTitle(index, $event)"
                         @open-play-modal="openPlayModal(index)"
@@ -421,8 +436,12 @@
         course: courseId,
         labOrExam: 'Exam',
         part: currentPartIndex !== null ? `Part ${currentPartIndex + 1}` : '',
+        scope: examForm.ipSchemaData?.scope || examForm.ipSchema?.scope || 'lab',
         availableDevices: availableDevices,
-        availableDestinationDevices: availableDestinationDevices
+        availableDestinationDevices: availableDestinationDevices,
+        partSpecific: examForm.ipSchemaData?.scope === 'part',
+        currentPartConfig: currentPartIndex !== null && examForm.ipSchemaData?.scope === 'part' ? 
+          examForm.parts[currentPartIndex.value] : null
       }"
       @play-created="handlePlayCreated"
     />
@@ -457,6 +476,7 @@ import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbP
 
 import TextEditor from '@/components/lab/TextEditor.vue'
 import IPSchemaManager from '@/components/lab/IPSchemaManager.vue'
+import PartSpecificIPManager from '@/components/lab/PartSpecificIPManager.vue'
 import PlayCreationModal from '@/components/play/PlayCreationModal.vue'
 
 import type { LabFormData, LabPart, IpSchema, DeviceIpMapping } from '@/types/lab'
@@ -488,7 +508,7 @@ interface ExamPartWithTemp extends Omit<LabPart, 'part_id'> {
   tempId: string
 }
 
-const examForm = reactive<LabFormData & { parts: ExamPartWithTemp[]; timeLimit: number; ipSchemaData?: any }>({
+const examForm = reactive<LabFormData & { parts: ExamPartWithTemp[]; timeLimit: number; ipSchemaData?: any; partSpecificData?: any }>({
   title: '',
   description: '',
   type: 'exam',
@@ -497,6 +517,7 @@ const examForm = reactive<LabFormData & { parts: ExamPartWithTemp[]; timeLimit: 
   ipSchema: undefined,
   deviceIpMapping: undefined,
   ipSchemaData: undefined,
+  partSpecificData: undefined,
   parts: []
 })
 
@@ -512,16 +533,36 @@ const showPlayCreationModal = ref(false)
 
 // Available devices for play creation
 const availableDevices = computed(() => {
-  if (!examForm.deviceIpMapping || examForm.deviceIpMapping.length === 0) {
-    return []
+  const selectedScope = examForm.ipSchemaData?.scope || examForm.ipSchema?.scope
+  
+  if (selectedScope === 'lab') {
+    // Lab-wide scope: use global device mapping
+    if (!examForm.deviceIpMapping || examForm.deviceIpMapping.length === 0) {
+      return []
+    }
+    
+    return examForm.deviceIpMapping.map(device => ({
+      value: device.deviceId,
+      label: device.deviceId.charAt(0).toUpperCase() + device.deviceId.slice(1).replace(/[_-]/g, ' '),
+      icon: getDeviceIcon(device.deviceId),
+      isInternet: false
+    }))
+  } else if (selectedScope === 'part' && currentPartIndex.value !== null) {
+    // Part-specific scope: use current part's device mapping
+    const currentPart = examForm.parts[currentPartIndex.value]
+    if (!currentPart?.deviceIpMapping || currentPart.deviceIpMapping.length === 0) {
+      return []
+    }
+    
+    return currentPart.deviceIpMapping.map(device => ({
+      value: device.deviceId,
+      label: device.deviceId.charAt(0).toUpperCase() + device.deviceId.slice(1).replace(/[_-]/g, ' '),
+      icon: getDeviceIcon(device.deviceId),
+      isInternet: false
+    }))
   }
   
-  return examForm.deviceIpMapping.map(device => ({
-    value: device.deviceId,
-    label: device.deviceId.charAt(0).toUpperCase() + device.deviceId.slice(1).replace(/[_-]/g, ' '),
-    icon: getDeviceIcon(device.deviceId),
-    isInternet: false
-  }))
+  return []
 })
 
 // Available destination devices (includes Internet option)
@@ -860,6 +901,26 @@ const handleIPSchemaUpdate = (data: any) => {
       }))
     }
   }
+}
+
+const handlePartSpecificUpdate = (data: any) => {
+  examForm.partSpecificData = data
+}
+
+const handlePartUpdate = (partIndex: number, updates: any) => {
+  if (examForm.parts[partIndex]) {
+    // Update the part with new IP schema and device mapping
+    examForm.parts[partIndex].ipSchema = updates.ipSchema
+    examForm.parts[partIndex].deviceIpMapping = updates.deviceIpMapping
+    
+    // Update available devices for play creation
+    updateAvailableDevicesForPart(partIndex)
+  }
+}
+
+const updateAvailableDevicesForPart = (partIndex: number) => {
+  // This will be used to update available devices for play creation in this specific part
+  // The play creation modal will need to use part-specific devices
 }
 
 // Watch enrolledStudents changes and sync to IP schema

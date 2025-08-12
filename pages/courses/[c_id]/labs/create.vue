@@ -124,12 +124,25 @@
           <!-- Step 2: IP Schema Configuration -->
           <div v-if="currentStep === 2">
             <h2 class="text-xl font-semibold mb-4">IP Address Configuration</h2>
+            
+            <!-- Lab-wide scope: Use existing IPSchemaManager -->
             <IPSchemaManager
+              v-if="!labForm.ipSchemaData?.scope || labForm.ipSchemaData?.scope === 'lab'"
               v-model:schema="labForm.ipSchema"
               v-model:device-mapping="labForm.deviceIpMapping"
               :model-value="labForm.ipSchemaData"
               :show-validation="showValidation"
               @update:model-value="handleIPSchemaUpdate"
+            />
+            
+            <!-- Part-specific scope: Use new PartSpecificIPManager -->
+            <PartSpecificIPManager
+              v-else-if="labForm.ipSchemaData?.scope === 'part'"
+              :parts="labForm.parts"
+              :global-students="labForm.students"
+              :model-value="labForm.partSpecificData"
+              @update:model-value="handlePartSpecificUpdate"
+              @update:part="handlePartUpdate"
             />
           </div>
 
@@ -203,6 +216,8 @@
                         :title="part.title"
                         :selected-play="part.plays"
                         :show-validation="showValidation"
+                        :part-specific="labForm.ipSchemaData?.scope === 'part'"
+                        :current-part-config="labForm.ipSchemaData?.scope === 'part' ? part : null"
                         @update:model-value="updatePartContent(index, $event)"
                         @update:title="updatePartTitle(index, $event)"
                         @open-play-modal="openPlayModal(index)"
@@ -429,8 +444,12 @@
         course: courseId,
         labOrExam: 'Lab',
         part: currentPartIndex !== null ? `Part ${currentPartIndex + 1}` : '',
+        scope: labForm.ipSchemaData?.scope || labForm.ipSchema?.scope || 'lab',
         availableDevices: availableDevices,
-        availableDestinationDevices: availableDestinationDevices
+        availableDestinationDevices: availableDestinationDevices,
+        partSpecific: labForm.ipSchemaData?.scope === 'part',
+        currentPartConfig: currentPartIndex !== null && labForm.ipSchemaData?.scope === 'part' ? 
+          labForm.parts[currentPartIndex.value] : null
       }"
       @play-created="handlePlayCreated"
     />
@@ -463,6 +482,7 @@ import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbP
 
 import TextEditor from '@/components/lab/TextEditor.vue'
 import IPSchemaManager from '@/components/lab/IPSchemaManager.vue'
+import PartSpecificIPManager from '@/components/lab/PartSpecificIPManager.vue'
 import PlayCreationModal from '@/components/play/PlayCreationModal.vue'
 
 import type { LabFormData, LabPart, IpSchema, DeviceIpMapping } from '@/types/lab'
@@ -493,7 +513,7 @@ interface LabPartWithTemp extends Omit<LabPart, 'part_id'> {
   tempId: string
 }
 
-const labForm = reactive<LabFormData & { parts: LabPartWithTemp[]; ipSchemaData?: any; students?: any[] }>({
+const labForm = reactive<LabFormData & { parts: LabPartWithTemp[]; ipSchemaData?: any; students?: any[]; partSpecificData?: any }>({
   title: '',
   description: '',
   type: 'lab',
@@ -502,6 +522,7 @@ const labForm = reactive<LabFormData & { parts: LabPartWithTemp[]; ipSchemaData?
   deviceIpMapping: undefined,
   ipSchemaData: undefined,
   students: [],
+  partSpecificData: undefined,
   parts: []
 })
 
@@ -513,16 +534,36 @@ const showDebugInfo = ref(true)
 
 // Available devices for play creation
 const availableDevices = computed(() => {
-  if (!labForm.deviceIpMapping || labForm.deviceIpMapping.length === 0) {
-    return []
+  const selectedScope = labForm.ipSchemaData?.scope || labForm.ipSchema?.scope
+  
+  if (selectedScope === 'lab') {
+    // Lab-wide scope: use global device mapping
+    if (!labForm.deviceIpMapping || labForm.deviceIpMapping.length === 0) {
+      return []
+    }
+    
+    return labForm.deviceIpMapping.map(device => ({
+      value: device.deviceId,
+      label: device.deviceId.charAt(0).toUpperCase() + device.deviceId.slice(1).replace(/[_-]/g, ' '),
+      icon: getDeviceIcon(device.deviceId),
+      isInternet: false
+    }))
+  } else if (selectedScope === 'part' && currentPartIndex.value !== null) {
+    // Part-specific scope: use current part's device mapping
+    const currentPart = labForm.parts[currentPartIndex.value]
+    if (!currentPart?.deviceIpMapping || currentPart.deviceIpMapping.length === 0) {
+      return []
+    }
+    
+    return currentPart.deviceIpMapping.map(device => ({
+      value: device.deviceId,
+      label: device.deviceId.charAt(0).toUpperCase() + device.deviceId.slice(1).replace(/[_-]/g, ' '),
+      icon: getDeviceIcon(device.deviceId),
+      isInternet: false
+    }))
   }
   
-  return labForm.deviceIpMapping.map(device => ({
-    value: device.deviceId,
-    label: device.deviceId.charAt(0).toUpperCase() + device.deviceId.slice(1).replace(/[_-]/g, ' '),
-    icon: getDeviceIcon(device.deviceId),
-    isInternet: false
-  }))
+  return []
 })
 
 // Available destination devices (includes Internet option)
@@ -777,6 +818,26 @@ const handleIPSchemaUpdate = (data: any) => {
     labForm.deviceIpMapping = data.deviceIpMapping
     labForm.students = data.students || []
   }
+}
+
+const handlePartSpecificUpdate = (data: any) => {
+  labForm.partSpecificData = data
+}
+
+const handlePartUpdate = (partIndex: number, updates: any) => {
+  if (labForm.parts[partIndex]) {
+    // Update the part with new IP schema and device mapping
+    labForm.parts[partIndex].ipSchema = updates.ipSchema
+    labForm.parts[partIndex].deviceIpMapping = updates.deviceIpMapping
+    
+    // Update available devices for play creation
+    updateAvailableDevicesForPart(partIndex)
+  }
+}
+
+const updateAvailableDevicesForPart = (partIndex: number) => {
+  // This will be used to update available devices for play creation in this specific part
+  // The play creation modal will need to use part-specific devices
 }
 
 const updatePartContent = (partIndex: number, content: string) => {
