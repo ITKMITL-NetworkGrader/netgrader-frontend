@@ -1,7 +1,7 @@
 <template>
-  <div class="flex flex-col h-full border rounded-lg overflow-hidden">
+  <div class="h-full border rounded-lg overflow-hidden flex flex-col">
     <!-- Part Title Input -->
-    <div class="border-b border-border p-4">
+    <div class="border-b border-border p-4 flex-shrink-0">
       <div class="space-y-2">
         <Input
           v-model="partTitle"
@@ -27,170 +27,166 @@
       </div>
     </div>
 
-    <!-- Content Editor with Play Selection -->
-    <div class="flex-1 flex flex-col">
-      <!-- Play Selection Header -->
-      <div v-if="!readonly" class="border-b border-border p-3 bg-muted/30">
-        <div class="flex items-center justify-between">
-          <span class="text-sm font-medium">Content & Play Configuration</span>
-          <div class="flex items-center space-x-2">
-            <button
-              class="px-3 py-1 text-sm border rounded hover:bg-muted flex items-center space-x-2"
-              @click="openPlayModal"
-            >
-              <Settings class="w-4 h-4" />
-              <span>Select Play</span>
-            </button>
+    <!-- Play Selection Header -->
+    <div v-if="!readonly" class="border-b border-border p-3 bg-muted/30 flex-shrink-0">
+      <div class="flex items-center justify-between">
+        <span class="text-sm font-medium">Content & Play Configuration</span>
+        <div class="flex items-center space-x-2">
+          <button
+            class="px-3 py-1 text-sm border rounded hover:bg-muted flex items-center space-x-2"
+            @click="openPlayModal"
+          >
+            <Settings class="w-4 h-4" />
+            <span>Select Play</span>
+          </button>
 
-            <div v-if="!selectedPlay" class="flex items-center space-x-1">
-              <span class="text-sm text-muted-foreground">A Play must be selected to save this part</span>
-              <AlertCircle v-if="showValidation" class="w-4 h-4 text-destructive" />
-            </div>
-            <div v-else class="flex items-center space-x-1">
-              <span class="text-sm">{{ selectedPlay.title }}</span>
-              <button class="p-1 rounded hover:bg-muted text-destructive" @click="clearPlay">
-                <X class="w-3 h-3" />
-              </button>
-            </div>
+          <div v-if="!selectedPlay" class="flex items-center space-x-1">
+            <span class="text-sm text-muted-foreground">A Play must be selected to save this part</span>
+            <AlertCircle v-if="showValidation" class="w-4 h-4 text-destructive" />
+          </div>
+          <div v-else class="flex items-center space-x-1">
+            <span class="text-sm">{{ selectedPlay.title }}</span>
+            <button class="p-1 rounded hover:bg-muted text-destructive" @click="clearPlay">
+              <X class="w-3 h-3" />
+            </button>
           </div>
         </div>
       </div>
+    </div>
 
-      <!-- TipTap Editor -->
-      <div class="flex-1 p-4">
-        <div
-          class="h-full"
-          :class="{
-            'border border-destructive rounded-md': !readonly && showValidation && contentError
-          }"
+    <!-- Toolbar -->
+    <div v-show="!readonly" class="border-b border-border p-2 flex items-center space-x-2 bg-background shadow-sm flex-shrink-0">
+      <!-- Formatting Controls -->
+      <div class="flex items-center space-x-1">
+        <button
+          class="p-1 rounded hover:bg-muted" 
+          :class="{ 'bg-muted': editor?.isActive('bold') }" 
+          title="Bold (Ctrl+B)"
+          @click="toggleBold"
         >
-          <EditorContent
-            :editor="editor"
-            class="min-h-96 prose prose-sm max-w-none focus:outline-none h-full"
-            :class="{
-              'cursor-text': !readonly,
-              'cursor-default': readonly,
-              'bg-muted/30': readonly
-            }"
-          />
-        </div>
-        <div
-          v-if="!readonly && showValidation && contentError"
-          class="flex items-center space-x-1 text-sm text-destructive mt-2"
+          <Bold class="w-4 h-4" />
+        </button>
+        <button
+          class="p-1 rounded hover:bg-muted" 
+          :class="{ 'bg-muted': editor?.isActive('italic') }"
+          title="Italic (Ctrl+I)" 
+          @click="toggleItalic"
         >
-          <AlertCircle class="w-4 h-4" />
-          <span>{{ contentError }}</span>
-        </div>
+          <Italic class="w-4 h-4" />
+        </button>
+        <button
+          class="p-1 rounded hover:bg-muted" 
+          :class="{ 'bg-muted': editor?.isActive('strike') }"
+          title="Strikethrough" 
+          @click="toggleStrikethrough"
+        >
+          <Strikethrough class="w-4 h-4" />
+        </button>
       </div>
+      <div class="h-4 border-l border-border"/>
+      <!-- Headings -->
+      <div class="flex items-center space-x-1">
+        <button
+          class="p-1 rounded hover:bg-muted" 
+          :class="{ 'bg-muted': editor?.isActive('heading', { level: 1 }) }"
+          title="Heading 1" 
+          @click="toggleHeading(1)"
+        >
+          <Heading1 class="w-4 h-4" />
+        </button>
+        <button
+          class="p-1 rounded hover:bg-muted" 
+          :class="{ 'bg-muted': editor?.isActive('heading', { level: 2 }) }"
+          title="Heading 2" 
+          @click="toggleHeading(2)"
+        >
+          <Heading2 class="w-4 h-4" />
+        </button>
+        <button
+          class="p-1 rounded hover:bg-muted" 
+          :class="{ 'bg-muted': editor?.isActive('heading', { level: 3 }) }"
+          title="Heading 3" 
+          @click="toggleHeading(3)"
+        >
+          <Heading3 class="w-4 h-4" />
+        </button>
+      </div>
+      <div class="h-4 border-l border-border"/>
+      <!-- List Controls -->
+      <div class="flex items-center space-x-1">
+        <button
+          class="p-1 rounded hover:bg-muted" 
+          :class="{ 'bg-muted': editor?.isActive('bulletList') }"
+          title="Bullet List" 
+          @click="toggleBulletList"
+        >
+          <List class="w-4 h-4" />
+        </button>
+        <button
+          class="p-1 rounded hover:bg-muted" 
+          :class="{ 'bg-muted': editor?.isActive('orderedList') }"
+          title="Numbered List" 
+          @click="toggleOrderedList"
+        >
+          <ListOrdered class="w-4 h-4" />
+        </button>
+      </div>
+      <div class="h-4 border-l border-border"/>
+      <!-- Code and Quote -->
+      <div class="flex items-center space-x-1">
+        <button
+          class="p-1 rounded hover:bg-muted" 
+          :class="{ 'bg-muted': editor?.isActive('code') }" 
+          title="Inline Code"
+          @click="toggleCode"
+        >
+          <Code class="w-4 h-4" />
+        </button>
+        <button
+          class="p-1 rounded hover:bg-muted" 
+          :class="{ 'bg-muted': editor?.isActive('blockquote') }"
+          title="Quote" 
+          @click="toggleBlockquote"
+        >
+          <Quote class="w-4 h-4" />
+        </button>
+      </div>
+      <div class="h-4 border-l border-border"/>
+      <!-- Horizontal Rule -->
+      <div class="flex items-center space-x-1">
+        <button 
+          class="p-1 rounded hover:bg-muted" 
+          title="Horizontal Rule" 
+          @click="addHorizontalRule"
+        >
+          <Minus class="w-4 h-4" />
+        </button>
+      </div>
+    </div>
 
-      <!-- Toolbar -->
-      <div v-if="!readonly && editor" class="border-t border-border p-2 flex items-center space-x-2 bg-muted/30">
-        <!-- Formatting Controls -->
-        <div class="flex items-center space-x-1">
-          <button
-            class="p-1 rounded hover:bg-muted" 
-            :class="{ 'bg-muted': editor?.isActive('bold') }" 
-            title="Bold (Ctrl+B)"
-            @click="toggleBold"
-          >
-            <Bold class="w-4 h-4" />
-          </button>
-          <button
-            class="p-1 rounded hover:bg-muted" 
-            :class="{ 'bg-muted': editor?.isActive('italic') }"
-            title="Italic (Ctrl+I)" 
-            @click="toggleItalic"
-          >
-            <Italic class="w-4 h-4" />
-          </button>
-          <button
-            class="p-1 rounded hover:bg-muted" 
-            :class="{ 'bg-muted': editor?.isActive('strike') }"
-            title="Strikethrough" 
-            @click="toggleStrikethrough"
-          >
-            <Strikethrough class="w-4 h-4" />
-          </button>
-        </div>
-        <div class="h-4 border-l border-border"/>
-        <!-- Headings -->
-        <div class="flex items-center space-x-1">
-          <button
-            class="p-1 rounded hover:bg-muted" 
-            :class="{ 'bg-muted': editor?.isActive('heading', { level: 1 }) }"
-            title="Heading 1" 
-            @click="toggleHeading(1)"
-          >
-            <Heading1 class="w-4 h-4" />
-          </button>
-          <button
-            class="p-1 rounded hover:bg-muted" 
-            :class="{ 'bg-muted': editor?.isActive('heading', { level: 2 }) }"
-            title="Heading 2" 
-            @click="toggleHeading(2)"
-          >
-            <Heading2 class="w-4 h-4" />
-          </button>
-          <button
-            class="p-1 rounded hover:bg-muted" 
-            :class="{ 'bg-muted': editor?.isActive('heading', { level: 3 }) }"
-            title="Heading 3" 
-            @click="toggleHeading(3)"
-          >
-            <Heading3 class="w-4 h-4" />
-          </button>
-        </div>
-        <div class="h-4 border-l border-border"/>
-        <!-- List Controls -->
-        <div class="flex items-center space-x-1">
-          <button
-            class="p-1 rounded hover:bg-muted" 
-            :class="{ 'bg-muted': editor?.isActive('bulletList') }"
-            title="Bullet List" 
-            @click="toggleBulletList"
-          >
-            <List class="w-4 h-4" />
-          </button>
-          <button
-            class="p-1 rounded hover:bg-muted" 
-            :class="{ 'bg-muted': editor?.isActive('orderedList') }"
-            title="Numbered List" 
-            @click="toggleOrderedList"
-          >
-            <ListOrdered class="w-4 h-4" />
-          </button>
-        </div>
-        <div class="h-4 border-l border-border"/>
-        <!-- Code and Quote -->
-        <div class="flex items-center space-x-1">
-          <button
-            class="p-1 rounded hover:bg-muted" 
-            :class="{ 'bg-muted': editor?.isActive('code') }" 
-            title="Inline Code"
-            @click="toggleCode"
-          >
-            <Code class="w-4 h-4" />
-          </button>
-          <button
-            class="p-1 rounded hover:bg-muted" 
-            :class="{ 'bg-muted': editor?.isActive('blockquote') }"
-            title="Quote" 
-            @click="toggleBlockquote"
-          >
-            <Quote class="w-4 h-4" />
-          </button>
-        </div>
-        <div class="h-4 border-l border-border"/>
-        <!-- Horizontal Rule -->
-        <div class="flex items-center space-x-1">
-          <button 
-            class="p-1 rounded hover:bg-muted" 
-            title="Horizontal Rule" 
-            @click="addHorizontalRule"
-          >
-            <Minus class="w-4 h-4" />
-          </button>
-        </div>
+    <!-- Editor Content Area -->
+    <div class="flex-1 p-4 overflow-y-auto">
+      <div
+        :class="{
+          'border border-destructive rounded-md p-2': !readonly && showValidation && contentError
+        }"
+      >
+        <EditorContent
+          :editor="editor"
+          class="prose prose-sm max-w-none focus:outline-none min-h-[300px]"
+          :class="{
+            'cursor-text': !readonly,
+            'cursor-default': readonly,
+            'bg-muted/30': readonly
+          }"
+        />
+      </div>
+      <div
+        v-if="!readonly && showValidation && contentError"
+        class="flex items-center space-x-1 text-sm text-destructive mt-2"
+      >
+        <AlertCircle class="w-4 h-4" />
+        <span>{{ contentError }}</span>
       </div>
     </div>
   </div>
@@ -462,10 +458,9 @@ onBeforeUnmount(() => {
   margin: 1rem 0;
 }
 
-/* Make the editor fill available space */
+/* Make the editor content properly positioned */
 .ProseMirror {
-  height: 100%;
   padding: 1rem;
-  overflow-y: auto;
+  min-height: 300px;
 }
 </style>
