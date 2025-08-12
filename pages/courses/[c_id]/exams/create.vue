@@ -208,9 +208,8 @@
           <div v-if="currentStep === 3">
             <h2 class="text-xl font-semibold mb-4">Network Configuration</h2>
             
-            <!-- Lab-wide scope: Use existing IPSchemaManager -->
+            <!-- Always show IPSchemaManager for scope selection -->
             <IPSchemaManager
-              v-if="!examForm.ipSchemaData?.scope || examForm.ipSchemaData?.scope === 'lab'"
               v-model:schema="examForm.ipSchema"
               v-model:device-mapping="examForm.deviceIpMapping"
               :model-value="examForm.ipSchemaData"
@@ -220,7 +219,7 @@
             
             <!-- Part-specific scope: Use new PartSpecificIPManager -->
             <PartSpecificIPManager
-              v-else-if="examForm.ipSchemaData?.scope === 'part'"
+              v-if="examForm.ipSchemaData?.scope === 'part'"
               :parts="examForm.parts"
               :global-students="enrolledStudents"
               :model-value="examForm.partSpecificData"

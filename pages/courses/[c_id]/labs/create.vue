@@ -125,9 +125,8 @@
           <div v-if="currentStep === 2">
             <h2 class="text-xl font-semibold mb-4">IP Address Configuration</h2>
             
-            <!-- Lab-wide scope: Use existing IPSchemaManager -->
+            <!-- Always show IPSchemaManager for scope selection -->
             <IPSchemaManager
-              v-if="!labForm.ipSchemaData?.scope || labForm.ipSchemaData?.scope === 'lab'"
               v-model:schema="labForm.ipSchema"
               v-model:device-mapping="labForm.deviceIpMapping"
               :model-value="labForm.ipSchemaData"
@@ -137,7 +136,7 @@
             
             <!-- Part-specific scope: Use new PartSpecificIPManager -->
             <PartSpecificIPManager
-              v-else-if="labForm.ipSchemaData?.scope === 'part'"
+              v-if="labForm.ipSchemaData?.scope === 'part'"
               :parts="labForm.parts"
               :global-students="labForm.students"
               :model-value="labForm.partSpecificData"

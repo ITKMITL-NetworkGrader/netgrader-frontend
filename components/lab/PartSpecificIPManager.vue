@@ -143,14 +143,14 @@
     </Card>
 
     <!-- CSV Upload for Current Part -->
-    <Card v-if="currentPart && !hasGlobalStudents">
+    <Card v-if="currentPart">
       <CardHeader>
         <CardTitle class="flex items-center">
           <Icon name="lucide:upload" class="w-5 h-5 mr-2" />
           Student Data - Part {{ currentPartIndex + 1 }}
         </CardTitle>
         <CardDescription>
-          Upload student roster for this part (or use global student list)
+          Configure student roster for this part or use global student list
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -165,15 +165,40 @@
           <p class="text-sm text-muted-foreground mt-1">
             When enabled, all parts will use the same student roster from the main configuration
           </p>
+          <p v-if="useGlobalStudents && hasGlobalStudents" class="text-sm text-green-600 dark:text-green-400 mt-1">
+            Using {{ globalStudents.length }} students from global roster
+          </p>
+          <p v-else-if="useGlobalStudents && !hasGlobalStudents" class="text-sm text-amber-600 dark:text-amber-400 mt-1">
+            No global student roster available. Please upload CSV below or configure students in the main student enrollment step.
+          </p>
         </div>
         
         <CSVUploader 
-          v-if="!useGlobalStudents"
+          v-if="!useGlobalStudents || !hasGlobalStudents"
           :students="currentPartConfig.students"
           :allocation-strategy="currentPartConfig.allocationStrategy"
           @upload:students="handlePartStudentsUpdate"
           @update:strategy="handlePartStrategyUpdate"
         />
+        
+        <!-- Display global students when using them -->
+        <div v-else-if="useGlobalStudents && hasGlobalStudents" class="space-y-3">
+          <div class="flex items-center justify-between">
+            <h4 class="text-sm font-medium">Global Student List ({{ globalStudents.length }} students)</h4>
+            <Badge variant="default">{{ currentPartConfig.allocationStrategy }}</Badge>
+          </div>
+          <div class="max-h-32 overflow-y-auto border rounded-lg p-2">
+            <div class="grid grid-cols-1 gap-1 text-xs">
+              <div v-for="student in globalStudents.slice(0, 10)" :key="student.studentId" class="flex justify-between">
+                <span>{{ student.studentId }}</span>
+                <span v-if="student.name" class="text-muted-foreground">{{ student.name }}</span>
+              </div>
+              <div v-if="globalStudents.length > 10" class="text-muted-foreground italic">
+                ... and {{ globalStudents.length - 10 }} more students
+              </div>
+            </div>
+          </div>
+        </div>
       </CardContent>
     </Card>
 
