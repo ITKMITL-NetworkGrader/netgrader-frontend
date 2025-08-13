@@ -100,18 +100,14 @@
                 </p>
               </div>
               <div>
-                <Label for="lab-description">Description *</Label>
+                <Label for="lab-description">Description</Label>
                 <Textarea
                   id="lab-description"
                   v-model="labForm.description"
-                  placeholder="Describe what students will learn and accomplish in this lab"
+                  placeholder="Describe what students will learn and accomplish in this lab (optional)"
                   rows="4"
                   class="mt-1"
-                  :class="{ 'border-destructive': showValidation && !labForm.description.trim() }"
                 />
-                <p v-if="showValidation && !labForm.description.trim()" class="text-sm text-destructive mt-1">
-                  Lab description is required
-                </p>
               </div>
               <div>
                 <Label class="flex items-center space-x-2">
@@ -437,7 +433,6 @@ const getDeviceIcon = (deviceId: string): string => {
 // Validation
 const isLabValid = computed(() => {
   return labForm.title.trim() && 
-         labForm.description.trim() && 
          labForm.parts.length > 0 &&
          labForm.parts.every(part => part.title.trim() && part.selectedPlay)
 })
@@ -447,8 +442,22 @@ const nextStep = () => {
   showValidation.value = true
   
   if (currentStep.value === 1) {
-    if (!labForm.title.trim() || !labForm.description.trim()) {
-      toast.error('Please fill in all required fields')
+    if (!labForm.title.trim()) {
+      toast.error('Please fill in lab title')
+      return
+    }
+  }
+  
+  if (currentStep.value === 2) {
+    // Check for CSV upload (student data)
+    if (!labForm.ipSchema || !labForm.ipSchema.variablesMapping || labForm.ipSchema.variablesMapping.length === 0) {
+      toast.error('Please configure IP schema and upload student data before proceeding')
+      return
+    }
+    
+    // Check for at least 2 devices in device IP mapping
+    if (!labForm.deviceIpMapping || labForm.deviceIpMapping.length < 2) {
+      toast.error('Please configure at least 2 devices in device IP mapping before proceeding')
       return
     }
   }

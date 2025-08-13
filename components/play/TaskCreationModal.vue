@@ -100,29 +100,52 @@
               </Label>
 
               <!-- Device Variable Parameter -->
-              <Select
-                v-if="param.type === 'device_variable'"
-                v-model:model-value="localTask.parameters[param.name]"
-              >
-                <SelectTrigger :id="`param-${param.name}`">
-                  <SelectValue :placeholder="`Select ${param.description || param.name}`" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    <SelectLabel>Available Devices</SelectLabel>
-                    <SelectItem
-                      v-for="device in availableDevices"
-                      :key="device.value"
-                      :value="getDeviceParameterValue(param.name, device.value)"
-                    >
-                      <div class="flex items-center space-x-2">
-                        <Icon :name="device.icon" class="w-4 h-4" />
-                        <span>{{ device.label }}</span>
-                      </div>
-                    </SelectItem>
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
+              <div v-if="param.type === 'device_variable'" class="space-y-3">
+                <Select v-model:model-value="localTask.parameters[param.name]">
+                  <SelectTrigger :id="`param-${param.name}`">
+                    <SelectValue :placeholder="`Select ${param.description || param.name}`" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectLabel>Available Devices</SelectLabel>
+                      <SelectItem
+                        v-for="device in availableDevices"
+                        :key="device.value"
+                        :value="getDeviceParameterValue(param.name, device.value)"
+                      >
+                        <div class="flex items-center space-x-2">
+                          <Icon :name="device.icon" class="w-4 h-4" />
+                          <span>{{ device.label }}</span>
+                        </div>
+                      </SelectItem>
+                    </SelectGroup>
+                    <!-- Add Internet option only for destination/target parameters -->
+                    <SelectGroup v-if="isDestinationParameter(param.name)">
+                      <SelectLabel>External Targets</SelectLabel>
+                      <SelectItem value="internet">
+                        <div class="flex items-center space-x-2">
+                          <Icon name="lucide:globe" class="w-4 h-4" />
+                          <span>Internet</span>
+                        </div>
+                      </SelectItem>
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+
+                <!-- Destination Address field when Internet is selected -->
+                <div v-if="isDestinationParameter(param.name) && localTask.parameters[param.name] === 'internet'" class="space-y-2">
+                  <Label :for="`destination-address-${param.name}`">Destination Address *</Label>
+                  <Input
+                    :id="`destination-address-${param.name}`"
+                    v-model="localTask.parameters[`${param.name}_address`]"
+                    placeholder="Enter IP address or domain name (e.g., 8.8.8.8 or google.com)"
+                    type="text"
+                  />
+                  <p class="text-xs text-muted-foreground">
+                    Specify the internet destination for this task
+                  </p>
+                </div>
+              </div>
 
               <!-- URL Parameter -->
               <Input
@@ -387,13 +410,27 @@ const groupedTemplates = computed(() => {
 })
 
 const canSave = computed(() => {
-  return localTask.value.name.trim() !== '' &&
-         localTask.value.template_name.trim() !== '' &&
-         localTask.value.points > 0 &&
-         localTask.value.test_cases.length > 0 &&
-         localTask.value.test_cases.every(tc => 
-           tc.description.trim() !== '' && tc.comparison_type.trim() !== ''
-         )
+  // Check basic requirements
+  const basicValid = localTask.value.name.trim() !== '' &&
+                    localTask.value.template_name.trim() !== '' &&
+                    localTask.value.points > 0 &&
+                    localTask.value.test_cases.length > 0 &&
+                    localTask.value.test_cases.every(tc => 
+                      tc.description.trim() !== '' && tc.comparison_type.trim() !== ''
+                    )
+  
+  if (!basicValid) return false
+  
+  // Check for internet destinations that need addresses
+  const hasIncompleteInternetDestination = Object.keys(localTask.value.parameters).some(paramName => {
+    if (isDestinationParameter(paramName) && localTask.value.parameters[paramName] === 'internet') {
+      const addressKey = `${paramName}_address`
+      return !localTask.value.parameters[addressKey]?.trim()
+    }
+    return false
+  })
+  
+  return !hasIncompleteInternetDestination
 })
 
 const taskPreview = computed(() => {
@@ -412,6 +449,12 @@ const getDeviceParameterValue = (paramName: string, deviceValue: string): string
   }
   // For IP-related parameters, use the IP variable format
   return `{{${deviceValue}_ip}}`
+}
+
+const isDestinationParameter = (paramName: string): boolean => {
+  // Check if this parameter represents a destination/target device
+  const destinationParams = ['target_device', 'destination_device', 'target_ip', 'destination_ip', 'target', 'destination']
+  return destinationParams.some(dest => paramName.toLowerCase().includes(dest))
 }
 
 const addTestCase = () => {
@@ -440,7 +483,28 @@ const saveTask = () => {
     return
   }
   
-  emit('save:task', { ...localTask.value })
+  // Handle internet destinations
+  const taskData = { ...localTask.value }
+  
+  // Check for internet destinations and process them
+  Object.keys(taskData.parameters).forEach(paramName => {
+    if (isDestinationParameter(paramName) && taskData.parameters[paramName] === 'internet') {
+      // Use the destination address as target_id
+      const addressKey = `${paramName}_address`
+      if (taskData.parameters[addressKey]) {
+        taskData.parameters['target_id'] = taskData.parameters[addressKey]
+        // Keep the internet designation for the original parameter
+        taskData.parameters[paramName] = 'internet'
+        // Remove the temporary address parameter
+        delete taskData.parameters[addressKey]
+      } else {
+        toast.error('Please specify the destination address for internet targets')
+        return
+      }
+    }
+  })
+  
+  emit('save:task', taskData)
   closeModal()
 }
 
@@ -490,6 +554,11 @@ const getParameterDisplayValue = (paramName: string, value: any): string => {
   // Handle source_device parameter - show as is since it's just the device name
   if (paramName === 'source_device') {
     return value
+  }
+  
+  // Handle internet destination
+  if (value === 'internet') {
+    return 'Internet'
   }
   
   // Handle IP variable format like {{pc1_ip}}

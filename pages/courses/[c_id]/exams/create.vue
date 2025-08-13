@@ -121,18 +121,14 @@
                 </div>
               </div>
               <div>
-                <Label for="exam-description">Description *</Label>
+                <Label for="exam-description">Description</Label>
                 <Textarea
                   id="exam-description"
                   v-model="examForm.description"
-                  placeholder="Describe the purpose and objectives of this exam"
+                  placeholder="Describe the purpose and objectives of this exam (optional)"
                   rows="4"
                   class="mt-1"
-                  :class="{ 'border-destructive': showValidation && !examForm.description.trim() }"
                 />
-                <p v-if="showValidation && !examForm.description.trim()" class="text-sm text-destructive mt-1">
-                  Exam description is required
-                </p>
               </div>
             </div>
           </div>
@@ -540,7 +536,6 @@ const getDeviceIcon = (deviceId: string): string => {
 // Validation
 const isExamValid = computed(() => {
   return examForm.title.trim() && 
-         examForm.description.trim() && 
          examForm.timeLimit > 0 &&
          enrolledStudents.value.length > 0 &&
          examForm.parts.length > 0 &&
@@ -552,7 +547,7 @@ const nextStep = () => {
   showValidation.value = true
   
   if (currentStep.value === 1) {
-    if (!examForm.title.trim() || !examForm.description.trim() || !examForm.timeLimit || examForm.timeLimit < 1) {
+    if (!examForm.title.trim() || !examForm.timeLimit || examForm.timeLimit < 1) {
       toast.error('Please fill in all required fields')
       return
     }
@@ -561,6 +556,20 @@ const nextStep = () => {
   if (currentStep.value === 2) {
     if (enrolledStudents.value.length === 0) {
       toast.error('Please enroll at least one student')
+      return
+    }
+  }
+  
+  if (currentStep.value === 3) {
+    // Check for CSV upload (student data) - already checked in step 2
+    if (enrolledStudents.value.length === 0) {
+      toast.error('Please upload student CSV before proceeding')
+      return
+    }
+    
+    // Check for at least 2 devices in device IP mapping
+    if (!examForm.deviceIpMapping || examForm.deviceIpMapping.length < 2) {
+      toast.error('Please configure at least 2 devices in device IP mapping before proceeding')
       return
     }
   }
