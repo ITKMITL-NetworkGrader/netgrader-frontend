@@ -32,7 +32,7 @@ export interface IpVariableMapping {
 }
 
 export interface IpSchema {
-  scope: "lab" | "exam";
+  scope: "lab" | "part";
   baseNetwork: string;
   subnetMask: number;
   gateway?: string;

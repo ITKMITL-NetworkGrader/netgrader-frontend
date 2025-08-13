@@ -366,6 +366,8 @@ import type { LabFormData, LabPart, IpSchema, DeviceIpMapping } from '@/types/la
 const route = useRoute()
 const router = useRouter()
 const courseId = route.params.c_id as string
+const config = useRuntimeConfig()
+const backendURL = config.public.backendurl
 
 // Get course info for breadcrumb
 const { currentCourse } = useCourse()
@@ -591,8 +593,15 @@ const submitLab = async () => {
         } : null
       }))
     }
-
     // TODO: Make API call to create lab
+    const response = $fetch(`${backendURL}/v0/labs`, {
+      method: 'POST',
+      body: JSON.stringify(labData),
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
     console.log('Creating lab:', labData)
     
     toast.success('Lab created successfully!')
