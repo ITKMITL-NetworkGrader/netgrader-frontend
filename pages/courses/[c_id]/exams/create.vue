@@ -208,6 +208,7 @@
           <div v-if="currentStep === 3">
             <h2 class="text-xl font-semibold mb-4">Network Configuration</h2>
             <IPSchemaManager
+              v-model="ipSchemaData"
               v-model:schema="examForm.ipSchema"
               v-model:device-mapping="examForm.deviceIpMapping"
               :show-validation="showValidation"
@@ -366,6 +367,14 @@
                   </div>
                 </div>
               </div>
+
+              <!-- Debug JSON Preview -->
+              <div>
+                <h3 class="font-medium mb-2">Debug Info - JSON Preview</h3>
+                <div class="border rounded-lg bg-muted/25 p-4 max-h-96 overflow-y-auto">
+                  <pre class="text-xs font-mono text-muted-foreground whitespace-pre-wrap">{{ JSON.stringify(debugExamData, null, 2) }}</pre>
+                </div>
+              </div>
             </div>
           </div>
         </CardContent>
@@ -483,10 +492,27 @@ const isSubmitting = ref(false)
 // Form data
 interface ExamPartWithTemp extends Omit<LabPart, 'part_id'> {
   tempId: string
-  selectedPlay?: { id: string; title: string; description: string } | null
+  selectedPlay?: { 
+    id: string; 
+    title: string; 
+    description: string;
+    playData?: {
+      name: string;
+      description: string;
+      source_device: string;
+      target_device: string;
+      tasks: any[];
+      total_points: number;
+    }
+  } | null
 }
 
-const examForm = reactive<LabFormData & { parts: ExamPartWithTemp[]; timeLimit: number }>({
+const examForm = reactive<LabFormData & { 
+  parts: ExamPartWithTemp[]; 
+  timeLimit: number;
+  studentsData?: any[];
+  allocationStrategy?: string;
+}>({
   title: '',
   description: '',
   type: 'exam',
@@ -494,7 +520,17 @@ const examForm = reactive<LabFormData & { parts: ExamPartWithTemp[]; timeLimit: 
   timeLimit: 120, // 2 hours default
   ipSchema: undefined,
   deviceIpMapping: undefined,
-  parts: []
+  parts: [],
+  studentsData: [],
+  allocationStrategy: 'student_id_based' // Exams are typically individual
+})
+
+// IP Schema data including students
+const ipSchemaData = ref<any>({
+  ipSchema: undefined,
+  deviceIpMapping: undefined,
+  students: [],
+  allocationStrategy: 'student_id_based'
 })
 
 // Student enrollment
@@ -539,7 +575,59 @@ const isExamValid = computed(() => {
          examForm.timeLimit > 0 &&
          enrolledStudents.value.length > 0 &&
          examForm.parts.length > 0 &&
-         examForm.parts.every(part => part.title.trim() && part.selectedPlay)
+         examForm.parts.every(part => {
+           // Check title
+           if (!part.title || !part.title.trim()) return false
+           
+           // Check text content
+           if (!part.textMd || !part.textMd.trim()) return false
+           const textContent = part.textMd.replace(/<[^>]*>/g, '').trim()
+           if (textContent.length < 10) return false
+           
+           // Check play
+           if (!part.selectedPlay) return false
+           
+           return true
+         })
+})
+
+// Debug data preview
+const debugExamData = computed(() => {
+  // Get devices data from IP schema if available
+  let devicesData: any[] = []
+  if (examForm.ipSchema && examForm.deviceIpMapping) {
+    const ipSchemaComposable = useIPSchema()
+    ipSchemaComposable.loadFromIpSchema(examForm.ipSchema, examForm.deviceIpMapping)
+    devicesData = ipSchemaComposable.createDevicesData()
+  }
+
+  // Transform the form data to match the expected API format
+  return {
+    title: examForm.title,
+    type: examForm.type,
+    description: examForm.description,
+    courseId: courseId,
+    groupsRequired: examForm.groupsRequired,
+    timeLimit: examForm.timeLimit,
+    ipSchema: examForm.ipSchema,
+    deviceIpMapping: examForm.deviceIpMapping,
+    devices: devicesData,
+    parts: examForm.parts.map((part, index) => ({
+      part_id: `part${index + 1}`,
+      title: part.title,
+      textMd: part.textMd,
+      order: index + 1,
+      total_points: part.total_points,
+      ipSchema: part.ipSchema || null,
+      play: part.selectedPlay ? {
+        play_id: part.selectedPlay.id,
+        source_device: part.selectedPlay.playData?.source_device || '',
+        target_device: part.selectedPlay.playData?.target_device || '',
+        ansible_tasks: part.selectedPlay.playData?.tasks || []
+      } : null
+    })),
+    enrolledStudents: enrolledStudents.value
+  }
 })
 
 // Methods
@@ -572,6 +660,18 @@ const nextStep = () => {
       toast.error('Please configure at least 2 devices in device IP mapping before proceeding')
       return
     }
+
+    // Check that ALL devices have Ansible credentials configured
+    if (examForm.deviceIpMapping) {
+      const devicesWithoutCredentials = examForm.deviceIpMapping.filter(device => 
+        !device.ansibleUsername?.trim() || !device.ansiblePassword?.trim()
+      )
+      if (devicesWithoutCredentials.length > 0) {
+        const deviceNames = devicesWithoutCredentials.map(d => d.deviceId).join(', ')
+        toast.error(`Please provide Ansible username and password for all devices. Missing credentials for: ${deviceNames}`)
+        return
+      }
+    }
   }
   
   if (currentStep.value === 4) {
@@ -580,9 +680,29 @@ const nextStep = () => {
       return
     }
     
-    const invalidParts = examForm.parts.filter(part => !part.title.trim() || !part.selectedPlay)
-    if (invalidParts.length > 0) {
-      toast.error('All parts must have a title and selected play')
+    // Check for parts missing titles
+    const partsWithoutTitles = examForm.parts.filter(part => !part.title || !part.title.trim())
+    if (partsWithoutTitles.length > 0) {
+      toast.error('All parts must have a title')
+      return
+    }
+    
+    // Check for parts missing text content  
+    const partsWithoutContent = examForm.parts.filter(part => {
+      if (!part.textMd || !part.textMd.trim()) return true
+      // Check if content is just empty HTML (like <p></p>)
+      const textContent = part.textMd.replace(/<[^>]*>/g, '').trim()
+      return textContent.length < 10
+    })
+    if (partsWithoutContent.length > 0) {
+      toast.error('All parts must have meaningful text content (at least 10 characters)')
+      return
+    }
+    
+    // Check for parts missing plays
+    const partsWithoutPlays = examForm.parts.filter(part => !part.selectedPlay)
+    if (partsWithoutPlays.length > 0) {
+      toast.error('All parts must have a selected play')
       return
     }
   }
@@ -705,7 +825,16 @@ const handlePlayCreated = (play: any) => {
     examForm.parts[currentPartIndex.value].selectedPlay = {
       id: play.id || play.play_id,
       title: play.name,
-      description: play.description || ''
+      description: play.description || '',
+      // Store the complete play data for later use
+      playData: {
+        name: play.name,
+        description: play.description,
+        source_device: play.source_device,
+        target_device: play.target_device,
+        tasks: play.tasks || [],
+        total_points: play.total_points || 0
+      }
     }
   }
   currentPartIndex.value = null
@@ -752,9 +881,9 @@ const submitExam = async () => {
         ipSchema: part.ipSchema || null,
         play: part.selectedPlay ? {
           play_id: part.selectedPlay.id,
-          source_device: '',
-          target_device: '',
-          ansible_tasks: []
+          source_device: part.selectedPlay.playData?.source_device || '',
+          target_device: part.selectedPlay.playData?.target_device || '',
+          ansible_tasks: part.selectedPlay.playData?.tasks || []
         } : null
       })),
       enrolledStudents: enrolledStudents.value
@@ -773,6 +902,41 @@ const submitExam = async () => {
     isSubmitting.value = false
   }
 }
+
+// Watch for IP schema data changes to keep exam form in sync
+watch(() => ipSchemaData.value, (newData) => {
+  if (newData) {
+    examForm.ipSchema = newData.ipSchema
+    examForm.deviceIpMapping = newData.deviceIpMapping
+    // Store students data to persist across page navigation
+    examForm.studentsData = newData.students
+    examForm.allocationStrategy = newData.allocationStrategy
+  }
+}, { deep: true })
+
+// Watch for step changes to restore IP schema data when returning to step 3
+watch(() => currentStep.value, (newStep) => {
+  if (newStep === 3) {
+    // When entering step 3, sync enrolled students with IP schema
+    ipSchemaData.value = {
+      ipSchema: examForm.ipSchema,
+      deviceIpMapping: examForm.deviceIpMapping,
+      students: enrolledStudents.value.length ? enrolledStudents.value : examForm.studentsData || [],
+      allocationStrategy: examForm.allocationStrategy || 'student_id_based'
+    }
+  }
+})
+
+// Watch enrolled students to keep IP schema in sync
+watch(() => enrolledStudents.value, (newStudents) => {
+  if (currentStep.value === 3 && newStudents.length) {
+    // Update IP schema with enrolled students when on step 3
+    ipSchemaData.value = {
+      ...ipSchemaData.value,
+      students: newStudents
+    }
+  }
+}, { deep: true })
 
 // Initialize with at least one part
 onMounted(() => {

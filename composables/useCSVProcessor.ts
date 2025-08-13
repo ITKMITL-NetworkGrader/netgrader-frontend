@@ -103,11 +103,16 @@ export const useCSVProcessor = () => {
         const facultyPart = studentIdRaw.substring(2, 4)
         const indexPart = studentIdRaw.substring(4, 8)
         
-        // Basic validation of year (should be reasonable)
+        // Basic validation of year (Buddhist calendar: Christian year + 543)
         const year = parseInt(yearPart)
-        const currentYear = new Date().getFullYear() % 100
-        if (year < (currentYear - 10) || year > currentYear) {
-          warnings.push(`Row ${lineNumber}: Student ID year "${yearPart}" seems unusual (${2000 + year})`)
+        const currentChristianYear = new Date().getFullYear()
+        const currentBuddhistYear = currentChristianYear + 543
+        const studentBuddhistYear = 2500 + year // Convert 2-digit to full Buddhist year
+        
+        // Allow reasonable range: current year ± 10 years in Buddhist calendar
+        if (studentBuddhistYear < (currentBuddhistYear - 10) || studentBuddhistYear > (currentBuddhistYear + 1)) {
+          const christianEquivalent = studentBuddhistYear - 543
+          warnings.push(`Row ${lineNumber}: Student ID year "${yearPart}" seems unusual (${studentBuddhistYear} BE / ${christianEquivalent} CE)`)
         }
         
         parsedData.push({
@@ -182,7 +187,8 @@ export const useCSVProcessor = () => {
     return {
       isValid: true,
       info: {
-        year: 2000 + parseInt(yearPart),
+        year: 2500 + parseInt(yearPart), // Buddhist year
+        christianYear: (2500 + parseInt(yearPart)) - 543, // Christian equivalent
         faculty: facultyPart,
         index: indexPart,
         formatted: `${yearPart}-${facultyPart}-${indexPart}`
@@ -191,14 +197,17 @@ export const useCSVProcessor = () => {
   }
   
   const generateSampleCSV = (includeGroups: boolean = true, studentCount: number = 10): string => {
-    const currentYear = new Date().getFullYear() % 100
+    // Convert current Christian year to Buddhist year, then get last 2 digits
+    const currentChristianYear = new Date().getFullYear()
+    const currentBuddhistYear = currentChristianYear + 543
+    const yearPart = (currentBuddhistYear % 100).toString().padStart(2, '0')
     const lines: string[] = []
     
     const groupCount = Math.ceil(studentCount / 3) // ~3 students per group
     
     for (let i = 1; i <= studentCount; i++) {
       const studentIndex = String(i).padStart(4, '0')
-      const studentId = `${currentYear}07${studentIndex}`
+      const studentId = `${yearPart}07${studentIndex}`
       
       let line = studentId
       

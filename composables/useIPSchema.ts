@@ -142,33 +142,29 @@ export const useIPSchema = () => {
 
   const createDevicesData = (): any[] => {
     return deviceConfigs.value.map(device => {
-      const baseDevice = {
+      const baseDevice: any = {
         id: device.deviceId,
         ip_address: generateExampleIP(device),
-        ansible_connection: "ssh",
-        credentials: device.isIsolated && device.ansibleUsername && device.ansiblePassword ? {
-          ansible_user: device.ansibleUsername,
-          ansible_password: device.ansiblePassword
-        } : {
-          ansible_user: "student",
-          ansible_password: "student123"
-        },
-        platform: null,
-        jump_host: device.isIsolated ? null : null,
-        ssh_args: null,
-        use_persistent_connection: device.isIsolated || false
+        ansible_connection: "ssh"
       }
 
-      // For isolated devices, we might need to set a jump host or special SSH args
-      if (device.isIsolated) {
-        // Find if there's a gateway router that can act as jump host
-        const gatewayDevice = deviceConfigs.value.find(d => 
-          d.deviceId.toLowerCase().includes('router') && !d.isIsolated
-        )
-        
-        if (gatewayDevice) {
-          baseDevice.jump_host = gatewayDevice.deviceId
+      // ALL devices require credentials (both isolated and regular)
+      if (device.ansibleUsername && device.ansiblePassword) {
+        baseDevice.credentials = {
+          ansible_user: device.ansibleUsername,
+          ansible_password: device.ansiblePassword
         }
+      }
+
+      // Isolated devices get additional Ansible connection fields
+      if (device.isIsolated) {
+        // Only include non-null values to avoid Elysia rejection
+        // Set default values for now - these may need to be configurable later
+        baseDevice.use_persistent_connection = false
+        
+        // Add other fields only when they have actual values
+        // platform, jump_host, ssh_args, role, proxy_host, proxy_credentials
+        // will be added later when we determine their values
       }
 
       return baseDevice
@@ -276,14 +272,12 @@ export const useIPSchema = () => {
         errors.push(`Invalid host offset for ${device.deviceId}: must be between 1 and 254`)
       }
 
-      // Validate isolated device credentials
-      if (device.isIsolated) {
-        if (!device.ansibleUsername?.trim()) {
-          errors.push(`Ansible username is required for isolated device: ${device.deviceId}`)
-        }
-        if (!device.ansiblePassword?.trim()) {
-          errors.push(`Ansible password is required for isolated device: ${device.deviceId}`)
-        }
+      // Validate device credentials (required for ALL devices)
+      if (!device.ansibleUsername?.trim()) {
+        errors.push(`Ansible username is required for device: ${device.deviceId}`)
+      }
+      if (!device.ansiblePassword?.trim()) {
+        errors.push(`Ansible password is required for device: ${device.deviceId}`)
       }
     })
     

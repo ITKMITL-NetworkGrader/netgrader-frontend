@@ -34,7 +34,12 @@
               <Label for="task-template">Task Template *</Label>
               <Select v-model:model-value="localTask.template_name">
                 <SelectTrigger id="task-template">
-                  <SelectValue placeholder="Select a task template" />
+                  <SelectValue placeholder="Select a task template">
+                    <div v-if="selectedTemplate" class="flex items-center space-x-2">
+                      <Icon :name="getTemplateIcon(selectedTemplate.name)" class="w-4 h-4" />
+                      <span>{{ selectedTemplate.name }}</span>
+                    </div>
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectGroup v-for="category in groupedTemplates" :key="category.name">
@@ -46,10 +51,7 @@
                     >
                       <div class="flex items-center space-x-2">
                         <Icon :name="getTemplateIcon(template.name)" class="w-4 h-4" />
-                        <div>
-                          <div class="font-medium">{{ template.name }}</div>
-                          <div class="text-xs text-muted-foreground">{{ template.description }}</div>
-                        </div>
+                        <span class="font-medium">{{ template.name }}</span>
                       </div>
                     </SelectItem>
                   </SelectGroup>
@@ -57,8 +59,14 @@
               </Select>
               
               <!-- Template Description -->
-              <div v-if="selectedTemplate" class="text-sm text-muted-foreground bg-muted/50 p-3 rounded">
-                <p><strong>{{ selectedTemplate.name }}:</strong> {{ selectedTemplate.description }}</p>
+              <div v-if="selectedTemplate" class="mt-3 p-4 border rounded-lg bg-primary/5 border-primary/20">
+                <div class="flex items-start space-x-3">
+                  <Icon :name="getTemplateIcon(selectedTemplate.name)" class="w-5 h-5 mt-0.5 text-primary flex-shrink-0" />
+                  <div>
+                    <h4 class="font-semibold text-sm text-foreground mb-1">{{ selectedTemplate.name }}</h4>
+                    <p class="text-sm text-muted-foreground leading-relaxed">{{ selectedTemplate.description }}</p>
+                  </div>
+                </div>
               </div>
             </div>
 

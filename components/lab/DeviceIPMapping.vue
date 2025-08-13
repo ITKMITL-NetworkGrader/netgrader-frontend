@@ -110,27 +110,17 @@
               />
             </div>
 
-            <!-- Isolated Network Configuration -->
+            <!-- Ansible Credentials -->
             <div class="space-y-3 border-t pt-4">
-              <div class="flex items-center space-x-3">
-                <Switch
-                  :id="`isolated-${index}`"
-                  :checked="device.isIsolated || false"
-                  @update:checked="updateDevice(index, { isIsolated: $event })"
-                />
-                <div class="flex-1">
-                  <Label :for="`isolated-${index}`" class="text-sm font-medium">
-                    Isolated Network Device
-                  </Label>
-                  <p class="text-xs text-muted-foreground mt-1">
-                    Enable if this device is in student's isolated network and requires Ansible credentials for grading
-                  </p>
-                </div>
+              <div class="mb-4">
+                <Label class="text-sm font-medium">Ansible Credentials</Label>
+                <p class="text-xs text-muted-foreground mt-1">
+                  SSH credentials required for automated grading tasks on this device
+                </p>
               </div>
 
-              <!-- Ansible Credentials (shown when isolated is enabled) -->
-              <Transition name="expand-vertical">
-                <div v-if="device.isIsolated" class="space-y-3 pl-8 border-l-2 border-primary/20">
+              <!-- Credentials Fields (always shown) -->
+              <div class="space-y-3">
                   <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div class="space-y-2">
                       <Label :for="`ansible-username-${index}`">
@@ -140,11 +130,11 @@
                         :id="`ansible-username-${index}`"
                         :model-value="device.ansibleUsername || ''"
                         placeholder="e.g., student, admin"
-                        :class="{ 'border-destructive': device.isIsolated && !device.ansibleUsername?.trim() }"
+                        :class="{ 'border-destructive': !device.ansibleUsername?.trim() }"
                         @update:model-value="updateDevice(index, { ansibleUsername: $event })"
                       />
                       <p class="text-xs text-muted-foreground">
-                        Username for SSH access to this device in student's network
+                        Username for SSH access to this device
                       </p>
                     </div>
                     <div class="space-y-2">
@@ -156,23 +146,46 @@
                         :model-value="device.ansiblePassword || ''"
                         type="password"
                         placeholder="Enter password"
-                        :class="{ 'border-destructive': device.isIsolated && !device.ansiblePassword?.trim() }"
+                        :class="{ 'border-destructive': !device.ansiblePassword?.trim() }"
                         @update:model-value="updateDevice(index, { ansiblePassword: $event })"
                       />
                       <p class="text-xs text-muted-foreground">
-                        Password for SSH access to this device in student's network
+                        Password for SSH access to this device
                       </p>
                     </div>
                   </div>
-                  <Alert>
-                    <Icon name="lucide:info" class="h-4 w-4" />
-                    <AlertTitle>Isolated Network Access</AlertTitle>
-                    <AlertDescription class="text-sm">
-                      When enabled, the grader will create a static route and use these credentials to directly access this device in the student's isolated network for automated grading.
-                    </AlertDescription>
-                  </Alert>
                 </div>
-              </Transition>
+
+              <!-- Isolated Network Device Toggle -->
+              <div class="space-y-3 border-t pt-4">
+                <div class="flex items-center space-x-3">
+                  <Switch
+                    :id="`isolated-${index}`"
+                    :checked="device.isIsolated || false"
+                    @update:checked="updateDevice(index, { isIsolated: $event })"
+                  />
+                  <div class="flex-1">
+                    <Label :for="`isolated-${index}`" class="text-sm font-medium">
+                      Isolated Network Device
+                    </Label>
+                    <p class="text-xs text-muted-foreground mt-1">
+                      Enable if this device requires additional Ansible connection parameters (platform, jump_host, ssh_args, etc.)
+                    </p>
+                  </div>
+                </div>
+
+                <Transition name="expand-vertical">
+                  <div v-if="device.isIsolated" class="space-y-3 pl-8 border-l-2 border-primary/20">
+                    <Alert>
+                      <Icon name="lucide:info" class="h-4 w-4" />
+                      <AlertTitle>Isolated Network Device</AlertTitle>
+                      <AlertDescription class="text-sm">
+                        This device will include additional Ansible connection parameters required for accessing devices in isolated network environments.
+                      </AlertDescription>
+                    </Alert>
+                  </div>
+                </Transition>
+              </div>
             </div>
 
             <!-- Example IP Display -->

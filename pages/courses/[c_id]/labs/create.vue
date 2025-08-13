@@ -125,6 +125,7 @@
           <div v-if="currentStep === 2">
             <h2 class="text-xl font-semibold mb-4">IP Address Configuration</h2>
             <IPSchemaManager
+              v-model="ipSchemaData"
               v-model:schema="labForm.ipSchema"
               v-model:device-mapping="labForm.deviceIpMapping"
               :show-validation="showValidation"
@@ -272,6 +273,14 @@
                   </div>
                 </div>
               </div>
+
+              <!-- Debug JSON Preview -->
+              <div>
+                <h3 class="font-medium mb-2">Debug Info - JSON Preview</h3>
+                <div class="border rounded-lg bg-muted/25 p-4 max-h-96 overflow-y-auto">
+                  <pre class="text-xs font-mono text-muted-foreground whitespace-pre-wrap">{{ JSON.stringify(debugLabData, null, 2) }}</pre>
+                </div>
+              </div>
             </div>
           </div>
         </CardContent>
@@ -388,17 +397,43 @@ const isSubmitting = ref(false)
 // Form data
 interface LabPartWithTemp extends Omit<LabPart, 'part_id'> {
   tempId: string
-  selectedPlay?: { id: string; title: string; description: string } | null
+  selectedPlay?: { 
+    id: string; 
+    title: string; 
+    description: string;
+    playData?: {
+      name: string;
+      description: string;
+      source_device: string;
+      target_device: string;
+      tasks: any[];
+      total_points: number;
+    }
+  } | null
 }
 
-const labForm = reactive<LabFormData & { parts: LabPartWithTemp[] }>({
+const labForm = reactive<LabFormData & { 
+  parts: LabPartWithTemp[]; 
+  studentsData?: any[];
+  allocationStrategy?: string;
+}>({
   title: '',
   description: '',
   type: 'lab',
   groupsRequired: false,
   ipSchema: undefined,
   deviceIpMapping: undefined,
-  parts: []
+  parts: [],
+  studentsData: [],
+  allocationStrategy: 'group_based'
+})
+
+// IP Schema data including students
+const ipSchemaData = ref<any>({
+  ipSchema: undefined,
+  deviceIpMapping: undefined,
+  students: [],
+  allocationStrategy: 'group_based'
 })
 
 // Part management
@@ -436,7 +471,56 @@ const getDeviceIcon = (deviceId: string): string => {
 const isLabValid = computed(() => {
   return labForm.title.trim() && 
          labForm.parts.length > 0 &&
-         labForm.parts.every(part => part.title.trim() && part.selectedPlay)
+         labForm.parts.every(part => {
+           // Check title
+           if (!part.title || !part.title.trim()) return false
+           
+           // Check text content
+           if (!part.textMd || !part.textMd.trim()) return false
+           const textContent = part.textMd.replace(/<[^>]*>/g, '').trim()
+           if (textContent.length < 10) return false
+           
+           // Check play
+           if (!part.selectedPlay) return false
+           
+           return true
+         })
+})
+
+// Debug data preview
+const debugLabData = computed(() => {
+  // Get devices data from IP schema if available
+  let devicesData: any[] = []
+  if (labForm.ipSchema && labForm.deviceIpMapping) {
+    const ipSchemaComposable = useIPSchema()
+    ipSchemaComposable.loadFromIpSchema(labForm.ipSchema, labForm.deviceIpMapping)
+    devicesData = ipSchemaComposable.createDevicesData()
+  }
+
+  // Transform the form data to match the expected API format
+  return {
+    title: labForm.title,
+    type: labForm.type,
+    description: labForm.description,
+    courseId: courseId,
+    groupsRequired: labForm.groupsRequired,
+    ipSchema: labForm.ipSchema,
+    deviceIpMapping: labForm.deviceIpMapping,
+    devices: devicesData,
+    parts: labForm.parts.map((part, index) => ({
+      part_id: `part${index + 1}`,
+      title: part.title,
+      textMd: part.textMd,
+      order: index + 1,
+      total_points: part.total_points,
+      play: part.selectedPlay ? {
+        play_id: part.selectedPlay.id,
+        source_device: part.selectedPlay.playData?.source_device || '',
+        target_device: part.selectedPlay.playData?.target_device || '',
+        ansible_tasks: part.selectedPlay.playData?.tasks || []
+      } : null
+    }))
+  }
 })
 
 // Methods
@@ -451,15 +535,33 @@ const nextStep = () => {
   }
   
   if (currentStep.value === 2) {
-    // Check for CSV upload (student data)
-    if (!labForm.ipSchema || !labForm.ipSchema.variablesMapping || labForm.ipSchema.variablesMapping.length === 0) {
-      toast.error('Please configure IP schema and upload student data before proceeding')
-      return
-    }
-    
     // Check for at least 2 devices in device IP mapping
     if (!labForm.deviceIpMapping || labForm.deviceIpMapping.length < 2) {
       toast.error('Please configure at least 2 devices in device IP mapping before proceeding')
+      return
+    }
+
+    // Check for basic IP schema configuration
+    if (!labForm.ipSchema || !labForm.ipSchema.baseNetwork || !labForm.ipSchema.subnetMask) {
+      toast.error('Please configure network settings before proceeding')
+      return
+    }    
+
+    // Check that ALL devices have Ansible credentials configured
+    if (labForm.deviceIpMapping) {
+      const devicesWithoutCredentials = labForm.deviceIpMapping.filter(device => 
+        !device.ansibleUsername?.trim() || !device.ansiblePassword?.trim()
+      )
+      if (devicesWithoutCredentials.length > 0) {
+        const deviceNames = devicesWithoutCredentials.map(d => d.deviceId).join(', ')
+        toast.error(`Please provide Ansible username and password for all devices. Missing credentials for: ${deviceNames}`)
+        return
+      }
+    }
+
+    // For labs that require groups, check for student data
+    if (labForm.groupsRequired && (!labForm.ipSchema.variablesMapping || labForm.ipSchema.variablesMapping.length === 0)) {
+      toast.error('Please upload student data for group-based labs before proceeding')
       return
     }
   }
@@ -470,9 +572,29 @@ const nextStep = () => {
       return
     }
     
-    const invalidParts = labForm.parts.filter(part => !part.title.trim() || !part.selectedPlay)
-    if (invalidParts.length > 0) {
-      toast.error('All parts must have a title and selected play')
+    // Check for parts missing titles
+    const partsWithoutTitles = labForm.parts.filter(part => !part.title || !part.title.trim())
+    if (partsWithoutTitles.length > 0) {
+      toast.error('All parts must have a title')
+      return
+    }
+    
+    // Check for parts missing text content  
+    const partsWithoutContent = labForm.parts.filter(part => {
+      if (!part.textMd || !part.textMd.trim()) return true
+      // Check if content is just empty HTML (like <p></p>)
+      const textContent = part.textMd.replace(/<[^>]*>/g, '').trim()
+      return textContent.length < 10
+    })
+    if (partsWithoutContent.length > 0) {
+      toast.error('All parts must have meaningful text content (at least 10 characters)')
+      return
+    }
+    
+    // Check for parts missing plays
+    const partsWithoutPlays = labForm.parts.filter(part => !part.selectedPlay)
+    if (partsWithoutPlays.length > 0) {
+      toast.error('All parts must have a selected play')
       return
     }
   }
@@ -541,7 +663,16 @@ const handlePlayCreated = (play: any) => {
     labForm.parts[currentPartIndex.value].selectedPlay = {
       id: play.id || play.play_id,
       title: play.name,
-      description: play.description || ''
+      description: play.description || '',
+      // Store the complete play data for later use
+      playData: {
+        name: play.name,
+        description: play.description,
+        source_device: play.source_device,
+        target_device: play.target_device,
+        tasks: play.tasks || [],
+        total_points: play.total_points || 0
+      }
     }
   }
   currentPartIndex.value = null
@@ -584,12 +715,11 @@ const submitLab = async () => {
         textMd: part.textMd,
         order: index + 1,
         total_points: part.total_points,
-        ipSchema: part.ipSchema || null,
         play: part.selectedPlay ? {
           play_id: part.selectedPlay.id,
-          source_device: '',
-          target_device: '',
-          ansible_tasks: []
+          source_device: part.selectedPlay.playData?.source_device || '',
+          target_device: part.selectedPlay.playData?.target_device || '',
+          ansible_tasks: part.selectedPlay.playData?.tasks || []
         } : null
       }))
     }
@@ -614,6 +744,30 @@ const submitLab = async () => {
     isSubmitting.value = false
   }
 }
+
+// Watch for IP schema data changes to keep lab form in sync
+watch(() => ipSchemaData.value, (newData) => {
+  if (newData) {
+    labForm.ipSchema = newData.ipSchema
+    labForm.deviceIpMapping = newData.deviceIpMapping
+    // Store students data to persist across page navigation
+    labForm.studentsData = newData.students
+    labForm.allocationStrategy = newData.allocationStrategy
+  }
+}, { deep: true })
+
+// Watch for step changes to restore IP schema data when returning to step 2
+watch(() => currentStep.value, (newStep) => {
+  if (newStep === 2 && labForm.studentsData?.length) {
+    // Restore the IP schema data when returning to step 2
+    ipSchemaData.value = {
+      ipSchema: labForm.ipSchema,
+      deviceIpMapping: labForm.deviceIpMapping,
+      students: labForm.studentsData,
+      allocationStrategy: labForm.allocationStrategy
+    }
+  }
+})
 
 // Initialize with at least one part
 onMounted(() => {
