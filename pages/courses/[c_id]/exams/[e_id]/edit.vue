@@ -23,7 +23,7 @@ import { useVariableResolver } from '@/composables/useVariableResolver'
 import { useFormValidation, validationRules } from '@/composables/useFormValidation'
 import { useApiErrorHandler } from '@/composables/useApiErrorHandler'
 import { useNotifications } from '@/composables/useNotifications'
-import { LoadingButton, LoadingSpinner } from '@/components/ui/loading-states'
+// Removed loading-states dependency - using inline spinner components
 import { Home, BookOpen, Save, X, AlertTriangle, Clock, Users, Settings, Upload, Download, Eye, RefreshCw, FileText } from 'lucide-vue-next'
 import type { Play, PlayVariableBinding, ExamFormData, SubnetGenerationConfig, ExamConfiguration, Exam } from '@/types/lab'
 

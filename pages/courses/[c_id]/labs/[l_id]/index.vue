@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Skeleton } from '@/components/ui/skeleton'
-import { PageLoadingState } from '@/components/ui/loading-states'
+// Removed loading-states dependency - using inline loading components
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { AlertCircle } from 'lucide-vue-next'
 import PartSidebar from '@/components/lab/PartSidebar.vue'

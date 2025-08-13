@@ -322,7 +322,7 @@ import {
   Trash2,
   Loader2
 } from 'lucide-vue-next'
-import { LoadingButton, LoadingSpinner } from '@/components/ui/loading-states'
+// Removed loading-states dependency - using inline loading components
 import type { StudentGroup, Student } from '@/types/lab'
 
 interface Props {

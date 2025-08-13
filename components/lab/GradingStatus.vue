@@ -178,7 +178,7 @@ import { ref, computed, onMounted, onUnmounted, watchEffect } from 'vue'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
-import { LoadingProgress } from '@/components/ui/loading-states'
+// Removed loading-states dependency - using inline loading components
 import {
   CheckCircle,
   XCircle,

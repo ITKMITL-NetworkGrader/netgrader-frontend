@@ -13,6 +13,9 @@ export interface DeviceConfig {
   ipVariable: string;
   hostOffset: number;
   description?: string;
+  isIsolated?: boolean;
+  ansibleUsername?: string;
+  ansiblePassword?: string;
 }
 
 export interface IPSchemaConfig {

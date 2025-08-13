@@ -549,25 +549,37 @@ const submitLab = async () => {
   isSubmitting.value = true
   
   try {
+    // Get devices data from IP schema if available
+    let devicesData: any[] = []
+    if (labForm.ipSchema && labForm.deviceIpMapping) {
+      const ipSchemaComposable = useIPSchema()
+      ipSchemaComposable.loadFromIpSchema(labForm.ipSchema, labForm.deviceIpMapping)
+      devicesData = ipSchemaComposable.createDevicesData()
+    }
+
     // Transform the form data to match the expected API format
     const labData = {
-      ...labForm,
+      title: labForm.title,
+      type: labForm.type,
+      description: labForm.description,
+      courseId: courseId,
+      groupsRequired: labForm.groupsRequired,
+      ipSchema: labForm.ipSchema,
+      deviceIpMapping: labForm.deviceIpMapping,
+      devices: devicesData,
       parts: labForm.parts.map((part, index) => ({
+        part_id: `part${index + 1}`,
         title: part.title,
         textMd: part.textMd,
         order: index + 1,
         total_points: part.total_points,
-        ipSchema: part.ipSchema,
-        deviceIpMapping: part.deviceIpMapping,
-        plays: part.selectedPlay ? [{
+        ipSchema: part.ipSchema || null,
+        play: part.selectedPlay ? {
           play_id: part.selectedPlay.id,
-          name: part.selectedPlay.title,
-          description: part.selectedPlay.description,
           source_device: '',
           target_device: '',
-          total_points: part.total_points,
           ansible_tasks: []
-        }] : []
+        } : null
       }))
     }
 

@@ -139,6 +139,41 @@ export const useIPSchema = () => {
       ipVariable: device.ipVariable
     }))
   }
+
+  const createDevicesData = (): any[] => {
+    return deviceConfigs.value.map(device => {
+      const baseDevice = {
+        id: device.deviceId,
+        ip_address: generateExampleIP(device),
+        ansible_connection: "ssh",
+        credentials: device.isIsolated && device.ansibleUsername && device.ansiblePassword ? {
+          ansible_user: device.ansibleUsername,
+          ansible_password: device.ansiblePassword
+        } : {
+          ansible_user: "student",
+          ansible_password: "student123"
+        },
+        platform: null,
+        jump_host: device.isIsolated ? null : null,
+        ssh_args: null,
+        use_persistent_connection: device.isIsolated || false
+      }
+
+      // For isolated devices, we might need to set a jump host or special SSH args
+      if (device.isIsolated) {
+        // Find if there's a gateway router that can act as jump host
+        const gatewayDevice = deviceConfigs.value.find(d => 
+          d.deviceId.toLowerCase().includes('router') && !d.isIsolated
+        )
+        
+        if (gatewayDevice) {
+          baseDevice.jump_host = gatewayDevice.deviceId
+        }
+      }
+
+      return baseDevice
+    })
+  }
   
   const generateExampleIP = (device: DeviceConfig): string => {
     try {
@@ -240,6 +275,16 @@ export const useIPSchema = () => {
       if (device.hostOffset < 1 || device.hostOffset > 254) {
         errors.push(`Invalid host offset for ${device.deviceId}: must be between 1 and 254`)
       }
+
+      // Validate isolated device credentials
+      if (device.isIsolated) {
+        if (!device.ansibleUsername?.trim()) {
+          errors.push(`Ansible username is required for isolated device: ${device.deviceId}`)
+        }
+        if (!device.ansiblePassword?.trim()) {
+          errors.push(`Ansible password is required for isolated device: ${device.deviceId}`)
+        }
+      }
     })
     
     // Validate student data
@@ -293,6 +338,7 @@ export const useIPSchema = () => {
     generateFullIPAssignments,
     createIpSchema,
     createDeviceIpMapping,
+    createDevicesData,
     resetConfiguration,
     loadFromIpSchema,
     validateConfiguration,

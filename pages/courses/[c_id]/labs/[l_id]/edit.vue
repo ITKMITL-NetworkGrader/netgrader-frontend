@@ -14,7 +14,7 @@ import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbP
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
-import { PageLoadingState } from '@/components/ui/loading-states'
+// Removed loading-states dependency - using inline loading components
 import PartSidebar from '@/components/lab/PartSidebar.vue'
 import ClientOnlyTextEditor from '@/components/lab/ClientOnlyTextEditor.vue'
 import PlaySelectionModal from '@/components/lab/PlaySelectionModal.vue'

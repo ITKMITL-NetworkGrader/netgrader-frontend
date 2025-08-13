@@ -715,25 +715,38 @@ const submitExam = async () => {
   isSubmitting.value = true
   
   try {
+    // Get devices data from IP schema if available
+    let devicesData: any[] = []
+    if (examForm.ipSchema && examForm.deviceIpMapping) {
+      const ipSchemaComposable = useIPSchema()
+      ipSchemaComposable.loadFromIpSchema(examForm.ipSchema, examForm.deviceIpMapping)
+      devicesData = ipSchemaComposable.createDevicesData()
+    }
+
     // Transform the form data to match the expected API format
     const examData = {
-      ...examForm,
+      title: examForm.title,
+      type: examForm.type,
+      description: examForm.description,
+      courseId: courseId,
+      groupsRequired: examForm.groupsRequired,
+      timeLimit: examForm.timeLimit,
+      ipSchema: examForm.ipSchema,
+      deviceIpMapping: examForm.deviceIpMapping,
+      devices: devicesData,
       parts: examForm.parts.map((part, index) => ({
+        part_id: `part${index + 1}`,
         title: part.title,
         textMd: part.textMd,
         order: index + 1,
         total_points: part.total_points,
-        ipSchema: part.ipSchema,
-        deviceIpMapping: part.deviceIpMapping,
-        plays: part.selectedPlay ? [{
+        ipSchema: part.ipSchema || null,
+        play: part.selectedPlay ? {
           play_id: part.selectedPlay.id,
-          name: part.selectedPlay.title,
-          description: part.selectedPlay.description,
           source_device: '',
           target_device: '',
-          total_points: part.total_points,
           ansible_tasks: []
-        }] : []
+        } : null
       })),
       enrolledStudents: enrolledStudents.value
     }
