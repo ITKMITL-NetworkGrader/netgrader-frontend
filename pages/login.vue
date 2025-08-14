@@ -249,7 +249,7 @@ id="password" v-model="password" :type="showPassword ? 'text' : 'password'"
                 ]" placeholder="Enter your password" :aria-invalid="!!passwordError" />
               <button
 type="button"
-                class="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground hover:text-foreground transition-colors"
+                class="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground hover:text-foreground transition-colors hover:cursor-pointer"
                 @click="togglePasswordVisibility">
                 <!-- Eye Open Icon (when password is hidden) -->
                 <svg v-if="!showPassword" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -283,7 +283,7 @@ to="https://identity.it.kmitl.ac.th/auth/password/reset/request"
           <!-- Login Button -->
           <Button
 type="submit" :disabled="isLoading"
-            class="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-3 px-6 rounded-xl transition-all duration-200 transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none">
+            class="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-3 px-6 rounded-xl transition-all duration-200 transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none hover:cursor-pointer">
             <span v-if="!isLoading" class="flex items-center justify-center">
               <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path

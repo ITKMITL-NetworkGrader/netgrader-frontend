@@ -52,8 +52,8 @@ onMounted(() => {
             <TextReveal class="text-center text-4xl font-bold" :delay=0.2>NetGrader</TextReveal>
             <TextReveal class="mt-2 text-xl" :delay=0.5>Your go-to platform for grading network configurations!</TextReveal>
             <div class="flex justify-center">
-                <NuxtLink to="/courses" class="mt-2">
-                    <Button id="get-started" class="mt-4 scale-100">
+                <NuxtLink to="/courses" class="mt-6">
+                    <Button id="get-started" class="scale-100 hover:cursor-pointer">
                         Get Started
                     </Button>
                 </NuxtLink>

@@ -133,7 +133,7 @@ watch(() => route.path, () => {
                 >
                     <Button 
                     size="sm" 
-                    class="btn-primary"
+                    class="btn-primary hover:cursor-pointer"
                     >
                     Login
                     </Button>
