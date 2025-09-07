@@ -167,7 +167,7 @@
                 class="font-mono text-sm"
                 :class="{
                   'border-destructive': hasTestCaseError(index, 'condition'),
-                  'border-green-500': !hasTestCaseError(index, 'condition') && testCase.condition.length > 0
+                  'border-green-500': !hasTestCaseError(index, 'condition') && String(testCase.condition || '').length > 0
                 }"
                 @input="validateTestCase(index, 'condition')"
               />
@@ -267,9 +267,9 @@ const addTestCase = () => {
   const newTestCase: TestCase = {
     name: '',
     condition: '',
-    points: 5,
-    weight: 1.0,
-    timeoutSeconds: 30
+    points: Number(5),
+    weight: Number(1.0),
+    timeoutSeconds: Number(30)
   }
   localTestCases.value.push(newTestCase)
   nextTick(() => {
@@ -290,10 +290,10 @@ const autoGenerateTestCases = () => {
 
   localTestCases.value = props.template.defaultTestCases.map((defaultCase, index) => ({
     name: `Test Case ${index + 1}`,
-    condition: defaultCase.expected_result,
-    points: 5,
-    weight: 1.0,
-    timeoutSeconds: 30
+    condition: String(defaultCase.expected_result || ''),
+    points: Number(5),
+    weight: Number(1.0),
+    timeoutSeconds: Number(30)
   }))
 
   nextTick(() => {
@@ -326,7 +326,8 @@ const validateTestCase = (index: number, field: string) => {
       break
 
     case 'condition':
-      if (!testCase.condition.trim()) {
+      const condition = String(testCase.condition || '').trim()
+      if (!condition) {
         testCaseErrors.value[index].condition = 'Test condition is required'
       } else {
         delete testCaseErrors.value[index].condition

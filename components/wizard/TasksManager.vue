@@ -312,6 +312,17 @@
       </TransitionGroup>
     </div>
 
+    <!-- Task Grouping Interface (when enabled and tasks exist) -->
+    <div v-if="enableTaskGroups && localTasks.length > 0" class="mt-8">
+      <TaskGroupManager
+        :tasks="localTasks"
+        :task-groups="taskGroups || []"
+        @update:tasks="handleTasksUpdate"
+        @update:task-groups="handleTaskGroupsUpdate"
+        @task-group-changed="validateTasks"
+      />
+    </div>
+
     <!-- Total Points Summary -->
     <div v-if="localTasks.length > 0" class="flex justify-end">
       <Badge variant="outline" class="text-sm">
@@ -344,9 +355,10 @@ import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible'
 
 // Local Components
 import TestCasesManager from './TestCasesManager.vue'
+import TaskGroupManager from './TaskGroupManager.vue'
 
 // Types
-import type { WizardTask, Device, TaskTemplate } from '@/types/wizard'
+import type { WizardTask, WizardTaskGroup, Device, TaskTemplate } from '@/types/wizard'
 
 // Props
 interface Props {
@@ -354,11 +366,14 @@ interface Props {
   taskTemplates: TaskTemplate[]
   devices: Device[]
   partIndex: number
+  taskGroups?: WizardTaskGroup[]
+  enableTaskGroups?: boolean
 }
 
 // Emits
 interface Emits {
   (e: 'update:modelValue', value: WizardTask[]): void
+  (e: 'update:task-groups', value: WizardTaskGroup[]): void
   (e: 'updateTotalPoints', totalPoints: number): void
   (e: 'validate', errors: string[]): void
 }
@@ -609,6 +624,18 @@ const validateTasks = () => {
       validateTask(index, 'executionDevice')
       validateTask(index, 'points')
 
+      // Validate test cases
+      if (!task.testCases || task.testCases.length === 0) {
+        if (!taskFieldErrors.value[index]) {
+          taskFieldErrors.value[index] = {}
+        }
+        taskFieldErrors.value[index].testCases = 'At least one test case is required'
+      } else {
+        if (taskFieldErrors.value[index]) {
+          delete taskFieldErrors.value[index].testCases
+        }
+      }
+
       // Validate parameters
       const template = getSelectedTemplate(task.templateId)
       if (template) {
@@ -639,10 +666,28 @@ const validateTasks = () => {
       errors.push(...taskTestErrors)
     })
 
-    emit('validate', errors)
+    // Remove duplicate error messages
+    const uniqueErrors = Array.from(new Set(errors))
+
+    emit('validate', uniqueErrors)
   } finally {
     isValidating.value = false
   }
+}
+
+// Task Group handlers - Prevent recursion carefully
+const handleTasksUpdate = (updatedTasks: WizardTask[]) => {
+  // Update tasks without triggering watchers to prevent recursion
+  isUpdatingFromProps.value = true
+  localTasks.value = updatedTasks
+  nextTick(() => {
+    isUpdatingFromProps.value = false
+    emit('update:modelValue', updatedTasks)
+  })
+}
+
+const handleTaskGroupsUpdate = (updatedTaskGroups: WizardTaskGroup[]) => {
+  emit('update:task-groups', updatedTaskGroups)
 }
 
 // Watchers

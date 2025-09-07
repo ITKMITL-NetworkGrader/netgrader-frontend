@@ -242,7 +242,10 @@
                       :task-templates="taskTemplates"
                       :devices="devices"
                       :part-index="partIndex"
+                      :task-groups="part.task_groups"
+                      :enable-task-groups="true"
                       @update-total-points="updatePartTotalPoints(partIndex, $event)"
+                      @update:task-groups="updatePartTaskGroups(partIndex, $event)"
                       @validate="handleTasksValidation(partIndex, $event)"
                     />
                   </div>
@@ -300,7 +303,7 @@ import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible'
 import TasksManager from './TasksManager.vue'
 
 // Types
-import type { WizardLabPart, Device, TaskTemplate, ValidationResult } from '@/types/wizard'
+import type { WizardLabPart, WizardTaskGroup, Device, TaskTemplate, ValidationResult } from '@/types/wizard'
 
 // Props
 interface Props {
@@ -420,6 +423,12 @@ const updatePartTotalPoints = (partIndex: number, totalPoints: number) => {
 const handleTasksValidation = (partIndex: number, errors: string[]) => {
   taskValidationErrors.value[partIndex] = errors
   // Don't call validateStep() here - it will be called by the debounced watcher
+}
+
+const updatePartTaskGroups = (partIndex: number, taskGroups: WizardTaskGroup[]) => {
+  if (localData.value[partIndex]) {
+    localData.value[partIndex].task_groups = taskGroups
+  }
 }
 
 const hasPartErrors = (partIndex: number): boolean => {
