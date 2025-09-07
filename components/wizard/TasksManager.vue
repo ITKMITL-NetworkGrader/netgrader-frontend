@@ -51,7 +51,6 @@
               <div class="flex items-center space-x-1">
                 <Button
                   variant="ghost"
-                  size="sm"
                   @click="toggleTaskExpansion(taskIndex)"
                 >
                   <ChevronDown
@@ -61,7 +60,6 @@
                 </Button>
                 <Button
                   variant="ghost"
-                  size="sm"
                   @click="moveTask(taskIndex, -1)"
                   :disabled="taskIndex === 0"
                 >
@@ -69,7 +67,6 @@
                 </Button>
                 <Button
                   variant="ghost"
-                  size="sm"
                   @click="moveTask(taskIndex, 1)"
                   :disabled="taskIndex === localTasks.length - 1"
                 >
@@ -77,7 +74,6 @@
                 </Button>
                 <Button
                   variant="ghost"
-                  size="sm"
                   @click="removeTask(taskIndex)"
                   class="text-destructive hover:text-destructive"
                 >
@@ -149,8 +145,8 @@
                     Task Template <span class="text-destructive">*</span>
                   </Label>
                   <Select 
-                    v-model="task.templateId" 
-                    @update:modelValue="handleTemplateChange(taskIndex, $event)"
+                    v-model="task.templateId"
+                    @update:modelValue="(value) => handleTemplateChange(taskIndex, value)"
                   >
                     <SelectTrigger
                       :class="{
@@ -170,8 +166,9 @@
                     <SelectContent>
                       <SelectItem
                         v-for="template in taskTemplates"
-                        :key="template._id"
-                        :value="template._id"
+                        :key="template.id"
+                        :value="template.id"
+                        :textValue="template.name"
                       >
                         <div class="flex flex-col">
                           <div class="font-medium">{{ template.name }}</div>
@@ -325,7 +322,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, watch, ref, onMounted, nextTick } from 'vue'
+import { computed, watch, ref, onMounted, nextTick, watchEffect } from 'vue'
 import {
   CheckSquare,
   Plus,
@@ -482,7 +479,7 @@ const handleTemplateChange = (taskIndex: number, templateId: string) => {
 }
 
 const getSelectedTemplate = (templateId: string): TaskTemplate | undefined => {
-  return props.taskTemplates.find(t => t._id === templateId)
+  return props.taskTemplates.find(t => t.id === templateId)
 }
 
 const hasTaskErrors = (taskIndex: number): boolean => {
@@ -658,7 +655,7 @@ watch(
       // The computed totalPoints will update automatically
     }
   },
-  { deep: true }
+  { deep: true, flush: 'post' }
 )
 
 // Separate watcher for totalPoints to emit updates
@@ -685,6 +682,7 @@ watch(
   },
   { deep: true }
 )
+
 
 // Separate watcher for validation - triggered by error state changes
 watch(

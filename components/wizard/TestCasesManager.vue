@@ -77,7 +77,6 @@
                 <Input
                   v-model="testCase.name"
                   placeholder="Hostname Verification"
-                  size="sm"
                   :class="{
                     'border-destructive': hasTestCaseError(index, 'name'),
                     'border-green-500': !hasTestCaseError(index, 'name') && testCase.name.length > 0
@@ -99,7 +98,6 @@
                   type="number"
                   min="0"
                   placeholder="5"
-                  size="sm"
                   :class="{
                     'border-destructive': hasTestCaseError(index, 'points'),
                     'border-green-500': !hasTestCaseError(index, 'points') && testCase.points > 0
@@ -123,7 +121,6 @@
                   max="1"
                   step="0.1"
                   placeholder="1.0"
-                  size="sm"
                   :class="{
                     'border-destructive': hasTestCaseError(index, 'weight'),
                     'border-green-500': !hasTestCaseError(index, 'weight') && testCase.weight > 0
@@ -146,7 +143,6 @@
                   min="1"
                   max="300"
                   placeholder="30"
-                  size="sm"
                   :class="{
                     'border-destructive': hasTestCaseError(index, 'timeoutSeconds'),
                     'border-green-500': !hasTestCaseError(index, 'timeoutSeconds') && testCase.timeoutSeconds > 0
@@ -276,13 +272,17 @@ const addTestCase = () => {
     timeoutSeconds: 30
   }
   localTestCases.value.push(newTestCase)
-  validateAllTestCases()
+  nextTick(() => {
+    validateAllTestCases()
+  })
 }
 
 const removeTestCase = (index: number) => {
   localTestCases.value.splice(index, 1)
   delete testCaseErrors.value[index]
-  validateAllTestCases()
+  nextTick(() => {
+    validateAllTestCases()
+  })
 }
 
 const autoGenerateTestCases = () => {
@@ -296,7 +296,9 @@ const autoGenerateTestCases = () => {
     timeoutSeconds: 30
   }))
 
-  validateAllTestCases()
+  nextTick(() => {
+    validateAllTestCases()
+  })
 }
 
 const hasTestCaseError = (index: number, field: string): boolean => {
@@ -357,8 +359,6 @@ const validateTestCase = (index: number, field: string) => {
       }
       break
   }
-
-  validateAllTestCases()
 }
 
 const validateAllTestCases = () => {
@@ -393,7 +393,7 @@ watch(
       emit('update:modelValue', newValue)
     }
   },
-  { deep: true }
+  { deep: true, flush: 'post' }
 )
 
 watch(
