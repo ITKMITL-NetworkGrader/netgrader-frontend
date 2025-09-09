@@ -35,8 +35,10 @@ export interface Device {
 }
 
 export interface IpVariable {
-  name: string;              // Variable name (e.g., "loopback0", "gig0_1")
-  hostOffset: number;        // Host offset for IP calculation
+  name: string;              // Variable name (e.g., "loopback0", "gig0_1", "interface-1")
+  inputType: 'hostOffset' | 'fullIP';  // Whether to use host offset or full IP address
+  hostOffset?: number;       // Host offset for IP calculation (used when inputType is 'hostOffset')
+  fullIP?: string;           // Full IP address (used when inputType is 'fullIP')
   interface?: string;        // Full interface name from device template (e.g., "GigabitEthernet0/0")
 }
 

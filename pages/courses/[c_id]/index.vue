@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ChevronRight, Home, Edit, Settings, X, Plus, Trash2 } from 'lucide-vue-next'
+import { ChevronRight, Home, Edit, Settings, X, Plus, Trash2, Play, BookOpen, Clock, Calendar } from 'lucide-vue-next'
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Button } from '@/components/ui/button'
@@ -42,6 +42,16 @@ const { currentCourse, isLoading, fetchCourse, currentCourseEnrollment } = useCo
 const { canManageCurrentCourse } = useRoleGuard()
 const courseRoleState = useCourseRoleState()
 const user = useUserState()
+const { 
+  labs, 
+  availableLabs, 
+  availableExams, 
+  isLoading: isLoadingLabs, 
+  error: labsError,
+  fetchCourseLabs,
+  deleteLab,
+  formatLabDate 
+} = useCourseLabs()
 
 // Reactive data for enrollments (for management purposes)
 const enrolledStudents = ref<Enrollment[]>([])
@@ -118,6 +128,10 @@ onMounted(async () => {
   try {
     await fetchCourse(courseId)
     initializeForm()
+    // Fetch labs data if user is enrolled
+    if (currentCourseEnrollment.value?.isEnrolled) {
+      await fetchCourseLabs(courseId)
+    }
   } catch (error) {
     console.error('Failed to fetch course data:', error)
   }
@@ -276,6 +290,9 @@ const confirmEnrollment = async () => {
             role: enrollmentResponse.enrollment.role,
             enrollmentDate: enrollmentResponse.enrollment.enrollmentDate
           };
+          
+          // Fetch labs after enrollment confirmation
+          await fetchCourseLabs(courseId)
         }
       } catch (err) {
         console.error("Error refreshing course role:", err);
@@ -293,6 +310,44 @@ const confirmEnrollment = async () => {
     })
   }
 }
+
+// Lab management functions
+const handleDeleteLab = async (labId: string, labTitle: string) => {
+  const confirmed = confirm(`Are you sure you want to delete "${labTitle}"? This action cannot be undone.`)
+  
+  if (confirmed) {
+    try {
+      const success = await deleteLab(labId)
+      
+      if (success) {
+        toast.success('Lab deleted successfully!', {
+          description: `"${labTitle}" has been removed from the course.`
+        })
+        
+        // Refresh labs data
+        await fetchCourseLabs(courseId)
+      } else {
+        toast.error('Failed to delete lab', {
+          description: 'Please try again later.'
+        })
+      }
+    } catch (error) {
+      console.error('Failed to delete lab:', error)
+      toast.error('Failed to delete lab', {
+        description: 'An unexpected error occurred.'
+      })
+    }
+  }
+}
+
+// Fetch labs when manage dialog opens
+watch(isManageModalOpen, (isOpen) => {
+  if (isOpen && canManageCourse.value) {
+    fetchEnrollmentData()
+    // Also fetch labs for management
+    fetchCourseLabs(courseId)
+  }
+})
 
 // Debug logging to check enrollment data
 watchEffect(() => {
@@ -510,29 +565,55 @@ class="overflow-x-auto max-h-96"
                                                 </Button>
                                             </NuxtLink>
                                         </div>
-                                        <div class="grid gap-4">
-                                            <Card v-for="(lab, index) in currentCourse.labs || []" :key="index">
-                                                <CardHeader>
+                                        <!-- Loading State -->
+                                        <div v-if="isLoadingLabs" class="flex items-center justify-center py-8">
+                                            <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
+                                            <span class="ml-3 text-muted-foreground">Loading labs...</span>
+                                        </div>
+                                        
+                                        <!-- Labs Management List -->
+                                        <div v-else-if="availableLabs.length > 0" class="space-y-4">
+                                            <Card v-for="lab in availableLabs" :key="lab.id" class="border-l-4 border-l-primary/30">
+                                                <CardHeader class="pb-4">
                                                     <div class="flex justify-between items-start">
-                                                        <div>
-                                                            <CardTitle class="text-base">{{ lab.title || `Lab ${index + 1}` }}</CardTitle>
-                                                            <CardDescription>{{ lab.description }}</CardDescription>
+                                                        <div class="flex-1 min-w-0">
+                                                            <CardTitle class="text-base font-semibold mb-1">{{ lab.title }}</CardTitle>
+                                                            <CardDescription class="text-sm text-muted-foreground mb-2">
+                                                                {{ lab.description || 'No description provided' }}
+                                                            </CardDescription>
+                                                            <div class="flex items-center space-x-4 text-xs text-muted-foreground">
+                                                                <span>Created {{ formatLabDate(lab.createdAt) }}</span>
+                                                                <span>•</span>
+                                                                <span>Updated {{ formatLabDate(lab.updatedAt) }}</span>
+                                                            </div>
                                                         </div>
-                                                        <div class="flex space-x-2">
-                                                            <Button variant="outline" size="sm">
-                                                                <Edit class="h-4 w-4" />
-                                                            </Button>
-                                                            <Button variant="destructive" size="sm">
-                                                                <Trash2 class="h-4 w-4" />
+                                                        <div class="flex space-x-2 ml-4">
+                                                            <NuxtLink :to="`/courses/${courseId}/labs/${lab.id}/edit`">
+                                                                <Button variant="outline" size="sm" class="h-8">
+                                                                    <Edit class="h-3 w-3 mr-1" />
+                                                                    Edit
+                                                                </Button>
+                                                            </NuxtLink>
+                                                            <Button 
+                                                                variant="destructive" 
+                                                                size="sm" 
+                                                                class="h-8"
+                                                                @click="handleDeleteLab(lab.id, lab.title)"
+                                                            >
+                                                                <Trash2 class="h-3 w-3 mr-1" />
+                                                                Delete
                                                             </Button>
                                                         </div>
                                                     </div>
                                                 </CardHeader>
                                             </Card>
-                                            <div v-if="!currentCourse.labs || currentCourse.labs.length === 0" class="text-center py-8 text-muted-foreground border border-dashed border-gray-300 rounded-lg">
-                                                <p>No labs have been created for this course yet.</p>
-                                                <p class="text-sm mt-1">Click "Add Lab" to create your first lab.</p>
-                                            </div>
+                                        </div>
+                                        
+                                        <!-- Empty State -->
+                                        <div v-else class="text-center py-8 text-muted-foreground border border-dashed border-gray-300 rounded-lg">
+                                            <BookOpen class="w-12 h-12 mx-auto mb-3 text-muted-foreground/50" />
+                                            <p class="font-medium mb-1">No labs have been created for this course yet.</p>
+                                            <p class="text-sm">Click "Add Lab" to create your first lab.</p>
                                         </div>
                                     </TabsContent>
                                     <TabsContent value="exams" class="space-y-4">
@@ -545,29 +626,55 @@ class="overflow-x-auto max-h-96"
                                                 </Button>
                                             </NuxtLink>
                                         </div>
-                                        <div class="grid gap-4">
-                                            <Card v-for="(exam, index) in currentCourse.exams || []" :key="index">
-                                                <CardHeader>
+                                        <!-- Loading State -->
+                                        <div v-if="isLoadingLabs" class="flex items-center justify-center py-8">
+                                            <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
+                                            <span class="ml-3 text-muted-foreground">Loading exams...</span>
+                                        </div>
+                                        
+                                        <!-- Exams Management List -->
+                                        <div v-else-if="availableExams.length > 0" class="space-y-4">
+                                            <Card v-for="exam in availableExams" :key="exam.id" class="border-l-4 border-l-orange-500/30">
+                                                <CardHeader class="pb-4">
                                                     <div class="flex justify-between items-start">
-                                                        <div>
-                                                            <CardTitle class="text-base">{{ exam.title || `Exam ${index + 1}` }}</CardTitle>
-                                                            <CardDescription>{{ exam.description || exam }}</CardDescription>
+                                                        <div class="flex-1 min-w-0">
+                                                            <CardTitle class="text-base font-semibold mb-1">{{ exam.title }}</CardTitle>
+                                                            <CardDescription class="text-sm text-muted-foreground mb-2">
+                                                                {{ exam.description || 'No description provided' }}
+                                                            </CardDescription>
+                                                            <div class="flex items-center space-x-4 text-xs text-muted-foreground">
+                                                                <span>Created {{ formatLabDate(exam.createdAt) }}</span>
+                                                                <span>•</span>
+                                                                <span>Updated {{ formatLabDate(exam.updatedAt) }}</span>
+                                                            </div>
                                                         </div>
-                                                        <div class="flex space-x-2">
-                                                            <Button variant="outline" size="sm">
-                                                                <Edit class="h-4 w-4" />
-                                                            </Button>
-                                                            <Button variant="destructive" size="sm">
-                                                                <Trash2 class="h-4 w-4" />
+                                                        <div class="flex space-x-2 ml-4">
+                                                            <NuxtLink :to="`/courses/${courseId}/exams/${exam.id}/edit`">
+                                                                <Button variant="outline" size="sm" class="h-8">
+                                                                    <Edit class="h-3 w-3 mr-1" />
+                                                                    Edit
+                                                                </Button>
+                                                            </NuxtLink>
+                                                            <Button 
+                                                                variant="destructive" 
+                                                                size="sm" 
+                                                                class="h-8"
+                                                                @click="handleDeleteLab(exam.id, exam.title)"
+                                                            >
+                                                                <Trash2 class="h-3 w-3 mr-1" />
+                                                                Delete
                                                             </Button>
                                                         </div>
                                                     </div>
                                                 </CardHeader>
                                             </Card>
-                                            <div v-if="!currentCourse.exams || currentCourse.exams.length === 0" class="text-center py-8 text-muted-foreground border border-dashed border-gray-300 rounded-lg">
-                                                <p>No exams have been created for this course yet.</p>
-                                                <p class="text-sm mt-1">Click "Add Exam" to create your first exam.</p>
-                                            </div>
+                                        </div>
+                                        
+                                        <!-- Empty State -->
+                                        <div v-else class="text-center py-8 text-muted-foreground border border-dashed border-gray-300 rounded-lg">
+                                            <Settings class="w-12 h-12 mx-auto mb-3 text-muted-foreground/50" />
+                                            <p class="font-medium mb-1">No exams have been created for this course yet.</p>
+                                            <p class="text-sm">Click "Add Exam" to create your first exam.</p>
                                         </div>
                                     </TabsContent>
                                 </Tabs>
@@ -665,20 +772,195 @@ class="overflow-x-auto max-h-96"
                 
                 <div class="flex">
                     <Accordion type="single" collapsible class="w-full">
-                        <AccordionItem value="overview">
-                            <AccordionTrigger>Labs</AccordionTrigger>
+                        <!-- Labs Section -->
+                        <AccordionItem value="labs">
+                            <AccordionTrigger>
+                                <div class="flex items-center space-x-2">
+                                    <BookOpen class="w-5 h-5" />
+                                    <span>Labs</span>
+                                    <div v-if="availableLabs.length > 0" class="ml-2 px-2 py-0.5 text-xs bg-primary/10 text-primary rounded-full">
+                                        {{ availableLabs.length }}
+                                    </div>
+                                </div>
+                            </AccordionTrigger>
                             <AccordionContent>
-                                <p>Gu Young Mai Mee</p>
+                                <!-- Loading State -->
+                                <div v-if="isLoadingLabs" class="flex items-center justify-center py-8">
+                                    <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
+                                    <span class="ml-3 text-muted-foreground">Loading labs...</span>
+                                </div>
+                                
+                                <!-- Error State -->
+                                <div v-else-if="labsError" class="text-center py-8">
+                                    <div class="text-destructive mb-2">Failed to load labs</div>
+                                    <Button variant="outline" size="sm" @click="fetchCourseLabs(courseId)">
+                                        Try Again
+                                    </Button>
+                                </div>
+                                
+                                <!-- Labs List -->
+                                <div v-else-if="availableLabs.length > 0" class="space-y-3">
+                                    <Card 
+                                        v-for="lab in availableLabs" 
+                                        :key="lab.id" 
+                                        class="hover:shadow-md transition-shadow duration-200 border-l-4 border-l-primary/50"
+                                    >
+                                        <CardContent class="p-6">
+                                            <div class="flex items-start justify-between">
+                                                <div class="flex-1 min-w-0">
+                                                    <div class="flex items-start space-x-3">
+                                                        <div class="flex-shrink-0 mt-1">
+                                                            <div class="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+                                                                <BookOpen class="w-5 h-5 text-primary" />
+                                                            </div>
+                                                        </div>
+                                                        <div class="flex-1 min-w-0">
+                                                            <h3 class="font-semibold text-lg text-foreground mb-1 truncate">
+                                                                {{ lab.title }}
+                                                            </h3>
+                                                            <p v-if="lab.description" class="text-muted-foreground text-sm mb-3 line-clamp-2">
+                                                                {{ lab.description }}
+                                                            </p>
+                                                            <div class="flex items-center space-x-4 text-xs text-muted-foreground">
+                                                                <div class="flex items-center space-x-1">
+                                                                    <Calendar class="w-3 h-3" />
+                                                                    <span>Created {{ formatLabDate(lab.createdAt) }}</span>
+                                                                </div>
+                                                                <div class="flex items-center space-x-1">
+                                                                    <Clock class="w-3 h-3" />
+                                                                    <span>Updated {{ formatLabDate(lab.updatedAt) }}</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="flex-shrink-0 ml-4">
+                                                    <NuxtLink :to="`/courses/${courseId}/labs/${lab.id}`">
+                                                        <Button class="bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-white shadow-sm">
+                                                            <Play class="w-4 h-4 mr-2" />
+                                                            Start Lab
+                                                        </Button>
+                                                    </NuxtLink>
+                                                </div>
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                </div>
+                                
+                                <!-- Empty State -->
+                                <div v-else class="text-center py-12">
+                                    <div class="max-w-md mx-auto">
+                                        <div class="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
+                                            <BookOpen class="w-8 h-8 text-muted-foreground" />
+                                        </div>
+                                        <h3 class="text-lg font-medium text-foreground mb-2">No Labs Available</h3>
+                                        <p class="text-muted-foreground mb-4">
+                                            There are no labs created for this course yet. 
+                                            <span v-if="canManageCourse">Check back later or create your first lab.</span>
+                                            <span v-else>Check back later for new labs.</span>
+                                        </p>
+                                        <NuxtLink v-if="canManageCourse" :to="`/courses/${courseId}/labs/create`">
+                                            <Button>
+                                                <Plus class="w-4 h-4 mr-2" />
+                                                Create First Lab
+                                            </Button>
+                                        </NuxtLink>
+                                    </div>
+                                </div>
                             </AccordionContent>
                         </AccordionItem>
-                        <AccordionItem value="syllabus">
-                            <AccordionTrigger>Exams</AccordionTrigger>
+                        
+                        <!-- Exams Section -->
+                        <AccordionItem value="exams">
+                            <AccordionTrigger>
+                                <div class="flex items-center space-x-2">
+                                    <Settings class="w-5 h-5" />
+                                    <span>Exams</span>
+                                    <div v-if="availableExams.length > 0" class="ml-2 px-2 py-0.5 text-xs bg-orange-100 text-orange-700 rounded-full">
+                                        {{ availableExams.length }}
+                                    </div>
+                                </div>
+                            </AccordionTrigger>
                             <AccordionContent>
-                                <ul class="list-disc pl-5">
-                                    <li v-for="(item, index) in currentCourse.exams" :key="index">{{ item }}</li>
-                                </ul>
+                                <!-- Loading State -->
+                                <div v-if="isLoadingLabs" class="flex items-center justify-center py-8">
+                                    <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
+                                    <span class="ml-3 text-muted-foreground">Loading exams...</span>
+                                </div>
+                                
+                                <!-- Exams List -->
+                                <div v-else-if="availableExams.length > 0" class="space-y-3">
+                                    <Card 
+                                        v-for="exam in availableExams" 
+                                        :key="exam.id" 
+                                        class="hover:shadow-md transition-shadow duration-200 border-l-4 border-l-orange-500/50"
+                                    >
+                                        <CardContent class="p-6">
+                                            <div class="flex items-start justify-between">
+                                                <div class="flex-1 min-w-0">
+                                                    <div class="flex items-start space-x-3">
+                                                        <div class="flex-shrink-0 mt-1">
+                                                            <div class="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
+                                                                <Settings class="w-5 h-5 text-orange-600" />
+                                                            </div>
+                                                        </div>
+                                                        <div class="flex-1 min-w-0">
+                                                            <h3 class="font-semibold text-lg text-foreground mb-1 truncate">
+                                                                {{ exam.title }}
+                                                            </h3>
+                                                            <p v-if="exam.description" class="text-muted-foreground text-sm mb-3 line-clamp-2">
+                                                                {{ exam.description }}
+                                                            </p>
+                                                            <div class="flex items-center space-x-4 text-xs text-muted-foreground">
+                                                                <div class="flex items-center space-x-1">
+                                                                    <Calendar class="w-3 h-3" />
+                                                                    <span>Created {{ formatLabDate(exam.createdAt) }}</span>
+                                                                </div>
+                                                                <div class="flex items-center space-x-1">
+                                                                    <Clock class="w-3 h-3" />
+                                                                    <span>Updated {{ formatLabDate(exam.updatedAt) }}</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="flex-shrink-0 ml-4">
+                                                    <NuxtLink :to="`/courses/${courseId}/exams/${exam.id}`">
+                                                        <Button variant="outline" class="border-orange-200 text-orange-700 hover:bg-orange-50">
+                                                            <Play class="w-4 h-4 mr-2" />
+                                                            Start Exam
+                                                        </Button>
+                                                    </NuxtLink>
+                                                </div>
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                </div>
+                                
+                                <!-- Empty State -->
+                                <div v-else class="text-center py-12">
+                                    <div class="max-w-md mx-auto">
+                                        <div class="w-16 h-16 bg-orange-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                                            <Settings class="w-8 h-8 text-orange-400" />
+                                        </div>
+                                        <h3 class="text-lg font-medium text-foreground mb-2">No Exams Available</h3>
+                                        <p class="text-muted-foreground mb-4">
+                                            There are no exams created for this course yet. 
+                                            <span v-if="canManageCourse">Check back later or create your first exam.</span>
+                                            <span v-else>Check back later for new exams.</span>
+                                        </p>
+                                        <NuxtLink v-if="canManageCourse" :to="`/courses/${courseId}/exams/create`">
+                                            <Button variant="outline" class="border-orange-200 text-orange-700 hover:bg-orange-50">
+                                                <Plus class="w-4 h-4 mr-2" />
+                                                Create First Exam
+                                            </Button>
+                                        </NuxtLink>
+                                    </div>
+                                </div>
                             </AccordionContent>
                         </AccordionItem>
+                        
+                        <!-- Resources Section -->
                         <AccordionItem value="resources">
                             <AccordionTrigger>Resources</AccordionTrigger>
                             <AccordionContent>

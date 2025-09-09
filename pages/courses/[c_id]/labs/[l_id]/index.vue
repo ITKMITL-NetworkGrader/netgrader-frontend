@@ -1,292 +1,757 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Skeleton } from '@/components/ui/skeleton'
-// Removed loading-states dependency - using inline loading components
+import { marked } from 'marked'
+import DOMPurify from 'dompurify'
+import {
+  AlertCircle,
+  ChevronRight,
+  ChevronLeft,
+  Home,
+  BookOpen,
+  CheckCircle2,
+  Clock,
+  Lock,
+  Play,
+  ArrowLeft,
+  CheckCircle,
+  Settings,
+  Users,
+  Award,
+  Target,
+  Timer,
+  FileText,
+  Server,
+  TestTube,
+  Save,
+  RotateCcw,
+  Info
+} from 'lucide-vue-next'
+
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Progress } from '@/components/ui/progress'
+import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { AlertCircle } from 'lucide-vue-next'
-import PartSidebar from '@/components/lab/PartSidebar.vue'
-import ClientOnlyTextEditor from '@/components/lab/ClientOnlyTextEditor.vue'
-import GradingStatus from '@/components/lab/GradingStatus.vue'
-import { useLabManagement } from '@/composables/useLabManagement'
-import { useGradingStatus } from '@/composables/useGradingStatus'
-import { useVariableResolver } from '@/composables/useVariableResolver'
-import type { Lab, LabPart } from '@/types/lab'
+import { Separator } from '@/components/ui/separator'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
+import { useCourseLabs, type Lab, type LabPart, type LabTask, type TaskGroup } from '@/composables/useCourseLabs'
+import { useCourse } from '@/composables/useCourse'
+
+// Configure marked for safe HTML rendering
+marked.setOptions({
+  gfm: true,
+  breaks: true,
+})
 
 const route = useRoute()
 const router = useRouter()
 
+// Route params
 const courseId = computed(() => route.params.c_id as string)
 const labId = computed(() => route.params.l_id as string)
 
-// Lab management
-const { loadLab, isLoading: isLoadingLab } = useLabManagement()
-const lab = ref<Lab | null>(null)
-const parts = ref<LabPart[]>([])
-const currentPart = ref(0)
-const isLoading = ref(true)
-const error = ref<string | null>(null)
-
-// Variable resolution
-const { resolveVariables } = useVariableResolver()
-const studentGroupNumber = ref<number | undefined>(undefined)
-const resolvedContent = ref('')
-
-// Grading status for current part
-const currentPartId = computed(() => {
-  return parts.value[currentPart.value]?.id || ''
-})
-
+// Composables
+const { currentCourse, fetchCourse } = useCourse()
 const {
-  status: gradingStatus,
-  gradingProgress,
-  taskResults,
-  totalScore,
-  maxScore,
-  submitForGrading,
-  isSubmitting
-} = useGradingStatus(courseId.value, labId.value, currentPartId.value)
+  currentLab,
+  currentLabParts,
+  isLoading,
+  isLoadingParts,
+  error,
+  fetchLabById,
+  fetchLabParts,
+  formatLabDate
+} = useCourseLabs()
 
-// Load lab data
-const loadLabData = async () => {
-  try {
-    isLoading.value = true
-    error.value = null
-    
-    const labData = await loadLab(courseId.value, labId.value)
-    if (labData) {
-      lab.value = labData
-      parts.value = labData.parts.map(part => ({
-        ...part,
-        status: 'not_submitted' // Will be updated by individual grading status
-      }))
-      
-      // Load student's group information if lab requires groups
-      if (labData.groupsRequired) {
-        await loadStudentGroup()
-      }
-      
-      // Resolve variables for current part
-      updateResolvedContent()
-    } else {
-      error.value = 'Lab not found'
+// State Management
+const currentPartIndex = ref(0)
+const completedParts = ref<Set<string>>(new Set())
+const completedTasks = ref<Record<string, Set<string>>>(new Map()) // partId -> Set of taskIds
+const isSubmittingPart = ref(false)
+const lastSaved = ref<Date | null>(null)
+const progress = ref<Record<string, number>>({}) // partId -> percentage
+
+// Computed Properties
+const currentPart = computed(() => {
+  const parts = currentLabParts.value || []
+  return parts[currentPartIndex.value] || null
+})
+
+const totalParts = computed(() => currentLabParts.value?.length || 0)
+const completedPartsCount = computed(() => completedParts.value.size)
+
+const overallProgress = computed(() => {
+  if (totalParts.value === 0) return 0
+  return Math.round((completedPartsCount.value / totalParts.value) * 100)
+})
+
+const totalPointsEarned = computed(() => {
+  let earned = 0
+  currentLabParts.value?.forEach(part => {
+    if (completedParts.value.has(part.id)) {
+      earned += part.totalPoints || 0
     }
-  } catch (err) {
-    console.error('Failed to load lab:', err)
-    error.value = 'Failed to load lab data'
-  } finally {
-    isLoading.value = false
+  })
+  return earned
+})
+
+const totalPointsAvailable = computed(() => {
+  return currentLabParts.value?.reduce((sum, part) => sum + (part.totalPoints || 0), 0) || 0
+})
+
+const courseTitle = computed(() => currentCourse.value?.title || `Course ${courseId.value}`)
+
+// Part Access Control - Sequential Unlocking Based on Prerequisites
+const isPartUnlocked = (part: LabPart): boolean => {
+  if (!part.prerequisites || part.prerequisites.length === 0) {
+    return true // No prerequisites means unlocked
   }
+  
+  // Check if all prerequisite parts are completed
+  return part.prerequisites.every(prereqPartId => {
+    const prereqPart = currentLabParts.value?.find(p => p.partId === prereqPartId)
+    return prereqPart ? completedParts.value.has(prereqPart.id) : false
+  })
 }
 
-// Load student's group assignment
-const loadStudentGroup = async () => {
-  try {
-    const config = useRuntimeConfig()
-    const baseURL = `${config.public.backend1url}/v0/api`
+const getPartStatus = (part: LabPart, index: number) => {
+  if (completedParts.value.has(part.id)) return 'completed'
+  if (index === currentPartIndex.value) return 'current'
+  if (!isPartUnlocked(part)) return 'locked'
+  return 'available'
+}
+
+const canAccessPart = (index: number): boolean => {
+  const part = currentLabParts.value?.[index]
+  return part ? isPartUnlocked(part) : false
+}
+
+// Task Organization and Grouping
+const organizedTasks = computed(() => {
+  if (!currentPart.value) return { grouped: [], ungrouped: [] }
+  
+  const grouped: Array<{ group: TaskGroup; tasks: LabTask[] }> = []
+  const ungrouped: LabTask[] = []
+  
+  // Get all tasks for current part, sorted by order
+  const allTasks = [...(currentPart.value.tasks || [])].sort((a, b) => a.order - b.order)
+  const taskGroups = currentPart.value.task_groups || []
+  
+  // Create a set of task IDs that belong to any group
+  const groupedTaskIds = new Set<string>()
+  
+  // Process task groups
+  taskGroups.forEach(group => {
+    const groupTasks = allTasks.filter(task => {
+      // In a real implementation, you'd need a way to determine which tasks belong to which group
+      // For now, we'll assume tasks are assigned to groups based on some logic or additional field
+      // This is a placeholder - you may need to adjust based on your actual data structure
+      return true // Placeholder logic
+    })
     
-    const response = await $fetch(`${baseURL}/courses/${courseId.value}/students/me/group`)
-    if (response.success && response.data) {
-      studentGroupNumber.value = response.data.groupNumber
+    if (groupTasks.length > 0) {
+      grouped.push({ group, tasks: groupTasks })
+      groupTasks.forEach(task => groupedTaskIds.add(task.taskId))
     }
-  } catch (err) {
-    console.log('No group assignment found for student')
-  }
+  })
+  
+  // Process ungrouped tasks
+  allTasks.forEach(task => {
+    if (!groupedTaskIds.has(task.taskId)) {
+      ungrouped.push(task)
+    }
+  })
+  
+  return { grouped, ungrouped }
+})
+
+// Task Status Management
+const getTaskStatus = (taskId: string, partId: string): 'pending' | 'running' | 'passed' | 'failed' => {
+  const partTasks = completedTasks.value[partId] || new Set()
+  if (partTasks.has(taskId)) return 'passed'
+  // In a real implementation, you'd track running/failed states
+  return 'pending'
 }
 
-// Update resolved content when part changes
-const updateResolvedContent = () => {
-  const currentPartData = parts.value[currentPart.value]
-  if (!currentPartData) {
-    resolvedContent.value = ''
-    return
-  }
-  
-  let content = currentPartData.content
-  
-  // Resolve variables if lab requires groups and student has group
-  if (lab.value?.groupsRequired && studentGroupNumber.value !== undefined) {
-    content = resolveVariables(
-      content,
-      currentPartData.playVariables || {},
-      undefined,
-      studentGroupNumber.value
-    )
-  }
-  
-  resolvedContent.value = content
+// Markdown Rendering
+const renderMarkdown = (markdown: string): string => {
+  const html = marked(markdown || '')
+  return DOMPurify.sanitize(html)
 }
 
-// Handle part selection
+// Navigation Methods
 const selectPart = (index: number) => {
-  // Check if part is accessible (sequential access control)
-  if (!isPartAccessible(index)) {
-    return
-  }
-  
-  currentPart.value = index
-  updateResolvedContent()
+  if (!canAccessPart(index)) return
+  saveProgress()
+  currentPartIndex.value = index
 }
 
-// Check if a part is accessible based on completion status
-const isPartAccessible = (index: number): boolean => {
-  // First part is always accessible
-  if (index === 0) return true
-  
-  // Check if all previous parts are completed
-  for (let i = 0; i < index; i++) {
-    const part = parts.value[i]
-    if (!part.status || part.status !== 'graded') {
-      return false
-    }
-  }
-  
-  return true
-}
-
-// Handle grading submission
-const handleSubmitGrading = async () => {
-  const success = await submitForGrading()
-  if (success) {
-    // Update part status
-    const currentPartData = parts.value[currentPart.value]
-    if (currentPartData) {
-      currentPartData.status = 'grading'
+const goToPreviousPart = () => {
+  if (currentPartIndex.value > 0) {
+    const prevIndex = currentPartIndex.value - 1
+    if (canAccessPart(prevIndex)) {
+      saveProgress()
+      currentPartIndex.value = prevIndex
     }
   }
 }
 
-// Handle grading completion (called when status changes to 'graded')
-const handleGradingComplete = () => {
-  const currentPartData = parts.value[currentPart.value]
-  if (currentPartData && gradingStatus.value === 'graded') {
-    currentPartData.status = 'graded'
+const goToNextPart = () => {
+  if (currentPartIndex.value < totalParts.value - 1) {
+    const nextIndex = currentPartIndex.value + 1
+    if (canAccessPart(nextIndex)) {
+      saveProgress()
+      currentPartIndex.value = nextIndex
+    }
+  }
+}
+
+// Progress Management
+const saveProgress = () => {
+  // In a real implementation, this would save to backend
+  lastSaved.value = new Date()
+  console.log('Progress saved')
+}
+
+const autoSaveProgress = () => {
+  // Auto-save every 30 seconds
+  setInterval(() => {
+    if (currentPart.value) {
+      saveProgress()
+    }
+  }, 30000)
+}
+
+// Grading Submission
+const submitPartForGrading = async () => {
+  if (!currentPart.value) return
+  
+  isSubmittingPart.value = true
+  try {
+    // Simulate API call for grading submission
+    await new Promise(resolve => setTimeout(resolve, 2000))
     
-    // Auto-advance to next part if available and accessible
-    const nextPartIndex = currentPart.value + 1
-    if (nextPartIndex < parts.value.length && isPartAccessible(nextPartIndex)) {
-      // Optional: Auto-advance or let student manually navigate
-      // currentPart.value = nextPartIndex
-      // updateResolvedContent()
+    // Mark part as completed
+    completedParts.value.add(currentPart.value.id)
+    
+    // Mark all tasks in this part as completed (placeholder logic)
+    const partId = currentPart.value.id
+    if (!completedTasks.value[partId]) {
+      completedTasks.value[partId] = new Set()
     }
+    currentPart.value.tasks?.forEach(task => {
+      completedTasks.value[partId].add(task.taskId)
+    })
+    
+    // Auto-advance to next part if available
+    await nextTick()
+    const nextIndex = currentPartIndex.value + 1
+    if (nextIndex < totalParts.value && canAccessPart(nextIndex)) {
+      setTimeout(() => {
+        currentPartIndex.value = nextIndex
+      }, 1500) // Give user time to see success state
+    }
+    
+    saveProgress()
+  } catch (error) {
+    console.error('Failed to submit part for grading:', error)
+    // Handle error state
+  } finally {
+    isSubmittingPart.value = false
   }
 }
 
-// Watch for grading status changes
-watch(gradingStatus, (newStatus) => {
-  if (newStatus === 'graded') {
-    handleGradingComplete()
+// Data Loading
+const loadLabData = async () => {
+  console.log('🚀 [DEBUG] loadLabData started')
+  console.log('🚀 [DEBUG] courseId:', courseId.value)
+  console.log('🚀 [DEBUG] labId:', labId.value)
+  
+  try {
+    // Load course and lab data in parallel
+    console.log('🚀 [DEBUG] Loading course and lab data...')
+    await Promise.all([
+      fetchCourse(courseId.value),
+      fetchLabById(labId.value),
+    ])
+    
+    console.log('🚀 [DEBUG] Course and lab data loaded')
+    console.log('🚀 [DEBUG] currentLab.value:', currentLab.value)
+    
+    // Then load parts data
+    if (currentLab.value) {
+      console.log('🚀 [DEBUG] Lab found, fetching parts with labId:', labId.value)
+      const parts = await fetchLabParts(labId.value) // Use labId directly as specified in API
+      console.log('🚀 [DEBUG] Parts fetched:', parts)
+    } else {
+      console.log('🚀 [DEBUG] No currentLab found, skipping parts fetch')
+    }
+  } catch (err) {
+    console.error('🚀 [DEBUG] Failed to load lab data:', err)
   }
+}
+
+// Lifecycle
+onMounted(async () => {
+  await loadLabData()
+  autoSaveProgress()
 })
 
-// Computed properties
-const currentPartData = computed(() => parts.value[currentPart.value])
-const canSubmitGrading = computed(() => {
-  return currentPartData.value?.playId && gradingStatus.value === 'not_submitted'
-})
-
-const progressStats = computed(() => {
-  const completed = parts.value.filter(part => part.status === 'graded').length
-  const total = parts.value.length
-  return { completed, total, percentage: total > 0 ? (completed / total) * 100 : 0 }
-})
-
-// Initialize
-onMounted(() => {
-  loadLabData()
-})
+// Watch for URL changes to update current part
+watch(() => route.query.part, (newPart) => {
+  if (newPart && typeof newPart === 'string') {
+    const partIndex = parseInt(newPart) - 1
+    if (partIndex >= 0 && partIndex < totalParts.value && canAccessPart(partIndex)) {
+      currentPartIndex.value = partIndex
+    }
+  }
+}, { immediate: true })
 </script>
 
 <template>
   <div class="min-h-screen bg-background">
+    <!-- Navigation Breadcrumb -->
+    <div class="border-b bg-background/95 backdrop-blur-sm p-4 sticky top-0 z-50 shadow-sm">
+      <Breadcrumb>
+        <BreadcrumbList>
+          <BreadcrumbItem>
+            <BreadcrumbLink :to="`/`" class="flex items-center hover:text-primary transition-colors">
+              <Home class="h-4 w-4" />
+            </BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator>
+            <ChevronRight class="h-4 w-4" />
+          </BreadcrumbSeparator>
+          <BreadcrumbItem>
+            <BreadcrumbLink to="/courses" class="hover:text-primary transition-colors">
+              Courses
+            </BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator>
+            <ChevronRight class="h-4 w-4" />
+          </BreadcrumbSeparator>
+          <BreadcrumbItem>
+            <BreadcrumbLink :to="`/courses/${courseId}`" class="hover:text-primary transition-colors">
+              {{ courseTitle }}
+            </BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator>
+            <ChevronRight class="h-4 w-4" />
+          </BreadcrumbSeparator>
+          <BreadcrumbItem>
+            <BreadcrumbPage class="font-medium">
+              {{ currentLab?.title || 'Loading...' }}
+            </BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
+    </div>
+
     <!-- Loading State -->
-    <PageLoadingState 
-      v-if="isLoading"
-      content-type="generic"
-      :show-sidebar="true"
-      :show-header="true"
-      :show-header-description="true"
-      :show-header-actions="false"
-      :show-sidebar-actions="false"
-      :sidebar-items="3"
-    />
-    
+    <div v-if="isLoading || isLoadingParts" class="flex items-center justify-center py-20">
+      <div class="text-center">
+        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-6" />
+        <h3 class="text-lg font-semibold mb-2">Loading Lab</h3>
+        <p class="text-muted-foreground">Preparing your learning experience...</p>
+      </div>
+    </div>
+
     <!-- Error State -->
-    <div v-else-if="error" class="p-8">
+    <div v-else-if="error" class="p-8 max-w-2xl mx-auto">
       <Alert variant="destructive">
         <AlertCircle class="h-4 w-4" />
-        <AlertDescription>{{ error }}</AlertDescription>
+        <AlertDescription class="text-base">{{ error }}</AlertDescription>
       </Alert>
     </div>
-    
+
     <!-- Main Lab Interface -->
-    <div v-else-if="lab" class="flex h-screen">
-      <!-- Part Sidebar -->
-      <PartSidebar
-        :parts="parts"
-        :current-part="currentPart"
-        :can-add-parts="false"
-        :show-status="true"
-        :show-progress="true"
-        :user-role="'student'"
-        :sequential-access="true"
-        @select-part="selectPart"
-      />
-      
-      <!-- Main Content Area -->
-      <div class="flex-1 flex flex-col">
+    <div v-else-if="currentLab && currentLabParts && currentLabParts.length > 0" class="flex min-h-[calc(100vh-80px)]">
+      <!-- Right Sidebar - Part Navigation (30%) -->
+      <div class="w-[30%] min-w-[380px] max-w-[420px] border-r bg-card/30 backdrop-blur-sm flex flex-col">
         <!-- Lab Header -->
-        <div class="border-b border-border p-6 bg-card">
-          <div class="flex items-center justify-between">
-            <div>
-              <h1 class="text-2xl font-bold">{{ lab.title }}</h1>
-              <p v-if="lab.description" class="text-muted-foreground mt-1">
-                {{ lab.description }}
+        <div class="p-6 border-b bg-card/80 backdrop-blur-sm">
+          <div class="flex items-start space-x-4">
+            <div class="flex-shrink-0">
+              <div class="w-14 h-14 bg-gradient-to-br from-primary/20 to-primary/30 rounded-xl flex items-center justify-center border border-primary/20">
+                <BookOpen class="w-7 h-7 text-primary" />
+              </div>
+            </div>
+            <div class="flex-1 min-w-0">
+              <h2 class="font-bold text-xl truncate text-foreground">{{ currentLab.title }}</h2>
+              <p v-if="currentLab.description" class="text-sm text-muted-foreground line-clamp-2 mt-1 leading-relaxed">
+                {{ currentLab.description }}
               </p>
             </div>
-            <div class="text-right">
-              <div class="text-sm text-muted-foreground">Progress</div>
-              <div class="text-lg font-semibold">
-                {{ progressStats.completed }}/{{ progressStats.total }} parts
+          </div>
+
+          <!-- Progress Overview -->
+          <div class="mt-6 space-y-4">
+            <div class="flex items-center justify-between text-sm">
+              <span class="font-semibold flex items-center space-x-2">
+                <Award class="w-4 h-4 text-primary" />
+                <span>Overall Progress</span>
+              </span>
+              <span class="text-muted-foreground">{{ completedPartsCount }}/{{ totalParts }} parts</span>
+            </div>
+            <Progress :value="overallProgress" class="h-3 rounded-full" />
+            <div class="flex items-center justify-between text-xs">
+              <span class="text-muted-foreground">{{ overallProgress }}% complete</span>
+              <span class="font-medium text-primary">{{ totalPointsEarned }}/{{ totalPointsAvailable }} pts</span>
+            </div>
+          </div>
+
+          <!-- Last Saved Indicator -->
+          <div v-if="lastSaved" class="mt-4 flex items-center space-x-2 text-xs text-muted-foreground">
+            <Save class="w-3 h-3" />
+            <span>Last saved: {{ lastSaved.toLocaleTimeString() }}</span>
+          </div>
+        </div>
+
+        <!-- Parts List -->
+        <ScrollArea class="flex-1 p-4">
+          <div class="space-y-3">
+            <Card
+              v-for="(part, index) in currentLabParts"
+              :key="part.id"
+              :class="[
+                'cursor-pointer transition-all duration-300 overflow-hidden',
+                {
+                  // Current part - primary styling
+                  'bg-gradient-to-r from-primary/10 to-primary/5 border-primary/30 shadow-lg scale-[1.02]': index === currentPartIndex,
+                  // Completed part - success styling
+                  'bg-gradient-to-r from-green-50 to-green-25 border-green-200 shadow-md': completedParts.has(part.id) && index !== currentPartIndex,
+                  // Available part - default styling
+                  'bg-card border-border shadow-sm hover:shadow-md hover:border-primary/20': canAccessPart(index) && index !== currentPartIndex && !completedParts.has(part.id),
+                  // Locked part - disabled styling
+                  'opacity-50 cursor-not-allowed bg-muted border-muted-foreground/20': !canAccessPart(index)
+                }
+              ]"
+              @click="selectPart(index)"
+            >
+              <CardContent class="p-4">
+                <div class="flex items-start space-x-3">
+                  <!-- Status Icon -->
+                  <div class="flex-shrink-0 mt-1">
+                    <div class="relative">
+                      <CheckCircle2 
+                        v-if="completedParts.has(part.id)" 
+                        class="w-6 h-6 text-green-600 drop-shadow-sm" 
+                      />
+                      <Play 
+                        v-else-if="index === currentPartIndex" 
+                        class="w-6 h-6 text-primary drop-shadow-sm animate-pulse" 
+                      />
+                      <Lock 
+                        v-else-if="!canAccessPart(index)" 
+                        class="w-6 h-6 text-muted-foreground/50" 
+                      />
+                      <Clock 
+                        v-else 
+                        class="w-6 h-6 text-muted-foreground" 
+                      />
+                    </div>
+                  </div>
+
+                  <!-- Part Info -->
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-start justify-between mb-2">
+                      <h3 class="font-semibold text-sm leading-tight">
+                        Part {{ index + 1 }}: {{ part.title }}
+                      </h3>
+                      <Badge
+                        v-if="completedParts.has(part.id)"
+                        variant="secondary"
+                        class="text-xs bg-green-100 text-green-800 border-green-200 ml-2"
+                      >
+                        Complete
+                      </Badge>
+                      <Badge
+                        v-else-if="index === currentPartIndex"
+                        variant="secondary"
+                        class="text-xs bg-primary/15 text-primary border-primary/30 ml-2"
+                      >
+                        Current
+                      </Badge>
+                    </div>
+                    
+                    <div class="flex items-center space-x-3 text-xs text-muted-foreground mb-2">
+                      <div class="flex items-center space-x-1">
+                        <Award class="w-3 h-3" />
+                        <span>{{ part.totalPoints || 0 }} pts</span>
+                      </div>
+                    </div>
+                    
+                    <!-- Prerequisites -->
+                    <div v-if="part.prerequisites?.length" class="flex items-center space-x-1 text-xs text-amber-600">
+                      <Lock class="w-3 h-3" />
+                      <span>Requires: {{ part.prerequisites.join(', ') }}</span>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </ScrollArea>
+      </div>
+
+      <!-- Main Content Area (70%) -->
+      <div class="flex-1 flex flex-col bg-background">
+        <!-- Current Part Header -->
+        <div v-if="currentPart" class="border-b bg-card/50 backdrop-blur-sm p-6">
+          <div class="flex items-center justify-between mb-4">
+            <div class="flex-1">
+              <h1 class="text-3xl font-bold text-foreground">
+                Part {{ currentPartIndex + 1 }}: {{ currentPart.title }}
+              </h1>
+              <p v-if="currentPart.description" class="text-muted-foreground mt-2 text-lg">
+                {{ currentPart.description }}
+              </p>
+            </div>
+            <div class="flex items-center space-x-3">
+              <Button
+                variant="outline"
+                size="sm"
+                :disabled="currentPartIndex === 0"
+                @click="goToPreviousPart"
+                class="shadow-sm"
+              >
+                <ChevronLeft class="w-4 h-4 mr-1" />
+                Previous
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                :disabled="currentPartIndex === totalParts - 1 || !canAccessPart(currentPartIndex + 1)"
+                @click="goToNextPart"
+                class="shadow-sm"
+              >
+                Next
+                <ChevronRight class="w-4 h-4 ml-1" />
+              </Button>
+            </div>
+          </div>
+
+          <!-- Part Metadata -->
+          <div class="flex items-center space-x-6 text-sm text-muted-foreground">
+            <div class="flex items-center space-x-2">
+              <Award class="w-4 h-4" />
+              <span>{{ currentPart.totalPoints || 0 }} points available</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Part Content -->
+        <ScrollArea class="flex-1 p-6">
+          <div v-if="currentPart" class="max-w-5xl mx-auto space-y-8">
+            
+            <!-- Instructions Section -->
+            <Card class="shadow-sm">
+              <CardHeader class="pb-4">
+                <CardTitle class="flex items-center space-x-3 text-xl">
+                  <div class="p-2 bg-primary/10 rounded-lg">
+                    <FileText class="w-5 h-5 text-primary" />
+                  </div>
+                  <span>Instructions</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div 
+                  class="prose prose-sm max-w-none prose-headings:text-foreground prose-p:text-muted-foreground prose-strong:text-foreground prose-code:text-foreground prose-pre:bg-muted prose-pre:border"
+                  v-html="renderMarkdown(currentPart.instructions)"
+                />
+              </CardContent>
+            </Card>
+
+          </div>
+        </ScrollArea>
+
+        <!-- Bottom Action Bar -->
+        <div class="border-t bg-card/80 backdrop-blur-sm">
+          <!-- Part Incomplete - Show Submit Button -->
+          <div v-if="currentPart && !completedParts.has(currentPart.id)" class="p-6">
+            <div class="max-w-5xl mx-auto flex items-center justify-between">
+              <div class="flex-1">
+                <h3 class="font-semibold text-lg mb-1">Ready to Submit Part {{ currentPartIndex + 1 }}?</h3>
+                <p class="text-sm text-muted-foreground">
+                  Once submitted, your work will be automatically graded and you can proceed to the next part.
+                  <span class="font-medium text-primary ml-1">{{ currentPart.totalPoints }} points available</span>
+                </p>
+              </div>
+              <div class="flex items-center space-x-3">
+                <Button 
+                  variant="outline" 
+                  size="lg"
+                  @click="saveProgress"
+                  class="shadow-sm"
+                >
+                  <Save class="w-4 h-4 mr-2" />
+                  Save Progress
+                </Button>
+                <Button 
+                  size="lg" 
+                  :disabled="isSubmittingPart"
+                  @click="submitPartForGrading"
+                  class="bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary/80 shadow-md min-w-[160px]"
+                >
+                  <div v-if="isSubmittingPart" class="flex items-center space-x-2">
+                    <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                    <span>Grading...</span>
+                  </div>
+                  <div v-else class="flex items-center space-x-2">
+                    <CheckCircle class="w-5 h-5" />
+                    <span>Submit for Grading</span>
+                  </div>
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Part Completed - Show Success State -->
+          <div v-else-if="currentPart && completedParts.has(currentPart.id)" class="p-6 bg-gradient-to-r from-green-50 to-emerald-50 border-t-4 border-t-green-500">
+            <div class="max-w-5xl mx-auto flex items-center justify-between">
+              <div class="flex items-center space-x-4">
+                <div class="flex-shrink-0">
+                  <CheckCircle2 class="w-10 h-10 text-green-600" />
+                </div>
+                <div>
+                  <h3 class="font-bold text-lg text-green-800">Part {{ currentPartIndex + 1 }} Completed! 🎉</h3>
+                  <p class="text-sm text-green-700">
+                    Excellent work! You've earned <span class="font-semibold">{{ currentPart.totalPoints }} points</span>.
+                    {{ canAccessPart(currentPartIndex + 1) ? ' You can now proceed to the next part.' : ' Great job on completing this lab!' }}
+                  </p>
+                </div>
+              </div>
+              <div class="flex items-center space-x-3">
+                <Button
+                  variant="outline"
+                  size="lg"
+                  @click="saveProgress"
+                  class="bg-white shadow-sm"
+                >
+                  <RotateCcw class="w-4 h-4 mr-2" />
+                  Review Work
+                </Button>
+                <Button
+                  v-if="canAccessPart(currentPartIndex + 1)"
+                  size="lg"
+                  @click="goToNextPart"
+                  class="bg-green-600 hover:bg-green-700 text-white shadow-md"
+                >
+                  Continue to Next Part
+                  <ChevronRight class="w-5 h-5 ml-2" />
+                </Button>
+                <Button
+                  v-else
+                  size="lg"
+                  @click="router.push(`/courses/${courseId}`)"
+                  class="bg-primary hover:bg-primary/90 shadow-md"
+                >
+                  Return to Course
+                  <Home class="w-5 h-5 ml-2" />
+                </Button>
               </div>
             </div>
           </div>
         </div>
-        
-        <!-- Part Content -->
-        <div class="flex-1 flex flex-col">
-          <ClientOnlyTextEditor
-            v-if="currentPartData"
-            :model-value="resolvedContent"
-            :title="currentPartData.title"
-            :readonly="true"
-          />
-          
-          <!-- No Part Selected -->
-          <div v-else class="flex-1 flex items-center justify-center">
-            <div class="text-center text-muted-foreground">
-              <p>Select a part from the sidebar to begin</p>
-            </div>
-          </div>
-        </div>
-        
-        <!-- Grading Status Section -->
-        <div v-if="currentPartData">
-          <GradingStatus
-            :course-id="courseId"
-            :lab-id="labId"
-            :part-id="currentPartId"
-            :status="gradingStatus"
-            :grading-progress="gradingProgress"
-            :task-results="taskResults"
-            :total-score="totalScore"
-            :max-score="maxScore"
-            :can-submit="canSubmitGrading"
-            :allow-resubmission="false"
-            @submit-grading="handleSubmitGrading"
-          />
-        </div>
       </div>
+    </div>
+
+    <!-- No Parts Available -->
+    <div v-else-if="currentLab && (!currentLabParts || currentLabParts.length === 0)" class="p-12 text-center">
+      <div class="max-w-md mx-auto">
+        <BookOpen class="w-20 h-20 mx-auto text-muted-foreground/50 mb-6" />
+        <h3 class="text-2xl font-semibold mb-3">No Parts Available</h3>
+        <p class="text-muted-foreground leading-relaxed">
+          This lab doesn't have any parts configured yet. Please check back later or contact your instructor.
+        </p>
+      </div>
+    </div>
+
+    <!-- Lab Not Found -->
+    <div v-else class="p-12 text-center">
+      <Alert class="max-w-md mx-auto">
+        <AlertCircle class="h-4 w-4" />
+        <AlertDescription>
+          Lab not found or you don't have access to this lab.
+        </AlertDescription>
+      </Alert>
     </div>
   </div>
 </template>
+
+<style scoped>
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Custom scrollbar for better appearance */
+.scroll-area {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--muted-foreground)) hsl(var(--background));
+}
+
+.scroll-area::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scroll-area::-webkit-scrollbar-track {
+  background: hsl(var(--background));
+}
+
+.scroll-area::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--muted-foreground));
+  border-radius: 3px;
+}
+
+/* Enhanced focus states for accessibility */
+.focus\:ring-primary:focus {
+  --tw-ring-color: hsl(var(--primary));
+}
+
+/* Smooth animations */
+.transition-all {
+  transition-property: all;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Enhanced prose styles for markdown content */
+.prose {
+  color: hsl(var(--foreground));
+}
+
+.prose h1 {
+  color: hsl(var(--foreground));
+  border-bottom: 2px solid hsl(var(--border));
+  padding-bottom: 0.5rem;
+}
+
+.prose h2 {
+  color: hsl(var(--foreground));
+  border-bottom: 1px solid hsl(var(--border));
+  padding-bottom: 0.25rem;
+}
+
+.prose code {
+  background-color: hsl(var(--muted));
+  padding: 0.125rem 0.25rem;
+  border-radius: 0.25rem;
+  font-size: 0.875em;
+}
+
+.prose pre {
+  background-color: hsl(var(--muted));
+  border: 1px solid hsl(var(--border));
+}
+
+.prose blockquote {
+  border-left: 4px solid hsl(var(--primary));
+  background-color: hsl(var(--muted) / 0.5);
+  padding: 1rem;
+  margin: 1rem 0;
+}
+</style>

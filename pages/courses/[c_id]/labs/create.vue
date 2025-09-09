@@ -391,6 +391,16 @@ const canCreateLab = computed(() => {
          validation.value.step5.isValid
 })
 
+// Helper function to convert string boolean values to actual booleans
+const convertStringToBoolean = (value: any): any => {
+  if (typeof value === 'string') {
+    const lowerValue = value.toLowerCase().trim()
+    if (lowerValue === 'true') return true
+    if (lowerValue === 'false') return false
+  }
+  return value
+}
+
 // Methods
 const nextStep = () => {
   if (canProceedToNextStep.value && currentStep.value < steps.length) {
@@ -533,7 +543,10 @@ const handleCreateLab = async () => {
           executionDevice: task.executionDevice,
           targetDevices: task.targetDevices,
           parameters: task.parameters,
-          testCases: task.testCases,
+          testCases: task.testCases.map(testCase => ({
+            ...testCase,
+            expected_result: convertStringToBoolean(testCase.expected_result)
+          })),
           order: task.order,
           points: task.points
         })),

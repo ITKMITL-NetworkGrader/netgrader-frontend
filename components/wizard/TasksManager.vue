@@ -391,7 +391,33 @@ const isValidating = ref(false)
 
 // Computed
 const totalPoints = computed(() => {
-  return localTasks.value.reduce((sum, task) => sum + (task.points || 0), 0)
+  if (!props.taskGroups || props.taskGroups.length === 0) {
+    // No task groups - use sum of individual task points
+    return localTasks.value.reduce((sum, task) => sum + (task.points || 0), 0)
+  }
+  
+  // Calculate points considering task groups
+  let totalGroupPoints = 0
+  let ungroupedTaskPoints = 0
+  const tasksInGroups = new Set<string>()
+  
+  // Add up task group points ONLY if the group has tasks, and track which tasks are in groups
+  for (const group of props.taskGroups) {
+    if (group.taskIds && group.taskIds.length > 0) {
+      // Only add group points if the group actually has tasks
+      totalGroupPoints += group.points || 0
+      group.taskIds.forEach(taskId => tasksInGroups.add(taskId))
+    }
+  }
+  
+  // Add points for ungrouped tasks
+  for (const task of localTasks.value) {
+    if (!tasksInGroups.has(task.taskId)) {
+      ungroupedTaskPoints += task.points || 0
+    }
+  }
+  
+  return totalGroupPoints + ungroupedTaskPoints
 })
 
 // Methods

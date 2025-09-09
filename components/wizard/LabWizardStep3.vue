@@ -221,7 +221,7 @@
                       :key="`${device.tempId}-ip-${ipIndex}`"
                       class="flex items-center space-x-3 p-3 bg-muted/30 rounded-lg"
                     >
-                      <div class="flex-1 grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div class="flex-1 grid grid-cols-1 md:grid-cols-3 gap-3">
                         <!-- Variable Name -->
                         <div class="space-y-1">
                           <Label class="text-xs font-medium">Variable Name</Label>
@@ -240,8 +240,46 @@
                           </p>
                         </div>
 
-                        <!-- Host Offset -->
+                        <!-- IP Configuration Mode -->
                         <div class="space-y-1">
+                          <Label class="text-xs font-medium">IP Configuration</Label>
+                          <Select
+                            v-model="ipVar.inputType"
+                            @update:modelValue="onInputTypeChange(index, ipIndex, $event)"
+                          >
+                            <SelectTrigger class="text-sm">
+                              <SelectValue>
+                                <template v-if="ipVar.inputType === 'hostOffset'">
+                                  Host Offset
+                                </template>
+                                <template v-else>
+                                  Full IP Address
+                                </template>
+                              </SelectValue>
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="hostOffset">
+                                <SelectItemText>
+                                  <div class="flex flex-col space-y-1">
+                                    <div class="font-medium">Host Offset</div>
+                                    <div class="text-xs text-muted-foreground">Calculate IP from base network + offset</div>
+                                  </div>
+                                </SelectItemText>
+                              </SelectItem>
+                              <SelectItem value="fullIP">
+                                <SelectItemText>
+                                  <div class="flex flex-col space-y-1">
+                                    <div class="font-medium">Full IP Address</div>
+                                    <div class="text-xs text-muted-foreground">Enter complete IP address</div>
+                                  </div>
+                                </SelectItemText>
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <!-- Host Offset Input (when inputType is 'hostOffset') -->
+                        <div v-if="ipVar.inputType === 'hostOffset'" class="space-y-1">
                           <Label class="text-xs font-medium">Host Offset</Label>
                           <div class="flex items-center space-x-2">
                             <Input
@@ -253,16 +291,35 @@
                               class="text-sm"
                               :class="{
                                 'border-destructive': hasIpVarError(index, ipIndex, 'hostOffset'),
-                                'border-green-500': !hasIpVarError(index, ipIndex, 'hostOffset') && ipVar.hostOffset > 0
+                                'border-green-500': !hasIpVarError(index, ipIndex, 'hostOffset') && ipVar.hostOffset && ipVar.hostOffset > 0
                               }"
                               @input="validateIpVariable(index, ipIndex, 'hostOffset')"
                             />
                             <div class="text-xs text-muted-foreground">
-                              = {{ calculateIP(ipVar.hostOffset) }}
+                              = {{ calculateIP(ipVar.hostOffset || 0) }}
                             </div>
                           </div>
                           <p v-if="hasIpVarError(index, ipIndex, 'hostOffset')" class="text-xs text-destructive">
                             {{ getIpVarError(index, ipIndex, 'hostOffset') }}
+                          </p>
+                        </div>
+
+                        <!-- Full IP Address Input (when inputType is 'fullIP') -->
+                        <div v-else class="space-y-1">
+                          <Label class="text-xs font-medium">Full IP Address</Label>
+                          <Input
+                            v-model="ipVar.fullIP"
+                            type="text"
+                            placeholder="192.168.1.10"
+                            class="text-sm"
+                            :class="{
+                              'border-destructive': hasIpVarError(index, ipIndex, 'fullIP'),
+                              'border-green-500': !hasIpVarError(index, ipIndex, 'fullIP') && ipVar.fullIP && isValidIP(ipVar.fullIP)
+                            }"
+                            @input="validateIpVariable(index, ipIndex, 'fullIP')"
+                          />
+                          <p v-if="hasIpVarError(index, ipIndex, 'fullIP')" class="text-xs text-destructive">
+                            {{ getIpVarError(index, ipIndex, 'fullIP') }}
                           </p>
                         </div>
                       </div>
@@ -442,7 +499,7 @@ const toAlphanumeric = (interfaceName: string): string => {
     .replace(/serial/g, 'ser')
     .replace(/tunnel/g, 'tun')
     .replace(/vlan/g, 'vlan')
-    .replace(/[^a-zA-Z0-9]/g, '_') // Replace any non-alphanumeric with underscore
+    .replace(/[^a-zA-Z0-9_-]/g, '_') // Replace non-alphanumeric characters (except _ and -) with underscore
     .replace(/_+/g, '_') // Replace multiple underscores with single
     .replace(/^_|_$/g, '') // Remove leading/trailing underscores
 }
@@ -483,7 +540,9 @@ const addIpVariable = (deviceIndex: number) => {
   const device = localData.value[deviceIndex]
   device.ipVariables.push({
     name: '',
-    hostOffset: 1
+    inputType: 'hostOffset', // Default to host offset mode
+    hostOffset: 1,
+    fullIP: ''
   })
   validateStep()
 }
@@ -550,7 +609,9 @@ const onTemplateChange = (deviceIndex: number, templateId: string) => {
     // Create IP variables from defaultInterfaces
     localData.value[deviceIndex].ipVariables = selectedTemplate.defaultInterfaces.map(iface => ({
       name: toAlphanumeric(iface.name),
+      inputType: 'hostOffset', // Default to host offset mode
       hostOffset: 1, // Default, user can change
+      fullIP: '',
       interface: iface.name // ✅ Add the full interface name from template
     }))
     
@@ -675,25 +736,72 @@ const validateIpVariable = (deviceIndex: number, ipIndex: number, field: string)
     case 'name':
       if (!ipVar.name.trim()) {
         ipVarErrors.value[deviceIndex][ipIndex].name = 'Variable name is required'
-      } else if (!/^[a-zA-Z0-9_]+$/.test(ipVar.name)) {
-        ipVarErrors.value[deviceIndex][ipIndex].name = 'Variable name must be alphanumeric with underscores'
+      } else if (!/^[a-zA-Z0-9_-]+$/.test(ipVar.name)) {
+        ipVarErrors.value[deviceIndex][ipIndex].name = 'Variable name must be alphanumeric with underscores and hyphens'
       } else {
         delete ipVarErrors.value[deviceIndex][ipIndex].name
       }
       break
 
     case 'hostOffset':
-      if (!ipVar.hostOffset || ipVar.hostOffset < 1) {
-        ipVarErrors.value[deviceIndex][ipIndex].hostOffset = 'Host offset must be greater than 0'
-      } else if (ipVar.hostOffset > availableHosts.value) {
-        ipVarErrors.value[deviceIndex][ipIndex].hostOffset = `Host offset cannot exceed ${availableHosts.value}`
+      if (ipVar.inputType === 'hostOffset') {
+        if (!ipVar.hostOffset || ipVar.hostOffset < 1) {
+          ipVarErrors.value[deviceIndex][ipIndex].hostOffset = 'Host offset must be greater than 0'
+        } else if (ipVar.hostOffset > availableHosts.value) {
+          ipVarErrors.value[deviceIndex][ipIndex].hostOffset = `Host offset cannot exceed ${availableHosts.value}`
+        } else {
+          delete ipVarErrors.value[deviceIndex][ipIndex].hostOffset
+        }
       } else {
         delete ipVarErrors.value[deviceIndex][ipIndex].hostOffset
+      }
+      break
+
+    case 'fullIP':
+      if (ipVar.inputType === 'fullIP') {
+        if (!ipVar.fullIP?.trim()) {
+          ipVarErrors.value[deviceIndex][ipIndex].fullIP = 'IP address is required'
+        } else if (!isValidIP(ipVar.fullIP)) {
+          ipVarErrors.value[deviceIndex][ipIndex].fullIP = 'Invalid IP address format'
+        } else {
+          delete ipVarErrors.value[deviceIndex][ipIndex].fullIP
+        }
+      } else {
+        delete ipVarErrors.value[deviceIndex][ipIndex].fullIP
       }
       break
   }
 
   emitValidation()
+}
+
+const onInputTypeChange = (deviceIndex: number, ipIndex: number, inputType: 'hostOffset' | 'fullIP') => {
+  const ipVar = localData.value[deviceIndex].ipVariables[ipIndex]
+  ipVar.inputType = inputType
+  
+  // Clear validation errors when switching modes
+  if (ipVarErrors.value[deviceIndex]?.[ipIndex]) {
+    delete ipVarErrors.value[deviceIndex][ipIndex].hostOffset
+    delete ipVarErrors.value[deviceIndex][ipIndex].fullIP
+  }
+  
+  // Initialize default values for the selected mode
+  if (inputType === 'hostOffset') {
+    if (!ipVar.hostOffset) {
+      ipVar.hostOffset = 1
+    }
+  } else if (inputType === 'fullIP') {
+    if (!ipVar.fullIP) {
+      ipVar.fullIP = ''
+    }
+  }
+  
+  validateStep()
+}
+
+const isValidIP = (ip: string): boolean => {
+  const ipRegex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/
+  return ipRegex.test(ip)
 }
 
 const validateAllDevices = () => {
@@ -733,18 +841,34 @@ const validateAllDevices = () => {
       // Validate name
       if (!ipVar.name.trim()) {
         ipVarErrors.value[index][ipIndex].name = 'Variable name is required'
-      } else if (!/^[a-zA-Z0-9_]+$/.test(ipVar.name)) {
-        ipVarErrors.value[index][ipIndex].name = 'Variable name must be alphanumeric with underscores'
+      } else if (!/^[a-zA-Z0-9_-]+$/.test(ipVar.name)) {
+        ipVarErrors.value[index][ipIndex].name = 'Variable name must be alphanumeric with underscores/hyphens'
       } else {
         delete ipVarErrors.value[index][ipIndex].name
       }
 
-      // Validate hostOffset
-      if (!ipVar.hostOffset || ipVar.hostOffset < 1) {
-        ipVarErrors.value[index][ipIndex].hostOffset = 'Host offset must be greater than 0'
-      } else if (ipVar.hostOffset > availableHosts.value) {
-        ipVarErrors.value[index][ipIndex].hostOffset = `Host offset must be ${availableHosts.value} or less`
-      } else {
+      // Validate based on input type (hostOffset or fullIP)
+      if (ipVar.inputType === 'hostOffset') {
+        // Validate hostOffset
+        if (!ipVar.hostOffset || ipVar.hostOffset < 1) {
+          ipVarErrors.value[index][ipIndex].hostOffset = 'Host offset must be greater than 0'
+        } else if (ipVar.hostOffset > availableHosts.value) {
+          ipVarErrors.value[index][ipIndex].hostOffset = `Host offset must be ${availableHosts.value} or less`
+        } else {
+          delete ipVarErrors.value[index][ipIndex].hostOffset
+        }
+        // Clear fullIP errors since we're using hostOffset
+        delete ipVarErrors.value[index][ipIndex].fullIP
+      } else if (ipVar.inputType === 'fullIP') {
+        // Validate fullIP
+        if (!ipVar.fullIP?.trim()) {
+          ipVarErrors.value[index][ipIndex].fullIP = 'Full IP address is required'
+        } else if (!isValidIP(ipVar.fullIP)) {
+          ipVarErrors.value[index][ipIndex].fullIP = 'Please enter a valid IP address'
+        } else {
+          delete ipVarErrors.value[index][ipIndex].fullIP
+        }
+        // Clear hostOffset errors since we're using fullIP
         delete ipVarErrors.value[index][ipIndex].hostOffset
       }
     })
