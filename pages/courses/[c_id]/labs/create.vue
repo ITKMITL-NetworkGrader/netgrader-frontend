@@ -31,7 +31,7 @@
               <ChevronRight class="h-4 w-4" />
             </BreadcrumbSeparator>
             <BreadcrumbItem>
-              <BreadcrumbPage>Create Lab</BreadcrumbPage>
+              <BreadcrumbPage>Create {{ labType === 'exam' ? 'Exam' : 'Lab' }}</BreadcrumbPage>
             </BreadcrumbItem>
           </BreadcrumbList>
         </Breadcrumb>
@@ -39,8 +39,8 @@
         <!-- Header Title -->
         <div class="flex items-center justify-between">
           <div>
-            <h1 class="text-2xl font-bold">Create New Lab</h1>
-            <p class="text-muted-foreground mt-1">Design a comprehensive lab with network topology, tasks, and grading</p>
+            <h1 class="text-2xl font-bold">Create New {{ labType === 'exam' ? 'Exam' : 'Lab' }}</h1>
+            <p class="text-muted-foreground mt-1">Design a comprehensive {{ labType === 'exam' ? 'exam' : 'lab' }} with network topology, tasks, and grading</p>
           </div>
           <div class="text-sm text-muted-foreground">
             Course: <span class="font-medium">{{ courseTitle }}</span>
@@ -272,6 +272,9 @@ const config = useRuntimeConfig()
 const backendURL = config.public.backendurl
 const courseId = route.params.c_id as string
 
+// Determine lab type from query parameter (default to "lab")
+const labType = computed(() => route.query.type as string || 'lab')
+
 // Course data
 const { currentCourse } = useCourse()
 const courseTitle = computed(() => currentCourse.value?.title || `Course ${courseId}`)
@@ -343,7 +346,8 @@ const wizardData = reactive<LabWizardData>({
   },
   networkConfig: {
     baseNetwork: '192.168.1.0',
-    subnetMask: 24
+    subnetMask: 24,
+    allocationStrategy: 'student_id_based' as 'student_id_based' | 'group_based'
   },
   devices: [],
   parts: [],
@@ -451,17 +455,44 @@ const handleCreateLab = async () => {
     // Step 1: Create the lab
     const labData = {
       courseId: wizardData.courseId,
-      name: wizardData.basicInfo.name,
+      type: labType.value, // "lab" or "exam" based on query parameter
+      title: wizardData.basicInfo.name, // Frontend uses "name" but backend expects "title"
       description: wizardData.basicInfo.description,
-      instructions: wizardData.basicInfo.instructions,
+      // Note: instructions field removed as it's not in backend schema
       network: {
-        topology: wizardData.networkConfig,
-        devices: wizardData.devices
+        name: wizardData.basicInfo.name, // Use lab name as network name
+        topology: {
+          baseNetwork: wizardData.networkConfig.baseNetwork,
+          subnetMask: wizardData.networkConfig.subnetMask,
+          allocationStrategy: wizardData.networkConfig.allocationStrategy || 'student_id_based'
+        },
+        devices: wizardData.devices.map(device => ({
+          deviceId: device.deviceId,
+          templateId: device.templateId, // This should be the actual device template ID from API
+          displayName: device.displayName || device.deviceId,
+          ipVariables: device.ipVariables.map(ipVar => ({
+            name: ipVar.name,
+            hostOffset: ipVar.hostOffset,
+            interface: ipVar.interface || '' // Full interface name from device template
+          })),
+          credentials: device.credentials || {
+            usernameTemplate: device.connectionParams?.username || '',
+            passwordTemplate: device.connectionParams?.password || '',
+            enablePassword: ''
+          }
+        }))
       },
       dueDate: wizardData.schedule.dueDate,
       availableFrom: wizardData.schedule.availableFrom,
       availableUntil: wizardData.schedule.availableUntil
     }
+
+    // 🐛 DEBUG: Log the full wizard data and lab data being submitted
+    console.group('🔍 DEBUG: Lab Creation Data')
+    console.log('📋 Full Wizard Data:', JSON.stringify(wizardData, null, 2))
+    console.log('🚀 Lab API Payload:', JSON.stringify(labData, null, 2))
+    console.log('🔗 API Endpoint:', `${backendURL}/v0/labs`)
+    console.groupEnd()
 
     const labResponse = await $fetch(`${backendURL}/v0/labs`, {
       method: 'POST',
@@ -476,7 +507,12 @@ const handleCreateLab = async () => {
       throw new Error(labResponse.message || 'Failed to create lab')
     }
 
-    const labId = labResponse.data.labId
+    const labId = labResponse.data.id  // Lab ID is in 'id' field, not 'labId'
+    
+    // Verify we got a valid lab ID
+    if (!labId) {
+      throw new Error('Failed to get lab ID from lab creation response')
+    }
 
     // Step 2: Create lab parts
     for (let i = 0; i < wizardData.parts.length; i++) {
@@ -505,6 +541,12 @@ const handleCreateLab = async () => {
         prerequisites: part.prerequisites,
         totalPoints: part.totalPoints
       }
+
+      // 🐛 DEBUG: Log each part data being submitted
+      console.group(`🔍 DEBUG: Part ${i + 1} Data`)
+      console.log('📦 Part API Payload:', JSON.stringify(partData, null, 2))
+      console.log('🔗 API Endpoint:', `${backendURL}/v0/parts`)
+      console.groupEnd()
 
       await $fetch(`${backendURL}/v0/parts`, {
         method: 'POST',

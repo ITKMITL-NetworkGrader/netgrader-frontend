@@ -129,10 +129,7 @@
         <div class="space-y-2">
           <Label class="text-xs font-medium">Test Cases</Label>
           <div class="text-sm text-muted-foreground">
-            {{ task.testCases?.length || 0 }} test case{{ (task.testCases?.length || 0) !== 1 ? 's' : '' }}
-            <span v-if="task.testCases && task.testCases.length > 0">
-              ({{ task.testCases.reduce((sum, tc) => sum + tc.points, 0) }} total points)
-            </span>
+            {{ task.testCases?.length || 0 }} test case{{ (task.testCases?.length || 0) !== 1 ? 's' : '' }} configured
           </div>
         </div>
 

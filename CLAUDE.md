@@ -58,6 +58,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 # Lab Creation Wizard - Frontend Implementation Guide
 
+# Lab Creation Wizard - Frontend Implementation Guide
+
 ## 🎯 Overview
 
 This document provides comprehensive guidance for implementing a Lab Creation Wizard frontend interface for the NetGrader system. The wizard is accessed from a Course page via "Add Lab" button and guides users through creating network labs with complex topology configurations, device management, task creation, and IP allocation settings.
@@ -181,11 +183,8 @@ interface Task {
 }
 
 interface TestCase {
-  name: string;              // Test case name
-  condition: string;         // Test condition
-  points: number;            // Points for this test case
-  weight: number;            // Weight in overall task score
-  timeoutSeconds: number;    // Timeout for execution
+  comparison_type: string;   // Type of comparison: equals, contains, regex, success, ssh_success, greater_than
+  expected_result: any;      // Expected value/result for comparison
 }
 
 interface TaskGroup {
@@ -265,11 +264,8 @@ interface TaskTemplate {
           },
           "testCases": [
             {
-              "name": "Hostname Verification",
-              "condition": "show running-config | grep hostname R1",
-              "points": 10,
-              "weight": 1.0,
-              "timeoutSeconds": 30
+              "comparison_type": "contains",
+              "expected_result": "hostname R1"
             }
           ],
           "order": 1,
@@ -379,18 +375,12 @@ Cookie: [HTTP-only auth cookies sent automatically]
       },
       "testCases": [
         {
-          "name": "Hostname Check",
-          "condition": "show running-config | grep hostname R1",
-          "points": 5,
-          "weight": 1.0,
-          "timeoutSeconds": 30
+          "comparison_type": "contains",
+          "expected_result": "hostname R1"
         },
         {
-          "name": "Hostname Verification",
-          "condition": "show version | grep R1",
-          "points": 10,
-          "weight": 2.0,
-          "timeoutSeconds": 45
+          "comparison_type": "contains", 
+          "expected_result": "R1"
         }
       ],
       "order": 1,
@@ -657,11 +647,9 @@ This is the most complex step requiring advanced UI patterns.
 - **Manual Test Cases** (Array Form)
   - **Add Test Case** button
   - Per test case fields:
-    - **Name** (Text Input) - Required
-    - **Condition** (Text Input) - Test condition - Required  
-    - **Points** (Number Input) - Points for this test - Required
-    - **Weight** (Number Input) - Weight (0-1) - Required
-    - **Timeout** (Number Input) - Seconds - Required
+    - **Comparison Type** (Dropdown) - Required
+      - Options: equals, contains, regex, success, ssh_success, greater_than
+    - **Expected Result** (Text Input) - Expected value/result for comparison - Required
 
 ###### Task Scoring
 - **Task Points** (Number Input)
@@ -834,6 +822,15 @@ const taskValidation = {
   testCases: {
     minLength: 1,
     message: "At least one test case is required"
+  },
+  "testCases[].comparison_type": {
+    required: true,
+    enum: ["equals", "contains", "regex", "success", "ssh_success", "greater_than"],
+    message: "Valid comparison type is required"
+  },
+  "testCases[].expected_result": {
+    required: true,
+    message: "Expected result is required"
   }
 };
 ```

@@ -497,7 +497,10 @@ const validateStep = () => {
     warnings: scheduleInfo.value.warnings
   }
 
-  emit('validate', validationResult)
+  // Only emit validation if not updating from props to prevent loops
+  if (!isUpdatingFromProps.value) {
+    emit('validate', validationResult)
+  }
 }
 
 const initializeFromExistingData = () => {

@@ -37,6 +37,7 @@ export interface Device {
 export interface IpVariable {
   name: string;              // Variable name (e.g., "loopback0", "gig0_1")
   hostOffset: number;        // Host offset for IP calculation
+  interface?: string;        // Full interface name from device template (e.g., "GigabitEthernet0/0")
 }
 
 // Lab Parts Structure
@@ -77,11 +78,8 @@ export interface Task {
 }
 
 export interface TestCase {
-  name: string;              // Test case name
-  condition: string;         // Test condition
-  points: number;            // Points for this test case
-  weight: number;            // Weight in overall task score
-  timeoutSeconds: number;    // Timeout for execution
+  comparison_type: string;   // Type of comparison: equals, contains, regex, success, ssh_success, greater_than
+  expected_result: any;      // Expected value/result for comparison
 }
 
 export interface TaskGroup {
@@ -114,7 +112,7 @@ export interface TaskTemplate {
 
 // Device Templates
 export interface DeviceTemplate {
-  _id: string;
+  id: string;
   name: string;
   deviceType: string;
   platform: string;

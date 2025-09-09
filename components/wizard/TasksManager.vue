@@ -466,24 +466,32 @@ const handleTemplateChange = (taskIndex: number, templateId: string) => {
       // Reset parameters when template changes
       task.parameters = {}
       
+      // Initialize parameters from template schema
+      if (newTemplate.parameterSchema && newTemplate.parameterSchema.length > 0) {
+        newTemplate.parameterSchema.forEach(param => {
+          // Initialize with appropriate default value based on type
+          if (param.type === 'number') {
+            task.parameters[param.name] = 0
+          } else if (param.type === 'boolean') {
+            task.parameters[param.name] = false
+          } else {
+            task.parameters[param.name] = ''
+          }
+        })
+      }
+      
       // Auto-populate test cases from template defaults
       if (newTemplate.defaultTestCases && newTemplate.defaultTestCases.length > 0) {
-        task.testCases = newTemplate.defaultTestCases.map((defaultCase, index) => ({
-          name: `Test Case ${index + 1}`,
-          condition: defaultCase.expected_result,
-          points: Math.ceil(task.points / newTemplate.defaultTestCases.length) || 5,
-          weight: 1.0,
-          timeoutSeconds: 30
+        task.testCases = newTemplate.defaultTestCases.map((defaultCase) => ({
+          comparison_type: defaultCase.comparison_type,
+          expected_result: defaultCase.expected_result
         }))
       } else {
         // Ensure at least one test case exists
         if (task.testCases.length === 0) {
           task.testCases = [{
-            name: 'Test Case 1',
-            condition: '',
-            points: task.points || 10,
-            weight: 1.0,
-            timeoutSeconds: 30
+            comparison_type: '',
+            expected_result: ''
           }]
         }
       }
@@ -593,8 +601,19 @@ const validateTaskParameter = (taskIndex: number, paramName: string) => {
   const template = getSelectedTemplate(task.templateId)
   const paramSchema = template?.parameterSchema.find(p => p.name === paramName)
 
-  if (paramSchema?.required && !task.parameters[paramName]) {
-    parameterErrors.value[taskIndex][paramName] = `${paramName} is required`
+  if (paramSchema?.required) {
+    const paramValue = task.parameters[paramName]
+    // More robust validation - check for meaningful values
+    const isEmpty = paramValue === undefined || 
+                   paramValue === null || 
+                   (typeof paramValue === 'string' && paramValue.trim() === '') ||
+                   (typeof paramValue === 'number' && isNaN(paramValue))
+    
+    if (isEmpty) {
+      parameterErrors.value[taskIndex][paramName] = `${paramName} is required`
+    } else {
+      delete parameterErrors.value[taskIndex][paramName]
+    }
   } else {
     delete parameterErrors.value[taskIndex][paramName]
   }
@@ -695,7 +714,7 @@ watch(
   localTasks,
   (newValue) => {
     if (!isUpdatingFromProps.value) {
-      emit('update:modelValue', newValue)
+      emit('update:modelValue', [...newValue])
       // Don't call updateTotalPoints() here as it causes circular updates
       // The computed totalPoints will update automatically
     }
@@ -716,6 +735,7 @@ watch(
 watch(
   () => props.modelValue,
   (newValue) => {
+    if (!newValue || !Array.isArray(newValue)) return
     isUpdatingFromProps.value = true
     localTasks.value = newValue.map((task) => ({
       ...task,
@@ -725,7 +745,7 @@ watch(
       isUpdatingFromProps.value = false
     })
   },
-  { deep: true }
+  { deep: true, immediate: false }
 )
 
 
@@ -745,10 +765,10 @@ watch(
 // Lifecycle
 onMounted(() => {
   // Initialize with existing tasks if any
-  if (props.modelValue.length > 0) {
+  if (props.modelValue && props.modelValue.length > 0) {
     localTasks.value = props.modelValue.map(task => ({
       ...task,
-      tempId: generateTempId()
+      tempId: task.tempId || generateTempId()
     }))
   }
   

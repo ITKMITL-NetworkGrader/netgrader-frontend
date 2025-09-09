@@ -132,7 +132,10 @@
                   </Label>
                   <Select
                     v-model="device.templateId"
-                    @update:modelValue="onTemplateChange(index, $event)"
+                    @update:modelValue="(value) => {
+                      console.log('🔍 Select @update:modelValue fired:', { value, type: typeof value })
+                      onTemplateChange(index, value)
+                    }"
                   >
                     <SelectTrigger
                       :class="{
@@ -152,8 +155,8 @@
                     <SelectContent>
                       <SelectItem
                         v-for="template in deviceTemplates"
-                        :key="template._id"
-                        :value="template._id"
+                        :key="template.id"
+                        :value="template.id"
                         class="py-3"
                       >
                         <SelectItemText>
@@ -513,8 +516,21 @@ const onVariableNameInput = (deviceIndex: number, ipIndex: number, event: Event)
 }
 
 const onTemplateChange = (deviceIndex: number, templateId: string) => {
+  // 🐛 DEBUG: Log template change
+  console.log('🔍 Template changing:', {
+    deviceIndex,
+    templateId,
+    deviceId: localData.value[deviceIndex].deviceId
+  })
+  
   // Update the template ID
   localData.value[deviceIndex].templateId = templateId
+  
+  // 🐛 DEBUG: Verify template ID was set
+  console.log('🔍 Template ID after setting:', {
+    templateId: localData.value[deviceIndex].templateId,
+    device: localData.value[deviceIndex]
+  })
   
   // Clear template validation error immediately
   if (fieldErrors.value[deviceIndex]) {
@@ -534,7 +550,8 @@ const onTemplateChange = (deviceIndex: number, templateId: string) => {
     // Create IP variables from defaultInterfaces
     localData.value[deviceIndex].ipVariables = selectedTemplate.defaultInterfaces.map(iface => ({
       name: toAlphanumeric(iface.name),
-      hostOffset: 1 // Default, user can change
+      hostOffset: 1, // Default, user can change
+      interface: iface.name // ✅ Add the full interface name from template
     }))
     
     // Set connection parameters from template
@@ -582,7 +599,7 @@ const calculateIP = (hostOffset: number): string => {
 }
 
 const getSelectedTemplate = (templateId: string): DeviceTemplate | undefined => {
-  return deviceTemplates.value.find(t => t._id === templateId)
+  return deviceTemplates.value.find(t => t.id === templateId)
 }
 
 const hasDeviceErrors = (deviceIndex: number): boolean => {
@@ -778,6 +795,13 @@ const loadDeviceTemplates = async () => {
 
     if (response.success && response.data.templates) {
       deviceTemplates.value = response.data.templates
+      
+      // 🐛 DEBUG: Log loaded templates
+      console.log('🔍 Device templates loaded:', deviceTemplates.value.map(t => ({
+        id: t.id,
+        name: t.name,
+        deviceType: t.deviceType
+      })))
     }
   } catch (error) {
     console.error('Failed to load device templates:', error)
@@ -793,6 +817,14 @@ watch(
     if (!isUpdatingFromProps.value) {
       // Convert to regular Device array (remove tempId)
       const cleanDevices = newValue.map(({ tempId, ...device }) => device)
+      
+      // 🐛 DEBUG: Log what we're emitting
+      console.log('🔍 Step 3 emitting devices:', cleanDevices.map(d => ({
+        deviceId: d.deviceId,
+        templateId: d.templateId,
+        hasTemplateId: !!d.templateId
+      })))
+      
       emit('update:modelValue', cleanDevices)
     }
   },

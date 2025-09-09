@@ -48,6 +48,40 @@
         </div>
       </div>
 
+      <!-- IP Allocation Strategy -->
+      <div class="space-y-2">
+        <Label for="allocation-strategy" class="text-sm font-medium">
+          IP Allocation Strategy <span class="text-destructive">*</span>
+        </Label>
+        <Select 
+          v-model="localData.allocationStrategy" 
+          @update:modelValue="validateField('allocationStrategy')"
+        >
+          <SelectTrigger
+            :class="{
+              'border-destructive': hasError('allocationStrategy'),
+              'border-green-500': !hasError('allocationStrategy') && localData.allocationStrategy
+            }"
+          >
+            <SelectValue placeholder="Select IP allocation strategy..." />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="student_id_based">Student ID Based</SelectItem>
+            <SelectItem value="group_based">Group Based</SelectItem>
+          </SelectContent>
+        </Select>
+        <p v-if="hasError('allocationStrategy')" class="text-sm text-destructive">
+          {{ getError('allocationStrategy') }}
+        </p>
+        <div class="flex items-center space-x-2 text-xs text-muted-foreground">
+          <Info class="w-3 h-3" />
+          <span>
+            <strong>Student ID Based:</strong> Each student gets unique IPs based on their student ID.
+            <strong>Group Based:</strong> Students in the same group share the same IP range.
+          </span>
+        </div>
+      </div>
+
       <!-- Network Information Card -->
       <Card class="bg-muted/30">
         <CardHeader>
@@ -188,6 +222,7 @@ interface Props {
   modelValue: {
     baseNetwork: string
     subnetMask: number
+    allocationStrategy?: 'student_id_based' | 'group_based'
   }
   validation?: ValidationResult
 }
@@ -202,7 +237,10 @@ const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
 // Local state
-const localData = ref({ ...props.modelValue })
+const localData = ref({ 
+  ...props.modelValue,
+  allocationStrategy: props.modelValue.allocationStrategy || 'student_id_based'
+})
 const fieldErrors = ref<Record<string, string>>({})
 const isUpdatingFromProps = ref(false)
 
@@ -304,6 +342,16 @@ const validateField = (field: string) => {
         delete fieldErrors.value.subnetMask
       }
       break
+
+    case 'allocationStrategy':
+      if (!localData.value.allocationStrategy) {
+        fieldErrors.value.allocationStrategy = 'IP allocation strategy is required'
+      } else if (!['student_id_based', 'group_based'].includes(localData.value.allocationStrategy)) {
+        fieldErrors.value.allocationStrategy = 'Invalid allocation strategy'
+      } else {
+        delete fieldErrors.value.allocationStrategy
+      }
+      break
   }
 
   emitValidation()
@@ -326,6 +374,14 @@ const validateAllFields = () => {
   } else {
     delete fieldErrors.value.subnetMask
   }
+
+  if (!localData.value.allocationStrategy) {
+    fieldErrors.value.allocationStrategy = 'IP allocation strategy is required'
+  } else if (!['student_id_based', 'group_based'].includes(localData.value.allocationStrategy)) {
+    fieldErrors.value.allocationStrategy = 'Invalid allocation strategy'
+  } else {
+    delete fieldErrors.value.allocationStrategy
+  }
 }
 
 const emitValidation = () => {
@@ -342,7 +398,10 @@ const emitValidation = () => {
 
 const validateStep = () => {
   validateAllFields()
-  emitValidation()
+  // Only emit validation if not updating from props to prevent loops
+  if (!isUpdatingFromProps.value) {
+    emitValidation()
+  }
 }
 
 const applyNetworkTemplate = (template: typeof networkTemplates[0]) => {
@@ -369,6 +428,8 @@ watch(
     localData.value = { ...newValue }
     nextTick(() => {
       isUpdatingFromProps.value = false
+      // Trigger validation after props update
+      validateStep()
     })
   },
   { deep: true }

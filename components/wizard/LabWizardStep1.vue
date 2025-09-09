@@ -303,7 +303,10 @@ const emitValidation = () => {
 
 const validateStep = () => {
   validateAllFields()
-  emitValidation()
+  // Only emit validation if not updating from props to prevent loops
+  if (!isUpdatingFromProps.value) {
+    emitValidation()
+  }
 }
 
 const togglePreviewMode = () => {
@@ -332,6 +335,8 @@ watch(
     localData.value = { ...newValue }
     nextTick(() => {
       isUpdatingFromProps.value = false
+      // Trigger validation after props update
+      validateStep()
     })
   },
   { deep: true }
