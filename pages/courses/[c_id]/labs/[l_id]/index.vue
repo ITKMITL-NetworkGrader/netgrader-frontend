@@ -284,7 +284,33 @@ const submitPartForGrading = async () => {
 // Get current grading status for display
 const currentGradingStatus = computed(() => {
   if (!currentPart.value) return { status: 'idle', message: 'Ready to submit' }
-  return getGradingStatus(labId.value, currentPart.value.partId)
+  const status = getGradingStatus(labId.value, currentPart.value.partId)
+  console.log('🎯 [DEBUG] Current grading status:', status)
+  return status
+})
+
+// Watch for completed submissions to update part completion status
+watch(() => currentGradingStatus.value, (newStatus) => {
+  if (newStatus.status === 'completed' && newStatus.results && currentPart.value) {
+    // Mark part as completed if grading was successful
+    if (newStatus.results.total_points_earned > 0) {
+      completedParts.value.add(currentPart.value.id)
+      
+      // Mark all tasks in this part as completed
+      const partId = currentPart.value.id
+      if (!completedTasks.value[partId]) {
+        completedTasks.value[partId] = new Set()
+      }
+      currentPart.value.tasks?.forEach(task => {
+        completedTasks.value[partId].add(task.taskId)
+      })
+      
+      // Save progress
+      saveProgress()
+      
+      console.log('✅ Part completed and marked as done:', currentPart.value.partId)
+    }
+  }
 })
 
 // Data Loading
@@ -419,7 +445,14 @@ watch(() => route.query.part, (newPart) => {
               </span>
               <span class="text-muted-foreground">{{ completedPartsCount }}/{{ totalParts }} parts</span>
             </div>
-            <Progress :value="overallProgress" class="h-3 rounded-full" />
+            <!-- Custom Progress Bar with Success Color Fill -->
+            <div class="relative h-3 bg-secondary rounded-full overflow-hidden">
+              <div 
+                class="h-full rounded-full transition-all duration-500 ease-out"
+                :class="overallProgress === 100 ? 'bg-green-500' : 'bg-primary'"
+                :style="{ width: `${overallProgress}%` }"
+              ></div>
+            </div>
             <div class="flex items-center justify-between text-xs">
               <span class="text-muted-foreground">{{ overallProgress }}% complete</span>
               <span class="font-medium text-primary">{{ totalPointsEarned }}/{{ totalPointsAvailable }} pts</span>

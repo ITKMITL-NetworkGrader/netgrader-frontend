@@ -96,6 +96,30 @@ export const useSubmissions = () => {
       // Update state
       if (jobId) {
         state.lastSubmissionJobId = jobId
+        
+        // Create initial submission state to show immediate progress
+        state.currentSubmission = {
+          jobId: jobId,
+          studentId: '', // Will be populated from API
+          labId: labId,
+          partId: partId,
+          status: 'pending',
+          submittedAt: new Date(),
+          progressHistory: [{
+            message: 'Submission queued for grading',
+            current_test: '',
+            tests_completed: 0,
+            total_tests: 1,
+            percentage: 0,
+            timestamp: new Date()
+          }],
+          attempt: 1,
+          ipMappings: {},
+          callbackUrl: '',
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }
+        
         // Start polling for progress
         startPolling(jobId, labId, partId)
       }
@@ -170,7 +194,8 @@ export const useSubmissions = () => {
 
     console.log('🔄 [DEBUG] Starting polling for submission:', jobId)
 
-    state.pollingInterval = setInterval(async () => {
+    // Poll immediately first, then set up interval
+    const pollSubmission = async () => {
       const submission = await fetchSubmission(jobId)
       
       if (submission) {
@@ -180,12 +205,28 @@ export const useSubmissions = () => {
         if (['completed', 'failed', 'cancelled'].includes(submission.status)) {
           console.log('✅ [DEBUG] Submission finished, stopping polling:', submission.status)
           stopPolling(labId, partId)
+          return true // Indicates polling should stop
         }
       } else {
         // If we can't fetch the submission, try a few more times before giving up
         console.warn('⚠️ [WARN] Could not fetch submission, continuing to poll...')
       }
-    }, 3000) // Poll every 3 seconds as specified
+      return false // Continue polling
+    }
+
+    // Poll immediately
+    pollSubmission().then(shouldStop => {
+      if (!shouldStop) {
+        // Set up interval for subsequent polls
+        state.pollingInterval = setInterval(async () => {
+          const shouldStop = await pollSubmission()
+          if (shouldStop && state.pollingInterval) {
+            clearInterval(state.pollingInterval)
+            state.pollingInterval = null
+          }
+        }, 3000) // Poll every 3 seconds as specified
+      }
+    })
   }
 
   // Stop polling for a specific submission
@@ -206,7 +247,13 @@ export const useSubmissions = () => {
     if (state.isSubmitting) {
       return {
         status: 'submitting',
-        message: 'Creating submission...'
+        message: 'Creating submission...',
+        progress: {
+          percentage: 5,
+          current_test: 'Preparing submission',
+          tests_completed: 0,
+          total_tests: 1
+        }
       }
     }
 
@@ -223,27 +270,28 @@ export const useSubmissions = () => {
     if (submission.gradingResult) {
       switch (submission.gradingResult.status) {
         case 'pending':
+          const pendingProgress = submission.progressHistory[submission.progressHistory.length - 1]
           return {
             status: 'grading',
-            message: 'In queue',
+            message: pendingProgress?.message || 'In queue',
             progress: {
-              percentage: 0,
-              current_test: 'Waiting in queue',
-              tests_completed: 0,
-              total_tests: 1
+              percentage: pendingProgress?.percentage || 10,
+              current_test: pendingProgress?.current_test || 'Submission queued for grading',
+              tests_completed: pendingProgress?.tests_completed || 0,
+              total_tests: pendingProgress?.total_tests || 1
             }
           }
 
         case 'running':
-          const latestProgress = submission.progressHistory[submission.progressHistory.length - 1]
+          const runningProgress = submission.progressHistory[submission.progressHistory.length - 1]
           return {
             status: 'grading',
-            message: latestProgress?.message || 'Grading in progress...',
-            progress: latestProgress ? {
-              percentage: latestProgress.percentage,
-              current_test: latestProgress.current_test || latestProgress.message,
-              tests_completed: latestProgress.tests_completed,
-              total_tests: latestProgress.total_tests
+            message: runningProgress?.message || 'Grading in progress...',
+            progress: runningProgress ? {
+              percentage: runningProgress.percentage,
+              current_test: runningProgress.current_test || runningProgress.message,
+              tests_completed: runningProgress.tests_completed,
+              total_tests: runningProgress.total_tests
             } : undefined
           }
 
@@ -278,27 +326,28 @@ export const useSubmissions = () => {
     // Fallback to submission status if no gradingResult
     switch (submission.status) {
       case 'pending':
+        const fallbackPendingProgress = submission.progressHistory[submission.progressHistory.length - 1]
         return {
           status: 'grading',
-          message: 'In queue',
+          message: fallbackPendingProgress?.message || 'In queue',
           progress: {
-            percentage: 0,
-            current_test: 'Waiting in queue',
-            tests_completed: 0,
-            total_tests: 1
+            percentage: fallbackPendingProgress?.percentage || 10,
+            current_test: fallbackPendingProgress?.current_test || 'Submission queued for grading',
+            tests_completed: fallbackPendingProgress?.tests_completed || 0,
+            total_tests: fallbackPendingProgress?.total_tests || 1
           }
         }
 
       case 'running':
-        const latestProgress = submission.progressHistory[submission.progressHistory.length - 1]
+        const fallbackRunningProgress = submission.progressHistory[submission.progressHistory.length - 1]
         return {
           status: 'grading',
-          message: latestProgress?.message || 'Grading in progress...',
-          progress: latestProgress ? {
-            percentage: latestProgress.percentage,
-            current_test: latestProgress.current_test || latestProgress.message,
-            tests_completed: latestProgress.tests_completed,
-            total_tests: latestProgress.total_tests
+          message: fallbackRunningProgress?.message || 'Grading in progress...',
+          progress: fallbackRunningProgress ? {
+            percentage: fallbackRunningProgress.percentage,
+            current_test: fallbackRunningProgress.current_test || fallbackRunningProgress.message,
+            tests_completed: fallbackRunningProgress.tests_completed,
+            total_tests: fallbackRunningProgress.total_tests
           } : undefined
         }
 

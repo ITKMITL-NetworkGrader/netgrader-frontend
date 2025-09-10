@@ -23,60 +23,85 @@
       </div>
     </Button>
 
-    <!-- Progress Overlay -->
+    <!-- Progress Overlay - Moves UP from button -->
     <div 
       v-if="showProgress && progress"
       :class="[
-        'absolute top-full left-0 right-0 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-b-lg transition-all duration-500 transform origin-top shadow-lg border border-blue-400',
-        showProgressDetails ? 'scale-y-100 opacity-100' : 'scale-y-0 opacity-0'
+        'absolute bottom-full right-0 mb-2 transition-all duration-500 origin-bottom z-50',
+        'scale-y-100 opacity-100'
       ]"
-      style="transform-origin: top;"
+      style="transform-origin: bottom; width: 480px; max-width: 90vw;"
     >
-      <!-- Progress Header -->
-      <div class="p-3 cursor-pointer" @click="toggleDetails">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center space-x-2">
-            <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-            <span class="font-medium text-sm">{{ progress.message || 'Grading in progress...' }}</span>
+      <!-- Detailed Progress Popup -->
+      <div class="bg-gradient-to-r from-primary to-primary/90 text-primary-foreground rounded-lg shadow-xl border border-primary/30 overflow-hidden">
+        <!-- Progress Header -->
+        <div class="p-4 cursor-pointer" @click="toggleDetails">
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center space-x-2">
+              <div class="animate-spin rounded-full h-4 w-4 border-2 border-primary-foreground border-b-transparent"></div>
+              <span class="font-semibold text-sm">{{ progress.percentage }}% Complete</span>
+            </div>
+            <div class="flex items-center space-x-1">
+              <ChevronUp v-if="showProgressDetails" class="w-4 h-4" />
+              <ChevronDown v-else class="w-4 h-4" />
+            </div>
           </div>
-          <div class="flex items-center space-x-2">
-            <span class="text-xs font-mono">{{ progress.percentage }}%</span>
-            <ChevronUp v-if="showProgressDetails" class="w-4 h-4" />
-            <ChevronDown v-else class="w-4 h-4" />
+          
+          <!-- Large Progress Bar -->
+          <div class="bg-secondary/50 rounded-full h-3 overflow-hidden mb-3">
+            <div 
+              class="bg-primary-foreground h-full rounded-full transition-all duration-500 ease-out shadow-sm"
+              :style="{ width: `${progress.percentage}%` }"
+            ></div>
+          </div>
+
+          <!-- Main Progress Message and Details in Grid -->
+          <div class="grid grid-cols-2 gap-3">
+            <!-- Progress Message -->
+            <div class="bg-secondary rounded-lg p-2">
+              <div class="text-sm font-medium mb-1 text-secondary-foreground">
+                {{ progress.message || 'Grading in progress...' }}
+              </div>
+              <div v-if="progress.current_test" class="text-muted-foreground text-xs">
+                Current: {{ progress.current_test }}
+              </div>
+            </div>
+            
+            <!-- Progress Stats -->
+            <div class="bg-secondary rounded-lg p-2">
+              <div class="text-xs text-muted-foreground mb-1">Tests Progress</div>
+              <div class="font-mono text-sm text-secondary-foreground">{{ progress.tests_completed }}/{{ progress.total_tests }}</div>
+              <div class="text-xs text-muted-foreground">{{ progress.percentage }}% complete</div>
+            </div>
           </div>
         </div>
-        
-        <!-- Progress Bar -->
-        <div class="mt-2 bg-blue-400 rounded-full h-2 overflow-hidden">
-          <div 
-            class="bg-white h-full rounded-full transition-all duration-300 ease-out"
-            :style="{ width: `${progress.percentage}%` }"
-          ></div>
+
+        <!-- Detailed Progress (Collapsible) -->
+        <div 
+          v-if="showProgressDetails"
+          class="border-t border-primary/30 bg-primary/90"
+        >
+          <div class="p-3">
+            <div v-if="progress.current_test" class="text-xs">
+              <span class="text-muted-foreground block mb-1">Current Test Details:</span>
+              <div class="bg-secondary/50 rounded px-3 py-2 font-mono text-xs text-secondary-foreground">
+                {{ progress.current_test }}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      <!-- Detailed Progress -->
-      <div 
-        v-if="showProgressDetails"
-        class="border-t border-blue-400 bg-blue-600/90"
-      >
-        <div class="p-3 space-y-2">
-          <div v-if="progress.current_test" class="text-xs">
-            <span class="text-blue-200">Current Test:</span>
-            <span class="font-mono ml-1">{{ progress.current_test }}</span>
-          </div>
-          <div class="text-xs">
-            <span class="text-blue-200">Progress:</span>
-            <span class="font-mono ml-1">{{ progress.tests_completed }}/{{ progress.total_tests }} tests completed</span>
-          </div>
-        </div>
+      <!-- Arrow pointing to button -->
+      <div class="flex justify-end mr-4">
+        <div class="w-0 h-0 border-l-8 border-r-8 border-t-8 border-l-transparent border-r-transparent border-t-primary"></div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { Button } from '@/components/ui/button'
 import { 
   CheckCircle, 
@@ -121,8 +146,16 @@ const showProgressDetails = ref(false)
 
 // Computed Properties
 const showProgress = computed(() => {
-  return props.status === 'grading' && props.progress
+  return (props.status === 'grading' || props.status === 'submitting') && props.progress
 })
+
+// Auto-show progress details when grading starts
+watch(() => props.status, (newStatus, oldStatus) => {
+  if (newStatus === 'grading' || newStatus === 'submitting') {
+    showProgressDetails.value = true
+  }
+  console.log('🎯 [DEBUG] Status changed:', { oldStatus, newStatus, showProgressDetails: showProgressDetails.value })
+}, { immediate: true })
 
 const isPassed = computed(() => {
   if (props.status === 'completed' && props.results) {
