@@ -14,11 +14,23 @@ export interface Lab {
       subnetMask: number
       allocationStrategy: 'student_id_based' | 'group_based'
     }
-    devices: any[]
+    devices: Device[]
   }
   createdBy: string
   createdAt: string
   updatedAt: string
+}
+
+export interface Device {
+  deviceId: string
+  templateId: string
+  ipVariables: IpVariable[]
+}
+
+export interface IpVariable {
+  name: string
+  hostOffset?: number
+  fullIp?: string
 }
 
 interface CourseLabsResponse {
@@ -60,6 +72,7 @@ export interface LabTask {
   testCases: TestCase[]
   order: number
   points: number
+  group_id?: string  // Group ID if task belongs to a group
   _id: string
 }
 
@@ -319,21 +332,28 @@ export const useCourseLabs = () => {
     // Calculate points considering task groups
     let totalGroupPoints = 0
     let ungroupedTaskPoints = 0
-    const tasksInGroups = new Set<string>()
+    const groupsWithTasks = new Set<string>()
     
-    // Add up task group points and track which tasks are in groups
-    for (const group of part.task_groups) {
-      if (group.taskIds && group.taskIds.length > 0) {
-        // Only add group points if the group actually has tasks
-        totalGroupPoints += group.points || 0
-        group.taskIds.forEach((taskId: string) => tasksInGroups.add(taskId))
+    // First, identify which groups actually have tasks assigned to them
+    if (part.tasks) {
+      for (const task of part.tasks) {
+        if (task.group_id) {
+          groupsWithTasks.add(task.group_id)
+        }
       }
     }
     
-    // Add points for ungrouped tasks
+    // Add up task group points ONLY if the group has tasks assigned
+    for (const group of part.task_groups) {
+      if (groupsWithTasks.has(group.group_id)) {
+        totalGroupPoints += group.points || 0
+      }
+    }
+    
+    // Add points for ungrouped tasks (tasks without group_id)
     if (part.tasks) {
       for (const task of part.tasks) {
-        if (!tasksInGroups.has(task.taskId)) {
+        if (!task.group_id) {
           ungroupedTaskPoints += task.points || 0
         }
       }

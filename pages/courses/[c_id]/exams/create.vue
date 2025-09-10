@@ -461,7 +461,7 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
 
-import TextEditor from '@/components/lab/TextEditor.vue'
+// import TextEditor from '@/components/lab/TextEditor.vue'
 import IPSchemaManager from '@/components/lab/IPSchemaManager.vue'
 import PlayCreationModal from '@/components/play/PlayCreationModal.vue'
 

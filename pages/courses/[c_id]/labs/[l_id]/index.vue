@@ -36,8 +36,11 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useCourseLabs, type Lab, type LabPart, type LabTask, type TaskGroup } from '@/composables/useCourseLabs'
 import { useCourse } from '@/composables/useCourse'
+import { useSubmissions } from '@/composables/useSubmissions'
+import GradingProgress from '@/components/GradingProgress.vue'
 
 // Configure marked for safe HTML rendering
 marked.setOptions({
@@ -64,6 +67,12 @@ const {
   fetchLabParts,
   formatLabDate
 } = useCourseLabs()
+
+const {
+  createSubmission,
+  getGradingStatus,
+  toggleProgressDetails
+} = useSubmissions()
 
 // State Management
 const currentPartIndex = ref(0)
@@ -102,6 +111,36 @@ const totalPointsAvailable = computed(() => {
 })
 
 const courseTitle = computed(() => currentCourse.value?.title || `Course ${courseId.value}`)
+
+// IP Variables and Network Configuration
+const ipVariablesTable = computed(() => {
+  if (!currentLab.value?.network?.devices) return []
+  
+  const baseNetwork = currentLab.value.network.topology.baseNetwork
+  const baseOctets = baseNetwork.split('.').slice(0, 3).join('.')
+  
+  const variables: Array<{ deviceId: string; variableName: string; ipAddress: string }> = []
+  
+  currentLab.value.network.devices.forEach(device => {
+    device.ipVariables.forEach(ipVar => {
+      let ipAddress = ''
+      
+      if (ipVar.fullIp) {
+        ipAddress = ipVar.fullIp
+      } else if (ipVar.hostOffset !== undefined) {
+        ipAddress = `${baseOctets}.${ipVar.hostOffset}`
+      }
+      
+      variables.push({
+        deviceId: device.deviceId,
+        variableName: ipVar.name,
+        ipAddress
+      })
+    })
+  })
+  
+  return variables
+})
 
 // Part Access Control - Sequential Unlocking Based on Prerequisites
 const isPartUnlocked = (part: LabPart): boolean => {
@@ -228,40 +267,25 @@ const autoSaveProgress = () => {
 const submitPartForGrading = async () => {
   if (!currentPart.value) return
   
-  isSubmittingPart.value = true
   try {
-    // Simulate API call for grading submission
-    await new Promise(resolve => setTimeout(resolve, 2000))
+    const result = await createSubmission(labId.value, currentPart.value.partId)
     
-    // Mark part as completed
-    completedParts.value.add(currentPart.value.id)
-    
-    // Mark all tasks in this part as completed (placeholder logic)
-    const partId = currentPart.value.id
-    if (!completedTasks.value[partId]) {
-      completedTasks.value[partId] = new Set()
+    if (result.success) {
+      console.log('✅ Submission created successfully:', result.jobId)
+    } else {
+      console.error('❌ Failed to create submission:', result.error)
+      // Handle error state - could show toast or alert
     }
-    currentPart.value.tasks?.forEach(task => {
-      completedTasks.value[partId].add(task.taskId)
-    })
-    
-    // Auto-advance to next part if available
-    await nextTick()
-    const nextIndex = currentPartIndex.value + 1
-    if (nextIndex < totalParts.value && canAccessPart(nextIndex)) {
-      setTimeout(() => {
-        currentPartIndex.value = nextIndex
-      }, 1500) // Give user time to see success state
-    }
-    
-    saveProgress()
   } catch (error) {
-    console.error('Failed to submit part for grading:', error)
-    // Handle error state
-  } finally {
-    isSubmittingPart.value = false
+    console.error('❌ Error during submission:', error)
   }
 }
+
+// Get current grading status for display
+const currentGradingStatus = computed(() => {
+  if (!currentPart.value) return { status: 'idle', message: 'Ready to submit' }
+  return getGradingStatus(labId.value, currentPart.value.partId)
+})
 
 // Data Loading
 const loadLabData = async () => {
@@ -564,19 +588,70 @@ watch(() => route.query.part, (newPart) => {
               </CardContent>
             </Card>
 
+            <!-- IP Variables Table -->
+            <Card v-if="ipVariablesTable.length > 0" class="shadow-sm">
+              <CardHeader class="pb-4">
+                <CardTitle class="flex items-center space-x-3 text-xl">
+                  <div class="p-2 bg-blue-100 rounded-lg">
+                    <Server class="w-5 h-5 text-blue-600" />
+                  </div>
+                  <span>Network Configuration</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div class="rounded-lg border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead class="font-semibold">Device</TableHead>
+                        <TableHead class="font-semibold">Variable Name</TableHead>
+                        <TableHead class="font-semibold">IP Address</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      <TableRow 
+                        v-for="(variable, index) in ipVariablesTable" 
+                        :key="`${variable.deviceId}-${variable.variableName}-${index}`"
+                        class="hover:bg-muted/30"
+                      >
+                        <TableCell class="font-medium">{{ variable.deviceId }}</TableCell>
+                        <TableCell class="font-mono text-sm">{{ variable.variableName }}</TableCell>
+                        <TableCell class="font-mono text-sm text-blue-600">{{ variable.ipAddress }}</TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </div>
+                <div class="mt-3 text-xs text-muted-foreground">
+                  <div class="flex items-center space-x-1">
+                    <Info class="w-3 h-3" />
+                    <span>Use these IP addresses in your configuration tasks</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
           </div>
         </ScrollArea>
 
         <!-- Bottom Action Bar -->
         <div class="border-t bg-card/80 backdrop-blur-sm">
-          <!-- Part Incomplete - Show Submit Button -->
-          <div v-if="currentPart && !completedParts.has(currentPart.id)" class="p-6">
+          <!-- Part Submission Area -->
+          <div v-if="currentPart" class="p-6">
             <div class="max-w-5xl mx-auto flex items-center justify-between">
               <div class="flex-1">
-                <h3 class="font-semibold text-lg mb-1">Ready to Submit Part {{ currentPartIndex + 1 }}?</h3>
+                <h3 class="font-semibold text-lg mb-1">
+                  {{ currentGradingStatus.status === 'completed' && currentGradingStatus.results?.total_points_earned > 0 
+                     ? `Part ${currentPartIndex + 1} Completed!` 
+                     : `Ready to Submit Part ${currentPartIndex + 1}?` }}
+                </h3>
                 <p class="text-sm text-muted-foreground">
-                  Once submitted, your work will be automatically graded and you can proceed to the next part.
-                  <span class="font-medium text-primary ml-1">{{ currentPart.totalPoints }} points available</span>
+                  <span v-if="currentGradingStatus.status === 'completed' && currentGradingStatus.results?.total_points_earned > 0">
+                    Great work! You earned {{ currentGradingStatus.results.total_points_earned }}/{{ currentGradingStatus.results.total_points_possible }} points.
+                  </span>
+                  <span v-else>
+                    Once submitted, your work will be automatically graded and you can proceed to the next part.
+                    <span class="font-medium text-primary ml-1">{{ currentPart.totalPoints }} points available</span>
+                  </span>
                 </p>
               </div>
               <div class="flex items-center space-x-3">
@@ -589,71 +664,20 @@ watch(() => route.query.part, (newPart) => {
                   <Save class="w-4 h-4 mr-2" />
                   Save Progress
                 </Button>
-                <Button 
-                  size="lg" 
-                  :disabled="isSubmittingPart"
-                  @click="submitPartForGrading"
-                  class="bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary/80 shadow-md min-w-[160px]"
-                >
-                  <div v-if="isSubmittingPart" class="flex items-center space-x-2">
-                    <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                    <span>Grading...</span>
-                  </div>
-                  <div v-else class="flex items-center space-x-2">
-                    <CheckCircle class="w-5 h-5" />
-                    <span>Submit for Grading</span>
-                  </div>
-                </Button>
+                
+                <!-- Grading Progress Component -->
+                <GradingProgress
+                  :status="currentGradingStatus.status"
+                  :progress="currentGradingStatus.progress"
+                  :results="currentGradingStatus.results"
+                  :error="currentGradingStatus.error"
+                  @submit="submitPartForGrading"
+                  @toggle-details="toggleProgressDetails(labId, currentPart.partId)"
+                />
               </div>
             </div>
           </div>
 
-          <!-- Part Completed - Show Success State -->
-          <div v-else-if="currentPart && completedParts.has(currentPart.id)" class="p-6 bg-gradient-to-r from-green-50 to-emerald-50 border-t-4 border-t-green-500">
-            <div class="max-w-5xl mx-auto flex items-center justify-between">
-              <div class="flex items-center space-x-4">
-                <div class="flex-shrink-0">
-                  <CheckCircle2 class="w-10 h-10 text-green-600" />
-                </div>
-                <div>
-                  <h3 class="font-bold text-lg text-green-800">Part {{ currentPartIndex + 1 }} Completed! 🎉</h3>
-                  <p class="text-sm text-green-700">
-                    Excellent work! You've earned <span class="font-semibold">{{ currentPart.totalPoints }} points</span>.
-                    {{ canAccessPart(currentPartIndex + 1) ? ' You can now proceed to the next part.' : ' Great job on completing this lab!' }}
-                  </p>
-                </div>
-              </div>
-              <div class="flex items-center space-x-3">
-                <Button
-                  variant="outline"
-                  size="lg"
-                  @click="saveProgress"
-                  class="bg-white shadow-sm"
-                >
-                  <RotateCcw class="w-4 h-4 mr-2" />
-                  Review Work
-                </Button>
-                <Button
-                  v-if="canAccessPart(currentPartIndex + 1)"
-                  size="lg"
-                  @click="goToNextPart"
-                  class="bg-green-600 hover:bg-green-700 text-white shadow-md"
-                >
-                  Continue to Next Part
-                  <ChevronRight class="w-5 h-5 ml-2" />
-                </Button>
-                <Button
-                  v-else
-                  size="lg"
-                  @click="router.push(`/courses/${courseId}`)"
-                  class="bg-primary hover:bg-primary/90 shadow-md"
-                >
-                  Return to Course
-                  <Home class="w-5 h-5 ml-2" />
-                </Button>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </div>

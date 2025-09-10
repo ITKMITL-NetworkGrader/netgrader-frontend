@@ -480,11 +480,25 @@ const handleCreateLab = async () => {
           deviceId: device.deviceId,
           templateId: device.templateId, // This should be the actual device template ID from API
           displayName: device.displayName || device.deviceId,
-          ipVariables: device.ipVariables.map(ipVar => ({
-            name: ipVar.name,
-            hostOffset: ipVar.hostOffset,
-            interface: ipVar.interface || '' // Full interface name from device template
-          })),
+          ipVariables: device.ipVariables.map(ipVar => {
+            const baseVar = {
+              name: ipVar.name,
+              interface: ipVar.interface || '' // Full interface name from device template
+            }
+            
+            // Add either hostOffset or fullIp based on inputType
+            if (ipVar.inputType === 'fullIP') {
+              return {
+                ...baseVar,
+                fullIp: ipVar.fullIP
+              }
+            } else {
+              return {
+                ...baseVar,
+                hostOffset: ipVar.hostOffset
+              }
+            }
+          }),
           credentials: device.credentials || {
             usernameTemplate: device.connectionParams?.username || '',
             passwordTemplate: device.connectionParams?.password || '',
@@ -548,9 +562,18 @@ const handleCreateLab = async () => {
             expected_result: convertStringToBoolean(testCase.expected_result)
           })),
           order: task.order,
-          points: task.points
+          points: task.points,
+          group_id: task.groupId || undefined
         })),
-        task_groups: part.task_groups,
+        task_groups: part.task_groups.map(group => ({
+          group_id: group.group_id,
+          title: group.title,
+          description: group.description,
+          group_type: group.group_type,
+          points: group.points,
+          continue_on_failure: group.continue_on_failure,
+          timeout_seconds: group.timeout_seconds
+        })),
         prerequisites: part.prerequisites,
         totalPoints: part.totalPoints
       }

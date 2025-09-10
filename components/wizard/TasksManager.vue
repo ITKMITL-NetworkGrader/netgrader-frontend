@@ -399,20 +399,25 @@ const totalPoints = computed(() => {
   // Calculate points considering task groups
   let totalGroupPoints = 0
   let ungroupedTaskPoints = 0
-  const tasksInGroups = new Set<string>()
+  const groupsWithTasks = new Set<string>()
   
-  // Add up task group points ONLY if the group has tasks, and track which tasks are in groups
-  for (const group of props.taskGroups) {
-    if (group.taskIds && group.taskIds.length > 0) {
-      // Only add group points if the group actually has tasks
-      totalGroupPoints += group.points || 0
-      group.taskIds.forEach(taskId => tasksInGroups.add(taskId))
+  // First, identify which groups actually have tasks assigned to them
+  for (const task of localTasks.value) {
+    if (task.groupId) {
+      groupsWithTasks.add(task.groupId)
     }
   }
   
-  // Add points for ungrouped tasks
+  // Add up task group points ONLY if the group has tasks assigned
+  for (const group of props.taskGroups) {
+    if (groupsWithTasks.has(group.group_id)) {
+      totalGroupPoints += group.points || 0
+    }
+  }
+  
+  // Add points for ungrouped tasks (tasks without groupId)
   for (const task of localTasks.value) {
-    if (!tasksInGroups.has(task.taskId)) {
+    if (!task.groupId) {
       ungroupedTaskPoints += task.points || 0
     }
   }

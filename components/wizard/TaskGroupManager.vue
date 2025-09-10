@@ -141,7 +141,7 @@
               <span>Continue on failure: {{ group.continue_on_failure ? 'Yes' : 'No' }}</span>
             </div>
             <span class="font-medium">
-              Total: {{ getGroupTasks(group.tempId).reduce((sum, task) => sum + task.points, 0) }} pts
+              Total: {{ group.points }} pts (overrides individual task points)
             </span>
           </div>
         </div>
@@ -355,8 +355,13 @@ const getTaskIndex = (tempId: string): number => {
   return props.tasks.findIndex(task => task.tempId === tempId)
 }
 
-const getGroupTasks = (groupId: string): WizardTask[] => {
-  return props.tasks.filter(task => task.groupId === groupId)
+const getGroupTasks = (groupTempId: string): WizardTask[] => {
+  // Find the group by tempId to get its actual group_id
+  const group = localTaskGroups.value.find(g => g.tempId === groupTempId)
+  if (!group) return []
+  
+  // Filter tasks that have this group's actual group_id
+  return props.tasks.filter(task => task.groupId === group.group_id)
 }
 
 const getGroupColor = (group: WizardTaskGroup): string => {
@@ -474,15 +479,19 @@ const saveGroup = () => {
   emit('task-group-changed')
 }
 
-const deleteGroup = (groupId: string) => {
+const deleteGroup = (groupTempId: string) => {
+  // Find the group by tempId to get its actual group_id
+  const group = localTaskGroups.value.find(g => g.tempId === groupTempId)
+  if (!group) return
+  
   // Move all tasks from this group back to ungrouped
   const updatedTasks = props.tasks.map(task => 
-    task.groupId === groupId ? { ...task, groupId: undefined } : task
+    task.groupId === group.group_id ? { ...task, groupId: undefined } : task
   )
   emit('update:tasks', updatedTasks)
   
   // Remove the group
-  localTaskGroups.value = localTaskGroups.value.filter(g => g.tempId !== groupId)
+  localTaskGroups.value = localTaskGroups.value.filter(g => g.tempId !== groupTempId)
   emit('task-group-changed')
 }
 
@@ -504,9 +513,17 @@ const handleTaskDragEnd = () => {
   isDragOverGroup.value = null
 }
 
-const moveTaskToGroup = (taskId: string, groupId: string | null) => {
+const moveTaskToGroup = (taskId: string, groupTempId: string | null) => {
+  let actualGroupId: string | null = null
+  
+  // If groupTempId is provided, find the actual group_id
+  if (groupTempId) {
+    const group = localTaskGroups.value.find(g => g.tempId === groupTempId)
+    actualGroupId = group ? group.group_id : null
+  }
+  
   const updatedTasks = props.tasks.map(task =>
-    task.tempId === taskId ? { ...task, groupId } : task
+    task.tempId === taskId ? { ...task, groupId: actualGroupId } : task
   )
   emit('update:tasks', updatedTasks)
   emit('task-group-changed')

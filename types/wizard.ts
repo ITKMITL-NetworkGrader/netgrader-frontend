@@ -77,6 +77,7 @@ export interface Task {
   
   order: number;             // Order within part
   points: number;            // Total points for task
+  group_id?: string;         // Optional group ID if task belongs to a group
 }
 
 export interface TestCase {

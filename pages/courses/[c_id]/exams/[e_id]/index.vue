@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Progress } from '@/components/ui/progress'
 import { AlertCircle, Clock, User, FileText } from 'lucide-vue-next'
 import PartSidebar from '@/components/lab/PartSidebar.vue'
-import ClientOnlyTextEditor from '@/components/lab/ClientOnlyTextEditor.vue'
+// import ClientOnlyTextEditor from '@/components/lab/ClientOnlyTextEditor.vue'
 import GradingStatus from '@/components/lab/GradingStatus.vue'
 import StudentConfiguration from '@/components/exam/StudentConfiguration.vue'
 import { useExamManagement } from '@/composables/useExamManagement'

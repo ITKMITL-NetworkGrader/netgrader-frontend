@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Skeleton } from '@/components/ui/skeleton'
 import PartSidebar from '@/components/lab/PartSidebar.vue'
-import ClientOnlyTextEditor from '@/components/lab/ClientOnlyTextEditor.vue'
+// import ClientOnlyTextEditor from '@/components/lab/ClientOnlyTextEditor.vue'
 import PlaySelectionModal from '@/components/lab/PlaySelectionModal.vue'
 import { useExamManagement } from '@/composables/useExamManagement'
 import { usePlayBank } from '@/composables/usePlayBank'
