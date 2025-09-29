@@ -53,8 +53,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Development Commands
 
 **Development Server**: `bun run dev` - Starts development server on http://localhost:3000
-**Build**: `bun run build` - Build for production  
+**Build**: `bun run build` - Build for production
 **Preview**: `bun run preview` - Preview production build locally
+
+## Recent Changes
+
+### ID Generation Automation (Issue #6, #7)
+- **Part ID** and **Task ID** fields are now auto-generated from titles/names
+- Users only need to enter **Part Title** and **Task Name**
+- IDs are automatically converted to lowercase with spaces replaced by hyphens
+- Uniqueness is ensured by appending numbers if duplicates exist
+- Implementation: `/utils/idGenerator.ts` with `titleToUniqueId()` function
+
+### Blacklisted IPs Removal
+- Completely removed the Blacklisted IPs feature from Lab Wizard Step 2
+- Simplified network configuration for better user experience
+- Management IP generation now uses automatic infrastructure-safe ranges
+- Updated `BACKEND_INTEGRATION.md` to reflect the simplified approach
 
 # Lab Creation Wizard - Frontend Implementation Guide
 

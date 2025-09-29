@@ -215,9 +215,31 @@ const getTaskStatus = (taskId: string, partId: string): 'pending' | 'running' | 
 }
 
 // Markdown Rendering
-const renderMarkdown = (markdown: string): string => {
-  const html = marked(markdown || '')
-  return DOMPurify.sanitize(html)
+const renderMarkdown = (markdown: string | any): string => {
+  // Handle case where instructions might come as an object instead of string
+  let htmlContent = ''
+
+  if (typeof markdown === 'string') {
+    // If it's a string, treat as markdown and convert to HTML
+    htmlContent = marked(markdown)
+  } else if (markdown && typeof markdown === 'object') {
+    // If it's a rich content object (from TipTap editor), extract HTML
+    if (markdown.html) {
+      htmlContent = markdown.html
+    } else if (markdown.content || markdown.text || markdown.instructions) {
+      // Fallback: treat as markdown
+      const markdownText = markdown.content || markdown.text || markdown.instructions
+      htmlContent = marked(markdownText)
+    } else {
+      // Last resort: stringify the object
+      htmlContent = marked(JSON.stringify(markdown))
+    }
+  } else {
+    const content = String(markdown || '')
+    htmlContent = marked(content)
+  }
+
+  return DOMPurify.sanitize(htmlContent)
 }
 
 // Navigation Methods
@@ -476,13 +498,13 @@ watch(() => route.query.part, (newPart) => {
                 'cursor-pointer transition-all duration-300 overflow-hidden',
                 {
                   // Current part - primary styling
-                  'bg-gradient-to-r from-primary/10 to-primary/5 border-primary/30 shadow-lg scale-[1.02]': index === currentPartIndex,
+                  'bg-gradient-to-r from-primary/10 to-primary/5 border-primary/30 shadow-lg': index === currentPartIndex,
                   // Completed part - success styling
-                  'bg-gradient-to-r from-green-50 to-green-25 border-green-200 shadow-md': completedParts.has(part.id) && index !== currentPartIndex,
+                  'bg-green-300/30 border-green-200 shadow-md scale-[0.98]': completedParts.has(part.id) && index !== currentPartIndex,
                   // Available part - default styling
-                  'bg-card border-border shadow-sm hover:shadow-md hover:border-primary/20': canAccessPart(index) && index !== currentPartIndex && !completedParts.has(part.id),
+                  'bg-card border-border shadow-sm hover:shadow-md hover:border-primary/20 scale-[0.98]': canAccessPart(index) && index !== currentPartIndex && !completedParts.has(part.id),
                   // Locked part - disabled styling
-                  'opacity-50 cursor-not-allowed bg-muted border-muted-foreground/20': !canAccessPart(index)
+                  'opacity-50 cursor-not-allowed bg-muted border-muted-foreground/20 scale-[0.98]': !canAccessPart(index)
                 }
               ]"
               @click="selectPart(index)"
@@ -522,7 +544,7 @@ watch(() => route.query.part, (newPart) => {
                         variant="secondary"
                         class="text-xs bg-green-100 text-green-800 border-green-200 ml-2"
                       >
-                        Complete
+                        Completed
                       </Badge>
                       <Badge
                         v-else-if="index === currentPartIndex"
@@ -614,8 +636,8 @@ watch(() => route.query.part, (newPart) => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div 
-                  class="prose prose-sm max-w-none prose-headings:text-foreground prose-p:text-muted-foreground prose-strong:text-foreground prose-code:text-foreground prose-pre:bg-muted prose-pre:border"
+                <div
+                  class="prose prose-sm max-w-none prose-headings:text-foreground prose-p:text-muted-foreground prose-strong:text-foreground prose-code:text-foreground prose-pre:bg-muted prose-pre:border lab-instructions"
                   v-html="renderMarkdown(currentPart.instructions)"
                 />
               </CardContent>
@@ -809,6 +831,83 @@ watch(() => route.query.part, (newPart) => {
   border-left: 4px solid hsl(var(--primary));
   background-color: hsl(var(--muted) / 0.5);
   padding: 1rem;
+  margin: 1rem 0;
+}
+
+/* Fix for TipTap editor HTML content with nested headings */
+.lab-instructions p h1,
+.lab-instructions p h2,
+.lab-instructions p h3,
+.lab-instructions p h4,
+.lab-instructions p h5,
+.lab-instructions p h6 {
+  display: block;
+  margin: 0;
+  padding: 0;
+}
+
+.lab-instructions p h1 {
+  font-size: 2rem !important;
+  font-weight: 700 !important;
+  margin: 2rem 0 1rem 0 !important;
+  color: hsl(var(--foreground)) !important;
+  border-bottom: 2px solid hsl(var(--border)) !important;
+  padding-bottom: 0.5rem !important;
+  line-height: 1.2 !important;
+}
+
+.lab-instructions p h2 {
+  font-size: 1.5rem !important;
+  font-weight: 600 !important;
+  margin: 1.5rem 0 0.75rem 0 !important;
+  color: hsl(var(--foreground)) !important;
+  border-bottom: 1px solid hsl(var(--border)) !important;
+  padding-bottom: 0.25rem !important;
+  line-height: 1.3 !important;
+}
+
+.lab-instructions p h3 {
+  font-size: 1.25rem !important;
+  font-weight: 600 !important;
+  margin: 1.25rem 0 0.5rem 0 !important;
+  color: hsl(var(--foreground)) !important;
+  line-height: 1.4 !important;
+}
+
+/* Also style regular headings in case some are not nested */
+.lab-instructions h1 {
+  font-size: 2rem;
+  font-weight: 700;
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+  color: hsl(var(--foreground));
+  border-bottom: 2px solid hsl(var(--border));
+  padding-bottom: 0.5rem;
+}
+
+.lab-instructions h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+  color: hsl(var(--foreground));
+  border-bottom: 1px solid hsl(var(--border));
+  padding-bottom: 0.25rem;
+}
+
+.lab-instructions h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
+  color: hsl(var(--foreground));
+}
+
+.lab-instructions img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
   margin: 1rem 0;
 }
 </style>

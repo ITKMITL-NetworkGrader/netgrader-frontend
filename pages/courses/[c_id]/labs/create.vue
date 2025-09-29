@@ -48,23 +48,23 @@
         </div>
 
         <!-- Progress Indicator -->
-        <div class="mt-6 mb-2">
-          <div class="flex items-center space-x-8">
+        <div class="mt-4 mb-2">
+          <div class="flex items-center justify-center space-x-4">
             <div v-for="(step, index) in steps" :key="step.id" class="flex items-center">
               <div
-                class="flex items-center justify-center w-10 h-10 rounded-full border-2 transition-all duration-200"
+                class="flex items-center justify-center w-8 h-8 rounded-full border-2 transition-all duration-200"
                 :class="{
                   'bg-primary text-primary-foreground border-primary': currentStep >= index + 1,
                   'border-muted-foreground text-muted-foreground bg-background': currentStep < index + 1,
                   'bg-green-500 border-green-500 text-white': currentStep > index + 1
                 }"
               >
-                <Check v-if="currentStep > index + 1" class="w-5 h-5" />
-                <span v-else class="font-semibold">{{ index + 1 }}</span>
+                <Check v-if="currentStep > index + 1" class="w-4 h-4" />
+                <span v-else class="font-semibold text-xs">{{ index + 1 }}</span>
               </div>
-              <div class="ml-3 min-w-0">
+              <div class="ml-2 min-w-0">
                 <div
-                  class="font-medium text-sm transition-colors duration-200"
+                  class="font-medium text-xs transition-colors duration-200"
                   :class="{
                     'text-foreground': currentStep >= index + 1,
                     'text-muted-foreground': currentStep < index + 1,
@@ -73,19 +73,10 @@
                 >
                   {{ step.title }}
                 </div>
-                <div
-                  class="text-xs transition-colors duration-200"
-                  :class="{
-                    'text-muted-foreground': currentStep >= index + 1,
-                    'text-muted-foreground/60': currentStep < index + 1
-                  }"
-                >
-                  {{ step.description }}
-                </div>
               </div>
               <ChevronRight
                 v-if="index < steps.length - 1"
-                class="w-5 h-5 mx-6 text-muted-foreground/40"
+                class="w-4 h-4 mx-3 text-muted-foreground/40"
               />
             </div>
           </div>
@@ -276,7 +267,7 @@ const courseId = route.params.c_id as string
 const labType = computed(() => route.query.type as string || 'lab')
 
 // Course data
-const { currentCourse } = useCourse()
+const { currentCourse, fetchCourse } = useCourse()
 const courseTitle = computed(() => currentCourse.value?.title || `Course ${courseId}`)
 
 // Course context for components
@@ -347,7 +338,7 @@ const wizardData = reactive<LabWizardData>({
   networkConfig: {
     baseNetwork: '192.168.1.0',
     subnetMask: 24,
-    allocationStrategy: 'student_id_based' as 'student_id_based' | 'group_based'
+    allocationStrategy: 'group_based' as 'student_id_based' | 'group_based'
   },
   devices: [],
   parts: [],
@@ -474,7 +465,7 @@ const handleCreateLab = async () => {
         topology: {
           baseNetwork: wizardData.networkConfig.baseNetwork,
           subnetMask: wizardData.networkConfig.subnetMask,
-          allocationStrategy: wizardData.networkConfig.allocationStrategy || 'student_id_based'
+          allocationStrategy: wizardData.networkConfig.allocationStrategy || 'group_based'
         },
         devices: wizardData.devices.map(device => ({
           deviceId: device.deviceId,
@@ -624,16 +615,19 @@ const showGlobalMessage = (type: 'success' | 'error', message: string) => {
 }
 
 // Lifecycle
-onMounted(() => {
+onMounted(async () => {
+  // Fetch course data first
+  await fetchCourse(courseId)
+
   // Load draft if available
   loadDraft()
-  
+
   // Update course data in wizard (avoid reactive loops)
   if (currentCourse.value) {
     // Use nextTick to avoid reactive loops
     nextTick(() => {
       wizardData.courseName = currentCourse.value.title || ''
-      wizardData.courseCode = currentCourse.value.code || courseId
+      wizardData.courseCode = currentCourse.value._id || courseId
     })
   }
 })

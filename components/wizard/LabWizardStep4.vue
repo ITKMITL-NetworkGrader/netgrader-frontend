@@ -106,28 +106,7 @@
               <CollapsibleContent>
                 <CardContent class="space-y-6">
                   <!-- Part Basic Information -->
-                  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <!-- Part ID -->
-                    <div class="space-y-2">
-                      <Label :for="`part-id-${partIndex}`" class="text-sm font-medium">
-                        Part ID <span class="text-destructive">*</span>
-                      </Label>
-                      <Input
-                        :id="`part-id-${partIndex}`"
-                        v-model="part.partId"
-                        placeholder="basic-config, routing, etc."
-                        :class="{
-                          'border-destructive': hasPartFieldError(partIndex, 'partId'),
-                          'border-green-500': !hasPartFieldError(partIndex, 'partId') && part.partId.length > 0
-                        }"
-                        @input="validatePart(partIndex, 'partId')"
-                        @blur="validatePart(partIndex, 'partId')"
-                      />
-                      <p v-if="hasPartFieldError(partIndex, 'partId')" class="text-sm text-destructive">
-                        {{ getPartFieldError(partIndex, 'partId') }}
-                      </p>
-                    </div>
-
+                  <div class="space-y-4">
                     <!-- Part Title -->
                     <div class="space-y-2">
                       <Label :for="`part-title-${partIndex}`" class="text-sm font-medium">
@@ -141,9 +120,12 @@
                           'border-destructive': hasPartFieldError(partIndex, 'title'),
                           'border-green-500': !hasPartFieldError(partIndex, 'title') && part.title.length > 0
                         }"
-                        @input="validatePart(partIndex, 'title')"
+                        @input="handlePartTitleChange(partIndex, $event.target.value)"
                         @blur="validatePart(partIndex, 'title')"
                       />
+                      <div v-if="part.partId" class="text-xs text-muted-foreground">
+                        Part ID will be: <code class="bg-muted px-1 py-0.5 rounded text-xs">{{ part.partId }}</code>
+                      </div>
                       <p v-if="hasPartFieldError(partIndex, 'title')" class="text-sm text-destructive">
                         {{ getPartFieldError(partIndex, 'title') }}
                       </p>
@@ -167,43 +149,63 @@
                   <!-- Instructions -->
                   <div class="space-y-2">
                     <div class="flex items-center justify-between">
-                      <Label :for="`part-instructions-${partIndex}`" class="text-sm font-medium">
+                      <Label class="text-sm font-medium">
                         Student Instructions <span class="text-destructive">*</span>
                       </Label>
                       <div class="flex items-center space-x-2">
                         <Button
+                          v-if="part.instructions.length > 0"
                           variant="ghost"
                           size="sm"
                           @click="toggleInstructionsPreview(partIndex)"
                         >
                           <Eye v-if="!part.showInstructionsPreview" class="w-4 h-4 mr-1" />
                           <Edit3 v-else class="w-4 h-4 mr-1" />
-                          {{ part.showInstructionsPreview ? 'Edit' : 'Preview' }}
+                          {{ part.showInstructionsPreview ? 'Hide Preview' : 'Preview' }}
                         </Button>
                       </div>
                     </div>
 
-                    <!-- Instructions Editor/Preview -->
-                    <div v-if="!part.showInstructionsPreview">
-                      <Textarea
-                        :id="`part-instructions-${partIndex}`"
-                        v-model="part.instructions"
-                        placeholder="# Part Instructions&#10;&#10;In this part, students will:&#10;- Configure basic settings&#10;- Test connectivity&#10;..."
-                        rows="6"
-                        class="font-mono text-sm"
+                    <!-- Rich Text Editor Button -->
+                    <div class="space-y-4">
+                      <Button
+                        @click="openInstructionsEditor(partIndex)"
+                        variant="outline"
+                        size="lg"
+                        class="w-full h-20 flex flex-col items-center justify-center gap-2 border-2 border-dashed hover:border-solid transition-all"
                         :class="{
-                          'border-destructive': hasPartFieldError(partIndex, 'instructions'),
-                          'border-green-500': !hasPartFieldError(partIndex, 'instructions') && part.instructions.length > 0
+                          'border-destructive text-destructive': hasPartFieldError(partIndex, 'instructions'),
+                          'border-green-500 text-green-700 bg-green-50 hover:bg-green-100': !hasPartFieldError(partIndex, 'instructions') && part.instructions.length > 0,
+                          'border-blue-500 text-blue-700 bg-blue-50 hover:bg-blue-100': !hasPartFieldError(partIndex, 'instructions') && part.instructions.length === 0
                         }"
-                        @input="validatePart(partIndex, 'instructions')"
-                      />
+                      >
+                        <div class="flex items-center gap-2">
+                          <Icon name="lucide:file-text" class="w-5 h-5" />
+                          <span class="font-medium">
+                            {{ part.instructions.length > 0 ? 'Edit Instructions' : 'Create Instructions' }}
+                          </span>
+                        </div>
+                        <div class="text-xs text-muted-foreground">
+                          {{ part.instructions.length > 0
+                            ? `${getInstructionsStats(part.instructions).words} words, ${getInstructionsStats(part.instructions).characters} characters`
+                            : 'Click to open the rich text editor with image support, formatting, and more'
+                          }}
+                        </div>
+                      </Button>
+
+                      <!-- Instructions Preview -->
+                      <div
+                        v-if="part.showInstructionsPreview && part.instructions.length > 0"
+                        class="min-h-[150px] p-4 border rounded-md bg-background prose prose-sm max-w-none"
+                      >
+                        <div v-html="renderMarkdown(part.instructions)"></div>
+                      </div>
+
+                      <!-- Validation Error -->
+                      <p v-if="hasPartFieldError(partIndex, 'instructions')" class="text-sm text-destructive">
+                        {{ getPartFieldError(partIndex, 'instructions') }}
+                      </p>
                     </div>
-                    <div v-else class="min-h-[150px] p-4 border rounded-md bg-background prose prose-sm max-w-none">
-                      <div v-html="renderMarkdown(part.instructions)"></div>
-                    </div>
-                    <p v-if="hasPartFieldError(partIndex, 'instructions')" class="text-sm text-destructive">
-                      {{ getPartFieldError(partIndex, 'instructions') }}
-                    </p>
                   </div>
 
                   <!-- Prerequisites -->
@@ -269,6 +271,20 @@
         </AlertDescription>
       </Alert>
     </div>
+
+    <!-- Rich Text Editor Modal -->
+    <ClientOnly>
+      <FullScreenEditor
+        v-model="showInstructionsEditor"
+        v-model:content="currentInstructionsContent"
+        :title="getCurrentEditorTitle()"
+        :subtitle="getCurrentEditorSubtitle()"
+        placeholder="Write student instructions here. Use markdown: **bold**, *italic*, headings, lists, links..."
+        :auto-save-enabled="false"
+        @save="handleInstructionsSave"
+        @close="handleInstructionsClose"
+      />
+    </ClientOnly>
   </div>
 </template>
 
@@ -301,6 +317,7 @@ import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible'
 
 // Local Components
 import TasksManager from './TasksManager.vue'
+import FullScreenEditor from '@/components/editor/FullScreenEditor.vue'
 
 // Types
 import type { WizardLabPart, WizardTaskGroup, Device, TaskTemplate, ValidationResult } from '@/types/wizard'
@@ -329,6 +346,11 @@ const partFieldErrors = ref<Record<string, Record<string, string>>>({})
 const taskValidationErrors = ref<Record<string, string[]>>({})
 const isUpdatingFromProps = ref(false)
 const isValidating = ref(false)
+
+// Rich Text Editor state
+const showInstructionsEditor = ref(false)
+const currentEditingPartIndex = ref<number | null>(null)
+const currentInstructionsContent = ref('')
 
 // Methods
 const generateTempId = (): string => {
@@ -431,6 +453,60 @@ const updatePartTaskGroups = (partIndex: number, taskGroups: WizardTaskGroup[]) 
   }
 }
 
+// Rich Text Editor methods
+const openInstructionsEditor = (partIndex: number) => {
+  currentEditingPartIndex.value = partIndex
+  currentInstructionsContent.value = localData.value[partIndex].instructions
+  showInstructionsEditor.value = true
+}
+
+const handleInstructionsSave = (content: string) => {
+  if (currentEditingPartIndex.value !== null) {
+    localData.value[currentEditingPartIndex.value].instructions = content
+    validatePart(currentEditingPartIndex.value, 'instructions')
+  }
+}
+
+const handleInstructionsClose = (content: string) => {
+  if (currentEditingPartIndex.value !== null) {
+    localData.value[currentEditingPartIndex.value].instructions = content
+    validatePart(currentEditingPartIndex.value, 'instructions')
+  }
+
+  // Reset editor state
+  currentEditingPartIndex.value = null
+  currentInstructionsContent.value = ''
+  showInstructionsEditor.value = false
+}
+
+const getInstructionsStats = (content: string) => {
+  const text = content.replace(/<[^>]*>/g, '').trim() // Strip HTML tags
+  const words = text.split(/\s+/).filter(word => word.length > 0).length
+  const characters = text.length
+
+  return {
+    words,
+    characters
+  }
+}
+
+const getCurrentEditorTitle = (): string => {
+  if (currentEditingPartIndex.value === null) return 'Student Instructions'
+
+  const part = localData.value[currentEditingPartIndex.value]
+  return part.title || `Part ${currentEditingPartIndex.value + 1} Instructions`
+}
+
+const getCurrentEditorSubtitle = (): string => {
+  if (currentEditingPartIndex.value === null) return ''
+
+  const part = localData.value[currentEditingPartIndex.value]
+  const partInfo = `Part ${currentEditingPartIndex.value + 1}`
+  const partId = part.partId ? ` (${part.partId})` : ''
+
+  return `${partInfo}${partId} - Student Instructions`
+}
+
 const hasPartErrors = (partIndex: number): boolean => {
   return !!partFieldErrors.value[partIndex] || !!(taskValidationErrors.value[partIndex]?.length > 0)
 }
@@ -506,7 +582,7 @@ const validatePart = (partIndex: number, field: string) => {
 const validateStep = () => {
   if (isValidating.value) return // Prevent recursive validation
   isValidating.value = true
-  
+
   try {
     // Validate all parts
     localData.value.forEach((part, index) => {

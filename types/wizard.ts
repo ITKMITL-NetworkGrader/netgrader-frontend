@@ -36,10 +36,16 @@ export interface Device {
 
 export interface IpVariable {
   name: string;              // Variable name (e.g., "loopback0", "gig0_1", "interface-1")
-  inputType: 'hostOffset' | 'fullIP';  // Whether to use host offset or full IP address
+  inputType: 'hostOffset' | 'fullIP' | 'studentManagement' | string;  // IP configuration type (includes studentVlan0, studentVlan1, etc.)
   hostOffset?: number;       // Host offset for IP calculation (used when inputType is 'hostOffset')
   fullIP?: string;           // Full IP address (used when inputType is 'fullIP')
   interface?: string;        // Full interface name from device template (e.g., "GigabitEthernet0/0")
+
+  // Enhanced fields for student-generated IPs
+  interfaceOffset?: number;  // Offset within network for multiple interfaces (e.g., 1, 2, 3)
+  vlanIndex?: number;        // Which VLAN this variable belongs to (0-based index)
+  isStudentGenerated?: boolean; // Whether this IP is auto-generated using student ID
+  readonly?: boolean;        // Whether the field is read-only (true for student-generated)
 }
 
 // Lab Parts Structure
@@ -144,8 +150,20 @@ export interface LabWizardData {
   
   // Step 2: Network Configuration
   networkConfig: {
-    baseNetwork: string;
-    subnetMask: number;
+    managementNetwork: string;
+    managementSubnetMask: number;
+    mode: 'fixed_vlan' | 'lecturer_group' | 'calculated_vlan' | '';
+    allocationStrategy: 'student_id_based' | 'group_based';
+    vlanCount: number;
+    vlans: Array<{
+      id?: string;
+      vlanId?: number;
+      calculationMultiplier?: number;
+      baseNetwork: string;
+      subnetMask: number;
+      groupModifier?: number;
+      isStudentGenerated: boolean;
+    }>;
   };
   
   // Step 3: Device Configuration

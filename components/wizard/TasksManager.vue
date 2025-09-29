@@ -87,26 +87,7 @@
             <CollapsibleContent>
               <CardContent class="space-y-4">
                 <!-- Task Basic Info -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <!-- Task ID -->
-                  <div class="space-y-2">
-                    <Label class="text-sm font-medium">
-                      Task ID <span class="text-destructive">*</span>
-                    </Label>
-                    <Input
-                      v-model="task.taskId"
-                      placeholder="hostname-config, routing-setup"
-                      :class="{
-                        'border-destructive': hasTaskFieldError(taskIndex, 'taskId'),
-                        'border-green-500': !hasTaskFieldError(taskIndex, 'taskId') && task.taskId.length > 0
-                      }"
-                      @input="validateTask(taskIndex, 'taskId')"
-                    />
-                    <p v-if="hasTaskFieldError(taskIndex, 'taskId')" class="text-xs text-destructive">
-                      {{ getTaskFieldError(taskIndex, 'taskId') }}
-                    </p>
-                  </div>
-
+                <div class="space-y-4">
                   <!-- Task Name -->
                   <div class="space-y-2">
                     <Label class="text-sm font-medium">
@@ -119,8 +100,11 @@
                         'border-destructive': hasTaskFieldError(taskIndex, 'name'),
                         'border-green-500': !hasTaskFieldError(taskIndex, 'name') && task.name.length > 0
                       }"
-                      @input="validateTask(taskIndex, 'name')"
+                      @input="handleTaskNameChange(taskIndex, $event.target.value)"
                     />
+                    <div v-if="task.taskId" class="text-xs text-muted-foreground">
+                      Task ID will be: <code class="bg-muted px-1 py-0.5 rounded text-xs">{{ task.taskId }}</code>
+                    </div>
                     <p v-if="hasTaskFieldError(taskIndex, 'name')" class="text-xs text-destructive">
                       {{ getTaskFieldError(taskIndex, 'name') }}
                     </p>
@@ -198,13 +182,34 @@
                           - {{ param.description }}
                         </span>
                       </Label>
+
+                      <!-- IP Address Parameter - Use specialized component -->
+                      <IpParameterSelector
+                        v-if="param.type === 'ip_address'"
+                        v-model="task.parameters[param.name]"
+                        :param-name="param.name"
+                        :devices="devices"
+                        :required="param.required"
+                        :has-error="hasParameterError(taskIndex, param.name)"
+                        :error-message="getParameterError(taskIndex, param.name)"
+                        @validate="validateTaskParameter(taskIndex, param.name)"
+                      />
+
+                      <!-- Regular Parameter Input -->
                       <Input
+                        v-else
                         v-model="task.parameters[param.name]"
                         :placeholder="`Enter ${param.name}`"
                         :type="param.type === 'number' ? 'number' : 'text'"
                         @input="validateTaskParameter(taskIndex, param.name)"
+                        :class="{
+                          'border-destructive': hasParameterError(taskIndex, param.name),
+                          'border-green-500': !hasParameterError(taskIndex, param.name) && task.parameters[param.name]
+                        }"
                       />
-                      <p v-if="hasParameterError(taskIndex, param.name)" class="text-xs text-destructive">
+
+                      <!-- Error message only for non-IP address parameters -->
+                      <p v-if="param.type !== 'ip_address' && hasParameterError(taskIndex, param.name)" class="text-xs text-destructive">
                         {{ getParameterError(taskIndex, param.name) }}
                       </p>
                     </div>
@@ -343,6 +348,9 @@ import {
   ChevronDown
 } from 'lucide-vue-next'
 
+// Import utility functions
+import { taskNameToId, titleToUniqueId } from '@/utils/idGenerator'
+
 // UI Components
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -356,6 +364,7 @@ import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible'
 // Local Components
 import TestCasesManager from './TestCasesManager.vue'
 import TaskGroupManager from './TaskGroupManager.vue'
+import IpParameterSelector from './IpParameterSelector.vue'
 
 // Types
 import type { WizardTask, WizardTaskGroup, Device, TaskTemplate } from '@/types/wizard'
@@ -567,6 +576,30 @@ const isTaskValid = (task: WizardTask): boolean => {
          task.testCases.length > 0
 }
 
+const handleTaskNameChange = (taskIndex: number, newName: string) => {
+  const task = localTasks.value[taskIndex]
+  if (!task) return
+
+  // Update the name
+  task.name = newName
+
+  // Generate task ID from name
+  if (newName.trim()) {
+    const existingTaskIds = localTasks.value
+      .filter((_, i) => i !== taskIndex)
+      .map(t => t.taskId)
+      .filter(Boolean)
+
+    task.taskId = titleToUniqueId(newName, existingTaskIds)
+  } else {
+    task.taskId = ''
+  }
+
+  // Validate the name and taskId fields
+  validateTask(taskIndex, 'name')
+  validateTask(taskIndex, 'taskId')
+}
+
 const validateTask = (taskIndex: number, field: string) => {
   if (!taskFieldErrors.value[taskIndex]) {
     taskFieldErrors.value[taskIndex] = {}
@@ -577,7 +610,7 @@ const validateTask = (taskIndex: number, field: string) => {
   switch (field) {
     case 'taskId':
       if (!task.taskId.trim()) {
-        taskFieldErrors.value[taskIndex].taskId = 'Task ID is required'
+        taskFieldErrors.value[taskIndex].taskId = 'Task ID is required (generated from name)'
       } else if (!/^[a-zA-Z0-9_-]+$/.test(task.taskId)) {
         taskFieldErrors.value[taskIndex].taskId = 'Task ID must be alphanumeric with underscores/hyphens'
       } else if (localTasks.value.some((t, i) => i !== taskIndex && t.taskId === task.taskId)) {
@@ -635,21 +668,56 @@ const validateTaskParameter = (taskIndex: number, paramName: string) => {
   if (paramSchema?.required) {
     const paramValue = task.parameters[paramName]
     // More robust validation - check for meaningful values
-    const isEmpty = paramValue === undefined || 
-                   paramValue === null || 
+    const isEmpty = paramValue === undefined ||
+                   paramValue === null ||
                    (typeof paramValue === 'string' && paramValue.trim() === '') ||
                    (typeof paramValue === 'number' && isNaN(paramValue))
-    
+
     if (isEmpty) {
       parameterErrors.value[taskIndex][paramName] = `${paramName} is required`
     } else {
-      delete parameterErrors.value[taskIndex][paramName]
+      // Special validation for IP address parameters
+      if (paramSchema.type === 'ip_address' && typeof paramValue === 'string') {
+        const isValid = validateIpParameterValue(paramValue)
+        if (!isValid) {
+          parameterErrors.value[taskIndex][paramName] = `${paramName} must be a valid IP variable or IP address`
+        } else {
+          delete parameterErrors.value[taskIndex][paramName]
+        }
+      } else {
+        delete parameterErrors.value[taskIndex][paramName]
+      }
     }
   } else {
     delete parameterErrors.value[taskIndex][paramName]
   }
 
   // Don't call validateTasks() here to avoid circular calls
+}
+
+// Helper function to validate IP parameter values
+const validateIpParameterValue = (value: string): boolean => {
+  if (!value || typeof value !== 'string') return false
+
+  const trimmedValue = value.trim()
+
+  // Check if it's a variable reference (deviceId.variableName format)
+  if (trimmedValue.includes('.')) {
+    // Check if it matches deviceId.variableName pattern and exists in devices
+    const variablePattern = /^[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+$/
+    if (variablePattern.test(trimmedValue)) {
+      // Check if this variable actually exists in our devices
+      const [deviceId, variableName] = trimmedValue.split('.')
+      return props.devices.some(device =>
+        device.deviceId === deviceId &&
+        device.ipVariables.some(ipVar => ipVar.name === variableName)
+      )
+    }
+  }
+
+  // Check if it's a valid IP address
+  const ipRegex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/
+  return ipRegex.test(trimmedValue)
 }
 
 const handleTestCasesValidation = (taskIndex: number, errors: string[]) => {

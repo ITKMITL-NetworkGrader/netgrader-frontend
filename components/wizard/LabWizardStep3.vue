@@ -8,19 +8,63 @@
       </p>
     </div>
 
-    <!-- Network Context -->
-    <div class="bg-muted/50 p-4 rounded-lg">
+    <!-- Enhanced Network Context -->
+    <div class="bg-muted/50 p-4 rounded-lg space-y-3">
+      <!-- Management Network -->
       <div class="flex items-center space-x-2">
         <Network class="h-5 w-5 text-muted-foreground" />
-        <span class="font-medium">Network:</span>
+        <span class="font-medium">Management Network:</span>
         <code class="bg-background px-2 py-1 rounded text-sm">
-          {{ networkConfig.baseNetwork }}/{{ networkConfig.subnetMask }}
+          {{ networkConfig.managementNetwork }}/{{ networkConfig.managementSubnetMask }}
         </code>
-        <span class="text-muted-foreground">
-          ({{ availableHosts }} available host addresses)
+      </div>
+
+      <!-- VLAN Configuration Mode -->
+      <div class="flex items-center space-x-2">
+        <div class="h-5 w-5 bg-blue-500 rounded flex items-center justify-center">
+          <span class="text-white text-xs font-bold">V</span>
+        </div>
+        <span class="font-medium">VLAN Mode:</span>
+        <span class="text-foreground">
+          {{ getModeDisplayText(networkConfig.mode) }}
         </span>
       </div>
+
+      <!-- IP Allocation Strategy -->
+      <div class="flex items-center space-x-2">
+        <div class="h-5 w-5 bg-green-500 rounded flex items-center justify-center">
+          <span class="text-white text-xs font-bold">IP</span>
+        </div>
+        <span class="font-medium">Allocation Strategy:</span>
+        <span class="text-foreground">
+          {{ networkConfig.allocationStrategy === 'group_based' ? 'Group Based' : 'Student ID Based' }}
+        </span>
+      </div>
+
+      <!-- VLAN Networks -->
+      <div v-if="networkConfig.vlans && networkConfig.vlans.length > 0" class="space-y-2">
+        <div class="flex items-center space-x-2">
+          <div class="h-5 w-5 bg-purple-500 rounded flex items-center justify-center">
+            <span class="text-white text-xs font-bold">{{ networkConfig.vlans.length }}</span>
+          </div>
+          <span class="font-medium">VLAN Networks ({{ networkConfig.vlans.length }}):</span>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-2 ml-7">
+          <div v-for="(vlan, index) in networkConfig.vlans" :key="vlan.id || index" class="flex items-center space-x-2">
+            <div class="text-xs bg-background px-2 py-1 rounded border">
+              {{ vlan.calculationMultiplier !== undefined ? getVlanDisplayId(vlan, index) : `VLAN ${getVlanDisplayId(vlan, index)}` }}
+            </div>
+            <code class="bg-background px-2 py-1 rounded text-xs">
+              {{ vlan.baseNetwork }}/{{ vlan.subnetMask }}
+            </code>
+            <span v-if="vlan.isStudentGenerated" class="text-xs text-muted-foreground">
+              (Student Generated)
+            </span>
+          </div>
+        </div>
+      </div>
     </div>
+
 
     <!-- Devices List -->
     <div class="space-y-4">
@@ -238,6 +282,10 @@
                           <p v-if="hasIpVarError(index, ipIndex, 'name')" class="text-xs text-destructive">
                             {{ getIpVarError(index, ipIndex, 'name') }}
                           </p>
+                          <!-- IP Duplication Error -->
+                          <p v-if="hasIpVarError(index, ipIndex, 'duplication')" class="text-xs text-destructive">
+                            {{ getIpVarError(index, ipIndex, 'duplication') }}
+                          </p>
                         </div>
 
                         <!-- IP Configuration Mode -->
@@ -252,20 +300,32 @@
                                 <template v-if="ipVar.inputType === 'hostOffset'">
                                   Host Offset
                                 </template>
-                                <template v-else>
+                                <template v-else-if="ipVar.inputType === 'fullIP'">
                                   Full IP Address
+                                </template>
+                                <template v-else-if="ipVar.inputType === 'studentManagement'">
+                                  Student Management IP
+                                </template>
+                                <template v-else-if="ipVar.inputType?.startsWith('studentVlan')">
+                                  {{ getVlanNumberFromInputType(ipVar.inputType) }} IP
+                                </template>
+                                <template v-else>
+                                  Select configuration type
                                 </template>
                               </SelectValue>
                             </SelectTrigger>
                             <SelectContent>
+                              <!-- Host Offset Option -->
                               <SelectItem value="hostOffset">
                                 <SelectItemText>
                                   <div class="flex flex-col space-y-1">
                                     <div class="font-medium">Host Offset</div>
-                                    <div class="text-xs text-muted-foreground">Calculate IP from base network + offset</div>
+                                    <div class="text-xs text-muted-foreground">Calculate IP from management network + offset</div>
                                   </div>
                                 </SelectItemText>
                               </SelectItem>
+
+                              <!-- Full IP Address Option -->
                               <SelectItem value="fullIP">
                                 <SelectItemText>
                                   <div class="flex flex-col space-y-1">
@@ -274,6 +334,33 @@
                                   </div>
                                 </SelectItemText>
                               </SelectItem>
+
+                              <!-- Student Management IP Option -->
+                              <SelectItem value="studentManagement">
+                                <SelectItemText>
+                                  <div class="flex flex-col space-y-1">
+                                    <div class="font-medium">Student Management IP</div>
+                                    <div class="text-xs text-muted-foreground">Auto-generated from management network using student ID</div>
+                                  </div>
+                                </SelectItemText>
+                              </SelectItem>
+
+                              <!-- Dynamic Student VLAN IP Options -->
+                              <SelectItem
+                                v-for="(vlan, vlanIndex) in networkConfig.vlans"
+                                :key="`vlan-${vlanIndex}`"
+                                :value="`studentVlan${vlanIndex}`"
+                              >
+                                <SelectItemText>
+                                  <div class="flex flex-col space-y-1">
+                                    <div class="font-medium">{{ vlan.calculationMultiplier !== undefined ? getVlanDisplayId(vlan, vlanIndex) : `Student VLAN ${getVlanDisplayId(vlan, vlanIndex)}` }} IP</div>
+                                    <div class="text-xs text-muted-foreground">
+                                      Auto-generated from {{ vlan.baseNetwork }}/{{ vlan.subnetMask }}
+                                    </div>
+                                  </div>
+                                </SelectItemText>
+                              </SelectItem>
+
                             </SelectContent>
                           </Select>
                         </div>
@@ -305,7 +392,7 @@
                         </div>
 
                         <!-- Full IP Address Input (when inputType is 'fullIP') -->
-                        <div v-else class="space-y-1">
+                        <div v-else-if="ipVar.inputType === 'fullIP'" class="space-y-1">
                           <Label class="text-xs font-medium">Full IP Address</Label>
                           <Input
                             v-model="ipVar.fullIP"
@@ -322,6 +409,94 @@
                             {{ getIpVarError(index, ipIndex, 'fullIP') }}
                           </p>
                         </div>
+
+                        <!-- Student Management IP Configuration -->
+                        <div v-else-if="ipVar.inputType === 'studentManagement'" class="space-y-1">
+                          <Label class="text-xs font-medium">Student Management IP Configuration</Label>
+                          <div class="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                            <div class="flex items-center justify-between">
+                              <div class="space-y-1">
+                                <div class="text-sm font-medium text-blue-700">
+                                  Management Network IP Generation
+                                </div>
+                                <div class="text-xs text-blue-600">
+                                  Generated from: {{ networkConfig.managementNetwork }}/{{ networkConfig.managementSubnetMask }}
+                                </div>
+                              </div>
+                              <div class="flex items-center space-x-1">
+                                <Badge variant="outline" class="text-xs border-blue-300 text-blue-700">
+                                  Management
+                                </Badge>
+                              </div>
+                            </div>
+
+                            <!-- Management IP Preview -->
+                            <div class="mt-3">
+                              <div class="text-xs text-blue-600">
+                                <strong>Example (Device #1):</strong> {{ getManagementPreviewIP() }}
+                              </div>
+                              <div class="text-xs text-blue-500 mt-1">
+                                Uses formula: {{ networkConfig.managementNetwork.split('.').slice(0,3).join('.') }}.{{ 190 + 1 }}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <!-- Student VLAN IP Configuration -->
+                        <div v-else-if="ipVar.inputType?.startsWith('studentVlan')" class="space-y-1">
+                          <Label class="text-xs font-medium">Student VLAN IP Configuration</Label>
+                          <div class="p-3 bg-green-50 border border-green-200 rounded-lg">
+                            <div class="flex items-center justify-between">
+                              <div class="space-y-1">
+                                <div class="text-sm font-medium text-green-700">
+                                  {{ getVlanNumberFromInputType(ipVar.inputType) }} IP Generation
+                                </div>
+                                <div class="text-xs text-green-600">
+                                  Generated from: {{ getVlanNetworkInfo(ipVar.inputType) }}
+                                </div>
+                              </div>
+                              <div class="flex items-center space-x-1">
+                                <Badge variant="outline" class="text-xs border-green-300 text-green-700">
+                                  {{ getVlanBadgeText(ipVar.inputType) }}
+                                </Badge>
+                              </div>
+                            </div>
+
+                            <!-- Interface Offset Selection -->
+                            <div class="mt-3 space-y-2">
+                              <Label class="text-xs font-medium text-green-700">Interface Offset</Label>
+                              <div class="flex items-center space-x-2">
+                                <Input
+                                  v-model.number="ipVar.interfaceOffset"
+                                  type="number"
+                                  :min="1"
+                                  :max="50"
+                                  placeholder="1"
+                                  class="text-sm w-20"
+                                  @input="validateIpVariable(index, ipIndex, 'interfaceOffset')"
+                                  @change="validateIpVariable(index, ipIndex, 'interfaceOffset')"
+                                />
+                                <div class="text-xs text-green-600">
+                                  <strong>Example (Student ID: 65070232):</strong> {{ getVlanPreviewIP(ipVar.inputType, ipVar.interfaceOffset || 1) }}
+                                </div>
+                              </div>
+                              <div class="text-xs text-green-600">
+                                Different offsets ensure unique IPs when multiple interfaces use same VLAN
+                              </div>
+                              <!-- Interface Offset Error -->
+                              <p v-if="hasIpVarError(index, ipIndex, 'interfaceOffset')" class="text-xs text-destructive">
+                                {{ getIpVarError(index, ipIndex, 'interfaceOffset') }}
+                              </p>
+                            </div>
+
+                            <!-- Set VLAN Index -->
+                            <input
+                              type="hidden"
+                              v-model="ipVar.vlanIndex"
+                            />
+                          </div>
+                        </div>
+
                       </div>
 
                       <!-- Remove IP Variable -->
@@ -449,8 +624,20 @@ import type { Device, DeviceTemplate, ValidationResult } from '@/types/wizard'
 interface Props {
   modelValue: Device[]
   networkConfig: {
-    baseNetwork: string
-    subnetMask: number
+    managementNetwork: string
+    managementSubnetMask: number
+    mode: 'fixed_vlan' | 'lecturer_group' | 'calculated_vlan' | ''
+    allocationStrategy: 'student_id_based' | 'group_based'
+    vlanCount: number
+    vlans: Array<{
+      id?: string
+      vlanId?: number
+      calculationMultiplier?: number
+      baseNetwork: string
+      subnetMask: number
+      groupModifier?: number
+      isStudentGenerated: boolean
+    }>
   }
   validation?: ValidationResult
 }
@@ -472,9 +659,44 @@ const fieldErrors = ref<Record<string, Record<string, string>>>({})
 const isUpdatingFromProps = ref(false)
 const ipVarErrors = ref<Record<string, Record<string, Record<string, string>>>>({})
 
+// Student Generated Variables state
+const showDebugInfo = ref(false)
+
 // Computed
 const availableHosts = computed(() => {
-  return Math.pow(2, 32 - props.networkConfig.subnetMask) - 2
+  // Use management network subnet mask for host calculation
+  return Math.pow(2, 32 - props.networkConfig.managementSubnetMask) - 2
+})
+
+// Preview values for demonstration (using sample student ID 65070232)
+const previewValues = computed(() => {
+  try {
+    // Import and use StudentIpGenerator for preview only
+    const sampleStudentId = '65070232'
+
+    // Calculate using your algorithm
+    const student_id = Number(sampleStudentId)
+    let dec2_1 = (student_id / 1000000 - 61) * 10
+    let dec2_2 = (student_id % 1000) / 250
+    let dec2 = Math.floor(dec2_1 + dec2_2)
+    let dec3 = Math.floor((student_id % 1000) % 250)
+
+    return {
+      router_vlan1_ip: `172.${dec2}.${dec3}.65`,
+      router_vlan2_ip: `172.${dec2}.${dec3}.97`,
+      switch_management_ip: `172.${dec2}.${dec3}.70`,
+      pc1_ip: `172.${dec2}.${dec3}.66`,
+      router_external_ip: `10.30.6.190`
+    }
+  } catch (error) {
+    return {
+      router_vlan1_ip: '172.16.3.65',
+      router_vlan2_ip: '172.16.3.97',
+      switch_management_ip: '172.16.3.70',
+      pc1_ip: '172.16.3.66',
+      router_external_ip: '10.30.6.190'
+    }
+  }
 })
 
 // Methods
@@ -517,6 +739,7 @@ const addDevice = () => {
     }
   }
   localData.value.push(newDevice)
+  validateAllIpDuplications()
   validateStep()
 }
 
@@ -525,6 +748,7 @@ const removeDevice = (index: number) => {
   // Clean up errors for this device
   delete fieldErrors.value[index]
   delete ipVarErrors.value[index]
+  validateAllIpDuplications()
   validateStep()
 }
 
@@ -542,13 +766,19 @@ const addIpVariable = (deviceIndex: number) => {
     name: '',
     inputType: 'hostOffset', // Default to host offset mode
     hostOffset: 1,
-    fullIP: ''
+    fullIP: '',
+    interfaceOffset: 1, // Default interface offset
+    vlanIndex: 0, // Default VLAN index
+    isStudentGenerated: false,
+    readonly: false
   })
+  validateAllIpDuplications()
   validateStep()
 }
 
 const removeIpVariable = (deviceIndex: number, ipIndex: number) => {
   localData.value[deviceIndex].ipVariables.splice(ipIndex, 1)
+  validateAllIpDuplications()
   validateStep()
 }
 
@@ -635,12 +865,12 @@ const onTemplateChange = (deviceIndex: number, templateId: string) => {
 }
 
 const calculateIP = (hostOffset: number): string => {
-  if (!props.networkConfig.baseNetwork || !hostOffset) return 'Invalid'
-  
+  if (!props.networkConfig.managementNetwork || !hostOffset) return 'Invalid'
+
   try {
-    const baseParts = props.networkConfig.baseNetwork.split('.').map(Number)
+    const baseParts = props.networkConfig.managementNetwork.split('.').map(Number)
     const totalOffset = hostOffset
-    
+
     // Add offset to the base IP
     let carry = totalOffset
     for (let i = 3; i >= 0 && carry > 0; i--) {
@@ -652,7 +882,7 @@ const calculateIP = (hostOffset: number): string => {
         carry = 0
       }
     }
-    
+
     return baseParts.join('.')
   } catch {
     return 'Invalid'
@@ -770,33 +1000,146 @@ const validateIpVariable = (deviceIndex: number, ipIndex: number, field: string)
         delete ipVarErrors.value[deviceIndex][ipIndex].fullIP
       }
       break
+
+
+    case 'interfaceOffset':
+      // Validate interface offset for student-generated IPs (only for VLAN IPs, not management)
+      if (ipVar.inputType?.startsWith('studentVlan')) {
+        if (!ipVar.interfaceOffset || ipVar.interfaceOffset < 1) {
+          ipVarErrors.value[deviceIndex][ipIndex].interfaceOffset = 'Interface offset must be greater than 0'
+        } else if (ipVar.interfaceOffset > 50) {
+          ipVarErrors.value[deviceIndex][ipIndex].interfaceOffset = 'Interface offset cannot exceed 50'
+        } else {
+          delete ipVarErrors.value[deviceIndex][ipIndex].interfaceOffset
+        }
+      } else {
+        delete ipVarErrors.value[deviceIndex][ipIndex].interfaceOffset
+      }
+      break
   }
+
+  // Check for IP duplication after field validation
+  validateIpDuplication(deviceIndex, ipIndex)
 
   emitValidation()
 }
 
-const onInputTypeChange = (deviceIndex: number, ipIndex: number, inputType: 'hostOffset' | 'fullIP') => {
+const onInputTypeChange = (deviceIndex: number, ipIndex: number, inputType: string) => {
   const ipVar = localData.value[deviceIndex].ipVariables[ipIndex]
   ipVar.inputType = inputType
-  
+
   // Clear validation errors when switching modes
   if (ipVarErrors.value[deviceIndex]?.[ipIndex]) {
     delete ipVarErrors.value[deviceIndex][ipIndex].hostOffset
     delete ipVarErrors.value[deviceIndex][ipIndex].fullIP
+    delete ipVarErrors.value[deviceIndex][ipIndex].studentManagement
+    delete ipVarErrors.value[deviceIndex][ipIndex].studentVlan
   }
-  
+
   // Initialize default values for the selected mode
   if (inputType === 'hostOffset') {
     if (!ipVar.hostOffset) {
       ipVar.hostOffset = 1
     }
+    // Clear other fields
+    delete ipVar.interfaceOffset
+    delete ipVar.vlanIndex
   } else if (inputType === 'fullIP') {
     if (!ipVar.fullIP) {
       ipVar.fullIP = ''
     }
+    // Clear other fields
+    delete ipVar.interfaceOffset
+    delete ipVar.vlanIndex
+  } else if (inputType === 'studentManagement') {
+    // Management IP doesn't need interface offset customization
+    ipVar.isStudentGenerated = true
+    ipVar.readonly = true
+    delete ipVar.interfaceOffset
+    delete ipVar.vlanIndex
+  } else if (inputType.startsWith('studentVlan')) {
+    // Initialize interface offset and VLAN index for VLAN IP
+    if (!ipVar.interfaceOffset) {
+      ipVar.interfaceOffset = 1
+    }
+    ipVar.vlanIndex = getVlanIndexFromInputType(inputType)
+    ipVar.isStudentGenerated = true
+    ipVar.readonly = true
   }
-  
+
+  // Validate all IP variables for potential duplications
+  validateAllIpDuplications()
+
+  validateAllIpDuplications()
   validateStep()
+}
+
+// Function to check for IP duplication
+const validateIpDuplication = (deviceIndex: number, ipIndex: number) => {
+  const currentVar = localData.value[deviceIndex].ipVariables[ipIndex]
+
+  if (!currentVar.inputType || currentVar.inputType === 'hostOffset' || currentVar.inputType === 'fullIP') {
+    // Clear any existing duplication errors for non-student-generated types
+    delete ipVarErrors.value[deviceIndex]?.[ipIndex]?.duplication
+    return
+  }
+
+  // Check for duplicates across all devices and IP variables
+  let duplicates: string[] = []
+  const currentKey = getIpKey(currentVar)
+
+  localData.value.forEach((device, devIndex) => {
+    device.ipVariables.forEach((ipVar, varIndex) => {
+      // Skip the current variable
+      if (devIndex === deviceIndex && varIndex === ipIndex) return
+
+      // Only check student-generated IPs that could conflict
+      if (ipVar.inputType && (ipVar.inputType === 'studentManagement' || ipVar.inputType.startsWith('studentVlan'))) {
+        const otherKey = getIpKey(ipVar)
+
+        if (currentKey === otherKey) {
+          duplicates.push(`${device.deviceId}.${ipVar.name}`)
+        }
+      }
+    })
+  })
+
+  // Set or clear duplication error
+  if (duplicates.length > 0) {
+    if (!ipVarErrors.value[deviceIndex]) {
+      ipVarErrors.value[deviceIndex] = {}
+    }
+    if (!ipVarErrors.value[deviceIndex][ipIndex]) {
+      ipVarErrors.value[deviceIndex][ipIndex] = {}
+    }
+    ipVarErrors.value[deviceIndex][ipIndex].duplication =
+      `Duplicate IP detected! Same configuration as: ${duplicates.join(', ')}`
+  } else {
+    delete ipVarErrors.value[deviceIndex]?.[ipIndex]?.duplication
+  }
+}
+
+// Function to validate all IP variables for duplications
+const validateAllIpDuplications = () => {
+  localData.value.forEach((device, deviceIndex) => {
+    device.ipVariables.forEach((ipVar, ipIndex) => {
+      validateIpDuplication(deviceIndex, ipIndex)
+    })
+  })
+}
+
+// Generate a unique key for IP configuration comparison
+const getIpKey = (ipVar: any): string => {
+  if (ipVar.inputType === 'studentManagement') {
+    return `mgmt:single` // Management IP has only one IP per student
+  }
+
+  if (ipVar.inputType && ipVar.inputType.startsWith('studentVlan')) {
+    const vlanIndex = ipVar.vlanIndex !== undefined ? ipVar.vlanIndex : getVlanIndexFromInputType(ipVar.inputType)
+    return `vlan:${vlanIndex}:${ipVar.interfaceOffset || 1}`
+  }
+
+  return `other:${ipVar.inputType}:${JSON.stringify(ipVar)}`
 }
 
 const isValidIP = (ip: string): boolean => {
@@ -847,7 +1190,7 @@ const validateAllDevices = () => {
         delete ipVarErrors.value[index][ipIndex].name
       }
 
-      // Validate based on input type (hostOffset or fullIP)
+      // Validate based on input type (hostOffset, fullIP, or studentGenerated)
       if (ipVar.inputType === 'hostOffset') {
         // Validate hostOffset
         if (!ipVar.hostOffset || ipVar.hostOffset < 1) {
@@ -857,7 +1200,7 @@ const validateAllDevices = () => {
         } else {
           delete ipVarErrors.value[index][ipIndex].hostOffset
         }
-        // Clear fullIP errors since we're using hostOffset
+        // Clear other errors since we're using hostOffset
         delete ipVarErrors.value[index][ipIndex].fullIP
       } else if (ipVar.inputType === 'fullIP') {
         // Validate fullIP
@@ -868,7 +1211,7 @@ const validateAllDevices = () => {
         } else {
           delete ipVarErrors.value[index][ipIndex].fullIP
         }
-        // Clear hostOffset errors since we're using fullIP
+        // Clear other errors since we're using fullIP
         delete ipVarErrors.value[index][ipIndex].hostOffset
       }
     })
@@ -919,7 +1262,7 @@ const loadDeviceTemplates = async () => {
 
     if (response.success && response.data.templates) {
       deviceTemplates.value = response.data.templates
-      
+
       // 🐛 DEBUG: Log loaded templates
       console.log('🔍 Device templates loaded:', deviceTemplates.value.map(t => ({
         id: t.id,
@@ -931,6 +1274,148 @@ const loadDeviceTemplates = async () => {
     console.error('Failed to load device templates:', error)
   } finally {
     isLoadingTemplates.value = false
+  }
+}
+
+// Preview methods for Student Generated Variables
+const getPreviewIP = (variableName: string): string => {
+  // Map variable names to preview IPs from previewValues
+  const variableMap: Record<string, string> = {
+    // Router variables
+    'loopback0': previewValues.value.router_external_ip,
+    'loop0': previewValues.value.router_external_ip,
+    'gig0_0': previewValues.value.router_vlan1_ip,
+    'gig0_1': previewValues.value.router_vlan2_ip,
+    'fa0_0': previewValues.value.router_vlan1_ip,
+    'fa0_1': previewValues.value.router_vlan2_ip,
+    'eth0_0': previewValues.value.router_vlan1_ip,
+    'eth0_1': previewValues.value.router_vlan2_ip,
+
+    // Switch variables
+    'management_ip': previewValues.value.switch_management_ip,
+    'mgmt': previewValues.value.switch_management_ip,
+
+    // PC variables
+    'eth0': previewValues.value.pc1_ip,
+    'ens2': previewValues.value.pc1_ip
+  }
+
+  return variableMap[variableName.toLowerCase()] ||
+         variableMap[variableName] ||
+         previewValues.value.router_vlan1_ip
+}
+
+// Helper methods for network display
+const getModeDisplayText = (mode: string): string => {
+  switch (mode) {
+    case 'fixed_vlan':
+      return 'Fixed VLAN (Beginning Course)'
+    case 'lecturer_group':
+      return 'Lecturer VLAN + Group (Advanced Course)'
+    case 'calculated_vlan':
+      return 'Calculated VLAN (Examination)'
+    default:
+      return 'Not configured'
+  }
+}
+
+
+const getVlanDisplayId = (vlan: any, index: number): string => {
+  if (vlan.vlanId !== undefined) {
+    return vlan.vlanId.toString()
+  }
+  if (vlan.calculationMultiplier !== undefined) {
+    // Use alphabetical labeling for calculated VLANs (A, B, C, etc.)
+    const letter = String.fromCharCode(65 + index) // A=65, B=66, C=67, etc.
+    return `Calculated Student VLAN ${letter}`
+  }
+  return `${index + 1}`
+}
+
+const getVlanNumberFromInputType = (inputType: string): string => {
+  // Extract VLAN number from "studentVlan0", "studentVlan1", etc.
+  const match = inputType.match(/studentVlan(\d+)/)
+  if (match) {
+    const vlanIndex = parseInt(match[1])
+    const vlan = props.networkConfig.vlans[vlanIndex]
+    // Use conditional labeling for VLAN display
+    return vlan.calculationMultiplier !== undefined
+      ? getVlanDisplayId(vlan, vlanIndex)
+      : `Student VLAN ${getVlanDisplayId(vlan, vlanIndex)}`
+  }
+  return '?'
+}
+
+const getVlanIndexFromInputType = (inputType: string): number => {
+  // Extract VLAN index from "studentVlan0", "studentVlan1", etc.
+  const match = inputType.match(/studentVlan(\d+)/)
+  return match ? parseInt(match[1]) : 0
+}
+
+// Get badge text for VLAN configuration (shorter version for badge display)
+const getVlanBadgeText = (inputType: string): string => {
+  const match = inputType.match(/studentVlan(\d+)/)
+  if (match) {
+    const vlanIndex = parseInt(match[1])
+    const vlan = props.networkConfig.vlans[vlanIndex]
+    // For badges, use shorter text
+    return vlan.calculationMultiplier !== undefined
+      ? `Calculated Student VLAN ${String.fromCharCode(65 + vlanIndex)}`
+      : `Student VLAN ${getVlanDisplayId(vlan, vlanIndex)}`
+  }
+  return '?'
+}
+
+const getVlanNetworkInfo = (inputType: string): string => {
+  const vlanIndex = getVlanIndexFromInputType(inputType)
+  const vlan = props.networkConfig.vlans[vlanIndex]
+  return vlan ? `${vlan.baseNetwork}/${vlan.subnetMask}` : 'Unknown'
+}
+
+const getManagementPreviewIP = (): string => {
+  try {
+    // Real algorithm from the actual system!
+    const student_id = 65070232 // Sample student ID
+    const number = 1 // Sample device number (can be customized per interface)
+    const managementParts = props.networkConfig.managementNetwork.split('.').map(Number)
+
+    // Use the exact formula: 10.30.6.${190 + number}
+    // But adapt it to use the configured management network instead of hardcoded 10.30.6
+    const lastOctet = 190 + number
+
+    return `${managementParts[0]}.${managementParts[1]}.${managementParts[2]}.${lastOctet}`
+  } catch (error) {
+    return 'Error calculating IP'
+  }
+}
+
+const getVlanPreviewIP = (inputType: string, interfaceOffset: number): string => {
+  try {
+    const vlanIndex = getVlanIndexFromInputType(inputType)
+    const vlan = props.networkConfig.vlans[vlanIndex]
+    if (!vlan) return 'VLAN not found'
+
+    // Use the same student algorithm with VLAN base network
+    const student_id = 65070232 // Sample student ID
+    let dec2_1 = (student_id / 1000000 - 61) * 10
+    let dec2_2 = (student_id % 1000) / 250
+    let dec2 = Math.floor(dec2_1 + dec2_2)
+    let dec3 = Math.floor((student_id % 1000) % 250)
+
+    // For calculated VLANs, incorporate the calculated VLAN ID into the IP generation
+    if (vlan.calculationMultiplier !== undefined) {
+      // Calculate the actual VLAN ID for this student
+      const calculatedVlanId = Math.floor((student_id / 1000000 - 61) * vlan.calculationMultiplier + (student_id % 1000))
+
+      // Use the calculated VLAN ID to modify the third octet for uniqueness
+      // This ensures different multipliers produce different IP ranges
+      dec3 = Math.floor((dec3 + calculatedVlanId) % 250)
+    }
+
+    const [vlanOct1] = vlan.baseNetwork.split('.').map(Number)
+    return `${vlanOct1}.${dec2}.${dec3}.${64 + interfaceOffset}`
+  } catch (error) {
+    return 'Error calculating IP'
   }
 }
 
@@ -974,7 +1459,7 @@ watch(
 // Lifecycle
 onMounted(async () => {
   await loadDeviceTemplates()
-  
+
   // Initialize with existing devices if any
   if (props.modelValue.length > 0) {
     localData.value = props.modelValue.map(device => ({
@@ -982,7 +1467,8 @@ onMounted(async () => {
       tempId: generateTempId()
     }))
   }
-  
+
+  validateAllIpDuplications()
   validateStep()
 })
 </script>
