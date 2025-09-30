@@ -297,10 +297,7 @@
                           >
                             <SelectTrigger class="text-sm">
                               <SelectValue>
-                                <template v-if="ipVar.inputType === 'hostOffset'">
-                                  Host Offset
-                                </template>
-                                <template v-else-if="ipVar.inputType === 'fullIP'">
+                                <template v-if="ipVar.inputType === 'fullIP'">
                                   Full IP Address
                                 </template>
                                 <template v-else-if="ipVar.inputType === 'studentManagement'">
@@ -315,16 +312,6 @@
                               </SelectValue>
                             </SelectTrigger>
                             <SelectContent>
-                              <!-- Host Offset Option -->
-                              <SelectItem value="hostOffset">
-                                <SelectItemText>
-                                  <div class="flex flex-col space-y-1">
-                                    <div class="font-medium">Host Offset</div>
-                                    <div class="text-xs text-muted-foreground">Calculate IP from management network + offset</div>
-                                  </div>
-                                </SelectItemText>
-                              </SelectItem>
-
                               <!-- Full IP Address Option -->
                               <SelectItem value="fullIP">
                                 <SelectItemText>
@@ -365,34 +352,8 @@
                           </Select>
                         </div>
 
-                        <!-- Host Offset Input (when inputType is 'hostOffset') -->
-                        <div v-if="ipVar.inputType === 'hostOffset'" class="space-y-1">
-                          <Label class="text-xs font-medium">Host Offset</Label>
-                          <div class="flex items-center space-x-2">
-                            <Input
-                              v-model.number="ipVar.hostOffset"
-                              type="number"
-                              :min="1"
-                              :max="availableHosts"
-                              placeholder="1"
-                              class="text-sm"
-                              :class="{
-                                'border-destructive': hasIpVarError(index, ipIndex, 'hostOffset'),
-                                'border-green-500': !hasIpVarError(index, ipIndex, 'hostOffset') && ipVar.hostOffset && ipVar.hostOffset > 0
-                              }"
-                              @input="validateIpVariable(index, ipIndex, 'hostOffset')"
-                            />
-                            <div class="text-xs text-muted-foreground">
-                              = {{ calculateIP(ipVar.hostOffset || 0) }}
-                            </div>
-                          </div>
-                          <p v-if="hasIpVarError(index, ipIndex, 'hostOffset')" class="text-xs text-destructive">
-                            {{ getIpVarError(index, ipIndex, 'hostOffset') }}
-                          </p>
-                        </div>
-
                         <!-- Full IP Address Input (when inputType is 'fullIP') -->
-                        <div v-else-if="ipVar.inputType === 'fullIP'" class="space-y-1">
+                        <div v-if="ipVar.inputType === 'fullIP'" class="space-y-1">
                           <Label class="text-xs font-medium">Full IP Address</Label>
                           <Input
                             v-model="ipVar.fullIP"
@@ -764,8 +725,7 @@ const addIpVariable = (deviceIndex: number) => {
   const device = localData.value[deviceIndex]
   device.ipVariables.push({
     name: '',
-    inputType: 'hostOffset', // Default to host offset mode
-    hostOffset: 1,
+    inputType: 'fullIP', // Default to full IP mode
     fullIP: '',
     interfaceOffset: 1, // Default interface offset
     vlanIndex: 0, // Default VLAN index
@@ -839,8 +799,7 @@ const onTemplateChange = (deviceIndex: number, templateId: string) => {
     // Create IP variables from defaultInterfaces
     localData.value[deviceIndex].ipVariables = selectedTemplate.defaultInterfaces.map(iface => ({
       name: toAlphanumeric(iface.name),
-      inputType: 'hostOffset', // Default to host offset mode
-      hostOffset: 1, // Default, user can change
+      inputType: 'fullIP', // Default to full IP mode
       fullIP: '',
       interface: iface.name // ✅ Add the full interface name from template
     }))
@@ -864,30 +823,8 @@ const onTemplateChange = (deviceIndex: number, templateId: string) => {
   emitValidation()
 }
 
-const calculateIP = (hostOffset: number): string => {
-  if (!props.networkConfig.managementNetwork || !hostOffset) return 'Invalid'
-
-  try {
-    const baseParts = props.networkConfig.managementNetwork.split('.').map(Number)
-    const totalOffset = hostOffset
-
-    // Add offset to the base IP
-    let carry = totalOffset
-    for (let i = 3; i >= 0 && carry > 0; i--) {
-      baseParts[i] += carry % 256
-      if (baseParts[i] > 255) {
-        carry = Math.floor(baseParts[i] / 256)
-        baseParts[i] = baseParts[i] % 256
-      } else {
-        carry = 0
-      }
-    }
-
-    return baseParts.join('.')
-  } catch {
-    return 'Invalid'
-  }
-}
+// Removed calculateIP function - hostOffset no longer supported
+// Use studentVlanX types with interfaceOffset instead
 
 const getSelectedTemplate = (templateId: string): DeviceTemplate | undefined => {
   return deviceTemplates.value.find(t => t.id === templateId)
@@ -917,7 +854,7 @@ const isDeviceValid = (device: Device & { tempId: string }): boolean => {
   return device.deviceId.length > 0 && 
          device.templateId.length > 0 && 
          device.ipVariables.length > 0 &&
-         device.ipVariables.every(ipVar => ipVar.name.length > 0 && ipVar.hostOffset > 0)
+         device.ipVariables.every(ipVar => ipVar.name.length > 0 && (ipVar.fullIP || ipVar.inputType?.startsWith('studentVlan') || ipVar.inputType === 'studentManagement'))
 }
 
 const validateDevice = (deviceIndex: number, field: string) => {
@@ -973,20 +910,6 @@ const validateIpVariable = (deviceIndex: number, ipIndex: number, field: string)
       }
       break
 
-    case 'hostOffset':
-      if (ipVar.inputType === 'hostOffset') {
-        if (!ipVar.hostOffset || ipVar.hostOffset < 1) {
-          ipVarErrors.value[deviceIndex][ipIndex].hostOffset = 'Host offset must be greater than 0'
-        } else if (ipVar.hostOffset > availableHosts.value) {
-          ipVarErrors.value[deviceIndex][ipIndex].hostOffset = `Host offset cannot exceed ${availableHosts.value}`
-        } else {
-          delete ipVarErrors.value[deviceIndex][ipIndex].hostOffset
-        }
-      } else {
-        delete ipVarErrors.value[deviceIndex][ipIndex].hostOffset
-      }
-      break
-
     case 'fullIP':
       if (ipVar.inputType === 'fullIP') {
         if (!ipVar.fullIP?.trim()) {
@@ -1030,16 +953,15 @@ const onInputTypeChange = (deviceIndex: number, ipIndex: number, inputType: stri
 
   // Clear validation errors when switching modes
   if (ipVarErrors.value[deviceIndex]?.[ipIndex]) {
-    delete ipVarErrors.value[deviceIndex][ipIndex].hostOffset
     delete ipVarErrors.value[deviceIndex][ipIndex].fullIP
     delete ipVarErrors.value[deviceIndex][ipIndex].studentManagement
     delete ipVarErrors.value[deviceIndex][ipIndex].studentVlan
   }
 
   // Initialize default values for the selected mode
-  if (inputType === 'hostOffset') {
-    if (!ipVar.hostOffset) {
-      ipVar.hostOffset = 1
+  if (inputType === 'fullIP') {
+    if (!ipVar.fullIP) {
+      ipVar.fullIP = ''
     }
     // Clear other fields
     delete ipVar.interfaceOffset
@@ -1082,7 +1004,7 @@ const onInputTypeChange = (deviceIndex: number, ipIndex: number, inputType: stri
 const validateIpDuplication = (deviceIndex: number, ipIndex: number) => {
   const currentVar = localData.value[deviceIndex].ipVariables[ipIndex]
 
-  if (!currentVar.inputType || currentVar.inputType === 'hostOffset' || currentVar.inputType === 'fullIP') {
+  if (!currentVar.inputType || currentVar.inputType === 'fullIP') {
     // Clear any existing duplication errors for non-student-generated types
     delete ipVarErrors.value[deviceIndex]?.[ipIndex]?.duplication
     return
@@ -1194,19 +1116,8 @@ const validateAllDevices = () => {
         delete ipVarErrors.value[index][ipIndex].name
       }
 
-      // Validate based on input type (hostOffset, fullIP, or studentGenerated)
-      if (ipVar.inputType === 'hostOffset') {
-        // Validate hostOffset
-        if (!ipVar.hostOffset || ipVar.hostOffset < 1) {
-          ipVarErrors.value[index][ipIndex].hostOffset = 'Host offset must be greater than 0'
-        } else if (ipVar.hostOffset > availableHosts.value) {
-          ipVarErrors.value[index][ipIndex].hostOffset = `Host offset must be ${availableHosts.value} or less`
-        } else {
-          delete ipVarErrors.value[index][ipIndex].hostOffset
-        }
-        // Clear other errors since we're using hostOffset
-        delete ipVarErrors.value[index][ipIndex].fullIP
-      } else if (ipVar.inputType === 'fullIP') {
+      // Validate based on input type (fullIP or studentGenerated)
+      if (ipVar.inputType === 'fullIP') {
         // Validate fullIP
         if (!ipVar.fullIP?.trim()) {
           ipVarErrors.value[index][ipIndex].fullIP = 'Full IP address is required'
@@ -1215,8 +1126,6 @@ const validateAllDevices = () => {
         } else {
           delete ipVarErrors.value[index][ipIndex].fullIP
         }
-        // Clear other errors since we're using fullIP
-        delete ipVarErrors.value[index][ipIndex].hostOffset
       }
     })
   })

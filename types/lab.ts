@@ -27,7 +27,8 @@ export interface Play {
 
 export interface IpVariableMapping {
   name: string;
-  hostOffset: number;
+  vlanIndex?: number;        // Which VLAN (0-9) - for studentVlanX types
+  interfaceOffset?: number;  // Offset within VLAN (1-50) - for studentVlanX types
   example?: string;
 }
 

@@ -224,9 +224,11 @@ export const useLabCreationWizard = () => {
                 fullIp: variable.value as string
               }
             } else {
+              // For other types (studentVlanX, studentManagement), store the type info
               return {
                 name: variable.name,
-                hostOffset: variable.value as number
+                vlanIndex: variable.vlanIndex,
+                interfaceOffset: variable.interfaceOffset
               }
             }
           })

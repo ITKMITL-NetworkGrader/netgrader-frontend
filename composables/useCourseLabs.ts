@@ -29,8 +29,9 @@ export interface Device {
 
 export interface IpVariable {
   name: string
-  hostOffset?: number
   fullIp?: string
+  vlanIndex?: number        // For studentVlanX types (0-9)
+  interfaceOffset?: number  // For studentVlanX types (1-50)
 }
 
 interface CourseLabsResponse {

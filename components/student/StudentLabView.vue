@@ -1,18 +1,53 @@
 <template>
   <div class="student-lab-view">
-    <!-- Lab Header -->
-    <div class="lab-header">
-      <div class="flex items-center justify-between mb-4">
-        <div>
-          <h1 class="text-2xl font-bold text-gray-900">{{ labData.name }}</h1>
-          <p class="text-gray-600">{{ labData.description }}</p>
+    <!-- IP Calculation Loading Screen -->
+    <div v-if="isCalculatingIPs" class="fixed inset-0 z-50 flex items-center justify-center bg-background/95 backdrop-blur-sm">
+      <div class="text-center space-y-6 px-4">
+        <!-- Animated IP Calculation Text -->
+        <div class="relative">
+          <h2 class="text-4xl md:text-5xl font-bold text-foreground mb-2 tracking-tight">
+            <span class="inline-block relative ip-calc-text">
+              Calculating your IP addresses
+              <span class="absolute inset-0 shine-effect"></span>
+            </span>
+          </h2>
+          <p class="text-lg text-muted-foreground">
+            Generating personalized network configuration...
+          </p>
         </div>
-        <div class="flex items-center space-x-2">
-          <Badge variant="secondary">Student ID: {{ currentUser.studentId }}</Badge>
-          <Badge variant="outline">{{ labData.courseCode }}</Badge>
+
+        <!-- Loading Animation -->
+        <div class="flex justify-center space-x-2 mt-8">
+          <div class="w-3 h-3 bg-primary rounded-full animate-bounce" style="animation-delay: 0ms"></div>
+          <div class="w-3 h-3 bg-primary rounded-full animate-bounce" style="animation-delay: 150ms"></div>
+          <div class="w-3 h-3 bg-primary rounded-full animate-bounce" style="animation-delay: 300ms"></div>
+        </div>
+
+        <!-- Progress Info -->
+        <div class="mt-6 text-sm text-muted-foreground space-y-2">
+          <div class="flex items-center justify-center space-x-2">
+            <div class="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
+            <span>{{ calculationStatus }}</span>
+          </div>
         </div>
       </div>
     </div>
+
+    <!-- Lab Content (shown after calculation) -->
+    <div v-else>
+      <!-- Lab Header -->
+      <div class="lab-header">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h1 class="text-2xl font-bold text-foreground">{{ labData.name }}</h1>
+            <p class="text-muted-foreground">{{ labData.description }}</p>
+          </div>
+          <div class="flex items-center space-x-2">
+            <Badge variant="secondary">Student ID: {{ currentUser.studentId }}</Badge>
+            <Badge variant="outline">{{ labData.courseCode }}</Badge>
+          </div>
+        </div>
+      </div>
 
     <!-- Personalized Network Configuration -->
     <div class="personalized-config mb-6">
@@ -142,24 +177,29 @@
       </div>
     </div>
 
-    <!-- Debug Information (Development Mode) -->
-    <div v-if="showDebugInfo" class="debug-info mt-6">
-      <div class="bg-card border border-border rounded-lg p-4">
-        <h3 class="font-semibold mb-3 text-card-foreground">Debug Information</h3>
-        <details>
-          <summary class="cursor-pointer text-muted-foreground hover:text-card-foreground">Student IP Generation Details</summary>
-          <pre class="mt-2 text-sm overflow-x-auto bg-muted p-3 rounded border border-border text-muted-foreground font-mono">{{ debugInfo }}</pre>
-        </details>
+      <!-- Debug Information (Development Mode) -->
+      <div v-if="showDebugInfo" class="debug-info mt-6">
+        <div class="bg-card border border-border rounded-lg p-4">
+          <h3 class="font-semibold mb-3 text-card-foreground">Debug Information</h3>
+          <details>
+            <summary class="cursor-pointer text-muted-foreground hover:text-card-foreground">Student IP Generation Details</summary>
+            <pre class="mt-2 text-sm overflow-x-auto bg-muted p-3 rounded border border-border text-muted-foreground font-mono">{{ debugInfo }}</pre>
+          </details>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { Router, Monitor, HardDrive } from 'lucide-vue-next'
 import { Badge } from '@/components/ui/badge'
 import StudentIpGenerator from '@/utils/studentIpGenerator'
+
+// IP Calculation State
+const isCalculatingIPs = ref(true)
+const calculationStatus = ref('Initializing calculation engine...')
 
 interface Props {
   labData: {
@@ -241,8 +281,6 @@ const personalizedDevices = computed(() => {
         resolvedIP = generatePersonalizedIP(device.deviceType, variable.name)
       } else if (variable.inputType === 'fullIP') {
         resolvedIP = variable.fullIP || 'Not configured'
-      } else if (variable.inputType === 'hostOffset') {
-        resolvedIP = calculateIPFromOffset(variable.hostOffset || 1)
       } else {
         resolvedIP = 'Unknown configuration'
       }
@@ -359,14 +397,6 @@ function generatePersonalizedIP(deviceType: string, variableName: string): strin
   return ipMap[variableName.toLowerCase()] || data.commonIpAddresses.router_vlan1_ip
 }
 
-function calculateIPFromOffset(offset: number): string {
-  // Simple IP calculation - in real implementation this would use the lab's base network
-  const baseIP = "192.168.1.0"
-  const [oct1, oct2, oct3, oct4] = baseIP.split('.').map(Number)
-  const newOct4 = oct4 + offset
-  return `${oct1}.${oct2}.${oct3}.${newOct4}`
-}
-
 function getVariableDescription(deviceType: string, variableName: string): string {
   const descriptions: Record<string, string> = {
     'loopback0': 'Router loopback interface',
@@ -392,6 +422,32 @@ function getDeviceIcon(deviceType: string) {
       return Router
   }
 }
+
+// IP Calculation Simulation
+async function calculateStudentIPs() {
+  const steps = [
+    { message: 'Fetching lab configuration...', duration: 400 },
+    { message: 'Retrieving student information...', duration: 300 },
+    { message: 'Processing management network...', duration: 500 },
+    { message: 'Calculating VLAN assignments...', duration: 600 },
+    { message: 'Generating device IP addresses...', duration: 700 },
+    { message: 'Finalizing IP schema...', duration: 400 }
+  ]
+
+  for (const step of steps) {
+    calculationStatus.value = step.message
+    await new Promise(resolve => setTimeout(resolve, step.duration))
+  }
+
+  // Finish calculation
+  isCalculatingIPs.value = false
+}
+
+// Lifecycle
+onMounted(() => {
+  // Start IP calculation when component mounts
+  calculateStudentIPs()
+})
 </script>
 
 <style scoped>
@@ -419,7 +475,7 @@ function getDeviceIcon(deviceType: string) {
 
 .variable-config {
   padding: 0.5rem 0;
-  border-bottom: 1px solid #f3f4f6;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .variable-config:last-child {
@@ -444,7 +500,7 @@ function getDeviceIcon(deviceType: string) {
 }
 
 .prose code {
-  background-color: #f3f4f6;
+  background-color: var(--color-muted);
   padding: 0.125rem 0.25rem;
   border-radius: 0.25rem;
   font-size: 0.875em;
@@ -452,5 +508,60 @@ function getDeviceIcon(deviceType: string) {
 
 .debug-info {
   font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+}
+
+/* IP Calculation Loading Animation */
+.ip-calc-text {
+  position: relative;
+  display: inline-block;
+  background: linear-gradient(
+    90deg,
+    var(--color-foreground) 0%,
+    var(--color-foreground) 40%,
+    var(--color-primary) 50%,
+    var(--color-foreground) 60%,
+    var(--color-foreground) 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shine 3s linear infinite;
+}
+
+@keyframes shine {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* Shine effect overlay */
+.shine-effect {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    transparent 40%,
+    rgba(255, 255, 255, 0.3) 50%,
+    transparent 60%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: shine 3s linear infinite;
+}
+
+/* Support for dark mode */
+:global(.dark) .shine-effect {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    transparent 40%,
+    rgba(255, 255, 255, 0.2) 50%,
+    transparent 60%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
 }
 </style>

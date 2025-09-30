@@ -58,9 +58,9 @@
                   <div>
                     <label class="block text-xs font-medium mb-1">IP Configuration</label>
                     <select v-model="exampleConfig.loopback0.type" class="w-full p-2 border rounded text-sm">
-                      <option value="hostOffset">Host Offset</option>
+                      <option value="studentVlan0">Student VLAN 0 IP</option>
                       <option value="fullIP">Full IP Address</option>
-                      <option value="studentGenerated">Student Generated Variables</option>
+                      <option value="studentManagement">Student Management IP</option>
                     </select>
                   </div>
                   <div>
@@ -71,9 +71,9 @@
                         <span class="text-xs bg-secondary text-secondary-foreground px-2 py-1 rounded">Auto-generated</span>
                       </div>
                     </div>
-                    <div v-else-if="exampleConfig.loopback0.type === 'hostOffset'">
-                      <label class="block text-xs font-medium mb-1">Host Offset</label>
-                      <input type="number" v-model="exampleConfig.loopback0.hostOffset" class="w-full p-2 border rounded text-sm" />
+                    <div v-else-if="exampleConfig.loopback0.type === 'studentVlan0'">
+                      <label class="block text-xs font-medium mb-1">Interface Offset</label>
+                      <input type="number" v-model="exampleConfig.loopback0.interfaceOffset" min="1" max="50" class="w-full p-2 border rounded text-sm" />
                     </div>
                     <div v-else>
                       <label class="block text-xs font-medium mb-1">Full IP Address</label>
@@ -92,9 +92,9 @@
                   <div>
                     <label class="block text-xs font-medium mb-1">IP Configuration</label>
                     <select v-model="exampleConfig.gig0_0.type" class="w-full p-2 border rounded text-sm">
-                      <option value="hostOffset">Host Offset</option>
+                      <option value="studentVlan0">Student VLAN 0 IP</option>
                       <option value="fullIP">Full IP Address</option>
-                      <option value="studentGenerated">Student Generated Variables</option>
+                      <option value="studentManagement">Student Management IP</option>
                     </select>
                   </div>
                   <div>
@@ -105,9 +105,9 @@
                         <span class="text-xs bg-secondary text-secondary-foreground px-2 py-1 rounded">Auto-generated</span>
                       </div>
                     </div>
-                    <div v-else-if="exampleConfig.gig0_0.type === 'hostOffset'">
-                      <label class="block text-xs font-medium mb-1">Host Offset</label>
-                      <input type="number" v-model="exampleConfig.gig0_0.hostOffset" class="w-full p-2 border rounded text-sm" />
+                    <div v-else-if="exampleConfig.gig0_0.type === 'studentVlan0'">
+                      <label class="block text-xs font-medium mb-1">Interface Offset</label>
+                      <input type="number" v-model="exampleConfig.gig0_0.interfaceOffset" min="1" max="50" class="w-full p-2 border rounded text-sm" />
                     </div>
                     <div v-else>
                       <label class="block text-xs font-medium mb-1">Full IP Address</label>
@@ -325,13 +325,15 @@ const demoSteps = [
 // Example configuration state
 const exampleConfig = ref({
   loopback0: {
-    type: 'studentGenerated',
-    hostOffset: 1,
+    type: 'studentVlan0',
+    vlanIndex: 0,
+    interfaceOffset: 1,
     fullIP: '10.0.0.1'
   },
   gig0_0: {
-    type: 'studentGenerated',
-    hostOffset: 2,
+    type: 'studentVlan0',
+    vlanIndex: 0,
+    interfaceOffset: 2,
     fullIP: '192.168.1.1'
   }
 })
@@ -356,17 +358,19 @@ const generatedPayload = computed(() => {
             {
               name: "loopback0",
               inputType: exampleConfig.value.loopback0.type,
-              isStudentGenerated: exampleConfig.value.loopback0.type === 'studentGenerated',
-              readonly: exampleConfig.value.loopback0.type === 'studentGenerated',
-              hostOffset: exampleConfig.value.loopback0.type === 'hostOffset' ? exampleConfig.value.loopback0.hostOffset : undefined,
+              isStudentGenerated: exampleConfig.value.loopback0.type.startsWith('studentVlan') || exampleConfig.value.loopback0.type === 'studentManagement',
+              readonly: exampleConfig.value.loopback0.type.startsWith('studentVlan') || exampleConfig.value.loopback0.type === 'studentManagement',
+              vlanIndex: exampleConfig.value.loopback0.type.startsWith('studentVlan') ? exampleConfig.value.loopback0.vlanIndex : undefined,
+              interfaceOffset: exampleConfig.value.loopback0.type.startsWith('studentVlan') ? exampleConfig.value.loopback0.interfaceOffset : undefined,
               fullIP: exampleConfig.value.loopback0.type === 'fullIP' ? exampleConfig.value.loopback0.fullIP : undefined
             },
             {
               name: "gig0_0",
               inputType: exampleConfig.value.gig0_0.type,
-              isStudentGenerated: exampleConfig.value.gig0_0.type === 'studentGenerated',
-              readonly: exampleConfig.value.gig0_0.type === 'studentGenerated',
-              hostOffset: exampleConfig.value.gig0_0.type === 'hostOffset' ? exampleConfig.value.gig0_0.hostOffset : undefined,
+              isStudentGenerated: exampleConfig.value.gig0_0.type.startsWith('studentVlan') || exampleConfig.value.gig0_0.type === 'studentManagement',
+              readonly: exampleConfig.value.gig0_0.type.startsWith('studentVlan') || exampleConfig.value.gig0_0.type === 'studentManagement',
+              vlanIndex: exampleConfig.value.gig0_0.type.startsWith('studentVlan') ? exampleConfig.value.gig0_0.vlanIndex : undefined,
+              interfaceOffset: exampleConfig.value.gig0_0.type.startsWith('studentVlan') ? exampleConfig.value.gig0_0.interfaceOffset : undefined,
               fullIP: exampleConfig.value.gig0_0.type === 'fullIP' ? exampleConfig.value.gig0_0.fullIP : undefined
             }
           ]

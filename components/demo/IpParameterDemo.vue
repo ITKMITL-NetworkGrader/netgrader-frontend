@@ -136,14 +136,16 @@ const sampleDevices: Device[] = [
     ipVariables: [
       {
         name: 'loopback0',
-        inputType: 'hostOffset',
-        hostOffset: 1,
+        inputType: 'studentVlan0',
+        vlanIndex: 0,
+        interfaceOffset: 1,
         interface: 'Loopback0'
       },
       {
         name: 'gig0_0',
-        inputType: 'hostOffset',
-        hostOffset: 2,
+        inputType: 'studentVlan0',
+        vlanIndex: 0,
+        interfaceOffset: 2,
         interface: 'GigabitEthernet0/0'
       },
       {
@@ -160,8 +162,9 @@ const sampleDevices: Device[] = [
     ipVariables: [
       {
         name: 'loopback0',
-        inputType: 'hostOffset',
-        hostOffset: 10,
+        inputType: 'studentVlan0',
+        vlanIndex: 0,
+        interfaceOffset: 1,
         interface: 'Loopback0'
       },
       {

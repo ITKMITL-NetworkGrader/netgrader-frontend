@@ -11,7 +11,8 @@ export interface DeviceConfig {
   deviceId: string;
   deviceName: string;
   ipVariable: string;
-  hostOffset: number;
+  vlanIndex?: number;        // Which VLAN (0-9) - for studentVlanX types
+  interfaceOffset?: number;  // Offset within VLAN (1-50) - for studentVlanX types
   description?: string;
   isIsolated?: boolean;
   ansibleUsername?: string;
@@ -99,7 +100,8 @@ export interface IPGenerationStrategy {
   supportsExams: boolean;
   generateIP: (
     baseNetwork: string,
-    hostOffset: number,
+    vlanIndex: number,
+    interfaceOffset: number,
     studentId?: string,
     groupNumber?: number
   ) => string;

@@ -36,17 +36,17 @@ export interface Device {
 
 export interface IpVariable {
   name: string;              // Variable name (e.g., "loopback0", "gig0_1", "interface-1")
-  inputType: 'hostOffset' | 'fullIP' | 'studentManagement' | string;  // IP configuration type (includes studentVlan0, studentVlan1, etc.)
-  hostOffset?: number;       // Host offset for IP calculation (used when inputType is 'hostOffset')
+  inputType: 'fullIP' | 'studentManagement' | string;  // IP configuration type (includes studentVlan0-9)
   fullIP?: string;           // Full IP address (used when inputType is 'fullIP')
   interface?: string;        // Full interface name from device template (e.g., "GigabitEthernet0/0")
 
   // Enhanced fields for student-generated IPs
-  interfaceOffset?: number;  // Offset within network for multiple interfaces (e.g., 1, 2, 3)
-  vlanIndex?: number;        // Which VLAN this variable belongs to (0-based index)
+  interfaceOffset?: number;  // Offset within network for multiple interfaces (e.g., 1, 2, 3) - Required for studentVlanX types
+  vlanIndex?: number;        // Which VLAN this variable belongs to (0-9 for max 10 VLANs)
   isStudentGenerated?: boolean; // Whether this IP is auto-generated using student ID
   readonly?: boolean;        // Whether the field is read-only (true for student-generated)
   isManagementInterface?: boolean; // Whether this interface requires management IP (for backend to know)
+  isVlanInterface?: boolean; // Whether this interface is a VLAN interface (for studentVlanX types)
 }
 
 // Lab Parts Structure

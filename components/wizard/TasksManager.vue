@@ -130,7 +130,7 @@
                   </Label>
                   <Select 
                     v-model="task.templateId"
-                    @update:modelValue="(value) => handleTemplateChange(taskIndex, value)"
+                    @update:modelValue="(value) => onTemplateChange(taskIndex, value)"
                   >
                     <SelectTrigger
                       :class="{
@@ -140,7 +140,7 @@
                     >
                       <SelectValue>
                         <template v-if="getSelectedTemplate(task.templateId)">
-                          {{ getSelectedTemplate(task.templateId).name }}
+                          {{ getSelectedTemplate(task.templateId)?.name }}
                         </template>
                         <template v-else>
                           Select task template
@@ -150,8 +150,8 @@
                     <SelectContent>
                       <SelectItem
                         v-for="template in taskTemplates"
-                        :key="template.id"
-                        :value="template.id"
+                        :key="template._id"
+                        :value="template._id"
                         :textValue="template.name"
                       >
                         <div class="flex flex-col">
@@ -489,17 +489,28 @@ const toggleTaskExpansion = (taskIndex: number) => {
   localTasks.value[taskIndex].isExpanded = !localTasks.value[taskIndex].isExpanded
 }
 
-const handleTemplateChange = (taskIndex: number, templateId: string) => {
+const onTemplateChange = (taskIndex: number, value: string | number | bigint | Record<string, any> | null) => {
+  if (typeof value === 'string') {
+    const task = localTasks.value[taskIndex]
+    if (task) {
+      // Store the previous template ID BEFORE updating
+      const previousTemplateId = task.templateId
+      // Update the templateId (for v-model to work)
+      task.templateId = value
+      // Then handle the template change logic with both old and new values
+      handleTemplateChange(taskIndex, value, previousTemplateId)
+    }
+  }
+}
+
+const handleTemplateChange = (taskIndex: number, templateId: string, previousTemplateId?: string) => {
   if (!templateId) return
   
   const task = localTasks.value[taskIndex]
   if (!task) return
   
-  // Store the previous template ID to compare
-  const previousTemplateId = task.templateId
-  
+  // Compare with the provided previousTemplateId (passed from onTemplateChange)
   // The templateId passed here is the NEW template ID that was selected
-  // We should compare with the previous templateId, not the current task.templateId
   if (previousTemplateId !== templateId) {
     const newTemplate = getSelectedTemplate(templateId)
     
@@ -549,7 +560,7 @@ const handleTemplateChange = (taskIndex: number, templateId: string) => {
 }
 
 const getSelectedTemplate = (templateId: string): TaskTemplate | undefined => {
-  return props.taskTemplates.find(t => t.id === templateId)
+  return props.taskTemplates.find(t => t._id === templateId)
 }
 
 const hasTaskErrors = (taskIndex: number): boolean => {
