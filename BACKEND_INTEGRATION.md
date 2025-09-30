@@ -6,6 +6,41 @@ This document outlines the required backend changes to support the enhanced flex
 
 ## 🔄 Required Backend API Updates
 
+### 🆕 Key Changes in Frontend Data Submission
+
+The frontend has been updated to submit enhanced data structures for lab creation:
+
+#### 1. **Management Network as Base Network**
+- **Before**: Used `baseNetwork` from Step 2
+- **After**: Uses `managementNetwork` from Step 2 as the `baseNetwork` in the payload
+- **Impact**: Backend receives management network configuration as the primary network topology
+
+#### 2. **VLAN Configuration Data**
+- **Added**: Complete VLAN configuration from Step 2 is now included in the lab creation payload
+- **Structure**: `vlanConfiguration` object with mode, vlanCount, and vlans array
+- **Purpose**: Backend can process VLAN-specific IP generation and assignment
+
+#### 3. **Interface Type Marking**
+- **Added**: `isManagementInterface` flag for management interfaces
+- **Added**: `isVlanInterface` flag for VLAN-specific interfaces  
+- **Added**: `vlanIndex` and `interfaceOffset` for VLAN interface configuration
+- **Purpose**: Backend can identify which interfaces require management IP vs VLAN IP generation
+
+#### 4. **Enhanced IP Variable Structure**
+```json
+{
+  "name": "mgmt_interface",
+  "interface": "GigabitEthernet0/0",
+  "inputType": "studentManagement",
+  "isManagementInterface": true,     // 🆕 NEW: Marks management interface
+  "isVlanInterface": false,          // 🆕 NEW: Marks VLAN interface
+  "vlanIndex": null,
+  "interfaceOffset": null
+}
+```
+
+## 🔄 Required Backend API Updates
+
 ### 1. Enhanced Lab Creation Endpoint
 
 **Endpoint**: `POST /v0/labs`
@@ -14,29 +49,34 @@ This document outlines the required backend changes to support the enhanced flex
 ```json
 {
   "courseId": "aLg0B5jPrFW47ICP",
-  "name": "Enhanced OSPF Lab",
+  "title": "Enhanced OSPF Lab",
   "description": "Students will configure OSPF with management and VLAN IPs",
-  "instructions": "## Lab Objectives\n- Configure management interfaces\n- Setup VLAN-specific interfaces\n- Verify connectivity",
+  "type": "lab",
   "dueDate": "2024-12-15T23:59:59.000Z",
   "availableFrom": "2024-12-01T00:00:00.000Z",
   "availableUntil": "2024-12-16T23:59:59.000Z",
 
-  // 🆕 ENHANCED NETWORK STRUCTURE
+  // 🆕 UPDATED: Enhanced Network Structure with VLAN Configuration
   "network": {
-    "managementNetwork": "10.0.0.0",
-    "managementSubnetMask": 24,
-    "mode": "fixed_vlan" | "lecturer_group" | "calculated_vlan",
-    "allocationStrategy": "group_based" | "student_id_based",
+    "name": "Enhanced OSPF Lab",
+    "topology": {
+      // 🆕 CHANGED: Use managementNetwork as baseNetwork
+      "baseNetwork": "10.0.0.0",           // Now uses managementNetwork from Step 2
+      "subnetMask": 24,                    // Now uses managementSubnetMask from Step 2
+      "allocationStrategy": "group_based"
+    },
+    // 🆕 ADDED: VLAN Configuration Data
     "vlanConfiguration": {
-      "vlanCount": 3,
+      "mode": "fixed_vlan",                // From Step 2 networkConfig.mode
+      "vlanCount": 3,                      // From Step 2 networkConfig.vlanCount
       "vlans": [
         {
           "id": "vlan_1731840123456_abc123def",
-          "vlanId": 1,                    // For fixed_vlan and lecturer_group modes
-          "calculationMultiplier": 400,   // For calculated_vlan mode
+          "vlanId": 1,                     // For fixed_vlan and lecturer_group modes
+          "calculationMultiplier": 400,    // For calculated_vlan mode
           "baseNetwork": "192.168.0.0",
           "subnetMask": 26,
-          "groupModifier": 0,             // For lecturer_group mode
+          "groupModifier": 0,              // For lecturer_group mode
           "isStudentGenerated": true
         },
         {
@@ -53,64 +93,73 @@ This document outlines the required backend changes to support the enhanced flex
       {
         "deviceId": "router1",
         "templateId": "507f1f77bcf86cd799439012",
-        "deviceType": "router",
+        "displayName": "router1",
         "ipVariables": [
           {
             "name": "mgmt_interface",
+            "interface": "GigabitEthernet0/0",
             "inputType": "studentManagement",
-            "isStudentGenerated": true,
-            "description": "Management interface IP"
+            "isManagementInterface": true,     // 🆕 NEW: Marks management interface
+            "isVlanInterface": false,          // 🆕 NEW: Marks VLAN interface
+            "vlanIndex": null,
+            "interfaceOffset": null
           },
           {
             "name": "gig0_0_vlan_1",
-            "inputType": "studentVlan0",       // 🆕 NEW: VLAN-specific type
-            "isStudentGenerated": true,
-            "vlanIndex": 0,                    // 🆕 NEW: Which VLAN this variable belongs to
-            "interfaceOffset": 1,              // 🆕 NEW: Interface offset for same VLAN
+            "interface": "GigabitEthernet0/1",
+            "inputType": "studentVlan0",       // VLAN-specific type
+            "isManagementInterface": false,    // 🆕 NEW: Not management interface
+            "isVlanInterface": true,           // 🆕 NEW: Marks as VLAN interface
+            "vlanIndex": 0,                    // Which VLAN this variable belongs to
+            "interfaceOffset": 1,              // Interface offset for same VLAN
             "description": "VLAN 1 interface IP"
           },
           {
             "name": "gig0_1_vlan_1",
+            "interface": "GigabitEthernet0/2",
             "inputType": "studentVlan0",       // Same VLAN as above
-            "isStudentGenerated": true,
+            "isManagementInterface": false,    // 🆕 NEW: Not management interface
+            "isVlanInterface": true,           // 🆕 NEW: Marks as VLAN interface
             "vlanIndex": 0,
-            "interfaceOffset": 2,              // 🆕 NEW: Different offset for unique IP
+            "interfaceOffset": 2,              // Different offset for unique IP
             "description": "VLAN 1 secondary interface IP"
           },
           {
             "name": "gig1_0_vlan_2",
+            "interface": "GigabitEthernet1/0",
             "inputType": "studentVlan1",       // Different VLAN
-            "isStudentGenerated": true,
+            "isManagementInterface": false,    // 🆕 NEW: Not management interface
+            "isVlanInterface": true,           // 🆕 NEW: Marks as VLAN interface
             "vlanIndex": 1,
             "interfaceOffset": 1,
             "description": "VLAN 2 interface IP"
           },
           {
             "name": "static_ip",
+            "interface": "Loopback0",
             "inputType": "hostOffset",
+            "isManagementInterface": false,    // 🆕 NEW: Not management interface
+            "isVlanInterface": false,          // 🆕 NEW: Not VLAN interface
             "hostOffset": 5,
             "description": "Static IP using host offset"
           },
           {
             "name": "custom_ip",
+            "interface": "Loopback1",
             "inputType": "fullIP",
-            "fullIP": "203.0.113.10",
+            "isManagementInterface": false,    // 🆕 NEW: Not management interface
+            "isVlanInterface": false,          // 🆕 NEW: Not VLAN interface
+            "fullIp": "203.0.113.10",
             "description": "Custom fixed IP"
           }
-        ]
+        ],
+        "credentials": {
+          "usernameTemplate": "admin",
+          "passwordTemplate": "cisco",
+          "enablePassword": ""
+        }
       }
     ]
-  },
-
-  // 🆕 ENHANCED STUDENT GENERATION CONFIG
-  "studentGeneration": {
-    "enabled": true,
-    "algorithm": "enhanced_base_network_replacement",
-    "baseConfiguration": {
-      "yearOffset": 61,
-      "facultyCode": "07",
-      "indexDigits": 4
-    }
   }
 }
 ```
@@ -348,6 +397,12 @@ The backend must process these enhanced IP variable types:
 - Real-time VLAN ID calculation based on student/group data
 - Validation of VLAN ID ranges (1-4094)
 
+### 1.1. Base Network Duplication Support
+- **Frontend Change**: Base network duplication is now allowed across multiple VLANs
+- **Rationale**: The IP generation algorithm replaces the second and third octets of the base network, making duplication functionally irrelevant
+- **Backend Impact**: Backend should not validate for base network uniqueness across VLANs
+- **Use Case**: Multiple VLANs can use the same base network (e.g., `172.16.0.0`) since the student-specific algorithm will generate unique IPs anyway
+
 ### 2. Multi-Phase IP Generation
 - **Phase 1**: Management IP generation using base network + offsets
 - **Phase 2**: VLAN-specific IP generation with lecturer-defined base networks
@@ -360,7 +415,7 @@ The backend must process these enhanced IP variable types:
 
 ### 4. Enhanced Validation Rules
 - VLAN ID uniqueness within course/lab scope
-- Network overlap detection across VLANs
+- Network overlap detection across VLANs (⚠️ **Note**: Base network duplication is now allowed)
 - IP range capacity validation based on subnet masks
 - Interface offset boundary checking
 
@@ -432,22 +487,47 @@ studentNetwork = calculateNetworkForStudent("10.0.0.0", 26, studentId)
 ```javascript
 {
   network: {
-    managementNetwork: String,
-    managementSubnetMask: Number,
-    mode: String, // 'fixed_vlan' | 'lecturer_group' | 'calculated_vlan'
-    allocationStrategy: String, // 'student_id_based' | 'group_based'
-    vlanConfiguration: {
+    name: String,
+    topology: {
+      baseNetwork: String,        // 🆕 CHANGED: Now uses managementNetwork
+      subnetMask: Number,         // 🆕 CHANGED: Now uses managementSubnetMask
+      allocationStrategy: String  // 'student_id_based' | 'group_based'
+    },
+    vlanConfiguration: {          // 🆕 NEW: VLAN configuration data
+      mode: String,               // 'fixed_vlan' | 'lecturer_group' | 'calculated_vlan'
       vlanCount: Number,
       vlans: [{
         id: String,
-        vlanId: Number, // For fixed_vlan and lecturer_group
+        vlanId: Number,           // For fixed_vlan and lecturer_group
         calculationMultiplier: Number, // For calculated_vlan
         baseNetwork: String,
         subnetMask: Number,
-        groupModifier: Number, // For lecturer_group
+        groupModifier: Number,    // For lecturer_group
         isStudentGenerated: Boolean
       }]
-    }
+    },
+    devices: [{
+      deviceId: String,
+      templateId: String,
+      displayName: String,
+      ipVariables: [{
+        name: String,
+        interface: String,
+        inputType: String,        // 'studentManagement' | 'studentVlan0' | 'hostOffset' | 'fullIP'
+        isManagementInterface: Boolean,  // 🆕 NEW: Management interface flag
+        isVlanInterface: Boolean,        // 🆕 NEW: VLAN interface flag
+        vlanIndex: Number,               // 🆕 NEW: VLAN index for VLAN interfaces
+        interfaceOffset: Number,         // 🆕 NEW: Interface offset for VLAN interfaces
+        hostOffset: Number,              // For hostOffset type
+        fullIp: String,                  // For fullIP type
+        description: String
+      }],
+      credentials: {
+        usernameTemplate: String,
+        passwordTemplate: String,
+        enablePassword: String
+      }
+    }]
   }
 }
 ```
@@ -457,12 +537,16 @@ studentNetwork = calculateNetworkForStudent("10.0.0.0", 26, studentId)
 {
   ipVariables: [{
     name: String,
-    inputType: String, // Extended types including studentVlanX
-    vlanIndex: Number, // Which VLAN this variable belongs to
-    interfaceOffset: Number, // Interface offset within VLAN
+    interface: String,                    // Full interface name from device template
+    inputType: String,                     // 'studentManagement' | 'studentVlan0' | 'hostOffset' | 'fullIP'
+    isManagementInterface: Boolean,         // 🆕 NEW: Marks management interface
+    isVlanInterface: Boolean,              // 🆕 NEW: Marks VLAN interface
+    vlanIndex: Number,                     // Which VLAN this variable belongs to
+    interfaceOffset: Number,                // Interface offset within VLAN
     isStudentGenerated: Boolean,
-    hostOffset: Number, // For hostOffset type
-    fullIP: String // For fullIP type
+    hostOffset: Number,                    // For hostOffset type
+    fullIp: String,                        // For fullIP type (note: lowercase 'p')
+    description: String                    // Optional description
   }]
 }
 ```

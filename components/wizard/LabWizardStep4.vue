@@ -357,6 +357,34 @@ const generateTempId = (): string => {
   return 'temp_' + Math.random().toString(36).substr(2, 9)
 }
 
+const handlePartTitleChange = (partIndex: number, title: string) => {
+  // Update the title
+  localData.value[partIndex].title = title
+  
+  // Auto-generate partId from title
+  if (title.trim()) {
+    // Convert title to partId format (lowercase, spaces to hyphens, remove special chars)
+    const generatedPartId = title
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9\s_-]/g, '') // Remove special characters except spaces, underscores, and hyphens
+      .replace(/\s+/g, '-') // Replace one or more spaces with single hyphen
+      .replace(/_{2,}/g, '_') // Replace multiple underscores with single underscore
+      .replace(/-{2,}/g, '-') // Replace multiple hyphens with single hyphen
+      .replace(/^-+|-+$/g, '') // Remove leading/trailing hyphens
+    
+    // Always update partId to match the title (auto-generation)
+    const currentPart = localData.value[partIndex]
+    currentPart.partId = generatedPartId
+  } else {
+    // If title is empty, clear the partId
+    localData.value[partIndex].partId = ''
+  }
+  
+  // Validate the title field
+  validatePart(partIndex, 'title')
+}
+
 const addPart = () => {
   const newPart: WizardLabPart = {
     tempId: generateTempId(),

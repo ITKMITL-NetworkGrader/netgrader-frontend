@@ -186,7 +186,8 @@
                       <!-- IP Address Parameter - Use specialized component -->
                       <IpParameterSelector
                         v-if="param.type === 'ip_address'"
-                        v-model="task.parameters[param.name]"
+                        :model-value="task.parameters[param.name] || ''"
+                        @update:model-value="(value) => task.parameters[param.name] = value"
                         :param-name="param.name"
                         :devices="devices"
                         :required="param.required"
@@ -515,9 +516,15 @@ const handleTemplateChange = (taskIndex: number, templateId: string) => {
           } else if (param.type === 'boolean') {
             task.parameters[param.name] = false
           } else {
+            // For all other types including 'ip_address', initialize with empty string
             task.parameters[param.name] = ''
           }
         })
+      }
+      
+      // Ensure parameters object is properly initialized even if no schema
+      if (!task.parameters || typeof task.parameters !== 'object') {
+        task.parameters = {}
       }
       
       // Auto-populate test cases from template defaults
@@ -678,10 +685,25 @@ const validateTaskParameter = (taskIndex: number, paramName: string) => {
     } else {
       // Special validation for IP address parameters
       if (paramSchema.type === 'ip_address' && typeof paramValue === 'string') {
-        const isValid = validateIpParameterValue(paramValue)
-        if (!isValid) {
-          parameterErrors.value[taskIndex][paramName] = `${paramName} must be a valid IP variable or IP address`
+        // Only validate if the value looks complete
+        const shouldValidate = paramValue.includes('.') && (
+          // Complete IP address pattern (4 octets)
+          /^(\d{1,3}\.){3}\d{1,3}$/.test(paramValue) ||
+          // Variable reference pattern (deviceId.variableName)
+          /^[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+$/.test(paramValue) ||
+          // Domain name pattern (e.g., google.com, example.org)
+          /^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*\.[a-zA-Z]{2,}$/.test(paramValue)
+        )
+        
+        if (shouldValidate) {
+          const isValid = validateIpParameterValue(paramValue)
+          if (!isValid) {
+            parameterErrors.value[taskIndex][paramName] = `${paramName} must be a valid IP variable, IP address, or domain name`
+          } else {
+            delete parameterErrors.value[taskIndex][paramName]
+          }
         } else {
+          // For incomplete values, clear any existing errors
           delete parameterErrors.value[taskIndex][paramName]
         }
       } else {
@@ -700,24 +722,55 @@ const validateIpParameterValue = (value: string): boolean => {
   if (!value || typeof value !== 'string') return false
 
   const trimmedValue = value.trim()
+  
+  // Debug logging (can be removed in production)
+  // console.log('🔍 IP Validation Debug:', {
+  //   originalValue: value,
+  //   trimmedValue: trimmedValue,
+  //   type: typeof value
+  // })
 
+  // Check if it's a valid IP address
+  const ipRegex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/
+  const isIp = ipRegex.test(trimmedValue)
+  
+  // Check if it's a valid domain name
+  const domainRegex = /^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*\.[a-zA-Z]{2,}$/
+  const isDomain = domainRegex.test(trimmedValue)
+  
   // Check if it's a variable reference (deviceId.variableName format)
-  if (trimmedValue.includes('.')) {
+  // Only check this if it's NOT already a valid domain name
+  if (trimmedValue.includes('.') && !isDomain && !isIp) {
     // Check if it matches deviceId.variableName pattern and exists in devices
     const variablePattern = /^[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+$/
     if (variablePattern.test(trimmedValue)) {
       // Check if this variable actually exists in our devices
       const [deviceId, variableName] = trimmedValue.split('.')
-      return props.devices.some(device =>
+      const isVariable = props.devices.some(device =>
         device.deviceId === deviceId &&
         device.ipVariables.some(ipVar => ipVar.name === variableName)
       )
+      // console.log('🔍 Variable check:', { deviceId, variableName, isVariable })
+      if (isVariable) return true
     }
   }
-
-  // Check if it's a valid IP address
-  const ipRegex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/
-  return ipRegex.test(trimmedValue)
+  
+  // Test with common IP addresses and domains for debugging (commented out for production)
+  // const testIps = ['8.8.8.8', '192.168.1.1', '10.0.0.1', '127.0.0.1']
+  // const testDomains = ['google.com', 'example.org', 'github.io']
+  // const testResults = [...testIps, ...testDomains].map(item => ({ 
+  //   item, 
+  //   validIp: ipRegex.test(item), 
+  //   validDomain: domainRegex.test(item) 
+  // }))
+  
+  // console.log('🔍 IP/Domain check:', { 
+  //   trimmedValue, 
+  //   isIp, 
+  //   isDomain,
+  //   testResults
+  // })
+  return isIp || isDomain
 }
 
 const handleTestCasesValidation = (taskIndex: number, errors: string[]) => {

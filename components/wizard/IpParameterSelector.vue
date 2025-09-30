@@ -80,22 +80,22 @@
     <!-- Custom IP Input -->
     <div v-if="mode === 'custom'" class="space-y-2">
       <Label class="text-sm font-medium">
-        Custom IP Address <span class="text-destructive">*</span>
+        Custom IP Address or Domain <span class="text-destructive">*</span>
       </Label>
       <Input
         v-model="customIp"
-        placeholder="192.168.1.1, 10.0.0.1, 8.8.8.8"
-        @input="handleCustomIpChange"
+        placeholder="192.168.1.1, 8.8.8.8, google.com, example.org"
+        @input="handleCustomIpChange($event)"
         :class="{
-          'border-destructive': hasError && mode === 'custom' && (!customIp || !isValidIp(customIp)),
-          'border-green-500': !hasError && customIp && isValidIp(customIp)
+          'border-destructive': hasError && mode === 'custom' && (!customIp || !isIpOrDomain(customIp)),
+          'border-green-500': !hasError && customIp && isIpOrDomain(customIp)
         }"
       />
       <p class="text-xs text-muted-foreground">
-        Enter a custom IP address (supports external destinations like Internet)
+        Enter a custom IP address or domain name (supports external destinations like Internet)
       </p>
-      <p v-if="customIp && !isValidIp(customIp)" class="text-xs text-destructive">
-        Please enter a valid IP address
+      <p v-if="customIp && !isIpOrDomain(customIp)" class="text-xs text-destructive">
+        Please enter a valid IP address or domain name
       </p>
     </div>
 
@@ -107,7 +107,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -115,7 +115,7 @@ import { Network, Globe } from 'lucide-vue-next'
 import type { Device } from '@/types/wizard'
 
 interface Props {
-  modelValue: string
+  modelValue: string | undefined
   paramName: string
   devices: Device[]
   required?: boolean
@@ -135,6 +135,11 @@ const emit = defineEmits<Emits>()
 const mode = ref<'variable' | 'custom'>('variable')
 const selectedVariable = ref<string>('')
 const customIp = ref<string>('')
+const isUserTyping = ref(false)
+const lastUserAction = ref<'variable' | 'custom' | null>(null)
+
+// Computed - handle undefined modelValue
+const safeModelValue = computed(() => props.modelValue || '')
 
 // Computed
 const ipVariableOptions = computed(() => {
@@ -173,8 +178,22 @@ const isValidIp = (ip: string): boolean => {
   return ipRegex.test(ip.trim())
 }
 
+const isValidDomainName = (domain: string): boolean => {
+  if (!domain) return false
+  // Domain name regex: allows letters, numbers, hyphens, and dots
+  // Must have at least one dot and valid TLD
+  const domainRegex = /^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*\.[a-zA-Z]{2,}$/
+  return domainRegex.test(domain.trim())
+}
+
+const isIpOrDomain = (value: string): boolean => {
+  return isValidIp(value) || isValidDomainName(value)
+}
+
 const setMode = (newMode: 'variable' | 'custom') => {
   mode.value = newMode
+  lastUserAction.value = newMode
+  isUserTyping.value = false
   // Clear the current value when mode changes
   selectedVariable.value = ''
   customIp.value = ''
@@ -189,65 +208,143 @@ const handleModeChange = () => {
 }
 
 const handleVariableChange = (value: string) => {
+  isUserTyping.value = true
+  lastUserAction.value = 'variable'
   selectedVariable.value = value
   updateModelValue(value)
+  
+  // Reset typing state after a short delay
+  setTimeout(() => {
+    isUserTyping.value = false
+  }, 500)
 }
 
-const handleCustomIpChange = () => {
-  updateModelValue(customIp.value)
+const handleCustomIpChange = (event: Event) => {
+  // Get the actual current value from the input event
+  const target = event.target as HTMLInputElement
+  const currentValue = target.value
+  
+  // Set user typing state immediately to prevent interference
+  isUserTyping.value = true
+  lastUserAction.value = 'custom'
+  
+  // Debug logging to track the issue
+  console.log('🔍 Custom IP Change:', {
+    eventValue: currentValue,
+    customIpValue: customIp.value,
+    length: currentValue.length,
+    fullValue: currentValue
+  })
+  
+  // Save immediately using the event value (not customIp.value which hasn't updated yet)
+  emit('update:modelValue', currentValue)
+  
+  // Clear any existing timeout
+  if (window.ipValidationTimeout) {
+    clearTimeout(window.ipValidationTimeout)
+  }
+  
+  // Only debounce the validation, not the saving
+  window.ipValidationTimeout = setTimeout(() => {
+    isUserTyping.value = false
+    // Trigger validation only after user stops typing
+    emit('validate', props.paramName)
+  }, 500)
 }
 
 const updateModelValue = (value: string) => {
+  // Debug logging (commented out for production)
+  // console.log('🔍 IpParameterSelector emitting:', {
+  //   paramName: props.paramName,
+  //   value: value,
+  //   mode: mode.value,
+  //   customIp: customIp.value,
+  //   selectedVariable: selectedVariable.value
+  // })
   emit('update:modelValue', value)
-  emit('validate', props.paramName)
+  // Don't emit validation immediately - let the debounced validation handle it
 }
 
 const parseCurrentValue = (value: string) => {
+  console.log('🔍 Parse Current Value:', {
+    value,
+    length: value.length,
+    isUserTyping: isUserTyping.value,
+    lastUserAction: lastUserAction.value,
+    currentMode: mode.value
+  })
+  
   if (!value) {
-    mode.value = 'variable'
+    // Clear values but don't change mode
     selectedVariable.value = ''
     customIp.value = ''
     return
   }
 
-  // Check if it's a variable reference (deviceId.variableName format)
+  // If user is actively typing, don't switch modes - just update the current field
+  if (isUserTyping.value) {
+    if (mode.value === 'custom') {
+      customIp.value = value
+    } else {
+      selectedVariable.value = value
+    }
+    return
+  }
+
+  // Only auto-detect mode on initial load, not during typing
+  // Check if it's a complete variable reference (deviceId.variableName format)
   if (value.includes('.') && ipVariableOptions.value.some(opt => opt.value === value)) {
     mode.value = 'variable'
     selectedVariable.value = value
     customIp.value = ''
-  } else if (isValidIp(value)) {
-    // It's a custom IP address
+    lastUserAction.value = 'variable'
+  } else {
+    // Default to custom mode for everything else (IPs, domains, etc.)
     mode.value = 'custom'
     selectedVariable.value = ''
     customIp.value = value
-  } else {
-    // Try to detect if it looks like a variable reference even if not found
-    if (value.includes('.') && /^[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+$/.test(value)) {
-      mode.value = 'variable'
-      selectedVariable.value = value
-      customIp.value = ''
-    } else {
-      // Default to custom IP mode and let user see/fix the value
-      mode.value = 'custom'
-      selectedVariable.value = ''
-      customIp.value = value
-    }
+    lastUserAction.value = 'custom'
   }
 }
 
 // Watchers
 watch(
-  () => props.modelValue,
-  (newValue) => {
-    parseCurrentValue(newValue)
+  () => safeModelValue.value,
+  (newValue, oldValue) => {
+    // Only parse on initial load or when value changes from external source
+    // Don't parse during user typing to avoid mode switching
+    if (newValue !== oldValue && !isUserTyping.value && lastUserAction.value === null) {
+      parseCurrentValue(newValue)
+    }
   },
   { immediate: true }
 )
 
+// Cleanup function to save final value
+const cleanup = () => {
+  if (window.ipValidationTimeout) {
+    clearTimeout(window.ipValidationTimeout)
+    // Save the final value if user was typing
+    if (isUserTyping.value && mode.value === 'custom' && customIp.value) {
+      emit('update:modelValue', customIp.value)
+    }
+  }
+}
+
 // Initialize on mount
 onMounted(() => {
-  if (props.modelValue) {
-    parseCurrentValue(props.modelValue)
-  }
+  parseCurrentValue(safeModelValue.value)
+})
+
+// Cleanup on unmount
+onUnmounted(() => {
+  cleanup()
+})
+
+// No longer needed - we save immediately in handleCustomIpChange
+
+// Cleanup when mode changes
+watch(() => mode.value, () => {
+  cleanup()
 })
 </script>

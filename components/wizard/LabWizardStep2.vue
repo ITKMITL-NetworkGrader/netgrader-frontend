@@ -394,15 +394,13 @@ const emit = defineEmits<Emits>()
 
 // Local state
 const localData = ref<NetworkConfig>({
-  managementNetwork: '10.0.0.0',
-  managementSubnetMask: 24,
-  mode: '',
-  allocationStrategy: 'group_based',
-  vlanCount: 1,
-  vlans: [],
   ...props.modelValue,
-  // Ensure group_based is default if not explicitly set
-  allocationStrategy: props.modelValue.allocationStrategy || 'group_based'
+  managementNetwork: props.modelValue.managementNetwork || '10.0.0.0',
+  managementSubnetMask: props.modelValue.managementSubnetMask || 24,
+  mode: props.modelValue.mode || '',
+  allocationStrategy: props.modelValue.allocationStrategy || 'group_based',
+  vlanCount: props.modelValue.vlanCount || 1,
+  vlans: props.modelValue.vlans || []
 })
 const fieldErrors = ref<Record<string, string>>({})
 const isUpdatingFromProps = ref(false)
@@ -452,9 +450,13 @@ const generateVlanId = (): string => {
 }
 
 const createDefaultVlan = (mode: string, index: number): VlanConfig => {
+  // Use consistent base network since IP generation algorithm replaces second and third octets
+  // This allows multiple VLANs to use the same base network without conflicts
+  const baseNetwork = `172.16.0.0`
+  
   const baseConfig: VlanConfig = {
     id: generateVlanId(),
-    baseNetwork: '172.16.0.0',
+    baseNetwork: baseNetwork,
     subnetMask: 24,
     isStudentGenerated: true
   }
@@ -494,7 +496,7 @@ const onVlanCountChange = () => {
   const targetCount = localData.value.vlanCount
 
   if (targetCount > currentCount) {
-    // Add VLANs
+    // Add VLANs (base network duplication is allowed)
     for (let i = currentCount; i < targetCount; i++) {
       localData.value.vlans.push(createDefaultVlan(localData.value.mode, i))
     }
@@ -508,6 +510,7 @@ const onVlanCountChange = () => {
 
 const addVlan = () => {
   if (localData.value.vlans.length < 10) {
+    // Create new VLAN (base network duplication is allowed)
     const newVlan = createDefaultVlan(localData.value.mode, localData.value.vlans.length)
     localData.value.vlans.push(newVlan)
     localData.value.vlanCount = localData.value.vlans.length
@@ -565,6 +568,8 @@ const validateVlan = (index: number) => {
   if (!vlan.baseNetwork || !isValidIP(vlan.baseNetwork)) {
     fieldErrors.value[`vlan_${index}_baseNetwork`] = 'Valid base network is required'
   } else {
+    // Base network duplication is allowed since the IP generation algorithm
+    // replaces the second and third octets anyway, making duplication irrelevant
     delete fieldErrors.value[`vlan_${index}_baseNetwork`]
   }
 

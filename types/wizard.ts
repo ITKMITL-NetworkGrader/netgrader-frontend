@@ -46,6 +46,7 @@ export interface IpVariable {
   vlanIndex?: number;        // Which VLAN this variable belongs to (0-based index)
   isStudentGenerated?: boolean; // Whether this IP is auto-generated using student ID
   readonly?: boolean;        // Whether the field is read-only (true for student-generated)
+  isManagementInterface?: boolean; // Whether this interface requires management IP (for backend to know)
 }
 
 // Lab Parts Structure

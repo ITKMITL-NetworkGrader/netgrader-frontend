@@ -295,55 +295,12 @@ class StudentIpGenerator {
     };
   }
 
-  // Generate management IP using perfect conflict-free algorithm with blacklist support
+  // Management IP generation is now handled by the backend
+  // This method is kept for backward compatibility but should not be used
   generateManagementIP(blacklistedIPs: string[] = [], assignedIPs?: Map<number, string>): string {
-    const student_id = Number(this.config.student_id);
-
-    // Use management network if available, otherwise fall back to baseNetwork
-    const managementNetwork = this.config.managementNetwork || this.config.baseNetwork;
-    const managementParts = managementNetwork.split('.').map(Number);
-
-    // Create blacklist set for O(1) lookup
-    const blacklistSet = new Set(blacklistedIPs);
-
-    // Check if this student already has an assigned IP
-    if (assignedIPs && assignedIPs.has(student_id)) {
-      return assignedIPs.get(student_id)!;
-    }
-
-    // Create set of currently assigned IPs to avoid conflicts
-    const assignedSet = assignedIPs ? new Set(Array.from(assignedIPs.values())) : new Set();
-
-    // Simple deterministic hash for initial placement
-    const uniquePart = student_id % 100000;
-    let candidateAddress = 50 + (uniquePart % 150); // Range: 50-199
-
-    // Find first available address using linear probing
-    let attempts = 0;
-    const maxAttempts = 205; // Available addresses from 50-254
-
-    while (attempts < maxAttempts) {
-      const candidateIP = `${managementParts[0]}.${managementParts[1]}.${managementParts[2]}.${candidateAddress}`;
-
-      // Check if this address is available
-      if (!blacklistSet.has(candidateIP) && !assignedSet.has(candidateIP)) {
-        // Found available address!
-        if (assignedIPs) {
-          assignedIPs.set(student_id, candidateIP);
-        }
-        return candidateIP;
-      }
-
-      // Move to next address
-      candidateAddress++;
-      if (candidateAddress > 254) {
-        candidateAddress = 50; // Wrap around
-      }
-      attempts++;
-    }
-
-    // Fallback (should never reach here with proper capacity)
-    throw new Error(`No available IP addresses for student ${student_id}`);
+    console.warn('generateManagementIP is deprecated. Management IP generation is now handled by the backend.');
+    // Return a placeholder - the backend will generate the actual IP
+    return 'MANAGEMENT_IP_BACKEND_GENERATED';
   }
 
   // Generate VLAN-specific IP using VLAN base network and interface offset

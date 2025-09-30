@@ -463,9 +463,24 @@ const handleCreateLab = async () => {
       network: {
         name: wizardData.basicInfo.name, // Use lab name as network name
         topology: {
-          baseNetwork: wizardData.networkConfig.baseNetwork,
-          subnetMask: wizardData.networkConfig.subnetMask,
+          // 🆕 CHANGED: Use managementNetwork instead of baseNetwork
+          baseNetwork: wizardData.networkConfig.managementNetwork,
+          subnetMask: wizardData.networkConfig.managementSubnetMask,
           allocationStrategy: wizardData.networkConfig.allocationStrategy || 'group_based'
+        },
+        // 🆕 ADDED: VLAN configuration data
+        vlanConfiguration: {
+          mode: wizardData.networkConfig.mode,
+          vlanCount: wizardData.networkConfig.vlanCount,
+          vlans: wizardData.networkConfig.vlans.map(vlan => ({
+            id: vlan.id,
+            vlanId: vlan.vlanId,
+            calculationMultiplier: vlan.calculationMultiplier,
+            baseNetwork: vlan.baseNetwork,
+            subnetMask: vlan.subnetMask,
+            groupModifier: vlan.groupModifier,
+            isStudentGenerated: vlan.isStudentGenerated
+          }))
         },
         devices: wizardData.devices.map(device => ({
           deviceId: device.deviceId,
@@ -474,7 +489,13 @@ const handleCreateLab = async () => {
           ipVariables: device.ipVariables.map(ipVar => {
             const baseVar = {
               name: ipVar.name,
-              interface: ipVar.interface || '' // Full interface name from device template
+              interface: ipVar.interface || '', // Full interface name from device template
+              // 🆕 ADDED: Required marks for interface types
+              isManagementInterface: ipVar.isManagementInterface || false,
+              isVlanInterface: ipVar.inputType?.startsWith('studentVlan') || false,
+              inputType: ipVar.inputType,
+              vlanIndex: ipVar.vlanIndex,
+              interfaceOffset: ipVar.interfaceOffset
             }
             
             // Add either hostOffset or fullIp based on inputType
@@ -483,11 +504,14 @@ const handleCreateLab = async () => {
                 ...baseVar,
                 fullIp: ipVar.fullIP
               }
-            } else {
+            } else if (ipVar.inputType === 'hostOffset') {
               return {
                 ...baseVar,
                 hostOffset: ipVar.hostOffset
               }
+            } else {
+              // For studentManagement and studentVlan types, no additional fields needed
+              return baseVar
             }
           }),
           credentials: device.credentials || {
