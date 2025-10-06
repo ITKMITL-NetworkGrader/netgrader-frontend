@@ -392,6 +392,33 @@ const convertStringToBoolean = (value: any): any => {
   return value
 }
 
+// Helper function to check if a value is an IP address
+const isIpAddress = (value: string): boolean => {
+  const ipv4Pattern = /^(\d{1,3}\.){3}\d{1,3}$/
+  const ipv6Pattern = /^([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}$/
+  return ipv4Pattern.test(value) || ipv6Pattern.test(value)
+}
+
+// Helper function to format parameter values for backend submission
+const formatParameterValue = (value: any): any => {
+  if (typeof value !== 'string') return value
+
+  const trimmedValue = value.trim()
+
+  // If it's an IP address, return as-is
+  if (isIpAddress(trimmedValue)) {
+    return trimmedValue
+  }
+
+  // If it's already wrapped with {{}}, return as-is
+  if (trimmedValue.startsWith('{{') && trimmedValue.endsWith('}}')) {
+    return trimmedValue
+  }
+
+  // Otherwise, wrap it with {{}}
+  return `{{${trimmedValue}}}`
+}
+
 // Methods
 const nextStep = () => {
   if (canProceedToNextStep.value && currentStep.value < steps.length) {
@@ -571,7 +598,12 @@ const handleCreateLab = async () => {
           templateId: task.templateId,
           executionDevice: task.executionDevice,
           targetDevices: task.targetDevices,
-          parameters: task.parameters,
+          parameters: Object.fromEntries(
+            Object.entries(task.parameters).map(([key, value]) => [
+              key,
+              formatParameterValue(value)
+            ])
+          ),
           testCases: task.testCases.map(testCase => ({
             ...testCase,
             expected_result: convertStringToBoolean(testCase.expected_result)

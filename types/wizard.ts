@@ -104,7 +104,7 @@ export interface TaskGroup {
 
 // Task Templates
 export interface TaskTemplate {
-  _id: string;               // Template MongoDB ObjectId
+  id: string;                // Template MongoDB ObjectId
   templateId: string;        // Human-readable template ID
   name: string;              // Display name
   description: string;       // What this template does

@@ -291,6 +291,7 @@
 <script setup lang="ts">
 import { computed, watch, ref, onMounted, nextTick } from 'vue'
 import { marked } from 'marked'
+import { toast } from 'vue-sonner'
 import {
   BookOpen,
   Plus,
@@ -662,81 +663,7 @@ const loadTaskTemplates = async () => {
     }
   } catch (error) {
     console.error('Failed to load task templates:', error)
-    // Set some mock data for development
-    taskTemplates.value = [
-      {
-        _id: '507f1f77bcf86cd799439014',
-        templateId: 'cisco_hostname_config',
-        name: 'Cisco Hostname Configuration',
-        description: 'Configure device hostname on Cisco devices',
-        parameterSchema: [
-          {
-            name: 'hostname',
-            type: 'string',
-            description: 'Device hostname (alphanumeric, no spaces)',
-            required: true
-          }
-        ],
-        defaultTestCases: [
-          {
-            comparison_type: 'contains',
-            expected_result: 'hostname {{hostname}}'
-          }
-        ]
-      },
-      {
-        _id: '507f1f77bcf86cd799439015',
-        templateId: 'linux_ssh_test',
-        name: 'Linux SSH Test',
-        description: 'Test SSH connectivity to Linux systems',
-        parameterSchema: [
-          {
-            name: 'target_ip',
-            type: 'string',
-            description: 'Target IP address for SSH test',
-            required: true
-          },
-          {
-            name: 'port',
-            type: 'number',
-            description: 'SSH port (default: 22)',
-            required: false
-          }
-        ],
-        defaultTestCases: [
-          {
-            comparison_type: 'contains',
-            expected_result: 'SSH connection successful'
-          }
-        ]
-      },
-      {
-        _id: '507f1f77bcf86cd799439016',
-        templateId: 'interface_config',
-        name: 'Interface Configuration',
-        description: 'Configure network interface settings',
-        parameterSchema: [
-          {
-            name: 'interface',
-            type: 'string',
-            description: 'Interface name (e.g., GigabitEthernet0/0)',
-            required: true
-          },
-          {
-            name: 'ip_address',
-            type: 'string',
-            description: 'IP address to assign',
-            required: true
-          }
-        ],
-        defaultTestCases: [
-          {
-            comparison_type: 'contains',
-            expected_result: 'interface {{interface}}'
-          }
-        ]
-      }
-    ]
+    toast.error('Failed to load task templates. Please refresh the page.')
   } finally {
     isLoadingTemplates.value = false
   }

@@ -150,8 +150,8 @@
                     <SelectContent>
                       <SelectItem
                         v-for="template in taskTemplates"
-                        :key="template._id"
-                        :value="template._id"
+                        :key="template.id"
+                        :value="template.id"
                         :textValue="template.name"
                       >
                         <div class="flex flex-col">
@@ -560,7 +560,7 @@ const handleTemplateChange = (taskIndex: number, templateId: string, previousTem
 }
 
 const getSelectedTemplate = (templateId: string): TaskTemplate | undefined => {
-  return props.taskTemplates.find(t => t._id === templateId)
+  return props.taskTemplates.find(t => t.id === templateId)
 }
 
 const hasTaskErrors = (taskIndex: number): boolean => {
