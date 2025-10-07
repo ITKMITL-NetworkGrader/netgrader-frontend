@@ -5,24 +5,24 @@ import { SonnerToaster as Toaster } from '@/components/ui/sonner'
 import 'vue-sonner/style.css'
 
 // Initialize dark mode
-useDarkMode()
+// useDarkMode()
 
 // Add script to head to apply dark mode immediately
-useHead({
-  script: [
-    {
-      innerHTML: `
-        (function() {
-          document.documentElement.classList.add('dark');
-          if (typeof localStorage !== 'undefined') {
-            localStorage.setItem('theme', 'dark');
-          }
-        })();
-      `,
-      type: 'text/javascript'
-    }
-  ]
-})
+// useHead({
+//   script: [
+//     {
+//       innerHTML: `
+//         (function() {
+//           document.documentElement.classList.add('dark');
+//           if (typeof localStorage !== 'undefined') {
+//             localStorage.setItem('theme', 'dark');
+//           }
+//         })();
+//       `,
+//       type: 'text/javascript'
+//     }
+//   ]
+// })
 
 useSeoMeta({
         title: 'NetGrader',
