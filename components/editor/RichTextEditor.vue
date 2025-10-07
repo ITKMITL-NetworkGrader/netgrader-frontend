@@ -503,56 +503,56 @@ defineExpose({
 
 <style scoped>
 .rich-text-editor {
-  border: 1px solid #e5e7eb;
+  border: 1px solid hsl(var(--border));
   border-radius: 0.5rem;
   overflow: hidden;
-  background-color: white;
+  background-color: hsl(var(--card));
 }
 
 .dark .rich-text-editor {
-  border-color: #374151;
-  background-color: #111827;
+  border-color: hsl(var(--border));
+  background-color: hsl(var(--card));
 }
 
 .rich-text-editor.is-focused {
   --tw-ring-offset-shadow: var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);
   --tw-ring-shadow: var(--tw-ring-inset) 0 0 0 calc(2px + var(--tw-ring-offset-width)) var(--tw-ring-color);
   box-shadow: var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow, 0 0 #0000);
-  --tw-ring-color: rgb(59 130 246);
+  --tw-ring-color: hsl(var(--ring));
   border-color: transparent;
 }
 
 .toolbar-btn {
   padding: 0.375rem 0.5rem;
   border-radius: 0.25rem;
-  color: #6b7280;
+  color: hsl(var(--muted-foreground));
   background-color: transparent;
   border: none;
   transition: all 0.15s ease;
 }
 
 .dark .toolbar-btn {
-  color: #9ca3af;
+  color: hsl(var(--muted-foreground));
 }
 
 .toolbar-btn:hover {
-  background-color: #f3f4f6;
-  color: #111827;
+  background-color: hsl(var(--muted));
+  color: hsl(var(--foreground));
 }
 
 .dark .toolbar-btn:hover {
-  background-color: #374151;
-  color: #f9fafb;
+  background-color: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
 }
 
 .toolbar-btn.is-active {
-  background-color: #dbeafe;
-  color: #1d4ed8;
+  background-color: hsl(var(--primary) / 0.1);
+  color: hsl(var(--primary));
 }
 
 .dark .toolbar-btn.is-active {
-  background-color: #1e3a8a;
-  color: #93c5fd;
+  background-color: hsl(var(--primary) / 0.2);
+  color: hsl(var(--primary));
 }
 
 .toolbar-btn:disabled {
@@ -567,12 +567,12 @@ defineExpose({
 
 .toolbar-separator {
   width: 1px;
-  background-color: #e5e7eb;
+  background-color: hsl(var(--border));
   margin: 0 0.25rem;
 }
 
 .dark .toolbar-separator {
-  background-color: #374151;
+  background-color: hsl(var(--border));
 }
 
 .editor-content-wrapper {
@@ -595,7 +595,7 @@ defineExpose({
   --tw-ring-offset-shadow: var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);
   --tw-ring-shadow: var(--tw-ring-inset) 0 0 0 calc(2px + var(--tw-ring-offset-width)) var(--tw-ring-color);
   box-shadow: var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow, 0 0 #0000);
-  --tw-ring-color: rgb(59 130 246);
+  --tw-ring-color: hsl(var(--ring));
 }
 
 :deep(.ProseMirror) {
@@ -605,7 +605,7 @@ defineExpose({
 }
 
 :deep(.ProseMirror p.is-editor-empty:first-child::before) {
-  color: #9ca3af;
+  color: hsl(var(--muted-foreground));
   pointer-events: none;
   content: attr(data-placeholder);
   white-space: pre-wrap;
@@ -614,7 +614,7 @@ defineExpose({
 }
 
 .dark :deep(.ProseMirror p.is-editor-empty:first-child::before) {
-  color: #6b7280;
+  color: hsl(var(--muted-foreground));
 }
 
 :deep(.ProseMirror h1) {
@@ -639,16 +639,16 @@ defineExpose({
 }
 
 :deep(.ProseMirror blockquote) {
-  border-left: 4px solid #d1d5db;
+  border-left: 4px solid hsl(var(--border));
   padding-left: 1rem;
   font-style: italic;
-  color: #6b7280;
+  color: hsl(var(--muted-foreground));
   margin: 1rem 0;
 }
 
 .dark :deep(.ProseMirror blockquote) {
-  border-left-color: #4b5563;
-  color: #9ca3af;
+  border-left-color: hsl(var(--border));
+  color: hsl(var(--muted-foreground));
 }
 
 :deep(.ProseMirror pre) {
@@ -675,11 +675,11 @@ defineExpose({
 }
 
 :deep(.ProseMirror hr) {
-  border-color: #d1d5db;
+  border-color: hsl(var(--border));
   margin: 1.5rem 0;
 }
 
 .dark :deep(.ProseMirror hr) {
-  border-color: #4b5563;
+  border-color: hsl(var(--border));
 }
 </style>

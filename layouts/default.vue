@@ -1,17 +1,26 @@
 <script setup lang="ts">
 const route = useRoute();
-const isFullScreenPage = computed(() => 
-  route.path === '/demo' || 
+const isFullScreenPage = computed(() =>
+  route.path === '/demo' ||
   route.path.startsWith('/play') ||
   route.path.startsWith('/courses') || // Add this line
   route.path.startsWith('/manage') // Add this line
 );
 const isHomePage = computed(() => route.path === '/');
+
+// Get the primary color from CSS variables
+const loadingColor = computed(() => {
+  if (process.client) {
+    const styles = getComputedStyle(document.documentElement);
+    return styles.getPropertyValue('--color-primary').trim();
+  }
+  return 'oklch(0.6698 0.0882 196.2136)'; // Default primary color
+});
 </script>
 
 <template>
     <div class="min-h-screen flex flex-col">
-        <NuxtLoadingIndicator :color="'#3b82f6'"/>
+        <NuxtLoadingIndicator :color="loadingColor"/>
         <NavigationBar />
         <main 
             class="flex-1" 

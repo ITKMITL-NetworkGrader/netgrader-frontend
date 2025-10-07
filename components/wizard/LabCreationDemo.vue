@@ -381,11 +381,11 @@ watch(studentId, () => {
   text-align: center;
   margin-bottom: 2rem;
   padding-bottom: 1rem;
-  border-bottom: 2px solid #e5e7eb;
+  border-bottom: 2px solid hsl(var(--border));
 }
 
 .demo-header h2 {
-  color: #1f2937;
+  color: hsl(var(--foreground));
   margin-bottom: 0.5rem;
 }
 
@@ -395,7 +395,7 @@ watch(studentId, () => {
   align-items: center;
   margin-bottom: 2rem;
   padding: 1rem;
-  background-color: #f3f4f6;
+  background-color: hsl(var(--muted));
   border-radius: 0.5rem;
 }
 
@@ -408,8 +408,8 @@ watch(studentId, () => {
 
 .debug-button {
   padding: 0.5rem 1rem;
-  background-color: #3b82f6;
-  color: white;
+  background-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
   border: none;
   border-radius: 0.375rem;
   cursor: pointer;
@@ -417,12 +417,12 @@ watch(studentId, () => {
 }
 
 .debug-button:hover {
-  background-color: #2563eb;
+  background-color: hsl(var(--primary) / 0.9);
 }
 
 .wizard-step {
-  background-color: white;
-  border: 1px solid #e5e7eb;
+  background-color: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
   border-radius: 0.5rem;
   padding: 2rem;
   margin-bottom: 2rem;
@@ -430,10 +430,10 @@ watch(studentId, () => {
 }
 
 .wizard-step h3 {
-  color: #1f2937;
+  color: hsl(var(--foreground));
   margin-bottom: 1.5rem;
   padding-bottom: 0.5rem;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid hsl(var(--border));
 }
 
 .form-group {
@@ -444,7 +444,7 @@ watch(studentId, () => {
   display: block;
   font-weight: 500;
   margin-bottom: 0.25rem;
-  color: #374151;
+  color: hsl(var(--foreground));
 }
 
 .form-group input,
@@ -452,7 +452,7 @@ watch(studentId, () => {
 .form-group select {
   width: 100%;
   padding: 0.5rem;
-  border: 1px solid #d1d5db;
+  border: 1px solid hsl(var(--border));
   border-radius: 0.375rem;
   font-size: 0.875rem;
 }
@@ -467,7 +467,7 @@ watch(studentId, () => {
   gap: 1rem;
   align-items: end;
   padding: 1rem;
-  background-color: #f9fafb;
+  background-color: hsl(var(--muted) / 0.5);
   border-radius: 0.375rem;
   margin-bottom: 1.5rem;
 }
@@ -484,8 +484,8 @@ watch(studentId, () => {
 
 .add-device-form button {
   padding: 0.5rem 1rem;
-  background-color: #10b981;
-  color: white;
+  background-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
   border: none;
   border-radius: 0.375rem;
   cursor: pointer;
@@ -493,7 +493,7 @@ watch(studentId, () => {
 }
 
 .add-device-form button:disabled {
-  background-color: #d1d5db;
+  background-color: hsl(var(--muted));
   cursor: not-allowed;
 }
 
@@ -503,20 +503,20 @@ watch(studentId, () => {
 }
 
 .device-card {
-  border: 1px solid #e5e7eb;
+  border: 1px solid hsl(var(--border));
   border-radius: 0.375rem;
   padding: 1rem;
-  background-color: #fafafa;
+  background-color: hsl(var(--muted) / 0.3);
 }
 
 .device-card h4 {
   margin: 0 0 1rem 0;
-  color: #1f2937;
+  color: hsl(var(--foreground));
 }
 
 .ip-variables h5 {
   margin: 0 0 0.5rem 0;
-  color: #374151;
+  color: hsl(var(--muted-foreground));
 }
 
 .ip-variable {
@@ -528,15 +528,15 @@ watch(studentId, () => {
   align-items: center;
   gap: 0.5rem;
   padding: 0.25rem 0.5rem;
-  background-color: white;
-  border: 1px solid #e5e7eb;
+  background-color: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
   border-radius: 0.25rem;
   font-size: 0.875rem;
 }
 
 .variable-name {
   font-weight: 500;
-  color: #1f2937;
+  color: hsl(var(--foreground));
 }
 
 .variable-type {
@@ -547,29 +547,29 @@ watch(studentId, () => {
 }
 
 .variable-type.student_generated {
-  background-color: #ede9fe;
-  color: #7c3aed;
+  background-color: hsl(var(--primary) / 0.1);
+  color: hsl(var(--primary));
 }
 
 .variable-type.host_offset {
-  background-color: #dbeafe;
-  color: #3b82f6;
+  background-color: hsl(var(--accent) / 0.3);
+  color: hsl(var(--primary));
 }
 
 .variable-type.full_ip {
-  background-color: #dcfce7;
-  color: #16a34a;
+  background-color: hsl(var(--primary) / 0.15);
+  color: hsl(var(--primary));
 }
 
 .variable-value {
   font-family: 'Monaco', 'Menlo', monospace;
-  color: #059669;
+  color: hsl(var(--primary));
   font-weight: 600;
 }
 
 .readonly-badge {
-  background-color: #fef3c7;
-  color: #d97706;
+  background-color: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
   padding: 0.125rem 0.25rem;
   border-radius: 0.25rem;
   font-size: 0.75rem;
@@ -581,7 +581,7 @@ watch(studentId, () => {
   gap: 0.5rem;
   margin-top: 0.5rem;
   padding-top: 0.5rem;
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid hsl(var(--border));
 }
 
 .add-variable-form input,
@@ -593,8 +593,8 @@ watch(studentId, () => {
 
 .add-variable-form button {
   padding: 0.25rem 0.5rem;
-  background-color: #6366f1;
-  color: white;
+  background-color: hsl(var(--secondary));
+  color: hsl(var(--secondary-foreground));
   border: none;
   border-radius: 0.25rem;
   cursor: pointer;
@@ -605,14 +605,14 @@ watch(studentId, () => {
 .ip-variables-summary {
   margin-top: 2rem;
   padding: 1rem;
-  background-color: #f0fdf4;
-  border: 1px solid #bbf7d0;
+  background-color: hsl(var(--primary) / 0.05);
+  border: 1px solid hsl(var(--primary) / 0.2);
   border-radius: 0.375rem;
 }
 
 .ip-variables-summary h4 {
   margin: 0 0 1rem 0;
-  color: #14532d;
+  color: hsl(var(--primary));
 }
 
 .variables-grid {
@@ -626,20 +626,20 @@ watch(studentId, () => {
   justify-content: space-between;
   align-items: center;
   padding: 0.5rem;
-  background-color: white;
-  border: 1px solid #d1fae5;
+  background-color: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
   border-radius: 0.25rem;
   font-size: 0.875rem;
 }
 
 .ref-name {
   font-weight: 600;
-  color: #065f46;
+  color: hsl(var(--primary));
 }
 
 .ref-ip {
   font-family: 'Monaco', 'Menlo', monospace;
-  color: #059669;
+  color: hsl(var(--primary));
 }
 
 .ref-type {
@@ -649,25 +649,25 @@ watch(studentId, () => {
 }
 
 .ref-type.student_generated {
-  background-color: #ede9fe;
-  color: #7c3aed;
+  background-color: hsl(var(--primary) / 0.1);
+  color: hsl(var(--primary));
 }
 
 .ref-type.custom {
-  background-color: #fee2e2;
-  color: #dc2626;
+  background-color: hsl(var(--destructive) / 0.1);
+  color: hsl(var(--destructive));
 }
 
 .task-template-demo {
-  border: 1px solid #e5e7eb;
+  border: 1px solid hsl(var(--border));
   border-radius: 0.375rem;
   padding: 1.5rem;
-  background-color: #fafafa;
+  background-color: hsl(var(--muted) / 0.3);
 }
 
 .task-template-demo h4 {
   margin: 0 0 0.5rem 0;
-  color: #1f2937;
+  color: hsl(var(--foreground));
 }
 
 .parameter-group {
@@ -678,26 +678,26 @@ watch(studentId, () => {
   display: block;
   font-weight: 500;
   margin-bottom: 0.5rem;
-  color: #374151;
+  color: hsl(var(--foreground));
 }
 
 .validation-errors {
   margin-top: 1rem;
   padding: 1rem;
-  background-color: #fef2f2;
-  border: 1px solid #fecaca;
+  background-color: hsl(var(--destructive) / 0.1);
+  border: 1px solid hsl(var(--destructive) / 0.3);
   border-radius: 0.375rem;
 }
 
 .validation-errors h5 {
   margin: 0 0 0.5rem 0;
-  color: #dc2626;
+  color: hsl(var(--destructive));
 }
 
 .validation-errors ul {
   margin: 0;
   padding-left: 1.5rem;
-  color: #dc2626;
+  color: hsl(var(--destructive));
 }
 
 .wizard-navigation {
@@ -705,22 +705,22 @@ watch(studentId, () => {
   justify-content: space-between;
   align-items: center;
   padding: 1rem;
-  background-color: #f9fafb;
+  background-color: hsl(var(--muted) / 0.5);
   border-radius: 0.5rem;
   margin-bottom: 2rem;
 }
 
 .wizard-navigation button {
   padding: 0.5rem 1rem;
-  border: 1px solid #d1d5db;
+  border: 1px solid hsl(var(--border));
   border-radius: 0.375rem;
-  background-color: white;
+  background-color: hsl(var(--card));
   cursor: pointer;
   font-weight: 500;
 }
 
 .wizard-navigation button:hover:not(:disabled) {
-  background-color: #f3f4f6;
+  background-color: hsl(var(--muted));
 }
 
 .wizard-navigation button:disabled {
@@ -730,12 +730,12 @@ watch(studentId, () => {
 
 .step-indicator {
   font-weight: 500;
-  color: #374151;
+  color: hsl(var(--foreground));
 }
 
 .debug-panel {
-  background-color: #1f2937;
-  color: #f9fafb;
+  background-color: hsl(var(--muted));
+  color: hsl(var(--foreground));
   border-radius: 0.5rem;
   padding: 1.5rem;
   margin-top: 2rem;
@@ -743,7 +743,7 @@ watch(studentId, () => {
 
 .debug-panel h3,
 .debug-panel h4 {
-  color: #f9fafb;
+  color: hsl(var(--foreground));
   margin-bottom: 1rem;
 }
 
@@ -755,7 +755,7 @@ watch(studentId, () => {
 
 .debug-summary li {
   padding: 0.25rem 0;
-  border-bottom: 1px solid #374151;
+  border-bottom: 1px solid hsl(var(--border));
 }
 
 .debug-panel details {
@@ -766,13 +766,13 @@ watch(studentId, () => {
   cursor: pointer;
   font-weight: 600;
   padding: 0.5rem;
-  background-color: #374151;
+  background-color: hsl(var(--accent));
   border-radius: 0.25rem;
   margin-bottom: 0.5rem;
 }
 
 .debug-panel pre {
-  background-color: #111827;
+  background-color: hsl(var(--card));
   padding: 1rem;
   border-radius: 0.25rem;
   overflow-x: auto;

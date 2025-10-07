@@ -429,7 +429,7 @@ watchEffect(() => {
                                 </DialogHeader>
                                 <div
 class="space-y-4 overflow-y-auto max-h-[70vh] pr-2"
-                                     style="scrollbar-width: thin; scrollbar-color: rgb(203 213 225) transparent;"
+                                     style="scrollbar-width: thin; scrollbar-color: hsl(var(--muted-foreground)) transparent;"
                                 >
                                     <div>
                                         <Label class="pb-2" for="course-title">Course Name</Label>
@@ -480,7 +480,7 @@ v-else-if="editForm.enrolledStudents && editForm.enrolledStudents.length > 0"
                                              class="rounded-lg overflow-hidden">
                                             <div
 class="overflow-x-auto max-h-96"
-                                                 style="scrollbar-width: thin; scrollbar-color: rgb(203 213 225) transparent;"
+                                                 style="scrollbar-width: thin; scrollbar-color: hsl(var(--muted-foreground)) transparent;"
                                             >
                                                 <Table>
                                                     <TableHeader class="sticky top-0 z-10">

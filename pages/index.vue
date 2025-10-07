@@ -1,9 +1,19 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { Button } from '@/components/ui/button'
 import { FlickeringGrid } from '@/components/ui/flickering-grid'
 import { TextReveal } from '@/components/ui/text-reveal';
 
 const { $anime } = useNuxtApp()
+
+// Get the primary color from CSS variables
+const gridColor = computed(() => {
+  if (process.client) {
+    const styles = getComputedStyle(document.documentElement);
+    return styles.getPropertyValue('--color-primary').trim();
+  }
+  return 'oklch(0.6698 0.0882 196.2136)'; // Default primary color
+})
 
 onMounted(() => {
     $anime({
@@ -38,7 +48,7 @@ onMounted(() => {
                     class="relative inset-0 z-0 [mask-image:radial-gradient(350px_circle_at_center,white,transparent)]"
                     :square-size="4"
                     :grid-gap="6"
-                    color="#60A5FA"
+                    :color="gridColor"
                     :max-opacity="0.5"
                     :flicker-chance="0.1"
                     :width="800"

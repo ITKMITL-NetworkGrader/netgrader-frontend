@@ -6,6 +6,15 @@ import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbP
 import { useColorMode } from "@vueuse/core";
 
 const isDark = computed(() => useColorMode().value == "dark");
+
+// Get the accent color from CSS variables
+const particleColor = computed(() => {
+  if (process.client) {
+    const styles = getComputedStyle(document.documentElement);
+    return styles.getPropertyValue('--color-accent').trim();
+  }
+  return 'oklch(0.8951 0.0255 196.7059)'; // Default accent color
+});
 const config = useRuntimeConfig()
 const backendURL = config.public.backendurl
 
@@ -114,7 +123,7 @@ class="w-full h-48 object-cover rounded-t-xl hover:scale-105 transition-transfor
         class="absolute inset-0 z-[-1]"
         :quantity="100"
         :ease="100"
-        :color="'#dbeafe'"
+        :color="particleColor"
         :staticity="10"
         refresh
       />

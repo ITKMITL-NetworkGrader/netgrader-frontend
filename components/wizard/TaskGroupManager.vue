@@ -365,18 +365,29 @@ const getGroupTasks = (groupTempId: string): WizardTask[] => {
 }
 
 const getGroupColor = (group: WizardTaskGroup): string => {
+  // Generate colors from theme CSS variables
+  const getThemeColor = (varName: string) => {
+    if (process.client) {
+      const styles = getComputedStyle(document.documentElement);
+      return styles.getPropertyValue(varName).trim();
+    }
+    return '';
+  };
+
+  // Use a variety of theme-aware colors for different groups
   const colors = [
-    '#8B5CF6', // Purple
-    '#3B82F6', // Blue  
-    '#10B981', // Green
-    '#F59E0B', // Amber
-    '#EF4444', // Red
-    '#6366F1', // Indigo
-    '#EC4899', // Pink
-    '#84CC16'  // Lime
-  ]
+    getThemeColor('--color-primary'),      // Primary
+    getThemeColor('--color-secondary'),    // Secondary
+    getThemeColor('--color-accent'),       // Accent
+    getThemeColor('--color-chart-1'),      // Chart 1
+    getThemeColor('--color-chart-2'),      // Chart 2
+    getThemeColor('--color-chart-3'),      // Chart 3
+    getThemeColor('--color-chart-4'),      // Chart 4
+    getThemeColor('--color-chart-5'),      // Chart 5
+  ].filter(c => c) // Filter out empty values
+
   const index = localTaskGroups.value.findIndex(g => g.tempId === group.tempId)
-  return colors[index % colors.length]
+  return colors[index % colors.length] || getThemeColor('--color-primary')
 }
 
 const getGroupBorderClass = (group: WizardTaskGroup): string => {

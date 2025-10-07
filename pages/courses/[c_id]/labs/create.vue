@@ -715,7 +715,7 @@ onMounted(async () => {
 /* Custom scrollbar for the main content */
 :deep(.overflow-y-auto) {
   scrollbar-width: thin;
-  scrollbar-color: rgb(203 213 225) transparent;
+  scrollbar-color: hsl(var(--muted-foreground)) transparent;
 }
 
 :deep(.overflow-y-auto::-webkit-scrollbar) {
@@ -727,11 +727,11 @@ onMounted(async () => {
 }
 
 :deep(.overflow-y-auto::-webkit-scrollbar-thumb) {
-  background-color: rgb(203 213 225);
+  background-color: hsl(var(--muted-foreground));
   border-radius: 3px;
 }
 
 :deep(.overflow-y-auto::-webkit-scrollbar-thumb:hover) {
-  background-color: rgb(148 163 184);
+  background-color: hsl(var(--muted-foreground) / 0.8);
 }
 </style>
