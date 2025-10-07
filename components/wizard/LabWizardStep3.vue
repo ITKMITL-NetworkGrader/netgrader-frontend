@@ -1004,13 +1004,15 @@ const onInputTypeChange = (deviceIndex: number, ipIndex: number, inputType: stri
 const validateIpDuplication = (deviceIndex: number, ipIndex: number) => {
   const currentVar = localData.value[deviceIndex].ipVariables[ipIndex]
 
-  if (!currentVar.inputType || currentVar.inputType === 'fullIP') {
-    // Clear any existing duplication errors for non-student-generated types
+  if (!currentVar.inputType || currentVar.inputType === 'fullIP' || currentVar.inputType === 'studentManagement') {
+    // Clear any existing duplication errors for:
+    // - non-student-generated types (fullIP)
+    // - studentManagement (backend assigns unique IPs per device automatically)
     delete ipVarErrors.value[deviceIndex]?.[ipIndex]?.duplication
     return
   }
 
-  // Check for duplicates across all devices and IP variables
+  // Check for duplicates across all devices and IP variables (only for VLAN IPs)
   let duplicates: string[] = []
   const currentKey = getIpKey(currentVar)
 
@@ -1019,8 +1021,8 @@ const validateIpDuplication = (deviceIndex: number, ipIndex: number) => {
       // Skip the current variable
       if (devIndex === deviceIndex && varIndex === ipIndex) return
 
-      // Only check student-generated IPs that could conflict
-      if (ipVar.inputType && (ipVar.inputType === 'studentManagement' || ipVar.inputType.startsWith('studentVlan'))) {
+      // Only check student VLAN IPs that could conflict (skip management IPs)
+      if (ipVar.inputType && ipVar.inputType.startsWith('studentVlan')) {
         const otherKey = getIpKey(ipVar)
 
         if (currentKey === otherKey) {

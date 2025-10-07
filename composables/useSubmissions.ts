@@ -402,6 +402,108 @@ export const useSubmissions = () => {
     currentSubmissionStates.value = {}
   }
 
+  // Fetch all submissions for a student and specific lab
+  const fetchStudentSubmissions = async (
+    studentId: string,
+    labId: string
+  ): Promise<{ success: boolean; submissions?: ISubmission[]; error?: string }> => {
+    try {
+      console.log('🔍 [DEBUG] Fetching student submissions:', { studentId, labId })
+
+      const response = await fetch(
+        `${backendUrl}/v0/submissions/student/${studentId}?labId=${labId}`,
+        {
+          method: 'GET',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      )
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+
+      const result = await response.json()
+
+      if (result.status !== 'success' || !result.data) {
+        throw new Error(result.message || 'Failed to fetch submissions')
+      }
+
+      console.log('📊 [DEBUG] Fetched student submissions:', result.data)
+
+      return {
+        success: true,
+        submissions: result.data
+      }
+
+    } catch (error: any) {
+      console.error('❌ [ERROR] Failed to fetch student submissions:', error)
+      return {
+        success: false,
+        error: error.message || 'Failed to fetch submissions'
+      }
+    }
+  }
+
+  // Check lab completion status based on submissions
+  const checkLabCompletionStatus = (
+    submissions: ISubmission[],
+    labParts: Array<{ partId: string; totalPoints: number }>
+  ): {
+    isFullyCompleted: boolean
+    completedParts: string[]
+    totalPartsCompleted: number
+    totalParts: number
+    allPartsPassedWithFullPoints: boolean
+  } => {
+    // Group submissions by partId and get the latest (highest attempt)
+    const latestSubmissionsByPart: Record<string, ISubmission> = {}
+
+    submissions.forEach(submission => {
+      const partId = submission.partId
+      const existing = latestSubmissionsByPart[partId]
+
+      if (!existing || submission.attempt > existing.attempt) {
+        latestSubmissionsByPart[partId] = submission
+      }
+    })
+
+    // Check which parts are completed with full points
+    const completedParts: string[] = []
+
+    labParts.forEach(part => {
+      const submission = latestSubmissionsByPart[part.partId]
+
+      if (submission &&
+          submission.status === 'completed' &&
+          submission.gradingResult) {
+
+        const earnedPoints = submission.gradingResult.total_points_earned
+        const possiblePoints = submission.gradingResult.total_points_possible
+
+        // Part is completed if student earned full points
+        if (earnedPoints === possiblePoints) {
+          completedParts.push(part.partId)
+        }
+      }
+    })
+
+    const totalParts = labParts.length
+    const totalPartsCompleted = completedParts.length
+    const isFullyCompleted = totalPartsCompleted === totalParts && totalParts > 0
+    const allPartsPassedWithFullPoints = isFullyCompleted
+
+    return {
+      isFullyCompleted,
+      completedParts,
+      totalPartsCompleted,
+      totalParts,
+      allPartsPassedWithFullPoints
+    }
+  }
+
   // Cleanup on unmount
   onUnmounted(() => {
     cleanup()
@@ -410,10 +512,12 @@ export const useSubmissions = () => {
   return {
     // State
     submissions: computed(() => submissions.value),
-    
+
     // Methods
     createSubmission,
     fetchSubmission,
+    fetchStudentSubmissions,
+    checkLabCompletionStatus,
     getSubmissionState,
     getGradingStatus,
     toggleProgressDetails,

@@ -1,18 +1,29 @@
 <template>
   <div class="student-lab-view">
+    <!-- Lab Completion Prompt -->
+    <LabCompletionPrompt
+      :is-open="showCompletionPrompt"
+      :lab-name="labData.name"
+      :completed-parts="completionStatus.totalPartsCompleted"
+      :total-parts="completionStatus.totalParts"
+      @continue="handleContinueAfterCompletion"
+      @restart="handleRestartLab"
+      @close="showCompletionPrompt = false"
+    />
+
     <!-- IP Calculation Loading Screen -->
-    <div v-if="isCalculatingIPs" class="fixed inset-0 z-50 flex items-center justify-center bg-background/95 backdrop-blur-sm">
+    <div v-if="isCalculatingIPs" class="fixed inset-0 z-40 flex items-center justify-center bg-background/95 backdrop-blur-sm">
       <div class="text-center space-y-6 px-4">
         <!-- Animated IP Calculation Text -->
         <div class="relative">
           <h2 class="text-4xl md:text-5xl font-bold text-foreground mb-2 tracking-tight">
             <span class="inline-block relative ip-calc-text">
-              Calculating your IP addresses
+              Gathering your IP addresses
               <span class="absolute inset-0 shine-effect"></span>
             </span>
           </h2>
           <p class="text-lg text-muted-foreground">
-            Generating personalized network configuration...
+            Setting up your personalized network configuration...
           </p>
         </div>
 
@@ -195,11 +206,28 @@
 import { computed, ref, onMounted } from 'vue'
 import { Router, Monitor, HardDrive } from 'lucide-vue-next'
 import { Badge } from '@/components/ui/badge'
-import StudentIpGenerator from '@/utils/studentIpGenerator'
+import LabCompletionPrompt from '@/components/student/LabCompletionPrompt.vue'
+import { useSubmissions } from '@/composables/useSubmissions'
+import type { ISubmission } from '@/types/submission'
 
 // IP Calculation State
 const isCalculatingIPs = ref(true)
-const calculationStatus = ref('Initializing calculation engine...')
+const calculationStatus = ref('Gathering your IP addresses...')
+
+// Submission State
+const showCompletionPrompt = ref(false)
+const studentSubmissions = ref<ISubmission[]>([])
+const completionStatus = ref({
+  isFullyCompleted: false,
+  completedParts: [] as string[],
+  totalPartsCompleted: 0,
+  totalParts: 0,
+  allPartsPassedWithFullPoints: false
+})
+
+// Backend IP Mappings (from POST /v0/labs/:id/start)
+const backendIpMappings = ref<Record<string, string>>({})
+const backendVlanMappings = ref<Record<string, number>>({})
 
 interface Props {
   labData: {
@@ -248,48 +276,39 @@ const props = withDefaults(defineProps<Props>(), {
   showDebugInfo: false
 })
 
-// Initialize student IP generator with current user's student ID
-const studentGenerator = computed(() => {
-  return new StudentIpGenerator({
-    student_id: props.currentUser.studentId,
-    baseNetwork: "192.168.1.0", // This would come from lab configuration
-    subnetMask: 24
-  })
-})
-
-// Generate personalized networks for this student
+// Generate personalized networks for this student (from backend VLAN mappings)
 const personalizedNetworks = computed(() => {
-  const data = studentGenerator.value.generateStudentIpData()
+  // Extract VLAN IDs from backend mappings
+  const vlan1 = backendVlanMappings.value['vlan0'] || 0
+  const vlan2 = backendVlanMappings.value['vlan1'] || 0
+
   return {
-    ipv4_subnet: data.generatedNetworks.ipv4_subnet,
-    ipv6_subnet: data.generatedNetworks.ipv6_subnet,
-    vlan1: data.calculatedValues.vlan1,
-    vlan2: data.calculatedValues.vlan2,
-    router_external_ip: data.commonIpAddresses.router_external_ip,
-    router_external_ipv6: data.commonIpAddresses.router_external_ipv6
+    ipv4_subnet: '172.16.0.0/16', // This could be extracted from backend if needed
+    ipv6_subnet: 'fe80::/64', // This could be extracted from backend if needed
+    vlan1,
+    vlan2,
+    router_external_ip: 'Auto-assigned',
+    router_external_ipv6: 'Auto-assigned'
   }
 })
 
-// Generate personalized device configurations
+// Generate personalized device configurations using backend IP mappings
 const personalizedDevices = computed(() => {
   return props.labData.network.devices.map(device => {
     const resolvedVariables = device.ipVariables.map(variable => {
-      let resolvedIP: string
+      // Create the mapping key: deviceId.variableName
+      const mappingKey = `${device.deviceId}.${variable.name}`
 
-      if (variable.inputType === 'studentGenerated') {
-        // Use student generator to get personalized IP
-        resolvedIP = generatePersonalizedIP(device.deviceType, variable.name)
-      } else if (variable.inputType === 'fullIP') {
-        resolvedIP = variable.fullIP || 'Not configured'
-      } else {
-        resolvedIP = 'Unknown configuration'
-      }
+      // Get IP from backend mappings
+      const resolvedIP = backendIpMappings.value[mappingKey] || 'Loading...'
 
       return {
         name: variable.name,
-        displayName: `${device.deviceId}.${variable.name}`,
+        displayName: mappingKey,
         resolvedIP,
-        type: variable.inputType === 'studentGenerated' ? 'student_generated' : 'static',
+        type: variable.inputType === 'studentGenerated' || variable.inputType?.startsWith('studentVlan') || variable.inputType === 'studentManagement'
+          ? 'student_generated'
+          : 'static',
         description: getVariableDescription(device.deviceType, variable.name)
       }
     })
@@ -367,36 +386,14 @@ const personalizedTasks = computed(() => {
 const debugInfo = computed(() => {
   return {
     studentId: props.currentUser.studentId,
-    generatedNetworks: personalizedNetworks.value,
-    algorithmSteps: studentGenerator.value.generateDebugInfo().algorithmSteps,
-    deviceConfigurations: personalizedDevices.value
+    backendIpMappings: backendIpMappings.value,
+    backendVlanMappings: backendVlanMappings.value,
+    deviceConfigurations: personalizedDevices.value,
+    completionStatus: completionStatus.value
   }
 })
 
 // Helper methods
-function generatePersonalizedIP(deviceType: string, variableName: string): string {
-  const data = studentGenerator.value.generateStudentIpData()
-
-  const ipMap: Record<string, string> = {
-    // Router IPs
-    'loopback0': data.commonIpAddresses.router_external_ip,
-    'gig0_0': data.commonIpAddresses.router_vlan1_ip,
-    'gig0_1': data.commonIpAddresses.router_vlan2_ip,
-    'fa0_0': data.commonIpAddresses.router_vlan1_ip,
-    'fa0_1': data.commonIpAddresses.router_vlan2_ip,
-
-    // Switch IPs
-    'management_ip': data.commonIpAddresses.switch_management_ip,
-    'mgmt': data.commonIpAddresses.switch_management_ip,
-
-    // PC IPs
-    'eth0': deviceType === 'pc' ? data.commonIpAddresses.pc1_ip : data.commonIpAddresses.pc1_ip,
-    'ens2': deviceType === 'pc' ? data.commonIpAddresses.pc1_ip : data.commonIpAddresses.pc1_ip
-  }
-
-  return ipMap[variableName.toLowerCase()] || data.commonIpAddresses.router_vlan1_ip
-}
-
 function getVariableDescription(deviceType: string, variableName: string): string {
   const descriptions: Record<string, string> = {
     'loopback0': 'Router loopback interface',
@@ -423,30 +420,122 @@ function getDeviceIcon(deviceType: string) {
   }
 }
 
-// IP Calculation Simulation
-async function calculateStudentIPs() {
-  const steps = [
-    { message: 'Fetching lab configuration...', duration: 400 },
-    { message: 'Retrieving student information...', duration: 300 },
-    { message: 'Processing management network...', duration: 500 },
-    { message: 'Calculating VLAN assignments...', duration: 600 },
-    { message: 'Generating device IP addresses...', duration: 700 },
-    { message: 'Finalizing IP schema...', duration: 400 }
-  ]
+// Initialize composables
+const { fetchStudentSubmissions, checkLabCompletionStatus } = useSubmissions()
 
-  for (const step of steps) {
-    calculationStatus.value = step.message
-    await new Promise(resolve => setTimeout(resolve, step.duration))
+// Check lab completion status
+async function checkLabCompletion() {
+  try {
+    calculationStatus.value = 'Checking lab status...'
+
+    // Fetch student submissions
+    const result = await fetchStudentSubmissions(
+      props.currentUser.studentId,
+      props.labData.id
+    )
+
+    if (result.success && result.submissions) {
+      studentSubmissions.value = result.submissions
+
+      // Check completion status
+      const labParts = props.labData.parts.map(part => ({
+        partId: part.partId,
+        totalPoints: part.tasks.reduce((sum, task) => sum + task.points, 0)
+      }))
+
+      completionStatus.value = checkLabCompletionStatus(
+        result.submissions,
+        labParts
+      )
+
+      // Show completion prompt if lab is fully completed
+      if (completionStatus.value.isFullyCompleted) {
+        showCompletionPrompt.value = true
+      }
+    }
+  } catch (error) {
+    console.error('❌ [ERROR] Failed to check lab completion:', error)
   }
+}
 
-  // Finish calculation
-  isCalculatingIPs.value = false
+// Handle continue after completion (just view the lab)
+function handleContinueAfterCompletion() {
+  showCompletionPrompt.value = false
+  // Continue loading IPs
+  loadPersonalizedIPs()
+}
+
+// Handle restart lab
+function handleRestartLab() {
+  showCompletionPrompt.value = false
+  // Reset completion status and load IPs
+  completionStatus.value = {
+    isFullyCompleted: false,
+    completedParts: [],
+    totalPartsCompleted: 0,
+    totalParts: 0,
+    allPartsPassedWithFullPoints: false
+  }
+  loadPersonalizedIPs()
+}
+
+// Load personalized IPs from backend
+async function loadPersonalizedIPs() {
+  try {
+    const config = useRuntimeConfig()
+
+    calculationStatus.value = 'Fetching personalized network configuration...'
+
+    const response = await fetch(
+      `${config.public.backendurl}/v0/labs/${props.labData.id}/start`,
+      {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      }
+    )
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+    }
+
+    const result = await response.json()
+
+    if (result.success && result.data) {
+      // Store IP mappings from backend
+      backendIpMappings.value = result.data.networkConfiguration.ipMappings || {}
+      backendVlanMappings.value = result.data.networkConfiguration.vlanMappings || {}
+
+      console.log('✅ [DEBUG] Loaded personalized IPs:', {
+        ipMappings: backendIpMappings.value,
+        vlanMappings: backendVlanMappings.value
+      })
+    }
+
+    // Finish loading
+    calculationStatus.value = 'Finalizing configuration...'
+    await new Promise(resolve => setTimeout(resolve, 500))
+    isCalculatingIPs.value = false
+
+  } catch (error) {
+    console.error('❌ [ERROR] Failed to load personalized IPs:', error)
+    // Fall back to showing the lab anyway
+    isCalculatingIPs.value = false
+  }
 }
 
 // Lifecycle
-onMounted(() => {
-  // Start IP calculation when component mounts
-  calculateStudentIPs()
+onMounted(async () => {
+  // Step 1: Check if lab is completed
+  await checkLabCompletion()
+
+  // Step 2: If not showing completion prompt, load IPs
+  if (!showCompletionPrompt.value) {
+    await loadPersonalizedIPs()
+  }
+  // If showing completion prompt, IPs will be loaded when user makes a choice
 })
 </script>
 

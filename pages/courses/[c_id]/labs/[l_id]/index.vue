@@ -41,6 +41,8 @@ import { useCourseLabs, type Lab, type LabPart, type LabTask, type TaskGroup } f
 import { useCourse } from '@/composables/useCourse'
 import { useSubmissions } from '@/composables/useSubmissions'
 import GradingProgress from '@/components/GradingProgress.vue'
+import LabCompletionPrompt from '@/components/student/LabCompletionPrompt.vue'
+import type { ISubmission } from '@/types/submission'
 
 // Configure marked for safe HTML rendering
 marked.setOptions({
@@ -71,7 +73,9 @@ const {
 const {
   createSubmission,
   getGradingStatus,
-  toggleProgressDetails
+  toggleProgressDetails,
+  fetchStudentSubmissions,
+  checkLabCompletionStatus
 } = useSubmissions()
 
 // State Management
@@ -81,6 +85,21 @@ const completedTasks = ref<Record<string, Set<string>>>(new Map()) // partId -> 
 const isSubmittingPart = ref(false)
 const lastSaved = ref<Date | null>(null)
 const progress = ref<Record<string, number>>({}) // partId -> percentage
+
+// IP Loading and Completion State
+const isLoadingIPs = ref(true)
+const ipLoadingStatus = ref('Gathering your IP addresses...')
+const backendIpMappings = ref<Record<string, string>>({})
+const backendVlanMappings = ref<Record<string, number>>({})
+const showCompletionPrompt = ref(false)
+const studentSubmissions = ref<ISubmission[]>([])
+const completionStatus = ref({
+  isFullyCompleted: false,
+  completedParts: [] as string[],
+  totalPartsCompleted: 0,
+  totalParts: 0,
+  allPartsPassedWithFullPoints: false
+})
 
 // Computed Properties
 const currentPart = computed(() => {
@@ -112,25 +131,21 @@ const totalPointsAvailable = computed(() => {
 
 const courseTitle = computed(() => currentCourse.value?.title || `Course ${courseId.value}`)
 
-// IP Variables and Network Configuration
+// IP Variables and Network Configuration - Using Backend IPs
 const ipVariablesTable = computed(() => {
   if (!currentLab.value?.network?.devices) return []
-  
-  const baseNetwork = currentLab.value.network.topology.baseNetwork
-  const baseOctets = baseNetwork.split('.').slice(0, 3).join('.')
-  
+
   const variables: Array<{ deviceId: string; variableName: string; ipAddress: string }> = []
-  
+
   currentLab.value.network.devices.forEach(device => {
     device.ipVariables.forEach(ipVar => {
-      let ipAddress = ''
-      
-      if (ipVar.fullIp) {
-        ipAddress = ipVar.fullIp
-      } else if (ipVar.hostOffset !== undefined) {
-        ipAddress = `${baseOctets}.${ipVar.hostOffset}`
-      }
-      
+      // Create mapping key: deviceId.variableName
+      const mappingKey = `${device.deviceId}.${ipVar.name}`
+
+      // Get IP from backend mappings, or show loading/placeholder
+      const ipAddress = backendIpMappings.value[mappingKey] ||
+                       (isLoadingIPs.value ? 'Loading...' : 'Not assigned')
+
       variables.push({
         deviceId: device.deviceId,
         variableName: ipVar.name,
@@ -138,7 +153,7 @@ const ipVariablesTable = computed(() => {
       })
     })
   })
-  
+
   return variables
 })
 
@@ -335,12 +350,125 @@ watch(() => currentGradingStatus.value, (newStatus) => {
   }
 })
 
+// Get user state
+const userState = useUserState()
+
+// Check lab completion status
+const checkLabCompletion = async () => {
+  try {
+    // Get student ID from user state
+    const studentId = userState.value?.u_id
+
+    if (!studentId) {
+      console.warn('No student ID available for completion check')
+      return
+    }
+
+    ipLoadingStatus.value = 'Checking lab status...'
+
+    // Fetch student submissions
+    const result = await fetchStudentSubmissions(studentId, labId.value)
+
+    if (result.success && result.submissions) {
+      studentSubmissions.value = result.submissions
+
+      // Check completion status
+      const labParts = currentLabParts.value?.map(part => ({
+        partId: part.partId,
+        totalPoints: part.totalPoints || 0
+      })) || []
+
+      completionStatus.value = checkLabCompletionStatus(
+        result.submissions,
+        labParts
+      )
+
+      // Show completion prompt if lab is fully completed
+      if (completionStatus.value.isFullyCompleted) {
+        showCompletionPrompt.value = true
+      }
+    }
+  } catch (error) {
+    console.error('❌ [ERROR] Failed to check lab completion:', error)
+  }
+}
+
+// Load personalized IPs from backend
+const loadPersonalizedIPs = async () => {
+  try {
+    const config = useRuntimeConfig()
+
+    ipLoadingStatus.value = 'Fetching your personalized network configuration...'
+
+    const response = await fetch(
+      `${config.public.backendurl}/v0/labs/${labId.value}/start`,
+      {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      }
+    )
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+    }
+
+    const result = await response.json()
+
+    if (result.success && result.data) {
+      // Store IP mappings from backend
+      backendIpMappings.value = result.data.networkConfiguration.ipMappings || {}
+      backendVlanMappings.value = result.data.networkConfiguration.vlanMappings || {}
+
+      console.log('✅ [DEBUG] Loaded personalized IPs:', {
+        ipMappings: backendIpMappings.value,
+        vlanMappings: backendVlanMappings.value
+      })
+    }
+
+    // Finish loading
+    ipLoadingStatus.value = 'Finalizing configuration...'
+    await new Promise(resolve => setTimeout(resolve, 500))
+    isLoadingIPs.value = false
+
+  } catch (error) {
+    console.error('❌ [ERROR] Failed to load personalized IPs:', error)
+    // Fall back to showing the lab anyway
+    isLoadingIPs.value = false
+  }
+}
+
+// Handle continue after completion (just view the lab)
+const handleContinueAfterCompletion = () => {
+  showCompletionPrompt.value = false
+  // IPs should already be loaded or loading
+}
+
+// Handle restart lab
+const handleRestartLab = () => {
+  showCompletionPrompt.value = false
+  // Reset completion status
+  completionStatus.value = {
+    isFullyCompleted: false,
+    completedParts: [],
+    totalPartsCompleted: 0,
+    totalParts: 0,
+    allPartsPassedWithFullPoints: false
+  }
+  // Reload IPs if needed
+  if (Object.keys(backendIpMappings.value).length === 0) {
+    loadPersonalizedIPs()
+  }
+}
+
 // Data Loading
 const loadLabData = async () => {
   console.log('🚀 [DEBUG] loadLabData started')
   console.log('🚀 [DEBUG] courseId:', courseId.value)
   console.log('🚀 [DEBUG] labId:', labId.value)
-  
+
   try {
     // Load course and lab data in parallel
     console.log('🚀 [DEBUG] Loading course and lab data...')
@@ -348,20 +476,31 @@ const loadLabData = async () => {
       fetchCourse(courseId.value),
       fetchLabById(labId.value),
     ])
-    
+
     console.log('🚀 [DEBUG] Course and lab data loaded')
     console.log('🚀 [DEBUG] currentLab.value:', currentLab.value)
-    
+
     // Then load parts data
     if (currentLab.value) {
       console.log('🚀 [DEBUG] Lab found, fetching parts with labId:', labId.value)
       const parts = await fetchLabParts(labId.value) // Use labId directly as specified in API
       console.log('🚀 [DEBUG] Parts fetched:', parts)
+
+      // After loading lab data, check completion and load IPs
+      await checkLabCompletion()
+
+      // If not showing completion prompt, load IPs immediately
+      if (!showCompletionPrompt.value) {
+        await loadPersonalizedIPs()
+      }
+      // If showing completion prompt, IPs will be loaded when user makes a choice
     } else {
       console.log('🚀 [DEBUG] No currentLab found, skipping parts fetch')
+      isLoadingIPs.value = false
     }
   } catch (err) {
     console.error('🚀 [DEBUG] Failed to load lab data:', err)
+    isLoadingIPs.value = false
   }
 }
 
@@ -384,6 +523,42 @@ watch(() => route.query.part, (newPart) => {
 
 <template>
   <div class="min-h-screen bg-background">
+    <!-- Lab Completion Prompt -->
+    <LabCompletionPrompt
+      :is-open="showCompletionPrompt"
+      :lab-name="currentLab?.title || 'Lab'"
+      :completed-parts="completionStatus.totalPartsCompleted"
+      :total-parts="completionStatus.totalParts"
+      @continue="handleContinueAfterCompletion(); loadPersonalizedIPs()"
+      @restart="handleRestartLab()"
+      @close="showCompletionPrompt = false"
+    />
+
+    <!-- IP Loading Overlay -->
+    <div v-if="isLoadingIPs && !isLoading && !isLoadingParts && currentLab" class="fixed inset-0 z-40 flex items-center justify-center bg-background/95 backdrop-blur-sm">
+      <div class="text-center space-y-6 px-4">
+        <!-- Animated IP Loading Text -->
+        <div class="relative">
+          <h2 class="text-4xl md:text-5xl font-bold text-foreground mb-2 tracking-tight">
+            <span class="inline-block relative ip-loading-text">
+              {{ ipLoadingStatus }}
+              <span class="absolute inset-0 shine-effect"></span>
+            </span>
+          </h2>
+          <p class="text-lg text-muted-foreground">
+            Setting up your personalized network configuration...
+          </p>
+        </div>
+
+        <!-- Loading Animation -->
+        <div class="flex justify-center space-x-2 mt-8">
+          <div class="w-3 h-3 bg-primary rounded-full animate-bounce" style="animation-delay: 0ms"></div>
+          <div class="w-3 h-3 bg-primary rounded-full animate-bounce" style="animation-delay: 150ms"></div>
+          <div class="w-3 h-3 bg-primary rounded-full animate-bounce" style="animation-delay: 300ms"></div>
+        </div>
+      </div>
+    </div>
+
     <!-- Navigation Breadcrumb -->
     <div class="border-b bg-background/95 backdrop-blur-sm p-4 sticky top-0 z-50 shadow-sm">
       <Breadcrumb>
@@ -909,5 +1084,47 @@ watch(() => route.query.part, (newPart) => {
   border-radius: 0.5rem;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
   margin: 1rem 0;
+}
+
+/* IP Loading Animation */
+.ip-loading-text {
+  position: relative;
+  display: inline-block;
+  background: linear-gradient(
+    90deg,
+    var(--foreground) 0%,
+    var(--foreground) 40%,
+    var(--primary) 50%,
+    var(--foreground) 60%,
+    var(--foreground) 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shine 3s linear infinite;
+}
+
+@keyframes shine {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* Shine effect overlay */
+.shine-effect {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    transparent 40%,
+    rgba(255, 255, 255, 0.3) 50%,
+    transparent 60%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: shine 3s linear infinite;
 }
 </style>
