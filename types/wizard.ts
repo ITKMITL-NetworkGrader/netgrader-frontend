@@ -140,6 +140,13 @@ export interface DeviceTemplate {
   };
 }
 
+// Exempt IP Range Structure
+export interface IpRange {
+  start: string;      // Starting IP (e.g., "10.0.0.1")
+  end?: string;       // Ending IP (optional, for ranges like "10.0.0.1-10.0.0.10")
+  original: string;   // Original input text for display
+}
+
 // Wizard Form Data Structure
 export interface LabWizardData {
   // Step 1: Basic Lab Information
@@ -148,7 +155,7 @@ export interface LabWizardData {
     description: string;
     instructions: string;
   };
-  
+
   // Step 2: Network Configuration
   networkConfig: {
     managementNetwork: string;
@@ -165,6 +172,7 @@ export interface LabWizardData {
       groupModifier?: number;
       isStudentGenerated: boolean;
     }>;
+    exemptIpRanges: IpRange[];  // IPs to exclude from Management IP assignment
   };
   
   // Step 3: Device Configuration

@@ -49,6 +49,114 @@
       </div>
 
 
+      <!-- Exempt IP Ranges -->
+      <div class="space-y-2">
+        <Label for="exempt-ip-ranges" class="text-sm font-medium">
+          Exempt IP Ranges <span class="text-muted-foreground">(Optional)</span>
+        </Label>
+        <div class="space-y-3">
+          <!-- Tags Display Area -->
+          <div
+            class="min-h-[80px] p-3 border-2 rounded-md bg-background"
+            :class="{
+              'border-destructive': exemptRangesError,
+              'border-muted': !exemptRangesError
+            }"
+          >
+            <!-- Existing Tags -->
+            <div v-if="localData.exemptIpRanges && localData.exemptIpRanges.length > 0" class="flex flex-wrap gap-2 mb-2">
+              <div
+                v-for="(range, index) in localData.exemptIpRanges"
+                :key="index"
+                class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm border-2 transition-all"
+                :class="{
+                  'bg-green-50 border-green-300 text-green-800': !getRangeWarning(range),
+                  'bg-yellow-50 border-yellow-300 text-yellow-800': getRangeWarning(range)
+                }"
+              >
+                <span class="font-mono">{{ formatRangeDisplay(range) }}</span>
+                <button
+                  @click="removeExemptRange(index)"
+                  type="button"
+                  class="ml-1 hover:bg-black/10 rounded-full p-0.5 transition-colors"
+                >
+                  <X class="w-3 h-3" />
+                </button>
+              </div>
+            </div>
+
+            <!-- Input Field -->
+            <div class="relative">
+              <Input
+                id="exempt-ip-ranges"
+                v-model="exemptRangeInput"
+                placeholder="Type IP or range (e.g., 10.0.0.1 or 10.0.0.1 - 10.0.0.10) and press Enter..."
+                class="text-sm"
+                @keydown.enter.prevent="addExemptRange"
+                @blur="validateExemptRanges"
+              />
+            </div>
+          </div>
+
+          <!-- Error Message -->
+          <p v-if="exemptRangesError" class="text-sm text-destructive flex items-start gap-1">
+            <AlertCircle class="w-4 h-4 mt-0.5 flex-shrink-0" />
+            <span>{{ exemptRangesError }}</span>
+          </p>
+
+          <!-- Examples & Help -->
+          <div class="flex items-start space-x-2 text-xs text-muted-foreground bg-accent/30 p-3 rounded border">
+            <Info class="w-4 h-4 mt-0.5 flex-shrink-0" />
+            <div class="space-y-1">
+              <p class="font-medium">IPs to exclude from Management IP assignment:</p>
+              <ul class="list-disc list-inside space-y-0.5 ml-1">
+                <li>Single IP: <code class="bg-muted px-1 py-0.5 rounded">10.0.0.1</code></li>
+                <li>IP Range: <code class="bg-muted px-1 py-0.5 rounded">10.0.0.1 - 10.0.0.10</code></li>
+                <li>Type each IP/range and press <kbd class="px-1.5 py-0.5 bg-muted rounded border">Enter</kbd></li>
+                <li>Overlapping ranges will be automatically merged</li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- Summary -->
+          <div
+            v-if="localData.exemptIpRanges && localData.exemptIpRanges.length > 0"
+            class="flex items-center justify-between p-3 bg-primary/5 rounded border border-primary/20"
+          >
+            <div class="flex items-center gap-2 text-sm">
+              <CheckCircle2 class="w-4 h-4 text-primary" />
+              <span class="font-medium">
+                {{ countTotalIps(localData.exemptIpRanges) }} IP{{ countTotalIps(localData.exemptIpRanges) !== 1 ? 's' : '' }} excluded
+              </span>
+              <span class="text-muted-foreground">
+                ({{ localData.exemptIpRanges.length }} range{{ localData.exemptIpRanges.length !== 1 ? 's' : '' }}, max 20)
+              </span>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              @click="clearAllExemptRanges"
+              class="text-xs h-7"
+            >
+              Clear All
+            </Button>
+          </div>
+
+          <!-- Warnings -->
+          <div v-if="exemptRangesWarnings.length > 0" class="space-y-2">
+            <Alert variant="default" class="border-yellow-300 bg-yellow-50">
+              <AlertTriangle class="h-4 w-4 text-yellow-600" />
+              <AlertTitle class="text-yellow-800">Warnings</AlertTitle>
+              <AlertDescription class="text-yellow-700">
+                <ul class="list-disc list-inside space-y-1 text-sm">
+                  <li v-for="(warning, index) in exemptRangesWarnings" :key="index">{{ warning }}</li>
+                </ul>
+              </AlertDescription>
+            </Alert>
+          </div>
+        </div>
+      </div>
+
       <!-- VLAN Mode Selection -->
       <div class="space-y-2">
         <Label class="text-sm font-medium">
@@ -343,8 +451,20 @@ import {
   Eye,
   Router,
   Users,
-  Calculator
+  Calculator,
+  X
 } from 'lucide-vue-next'
+
+// Import IP range utilities
+import {
+  parseIpInput,
+  validateRangeInNetwork,
+  autoMergeRanges,
+  countTotalIps,
+  countIpsInRange,
+  formatRangeDisplay as formatRangeDisplayUtil,
+  validateExemptRanges as validateExemptRangesUtil
+} from '@/utils/ipRangeUtils'
 
 // UI Components
 import { Input } from '@/components/ui/input'
@@ -355,7 +475,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 
 // Types
-import type { ValidationResult } from '@/types/wizard'
+import type { ValidationResult, IpRange } from '@/types/wizard'
 
 // VLAN Configuration Types
 interface VlanConfig {
@@ -375,6 +495,7 @@ interface NetworkConfig {
   allocationStrategy: 'student_id_based' | 'group_based'
   vlanCount: number
   vlans: VlanConfig[]
+  exemptIpRanges: IpRange[]
 }
 
 // Props
@@ -400,10 +521,16 @@ const localData = ref<NetworkConfig>({
   mode: props.modelValue.mode || '',
   allocationStrategy: props.modelValue.allocationStrategy || 'group_based',
   vlanCount: props.modelValue.vlanCount || 1,
-  vlans: props.modelValue.vlans || []
+  vlans: props.modelValue.vlans || [],
+  exemptIpRanges: props.modelValue.exemptIpRanges || []
 })
 const fieldErrors = ref<Record<string, string>>({})
 const isUpdatingFromProps = ref(false)
+
+// Exempt IP Ranges state
+const exemptRangeInput = ref('')
+const exemptRangesError = ref('')
+const exemptRangesWarnings = ref<string[]>([])
 
 // Constants
 const subnetMaskOptions = Array.from({ length: 23 }, (_, i) => 8 + i) // 8-30
@@ -702,6 +829,95 @@ const validateStep = () => {
   if (!isUpdatingFromProps.value) {
     emitValidation()
   }
+}
+
+// Exempt IP Ranges Methods
+const addExemptRange = () => {
+  const input = exemptRangeInput.value.trim()
+
+  if (!input) {
+    return
+  }
+
+  // Parse the input
+  const { range, error } = parseIpInput(input)
+
+  if (error || !range) {
+    exemptRangesError.value = error || 'Invalid IP range format'
+    return
+  }
+
+  // Validate against management network
+  const validation = validateRangeInNetwork(
+    range,
+    localData.value.managementNetwork,
+    localData.value.managementSubnetMask
+  )
+
+  if (!validation.isValid) {
+    exemptRangesError.value = validation.error || 'IP range validation failed'
+    return
+  }
+
+  // Check max ranges limit (20)
+  if (localData.value.exemptIpRanges.length >= 20) {
+    exemptRangesError.value = 'Maximum 20 exempt ranges allowed'
+    return
+  }
+
+  // Add to ranges and auto-merge
+  const updatedRanges = [...localData.value.exemptIpRanges, range]
+  localData.value.exemptIpRanges = autoMergeRanges(updatedRanges)
+
+  // Clear input and errors
+  exemptRangeInput.value = ''
+  exemptRangesError.value = ''
+
+  // Validate all ranges
+  validateExemptRanges()
+}
+
+const removeExemptRange = (index: number) => {
+  localData.value.exemptIpRanges.splice(index, 1)
+  validateExemptRanges()
+}
+
+const clearAllExemptRanges = () => {
+  localData.value.exemptIpRanges = []
+  exemptRangesError.value = ''
+  exemptRangesWarnings.value = []
+}
+
+const validateExemptRanges = () => {
+  if (localData.value.exemptIpRanges.length === 0) {
+    exemptRangesError.value = ''
+    exemptRangesWarnings.value = []
+    return
+  }
+
+  const validation = validateExemptRangesUtil(
+    localData.value.exemptIpRanges,
+    localData.value.managementNetwork,
+    localData.value.managementSubnetMask,
+    20 // max ranges
+  )
+
+  if (!validation.isValid) {
+    exemptRangesError.value = validation.errors[0] || 'Validation failed'
+  } else {
+    exemptRangesError.value = ''
+  }
+
+  exemptRangesWarnings.value = validation.warnings
+}
+
+const getRangeWarning = (range: IpRange): boolean => {
+  // Show warning for large ranges (>100 IPs)
+  return countIpsInRange(range) > 100
+}
+
+const formatRangeDisplay = (range: IpRange): string => {
+  return formatRangeDisplayUtil(range)
 }
 
 // Watchers

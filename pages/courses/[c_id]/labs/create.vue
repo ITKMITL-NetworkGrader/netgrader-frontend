@@ -338,7 +338,8 @@ const wizardData = reactive<LabWizardData>({
   networkConfig: {
     baseNetwork: '192.168.1.0',
     subnetMask: 24,
-    allocationStrategy: 'group_based' as 'student_id_based' | 'group_based'
+    allocationStrategy: 'group_based' as 'student_id_based' | 'group_based',
+    exemptIpRanges: []
   },
   devices: [],
   parts: [],
@@ -493,7 +494,12 @@ const handleCreateLab = async () => {
           // 🆕 CHANGED: Use managementNetwork instead of baseNetwork
           baseNetwork: wizardData.networkConfig.managementNetwork,
           subnetMask: wizardData.networkConfig.managementSubnetMask,
-          allocationStrategy: wizardData.networkConfig.allocationStrategy || 'group_based'
+          allocationStrategy: wizardData.networkConfig.allocationStrategy || 'group_based',
+          // 🆕 ADDED: Exempt IP Ranges for Management IP assignment exclusion
+          exemptIpRanges: (wizardData.networkConfig.exemptIpRanges || []).map(range => ({
+            start: range.start,
+            ...(range.end ? { end: range.end } : {})
+          }))
         },
         // 🆕 ADDED: VLAN configuration data
         vlanConfiguration: {
