@@ -6,6 +6,7 @@
       "dependencies": {
         "@fontsource-variable/roboto-mono": "^5.2.6",
         "@fontsource/bai-jamjuree": "^5.2.6",
+        "@fontsource/geist-mono": "^5.2.7",
         "@nuxt/eslint": "1.4.1",
         "@nuxt/fonts": "^0.11.4",
         "@nuxt/icon": "1.15.0",
@@ -238,6 +239,8 @@
     "@fontsource-variable/roboto-mono": ["@fontsource-variable/roboto-mono@5.2.6", "", {}, "sha512-U9iAWyACe0BkE8CpzBvvQnGSoFKXwuVmwC2zT3u66xe5EXfGsWmKtem+4xQHgvXazC6wq/m3hPJ5jjqgIkkTUQ=="],
 
     "@fontsource/bai-jamjuree": ["@fontsource/bai-jamjuree@5.2.6", "", {}, "sha512-ap5QhHpmtaPqHnFFIxpk0MUxwBoVY0s5LNVeMPzS76ZPIhpI22EtFOYlThWL/w6mvhhRijBIlKUmzoAA1cSFgQ=="],
+
+    "@fontsource/geist-mono": ["@fontsource/geist-mono@5.2.7", "", {}, "sha512-xVPVFISJg/K0VVd+aQN0Y7X/sw9hUcJPyDWFJ5GpyU3bHELhoRsJkPSRSHXW32mOi0xZCUQDOaPj1sqIFJ1FGg=="],
 
     "@humanfs/core": ["@humanfs/core@0.19.1", "", {}, "sha512-5DyQ4+1JEUzejeK1JGICcideyfUbGixgS9jNgex5nqkW+cY7WZhxBigmieN5Qnw9ZosSNVC9KQKyb+GUaGyKUA=="],
 

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import '@fontsource/bai-jamjuree';
-import '@fontsource-variable/roboto-mono';
+import '@fontsource/geist-mono';
 import { SonnerToaster as Toaster } from '@/components/ui/sonner'
 import 'vue-sonner/style.css'
 
@@ -57,15 +57,5 @@ useSeoMeta({
     />
 </template>
 <style>
-body, html {
-    font-family: 'Bai Jamjuree', sans-serif;
-}
-
-.font-bai-jamjuree {
-    font-family: 'Bai Jamjuree', sans-serif;
-}
-.font-roboto-mono {
-    font-family: 'Roboto Mono Variable', 'Roboto Mono', monospace;
-}
-
+/* Fonts are now handled by CSS variables in tailwind.css */
 </style>
