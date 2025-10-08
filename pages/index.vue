@@ -13,9 +13,9 @@ const primaryColor = computed(() => {
     const colorValue = styles.getPropertyValue('--color-primary').trim();
     // Convert OKLCH to RGB (approximate conversion for the globe)
     // Default to a blue-ish color based on the primary theme
-    return [0.4, 0.5, 0.8]; // RGB values for globe
+    return [1, 1, 1]; // RGB values for globe
   }
-  return [0.4, 0.5, 0.8];
+  return [1, 1, 1];
 })
 
 const globeConfig = computed(() => ({

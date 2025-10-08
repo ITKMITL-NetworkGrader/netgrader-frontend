@@ -296,7 +296,7 @@ onMounted(() => {
 
       <!-- My Courses Card -->
       <div class="grid gap-6 mb-8">
-        <Card class="bg-gradient-to-r from-blue-500 to-indigo-500 border-blue-800">
+        <Card class="bg-gradient-to-r from-popover to-white  border-primary-800">
           <CardHeader>
             <div class="flex items-center justify-between">
               <div>
@@ -320,7 +320,7 @@ onMounted(() => {
               <!-- Create Course Button -->
               <Dialog v-model:open="isCreateModalOpen">
                 <DialogTrigger as-child>
-                  <Button class="bg-blue-600 hover:bg-blue-700">
+                  <Button class="bg-primary">
                     <Plus class="h-4 w-4 mr-2" />
                     Create New Course
                   </Button>
