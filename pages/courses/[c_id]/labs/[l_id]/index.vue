@@ -23,7 +23,6 @@ import {
   FileText,
   Server,
   TestTube,
-  Save,
   RotateCcw,
   Info
 } from 'lucide-vue-next'
@@ -83,7 +82,6 @@ const currentPartIndex = ref(0)
 const completedParts = ref<Set<string>>(new Set())
 const completedTasks = ref<Record<string, Set<string>>>(new Map()) // partId -> Set of taskIds
 const isSubmittingPart = ref(false)
-const lastSaved = ref<Date | null>(null)
 const progress = ref<Record<string, number>>({}) // partId -> percentage
 
 // IP Loading and Completion State
@@ -260,7 +258,6 @@ const renderMarkdown = (markdown: string | any): string => {
 // Navigation Methods
 const selectPart = (index: number) => {
   if (!canAccessPart(index)) return
-  saveProgress()
   currentPartIndex.value = index
 }
 
@@ -268,7 +265,6 @@ const goToPreviousPart = () => {
   if (currentPartIndex.value > 0) {
     const prevIndex = currentPartIndex.value - 1
     if (canAccessPart(prevIndex)) {
-      saveProgress()
       currentPartIndex.value = prevIndex
     }
   }
@@ -278,35 +274,18 @@ const goToNextPart = () => {
   if (currentPartIndex.value < totalParts.value - 1) {
     const nextIndex = currentPartIndex.value + 1
     if (canAccessPart(nextIndex)) {
-      saveProgress()
       currentPartIndex.value = nextIndex
     }
   }
 }
 
-// Progress Management
-const saveProgress = () => {
-  // In a real implementation, this would save to backend
-  lastSaved.value = new Date()
-  console.log('Progress saved')
-}
-
-const autoSaveProgress = () => {
-  // Auto-save every 30 seconds
-  setInterval(() => {
-    if (currentPart.value) {
-      saveProgress()
-    }
-  }, 30000)
-}
-
 // Grading Submission
 const submitPartForGrading = async () => {
   if (!currentPart.value) return
-  
+
   try {
     const result = await createSubmission(labId.value, currentPart.value.partId)
-    
+
     if (result.success) {
       console.log('✅ Submission created successfully:', result.jobId)
     } else {
@@ -341,9 +320,6 @@ watch(() => currentGradingStatus.value, (newStatus) => {
       currentPart.value.tasks?.forEach(task => {
         completedTasks.value[partId].add(task.taskId)
       })
-      
-      // Save progress
-      saveProgress()
       
       console.log('✅ Part completed and marked as done:', currentPart.value.partId)
     }
@@ -507,7 +483,6 @@ const loadLabData = async () => {
 // Lifecycle
 onMounted(async () => {
   await loadLabData()
-  autoSaveProgress()
 })
 
 // Watch for URL changes to update current part
@@ -654,12 +629,6 @@ watch(() => route.query.part, (newPart) => {
               <span class="text-muted-foreground">{{ overallProgress }}% complete</span>
               <span class="font-medium text-primary">{{ totalPointsEarned }}/{{ totalPointsAvailable }} pts</span>
             </div>
-          </div>
-
-          <!-- Last Saved Indicator -->
-          <div v-if="lastSaved" class="mt-4 flex items-center space-x-2 text-xs text-muted-foreground">
-            <Save class="w-3 h-3" />
-            <span>Last saved: {{ lastSaved.toLocaleTimeString() }}</span>
           </div>
         </div>
 
@@ -885,16 +854,6 @@ watch(() => route.query.part, (newPart) => {
                 </p>
               </div>
               <div class="flex items-center space-x-3">
-                <Button 
-                  variant="outline" 
-                  size="lg"
-                  @click="saveProgress"
-                  class="shadow-sm"
-                >
-                  <Save class="w-4 h-4 mr-2" />
-                  Save Progress
-                </Button>
-                
                 <!-- Grading Progress Component -->
                 <GradingProgress
                   :status="currentGradingStatus.status"

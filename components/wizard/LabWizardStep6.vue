@@ -58,24 +58,88 @@
             Network Configuration
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <CardContent class="space-y-4">
+          <!-- Management Network -->
+          <div class="space-y-2">
+            <Label class="text-sm font-medium text-muted-foreground">Management Network</Label>
+            <div class="p-3 bg-muted/30 rounded border font-mono">
+              {{ wizardData.networkConfig.managementNetwork }}/{{ wizardData.networkConfig.managementSubnetMask }}
+            </div>
+          </div>
+
+          <!-- Network Mode & Strategy -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div class="space-y-2">
-              <Label class="text-sm font-medium text-muted-foreground">Base Network</Label>
-              <div class="p-3 bg-muted/30 rounded border font-mono">
-                {{ wizardData.networkConfig.baseNetwork }}/{{ wizardData.networkConfig.subnetMask }}
+              <Label class="text-sm font-medium text-muted-foreground">VLAN Mode</Label>
+              <div class="p-3 bg-muted/30 rounded border">
+                {{ formatNetworkMode(wizardData.networkConfig.mode) }}
               </div>
             </div>
             <div class="space-y-2">
-              <Label class="text-sm font-medium text-muted-foreground">Available Hosts</Label>
-              <div class="p-3 bg-muted/30 rounded border font-mono">
-                {{ availableHosts }}
+              <Label class="text-sm font-medium text-muted-foreground">Allocation Strategy</Label>
+              <div class="p-3 bg-muted/30 rounded border">
+                {{ formatAllocationStrategy(wizardData.networkConfig.allocationStrategy) }}
               </div>
             </div>
+          </div>
+
+          <!-- VLANs Configuration -->
+          <div v-if="wizardData.networkConfig.vlans.length > 0" class="space-y-2">
+            <Label class="text-sm font-medium text-muted-foreground">
+              VLANs Configuration ({{ wizardData.networkConfig.vlans.length }} VLAN{{ wizardData.networkConfig.vlans.length !== 1 ? 's' : '' }})
+            </Label>
             <div class="space-y-2">
-              <Label class="text-sm font-medium text-muted-foreground">Devices Count</Label>
-              <div class="p-3 bg-muted/30 rounded border font-mono">
-                {{ wizardData.devices.length }}
+              <div
+                v-for="(vlan, index) in wizardData.networkConfig.vlans"
+                :key="index"
+                class="p-3 bg-muted/20 rounded border"
+              >
+                <div class="flex items-center justify-between mb-2">
+                  <div class="font-medium">VLAN {{ index }}</div>
+                  <Badge v-if="vlan.isStudentGenerated" variant="secondary" class="text-xs">
+                    Student-Generated
+                  </Badge>
+                  <Badge v-else variant="outline" class="text-xs">
+                    Fixed
+                  </Badge>
+                </div>
+                <div class="grid grid-cols-2 gap-2 text-sm">
+                  <div>
+                    <span class="text-muted-foreground">Network:</span>
+                    <span class="ml-2 font-mono">{{ vlan.baseNetwork }}/{{ vlan.subnetMask }}</span>
+                  </div>
+                  <div v-if="vlan.vlanId !== undefined">
+                    <span class="text-muted-foreground">VLAN ID:</span>
+                    <span class="ml-2 font-mono">{{ vlan.vlanId }}</span>
+                  </div>
+                  <div v-if="vlan.calculationMultiplier !== undefined">
+                    <span class="text-muted-foreground">Multiplier:</span>
+                    <span class="ml-2 font-mono">{{ vlan.calculationMultiplier }}</span>
+                  </div>
+                  <div v-if="vlan.groupModifier !== undefined">
+                    <span class="text-muted-foreground">Group Modifier:</span>
+                    <span class="ml-2 font-mono">{{ vlan.groupModifier }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Exempt IP Ranges -->
+          <div v-if="wizardData.networkConfig.exemptIpRanges && wizardData.networkConfig.exemptIpRanges.length > 0" class="space-y-2">
+            <Label class="text-sm font-medium text-muted-foreground">
+              Exempt IP Ranges ({{ wizardData.networkConfig.exemptIpRanges.length }})
+            </Label>
+            <div class="p-3 bg-muted/20 rounded border">
+              <div class="flex flex-wrap gap-2">
+                <Badge
+                  v-for="(range, index) in wizardData.networkConfig.exemptIpRanges"
+                  :key="index"
+                  variant="outline"
+                  class="font-mono text-xs"
+                >
+                  {{ range.original }}
+                </Badge>
               </div>
             </div>
           </div>
@@ -99,20 +163,52 @@
             >
               <div class="flex items-center justify-between mb-2">
                 <div class="font-medium">{{ device.deviceId }}</div>
-                <Badge variant="outline">{{ device.ipVariables.length }} IP variables</Badge>
+                <Badge variant="outline">{{ device.ipVariables.length }} IP variable{{ device.ipVariables.length !== 1 ? 's' : '' }}</Badge>
               </div>
-              <div class="text-sm text-muted-foreground">
+              <div class="text-sm text-muted-foreground mb-3">
                 Template: {{ getDeviceTemplateName(device.templateId) }}
               </div>
-              <div class="flex flex-wrap gap-2 mt-2">
-                <Badge
-                  v-for="ipVar in device.ipVariables"
-                  :key="ipVar.name"
-                  variant="secondary"
-                  class="text-xs"
-                >
-                  {{ ipVar.name }}: {{ calculateIP(ipVar.hostOffset) }}
-                </Badge>
+
+              <!-- IP Variables Table -->
+              <div v-if="device.ipVariables.length > 0" class="mt-3 border rounded">
+                <table class="w-full text-xs">
+                  <thead class="bg-muted/30">
+                    <tr>
+                      <th class="text-left p-2 font-medium">Variable</th>
+                      <th class="text-left p-2 font-medium">Interface</th>
+                      <th class="text-left p-2 font-medium">Type</th>
+                      <th class="text-left p-2 font-medium">IP/Config</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr
+                      v-for="ipVar in device.ipVariables"
+                      :key="ipVar.name"
+                      class="border-t"
+                    >
+                      <td class="p-2 font-mono">{{ ipVar.name }}</td>
+                      <td class="p-2 font-mono text-muted-foreground">
+                        {{ ipVar.interface || '-' }}
+                      </td>
+                      <td class="p-2">
+                        <Badge variant="secondary" class="text-xs">
+                          {{ formatInputType(ipVar.inputType) }}
+                        </Badge>
+                      </td>
+                      <td class="p-2 font-mono">
+                        {{ formatIPConfig(ipVar) }}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- Connection Parameters -->
+              <div v-if="device.connectionParams" class="mt-3 pt-3 border-t text-xs text-muted-foreground">
+                <div class="flex items-center gap-4">
+                  <span>SSH Port: <span class="font-mono">{{ device.connectionParams.sshPort }}</span></span>
+                  <span>Username: <span class="font-mono">{{ device.connectionParams.username }}</span></span>
+                </div>
               </div>
             </div>
           </div>
@@ -346,10 +442,6 @@ const emit = defineEmits<Emits>()
 const expandedParts = ref(new Set<number>())
 
 // Computed
-const availableHosts = computed(() => {
-  return Math.pow(2, 32 - props.wizardData.networkConfig.subnetMask) - 2
-})
-
 const totalTasks = computed(() => {
   return props.wizardData.parts.reduce((sum, part) => sum + part.tasks.length, 0)
 })
@@ -361,7 +453,7 @@ const totalPoints = computed(() => {
 // Methods
 const renderMarkdown = (content: string): string => {
   if (!content) return '<p class="text-muted-foreground">No content provided</p>'
-  
+
   try {
     return marked(content, {
       breaks: true,
@@ -383,29 +475,47 @@ const formatDateTime = (date: Date): string => {
   })
 }
 
-const calculateIP = (hostOffset: number): string => {
-  if (!props.wizardData.networkConfig.baseNetwork || !hostOffset) return 'Invalid'
-  
-  try {
-    const baseParts = props.wizardData.networkConfig.baseNetwork.split('.').map(Number)
-    const totalOffset = hostOffset
-    
-    // Add offset to the base IP
-    let carry = totalOffset
-    for (let i = 3; i >= 0 && carry > 0; i--) {
-      baseParts[i] += carry % 256
-      if (baseParts[i] > 255) {
-        carry = Math.floor(baseParts[i] / 256)
-        baseParts[i] = baseParts[i] % 256
-      } else {
-        carry = 0
-      }
-    }
-    
-    return baseParts.join('.')
-  } catch {
-    return 'Invalid'
+const formatNetworkMode = (mode: string): string => {
+  const modeMap: Record<string, string> = {
+    'fixed_vlan': 'Fixed VLAN',
+    'lecturer_group': 'Lecturer Group-Based',
+    'calculated_vlan': 'Calculated VLAN',
+    '': 'Not Set'
   }
+  return modeMap[mode] || mode
+}
+
+const formatAllocationStrategy = (strategy: string): string => {
+  const strategyMap: Record<string, string> = {
+    'student_id_based': 'Student ID Based',
+    'group_based': 'Group Based'
+  }
+  return strategyMap[strategy] || strategy
+}
+
+const formatInputType = (inputType: string): string => {
+  if (inputType === 'fullIP') return 'Full IP'
+  if (inputType === 'studentManagement') return 'Management IP'
+  if (inputType?.startsWith('studentVlan')) {
+    const vlanNum = inputType.replace('studentVlan', '')
+    return `VLAN ${vlanNum}`
+  }
+  return inputType || 'Unknown'
+}
+
+const formatIPConfig = (ipVar: any): string => {
+  if (ipVar.inputType === 'fullIP') {
+    return ipVar.fullIP || 'Not Set'
+  }
+  if (ipVar.inputType === 'studentManagement') {
+    return 'Auto-generated (Management)'
+  }
+  if (ipVar.inputType?.startsWith('studentVlan')) {
+    const vlanNum = ipVar.inputType.replace('studentVlan', '')
+    const offset = ipVar.interfaceOffset !== undefined ? ` + Offset ${ipVar.interfaceOffset}` : ''
+    return `Auto-generated (VLAN ${vlanNum}${offset})`
+  }
+  return 'Unknown Configuration'
 }
 
 const getDeviceTemplateName = (templateId: string): string => {
@@ -468,5 +578,27 @@ const handleCreateLab = () => {
   padding: 0.125rem 0.25rem;
   border-radius: 0.25rem;
   font-size: 0.875rem;
+}
+
+/* Table styles */
+table {
+  border-collapse: collapse;
+}
+
+table th {
+  background-color: hsl(var(--muted) / 0.3);
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+table td {
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+table tr:last-child td {
+  border-bottom: none;
+}
+
+table tr:hover {
+  background-color: hsl(var(--muted) / 0.1);
 }
 </style>
