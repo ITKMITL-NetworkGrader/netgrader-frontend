@@ -21,39 +21,36 @@
           <div class="flex items-center space-x-2">
             <Checkbox
               id="enable-available-from"
-              :checked="enableAvailableFrom"
-              @update:checked="toggleAvailableFrom"
+              :model-value="enableAvailableFrom"
+              @update:model-value="toggleAvailableFrom"
             />
-            <Label for="enable-available-from" class="text-sm">
+            <Label for="enable-available-from" class="text-sm cursor-pointer">
               Set availability start date
             </Label>
           </div>
         </div>
-        
+
         <div v-if="enableAvailableFrom" class="space-y-3">
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <!-- Date -->
             <div class="space-y-2">
               <Label class="text-xs font-medium">Date</Label>
-              <Input
-                v-model="availableFromDate"
-                type="date"
-                :min="todayString"
-                @input="updateAvailableFrom"
+              <DatePicker
+                v-model="availableFromDateObj"
+                placeholder="Pick availability start date"
               />
             </div>
-            
+
             <!-- Time -->
             <div class="space-y-2">
               <Label class="text-xs font-medium">Time</Label>
-              <Input
+              <TimePicker
                 v-model="availableFromTime"
-                type="time"
-                @input="updateAvailableFrom"
+                @update:model-value="updateAvailableFrom"
               />
             </div>
           </div>
-          
+
           <div class="flex items-center space-x-2 text-sm text-muted-foreground">
             <Info class="w-4 h-4" />
             <span>Students will be able to access the lab starting from this date and time</span>
@@ -72,10 +69,10 @@
           <div class="flex items-center space-x-2">
             <Checkbox
               id="enable-due-date"
-              :checked="enableDueDate"
-              @update:checked="toggleDueDate"
+              :model-value="enableDueDate"
+              @update:model-value="toggleDueDate"
             />
-            <Label for="enable-due-date" class="text-sm">
+            <Label for="enable-due-date" class="text-sm cursor-pointer">
               Set submission deadline
             </Label>
           </div>
@@ -86,32 +83,29 @@
             <!-- Date -->
             <div class="space-y-2">
               <Label class="text-xs font-medium">Date</Label>
-              <Input
-                v-model="dueDateDate"
-                type="date"
-                :min="availableFromDate || todayString"
+              <DatePicker
+                v-model="dueDateDateObj"
+                placeholder="Pick due date"
                 :class="{
                   'border-destructive': hasError('dueDate'),
-                  'border-green-500': !hasError('dueDate') && dueDateDate
+                  'border-green-500': !hasError('dueDate') && dueDateDateObj
                 }"
-                @input="updateDueDate"
               />
               <p v-if="hasError('dueDate')" class="text-xs text-destructive">
                 {{ getError('dueDate') }}
               </p>
             </div>
-            
+
             <!-- Time -->
             <div class="space-y-2">
               <Label class="text-xs font-medium">Time</Label>
-              <Input
+              <TimePicker
                 v-model="dueDateTime"
-                type="time"
-                @input="updateDueDate"
+                @update:model-value="updateDueDate"
               />
             </div>
           </div>
-          
+
           <div class="flex items-center space-x-2 text-sm text-muted-foreground">
             <Info class="w-4 h-4" />
             <span>Student submissions will be due by this date and time</span>
@@ -130,10 +124,10 @@
           <div class="flex items-center space-x-2">
             <Checkbox
               id="enable-available-until"
-              :checked="enableAvailableUntil"
-              @update:checked="toggleAvailableUntil"
+              :model-value="enableAvailableUntil"
+              @update:model-value="toggleAvailableUntil"
             />
-            <Label for="enable-available-until" class="text-sm">
+            <Label for="enable-available-until" class="text-sm cursor-pointer">
               Set availability end date
             </Label>
           </div>
@@ -144,32 +138,29 @@
             <!-- Date -->
             <div class="space-y-2">
               <Label class="text-xs font-medium">Date</Label>
-              <Input
-                v-model="availableUntilDate"
-                type="date"
-                :min="dueDateDate || availableFromDate || todayString"
+              <DatePicker
+                v-model="availableUntilDateObj"
+                placeholder="Pick availability end date"
                 :class="{
                   'border-destructive': hasError('availableUntil'),
-                  'border-green-500': !hasError('availableUntil') && availableUntilDate
+                  'border-green-500': !hasError('availableUntil') && availableUntilDateObj
                 }"
-                @input="updateAvailableUntil"
               />
               <p v-if="hasError('availableUntil')" class="text-xs text-destructive">
                 {{ getError('availableUntil') }}
               </p>
             </div>
-            
+
             <!-- Time -->
             <div class="space-y-2">
               <Label class="text-xs font-medium">Time</Label>
-              <Input
+              <TimePicker
                 v-model="availableUntilTime"
-                type="time"
-                @input="updateAvailableUntil"
+                @update:model-value="updateAvailableUntil"
               />
             </div>
           </div>
-          
+
           <div class="flex items-center space-x-2 text-sm text-muted-foreground">
             <Info class="w-4 h-4" />
             <span>Lab will become unavailable after this date and time</span>
@@ -278,11 +269,12 @@ import {
 } from 'lucide-vue-next'
 
 // UI Components
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { DatePicker } from '@/components/ui/date-picker'
+import { TimePicker } from '@/components/ui/time-picker'
 
 // Types
 import type { ValidationResult } from '@/types/wizard'
@@ -317,11 +309,11 @@ const enableDueDate = ref(false)
 const enableAvailableUntil = ref(false)
 
 // Date/time inputs
-const availableFromDate = ref('')
+const availableFromDateObj = ref<Date>()
 const availableFromTime = ref('09:00')
-const dueDateDate = ref('')
+const dueDateDateObj = ref<Date>()
 const dueDateTime = ref('23:59')
-const availableUntilDate = ref('')
+const availableUntilDateObj = ref<Date>()
 const availableUntilTime = ref('23:59')
 
 // Computed
@@ -407,45 +399,70 @@ const getError = (field: string): string => {
   return fieldErrors.value[field] || ''
 }
 
-const toggleAvailableFrom = (checked: boolean) => {
-  enableAvailableFrom.value = checked
-  if (!checked) {
+const toggleAvailableFrom = (checked: boolean | 'indeterminate') => {
+  const isChecked = checked === true
+  enableAvailableFrom.value = isChecked
+
+  if (!isChecked) {
     localData.value.availableFrom = undefined
-    availableFromDate.value = ''
+    availableFromDateObj.value = undefined
     delete fieldErrors.value.availableFrom
   } else {
+    // Set default date to today if not already set
+    if (!availableFromDateObj.value) {
+      availableFromDateObj.value = new Date()
+    }
     updateAvailableFrom()
   }
   validateStep()
 }
 
-const toggleDueDate = (checked: boolean) => {
-  enableDueDate.value = checked
-  if (!checked) {
+const toggleDueDate = (checked: boolean | 'indeterminate') => {
+  const isChecked = checked === true
+  enableDueDate.value = isChecked
+
+  if (!isChecked) {
     localData.value.dueDate = undefined
-    dueDateDate.value = ''
+    dueDateDateObj.value = undefined
     delete fieldErrors.value.dueDate
   } else {
+    // Set default date to tomorrow if not already set
+    if (!dueDateDateObj.value) {
+      const tomorrow = new Date()
+      tomorrow.setDate(tomorrow.getDate() + 1)
+      dueDateDateObj.value = tomorrow
+    }
     updateDueDate()
   }
   validateStep()
 }
 
-const toggleAvailableUntil = (checked: boolean) => {
-  enableAvailableUntil.value = checked
-  if (!checked) {
+const toggleAvailableUntil = (checked: boolean | 'indeterminate') => {
+  const isChecked = checked === true
+  enableAvailableUntil.value = isChecked
+
+  if (!isChecked) {
     localData.value.availableUntil = undefined
-    availableUntilDate.value = ''
+    availableUntilDateObj.value = undefined
     delete fieldErrors.value.availableUntil
   } else {
+    // Set default date to one week from now if not already set
+    if (!availableUntilDateObj.value) {
+      const oneWeek = new Date()
+      oneWeek.setDate(oneWeek.getDate() + 7)
+      availableUntilDateObj.value = oneWeek
+    }
     updateAvailableUntil()
   }
   validateStep()
 }
 
 const updateAvailableFrom = () => {
-  if (availableFromDate.value && availableFromTime.value) {
-    localData.value.availableFrom = new Date(`${availableFromDate.value}T${availableFromTime.value}:00`)
+  if (availableFromDateObj.value && availableFromTime.value) {
+    const [hours, minutes] = availableFromTime.value.split(':')
+    const dateTime = new Date(availableFromDateObj.value)
+    dateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0)
+    localData.value.availableFrom = dateTime
   } else {
     localData.value.availableFrom = undefined
   }
@@ -453,8 +470,11 @@ const updateAvailableFrom = () => {
 }
 
 const updateDueDate = () => {
-  if (dueDateDate.value && dueDateTime.value) {
-    localData.value.dueDate = new Date(`${dueDateDate.value}T${dueDateTime.value}:00`)
+  if (dueDateDateObj.value && dueDateTime.value) {
+    const [hours, minutes] = dueDateTime.value.split(':')
+    const dateTime = new Date(dueDateDateObj.value)
+    dateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0)
+    localData.value.dueDate = dateTime
   } else {
     localData.value.dueDate = undefined
   }
@@ -462,8 +482,11 @@ const updateDueDate = () => {
 }
 
 const updateAvailableUntil = () => {
-  if (availableUntilDate.value && availableUntilTime.value) {
-    localData.value.availableUntil = new Date(`${availableUntilDate.value}T${availableUntilTime.value}:00`)
+  if (availableUntilDateObj.value && availableUntilTime.value) {
+    const [hours, minutes] = availableUntilTime.value.split(':')
+    const dateTime = new Date(availableUntilDateObj.value)
+    dateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0)
+    localData.value.availableUntil = dateTime
   } else {
     localData.value.availableUntil = undefined
   }
@@ -507,21 +530,21 @@ const initializeFromExistingData = () => {
   if (props.modelValue.availableFrom) {
     enableAvailableFrom.value = true
     const date = new Date(props.modelValue.availableFrom)
-    availableFromDate.value = date.toISOString().split('T')[0]
+    availableFromDateObj.value = date
     availableFromTime.value = date.toTimeString().slice(0, 5)
   }
 
   if (props.modelValue.dueDate) {
     enableDueDate.value = true
     const date = new Date(props.modelValue.dueDate)
-    dueDateDate.value = date.toISOString().split('T')[0]
+    dueDateDateObj.value = date
     dueDateTime.value = date.toTimeString().slice(0, 5)
   }
 
   if (props.modelValue.availableUntil) {
     enableAvailableUntil.value = true
     const date = new Date(props.modelValue.availableUntil)
-    availableUntilDate.value = date.toISOString().split('T')[0]
+    availableUntilDateObj.value = date
     availableUntilTime.value = date.toTimeString().slice(0, 5)
   }
 }
@@ -549,6 +572,25 @@ watch(
   },
   { deep: true }
 )
+
+// Watch date object changes
+watch(availableFromDateObj, () => {
+  if (enableAvailableFrom.value) {
+    updateAvailableFrom()
+  }
+})
+
+watch(dueDateDateObj, () => {
+  if (enableDueDate.value) {
+    updateDueDate()
+  }
+})
+
+watch(availableUntilDateObj, () => {
+  if (enableAvailableUntil.value) {
+    updateAvailableUntil()
+  }
+})
 
 // Lifecycle
 onMounted(() => {
