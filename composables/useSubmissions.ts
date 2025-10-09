@@ -44,7 +44,7 @@ export const useSubmissions = () => {
 
   // Create a new submission
   const createSubmission = async (
-    labId: string, 
+    labId: string,
     partId: string
   ): Promise<{ success: boolean; jobId?: string; error?: string }> => {
     try {

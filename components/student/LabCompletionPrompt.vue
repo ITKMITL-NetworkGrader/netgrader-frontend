@@ -1,5 +1,5 @@
 <template>
-  <div v-if="isOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+  <div v-if="isOpen" class="fixed inset-x-0 top-[73px] bottom-0 z-50 flex items-center justify-center bg-background/95">
     <div class="bg-card border border-border rounded-lg shadow-2xl max-w-md w-full mx-4 overflow-hidden">
       <!-- Header -->
       <div class="bg-gradient-to-r from-green-500 to-green-600 p-6 text-white">
@@ -83,6 +83,7 @@ interface Props {
 interface Emits {
   (e: 'continue'): void
   (e: 'restart'): void
+  (e: 'view-results'): void
   (e: 'close'): void
 }
 
@@ -90,8 +91,9 @@ const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
 const handleContinue = () => {
-  emit('continue')
-  emit('close')
+  // Emit view-results instead of continue
+  emit('view-results')
+  // Don't close the modal - let parent handle the flow
 }
 
 const handleRestart = () => {

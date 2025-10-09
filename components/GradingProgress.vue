@@ -70,7 +70,7 @@
             <!-- Progress Stats -->
             <div class="bg-secondary rounded-lg p-2">
               <div class="text-xs text-muted-foreground mb-1">Tests Progress</div>
-              <div class="font-mono text-sm text-secondary-foreground">{{ progress.tests_completed }}/{{ progress.total_tests }}</div>
+              <div class="font-mono text-sm text-secondary-foreground">{{ progress.tests_completed }}/{{ displayTotalTests }}</div>
               <div class="text-xs text-muted-foreground">{{ progress.percentage }}% complete</div>
             </div>
           </div>
@@ -97,20 +97,106 @@
         <div class="w-0 h-0 border-l-8 border-r-8 border-t-8 border-l-transparent border-r-transparent border-t-primary"></div>
       </div>
     </div>
+
+    <!-- Results Display - Appears when grading is completed -->
+    <div
+      v-if="showResults"
+      :class="[
+        'absolute bottom-full right-0 mb-2 transition-all duration-500 origin-bottom z-50',
+        'scale-y-100 opacity-100'
+      ]"
+      style="transform-origin: bottom; width: 480px; max-width: 90vw;"
+    >
+      <!-- Results Card -->
+      <div :class="[
+        'rounded-lg shadow-2xl border-2 overflow-hidden',
+        isPassed
+          ? 'bg-gradient-to-r from-green-600 to-green-500 border-green-400'
+          : 'bg-gradient-to-r from-red-600 to-red-500 border-red-400'
+      ]">
+        <!-- Results Header with Icon and Status -->
+        <div class="p-6 text-white">
+          <div class="flex items-center justify-center mb-4">
+            <div :class="[
+              'rounded-full p-3',
+              isPassed ? 'bg-green-400/30' : 'bg-red-400/30'
+            ]">
+              <CheckCircle2 v-if="isPassed" class="w-12 h-12" />
+              <XCircle v-else class="w-12 h-12" />
+            </div>
+          </div>
+
+          <div class="text-center">
+            <h3 class="text-3xl font-bold mb-2">
+              {{ isPassed ? 'Passed!' : 'Not Passed' }}
+            </h3>
+            <p class="text-white/90 text-sm">
+              {{ isPassed ? 'Congratulations! You achieved a perfect score!' : 'Keep trying! You can do better.' }}
+            </p>
+          </div>
+        </div>
+
+        <!-- Score Display with Number Ticker -->
+        <div class="p-6 bg-white/10 backdrop-blur-sm">
+          <div class="text-center">
+            <div class="text-white/80 text-sm font-medium mb-2">Your Score</div>
+            <div class="flex items-center justify-center space-x-2">
+              <div class="text-5xl font-bold text-white">
+                <NumberTicker
+                  :value="results?.total_points_earned || 0"
+                  :duration="2000"
+                  :decimal-places="0"
+                  direction="up"
+                  class="text-white"
+                />
+              </div>
+              <div class="text-3xl text-white/60">/</div>
+              <div class="text-3xl font-semibold text-white/90">
+                {{ results?.total_points_possible || 0 }}
+              </div>
+            </div>
+            <div class="text-white/70 text-xs mt-2">points</div>
+          </div>
+        </div>
+
+        <!-- Percentage Display -->
+        <div class="p-4 text-center border-t border-white/20">
+          <div class="text-white/80 text-xs mb-1">Percentage</div>
+          <div class="text-2xl font-bold text-white">
+            <NumberTicker
+              :value="results ? (results.total_points_earned / results.total_points_possible * 100) : 0"
+              :duration="2000"
+              :decimal-places="1"
+              direction="up"
+              class="text-white"
+            />%
+          </div>
+        </div>
+      </div>
+
+      <!-- Arrow pointing to button -->
+      <div class="flex justify-end mr-4">
+        <div :class="[
+          'w-0 h-0 border-l-8 border-r-8 border-t-8 border-l-transparent border-r-transparent',
+          isPassed ? 'border-t-green-500' : 'border-t-red-500'
+        ]"></div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { Button } from '@/components/ui/button'
-import { 
-  CheckCircle, 
-  CheckCircle2, 
-  AlertCircle, 
-  XCircle, 
+import { NumberTicker } from '@/components/ui/number-ticker'
+import {
+  CheckCircle,
+  CheckCircle2,
+  AlertCircle,
+  XCircle,
   TestTube,
   ChevronUp,
-  ChevronDown 
+  ChevronDown
 } from 'lucide-vue-next'
 
 interface Props {
@@ -129,6 +215,7 @@ interface Props {
   }
   error?: string
   disabled?: boolean
+  totalTestCases?: number  // Frontend-calculated total test cases for display
 }
 
 interface Emits {
@@ -149,6 +236,18 @@ const showProgress = computed(() => {
   return (props.status === 'grading' || props.status === 'submitting') && props.progress
 })
 
+const showResults = computed(() => {
+  return props.status === 'completed' && props.results
+})
+
+// Use frontend-calculated total test cases if available, otherwise use backend value
+const displayTotalTests = computed(() => {
+  if (props.totalTestCases && props.totalTestCases > 0) {
+    return props.totalTestCases
+  }
+  return props.progress?.total_tests || 1
+})
+
 // Auto-show progress details when grading starts
 watch(() => props.status, (newStatus, oldStatus) => {
   if (newStatus === 'grading' || newStatus === 'submitting') {
@@ -159,7 +258,7 @@ watch(() => props.status, (newStatus, oldStatus) => {
 
 const isPassed = computed(() => {
   if (props.status === 'completed' && props.results) {
-    return props.results.status === 'completed' && props.results.total_points_earned > 0
+    return props.results.total_points_earned === props.results.total_points_possible
   }
   return false
 })

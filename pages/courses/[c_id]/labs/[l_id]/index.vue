@@ -41,6 +41,7 @@ import { useCourse } from '@/composables/useCourse'
 import { useSubmissions } from '@/composables/useSubmissions'
 import GradingProgress from '@/components/GradingProgress.vue'
 import LabCompletionPrompt from '@/components/student/LabCompletionPrompt.vue'
+import LabResultsModal from '@/components/student/LabResultsModal.vue'
 import type { ISubmission } from '@/types/submission'
 
 // Configure marked for safe HTML rendering
@@ -90,6 +91,7 @@ const ipLoadingStatus = ref('Gathering your IP addresses...')
 const backendIpMappings = ref<Record<string, string>>({})
 const backendVlanMappings = ref<Record<string, number>>({})
 const showCompletionPrompt = ref(false)
+const showResultsModal = ref(false)
 const studentSubmissions = ref<ISubmission[]>([])
 const completionStatus = ref({
   isFullyCompleted: false,
@@ -279,6 +281,17 @@ const goToNextPart = () => {
   }
 }
 
+// Calculate total test cases for current part (for display purposes only)
+const currentPartTotalTestCases = computed(() => {
+  if (!currentPart.value || !currentPart.value.tasks) return 0
+
+  // Each task can have multiple test cases
+  return currentPart.value.tasks.reduce((total, task) => {
+    const testCaseCount = task.testCases?.length || 0
+    return total + testCaseCount
+  }, 0)
+})
+
 // Grading Submission
 const submitPartForGrading = async () => {
   if (!currentPart.value) return
@@ -416,14 +429,20 @@ const loadPersonalizedIPs = async () => {
   }
 }
 
+// Handle view results - show detailed results modal
+const handleViewResults = () => {
+  showCompletionPrompt.value = false
+  showResultsModal.value = true
+}
+
 // Handle continue after completion (just view the lab)
 const handleContinueAfterCompletion = () => {
   showCompletionPrompt.value = false
   // IPs should already be loaded or loading
 }
 
-// Handle restart lab
-const handleRestartLab = () => {
+// Handle restart lab from completion prompt
+const handleRestartLabFromPrompt = () => {
   showCompletionPrompt.value = false
   // Reset completion status
   completionStatus.value = {
@@ -433,10 +452,25 @@ const handleRestartLab = () => {
     totalParts: 0,
     allPartsPassedWithFullPoints: false
   }
-  // Reload IPs if needed
-  if (Object.keys(backendIpMappings.value).length === 0) {
-    loadPersonalizedIPs()
+  // Reload IPs
+  isLoadingIPs.value = true
+  loadPersonalizedIPs()
+}
+
+// Handle restart lab from results modal
+const handleRestartLabFromResults = () => {
+  showResultsModal.value = false
+  // Reset completion status
+  completionStatus.value = {
+    isFullyCompleted: false,
+    completedParts: [],
+    totalPartsCompleted: 0,
+    totalParts: 0,
+    allPartsPassedWithFullPoints: false
   }
+  // Reload IPs
+  isLoadingIPs.value = true
+  loadPersonalizedIPs()
 }
 
 // Data Loading
@@ -504,13 +538,62 @@ watch(() => route.query.part, (newPart) => {
       :lab-name="currentLab?.title || 'Lab'"
       :completed-parts="completionStatus.totalPartsCompleted"
       :total-parts="completionStatus.totalParts"
+      @view-results="handleViewResults()"
       @continue="handleContinueAfterCompletion(); loadPersonalizedIPs()"
-      @restart="handleRestartLab()"
+      @restart="handleRestartLabFromPrompt()"
       @close="showCompletionPrompt = false"
     />
 
+    <!-- Lab Results Modal -->
+    <LabResultsModal
+      :is-open="showResultsModal"
+      :course-id="courseId"
+      :lab-name="currentLab?.title || 'Lab'"
+      :submissions="studentSubmissions"
+      :lab-parts="currentLabParts || []"
+      @start-over="handleRestartLabFromResults()"
+      @close="showResultsModal = false"
+    />
+
+    <!-- Navigation Breadcrumb -->
+    <div class="border-b bg-background p-4 sticky top-0 z-[100] shadow-sm">
+      <Breadcrumb>
+        <BreadcrumbList>
+          <BreadcrumbItem>
+            <NuxtLink to="/" class="flex items-center hover:text-primary transition-colors">
+              <Home class="h-4 w-4" />
+            </NuxtLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator>
+            <ChevronRight class="h-4 w-4" />
+          </BreadcrumbSeparator>
+          <BreadcrumbItem>
+            <NuxtLink to="/courses" class="hover:text-primary transition-colors">
+              Courses
+            </NuxtLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator>
+            <ChevronRight class="h-4 w-4" />
+          </BreadcrumbSeparator>
+          <BreadcrumbItem>
+            <NuxtLink :to="`/courses/${courseId}`" class="hover:text-primary transition-colors">
+              {{ courseTitle }}
+            </NuxtLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator>
+            <ChevronRight class="h-4 w-4" />
+          </BreadcrumbSeparator>
+          <BreadcrumbItem>
+            <BreadcrumbPage class="font-medium">
+              {{ currentLab?.title || 'Loading...' }}
+            </BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
+    </div>
+
     <!-- IP Loading Overlay -->
-    <div v-if="isLoadingIPs && !isLoading && !isLoadingParts && currentLab" class="fixed inset-0 z-40 flex items-center justify-center bg-background/95 backdrop-blur-sm">
+    <div v-if="isLoadingIPs && !isLoading && !isLoadingParts && currentLab" class="fixed inset-x-0 top-[73px] bottom-0 z-40 flex items-center justify-center bg-background/95">
       <div class="text-center space-y-6 px-4">
         <!-- Animated IP Loading Text -->
         <div class="relative">
@@ -532,43 +615,6 @@ watch(() => route.query.part, (newPart) => {
           <div class="w-3 h-3 bg-primary rounded-full animate-bounce" style="animation-delay: 300ms"></div>
         </div>
       </div>
-    </div>
-
-    <!-- Navigation Breadcrumb -->
-    <div class="border-b bg-background/95 backdrop-blur-sm p-4 sticky top-0 z-50 shadow-sm">
-      <Breadcrumb>
-        <BreadcrumbList>
-          <BreadcrumbItem>
-            <BreadcrumbLink :to="`/`" class="flex items-center hover:text-primary transition-colors">
-              <Home class="h-4 w-4" />
-            </BreadcrumbLink>
-          </BreadcrumbItem>
-          <BreadcrumbSeparator>
-            <ChevronRight class="h-4 w-4" />
-          </BreadcrumbSeparator>
-          <BreadcrumbItem>
-            <BreadcrumbLink to="/courses" class="hover:text-primary transition-colors">
-              Courses
-            </BreadcrumbLink>
-          </BreadcrumbItem>
-          <BreadcrumbSeparator>
-            <ChevronRight class="h-4 w-4" />
-          </BreadcrumbSeparator>
-          <BreadcrumbItem>
-            <BreadcrumbLink :to="`/courses/${courseId}`" class="hover:text-primary transition-colors">
-              {{ courseTitle }}
-            </BreadcrumbLink>
-          </BreadcrumbItem>
-          <BreadcrumbSeparator>
-            <ChevronRight class="h-4 w-4" />
-          </BreadcrumbSeparator>
-          <BreadcrumbItem>
-            <BreadcrumbPage class="font-medium">
-              {{ currentLab?.title || 'Loading...' }}
-            </BreadcrumbPage>
-          </BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
     </div>
 
     <!-- Loading State -->
@@ -860,6 +906,7 @@ watch(() => route.query.part, (newPart) => {
                   :progress="currentGradingStatus.progress"
                   :results="currentGradingStatus.results"
                   :error="currentGradingStatus.error"
+                  :total-test-cases="currentPartTotalTestCases"
                   @submit="submitPartForGrading"
                   @toggle-details="toggleProgressDetails(labId, currentPart.partId)"
                 />
