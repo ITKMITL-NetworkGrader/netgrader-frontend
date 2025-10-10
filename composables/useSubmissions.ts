@@ -28,17 +28,18 @@ export const useSubmissions = () => {
   // Get current submission state for a specific part
   const getSubmissionState = (labId: string, partId: string): SubmissionState => {
     const key = getSubmissionKey(labId, partId)
-    
+
     if (!currentSubmissionStates.value[key]) {
       currentSubmissionStates.value[key] = {
         isSubmitting: false,
         currentSubmission: null,
         lastSubmissionJobId: null,
         pollingInterval: null,
+        sseConnection: null,  // Initialize SSE connection as null
         showProgressDetails: false
       }
     }
-    
+
     return currentSubmissionStates.value[key]
   }
 
@@ -119,9 +120,9 @@ export const useSubmissions = () => {
           createdAt: new Date(),
           updatedAt: new Date()
         }
-        
-        // Start polling for progress
-        startPolling(jobId, labId, partId)
+
+        // Start SSE connection for real-time progress (with polling fallback)
+        startSSE(jobId, labId, partId)
       }
       state.isSubmitting = false
 
@@ -183,21 +184,218 @@ export const useSubmissions = () => {
     }
   }
 
-  // Start polling for submission progress
-  const startPolling = (jobId: string, labId: string, partId: string) => {
+  // Start SSE connection for real-time updates
+  const startSSE = (jobId: string, labId: string, partId: string) => {
     const state = getSubmissionState(labId, partId)
-    
-    // Clear any existing polling
-    if (state.pollingInterval) {
-      clearInterval(state.pollingInterval)
+
+    // Close existing SSE connection if any
+    if (state.sseConnection) {
+      state.sseConnection.close()
+      state.sseConnection = null
     }
 
-    console.log('🔄 [DEBUG] Starting polling for submission:', jobId)
+    console.log('🔌 [DEBUG] Starting SSE connection for submission:', jobId)
+
+    // Flag to track if we've received the completed event
+    let completedReceived = false
+
+    try {
+      // Create EventSource for SSE
+      const eventSource = new EventSource(`${backendUrl}/v0/submissions/${jobId}/stream`, {
+        withCredentials: true // Important: Include cookies for auth
+      })
+
+      // Store reference
+      state.sseConnection = eventSource
+
+      // Handle connection opened
+      eventSource.addEventListener('open', () => {
+        console.log('🟢 [SSE] Connected to grading stream:', jobId)
+      })
+
+      // Handle connected event (initial message)
+      eventSource.addEventListener('connected', (event) => {
+        const data = JSON.parse(event.data)
+        console.log('🔗 [SSE] Connection confirmed:', data.message)
+      })
+
+      // Handle started event
+      eventSource.addEventListener('started', (event) => {
+        const data = JSON.parse(event.data)
+        console.log('🚀 [SSE] Grading started:', data.message)
+
+        if (state.currentSubmission) {
+          state.currentSubmission.status = 'running'
+        }
+      })
+
+      // Handle progress updates
+      eventSource.addEventListener('progress', (event) => {
+        const progressData = JSON.parse(event.data)
+        console.log(`📊 [SSE] Progress update received:`, {
+          percentage: progressData.percentage,
+          message: progressData.message,
+          current_test: progressData.current_test,
+          tests_completed: progressData.tests_completed,
+          total_tests: progressData.total_tests
+        })
+
+        // Update current submission with progress
+        if (state.currentSubmission) {
+          // CRITICAL: Update status to 'running' to ensure getGradingStatus picks this up
+          state.currentSubmission.status = 'running'
+
+          // Create grading result with running status if not exists
+          if (!state.currentSubmission.gradingResult) {
+            state.currentSubmission.gradingResult = {
+              job_id: jobId,
+              status: 'running',
+              total_points_earned: 0,
+              total_points_possible: progressData.total_tests || 1,
+              test_results: [],
+              group_results: [],
+              total_execution_time: 0,
+              error_message: '',
+              created_at: new Date().toISOString(),
+              completed_at: '',
+              cancelled_reason: null
+            }
+          } else {
+            state.currentSubmission.gradingResult.status = 'running'
+          }
+
+          const newProgress = {
+            message: progressData.message,
+            current_test: progressData.current_test || '',
+            tests_completed: progressData.tests_completed,
+            total_tests: progressData.total_tests,
+            percentage: progressData.percentage,
+            timestamp: new Date()
+          }
+          state.currentSubmission.progressHistory.push(newProgress)
+          console.log(`✅ [SSE] Progress added. Status: ${state.currentSubmission.status}, History: ${state.currentSubmission.progressHistory.length}`)
+
+          // 🆕 FALLBACK: If we reach 100%, fetch the final result after a delay
+          // This handles cases where the SSE 'completed' event doesn't arrive
+          if (progressData.percentage >= 100) {
+            console.log('🎯 [SSE] Reached 100%, setting up fallback result fetch in 2 seconds...')
+            setTimeout(async () => {
+              // Only fetch if we haven't received the completed event yet
+              if (state.currentSubmission && state.currentSubmission.status !== 'completed') {
+                console.log('⚠️ [SSE] No completed event received after 2s, fetching result via API...')
+                const submission = await fetchSubmission(jobId)
+                if (submission && submission.status === 'completed' && submission.gradingResult) {
+                  console.log('✅ [FALLBACK] Successfully fetched completed result from API')
+                  completedReceived = true
+                  state.currentSubmission.status = 'completed'
+                  state.currentSubmission.completedAt = submission.completedAt
+                  state.currentSubmission.gradingResult = submission.gradingResult
+                  stopSSE(labId, partId)
+                }
+              }
+            }, 2000)
+          }
+        } else {
+          console.warn('⚠️ [SSE] No current submission to update!')
+        }
+      })
+
+      // Handle completion
+      eventSource.addEventListener('completed', (event) => {
+        const resultData = JSON.parse(event.data)
+        console.log(`✅ [SSE] Grading completed: ${resultData.total_points_earned}/${resultData.total_points_possible} points`)
+
+        // Mark that we've received the completed event FIRST (before any async operations)
+        completedReceived = true
+        console.log('🏁 [SSE] completedReceived flag set to true')
+
+        // Update submission with final results
+        if (state.currentSubmission) {
+          state.currentSubmission.status = 'completed'
+          state.currentSubmission.completedAt = new Date()
+          state.currentSubmission.gradingResult = {
+            job_id: jobId,
+            status: resultData.status,
+            total_points_earned: resultData.total_points_earned,
+            total_points_possible: resultData.total_points_possible,
+            test_results: resultData.test_results || [],
+            group_results: resultData.group_results || [],
+            total_execution_time: 0,
+            error_message: '',
+            created_at: new Date().toISOString(),
+            completed_at: new Date().toISOString(),
+            cancelled_reason: null
+          }
+          console.log('✅ [SSE] Submission updated with final results')
+        }
+
+        // Close SSE connection immediately (don't wait for backend to close it)
+        console.log('🔴 [SSE] Closing connection immediately after receiving completion')
+        stopSSE(labId, partId)
+      })
+
+      // Handle errors (single handler, not duplicate)
+      eventSource.onerror = (error) => {
+        console.log('⚠️ [SSE] Error event fired, completedReceived:', completedReceived)
+
+        // If we already received the completed event, this error is expected (connection closing)
+        if (completedReceived) {
+          console.log('ℹ️ [SSE] Connection closed after completion (expected), not falling back to polling')
+          stopSSE(labId, partId)
+          return
+        }
+
+        console.error('❌ [SSE] EventSource error before completion:', error)
+
+        // Only fall back to polling if we haven't received completion
+        console.log('🔄 [SSE] Falling back to polling due to error before completion')
+        stopSSE(labId, partId)
+        startPolling(jobId, labId, partId)
+      }
+
+    } catch (error) {
+      console.error('❌ [SSE] Failed to create EventSource:', error)
+      // Fall back to polling
+      startPolling(jobId, labId, partId)
+    }
+  }
+
+  // Stop SSE connection
+  const stopSSE = (labId: string, partId: string) => {
+    const state = getSubmissionState(labId, partId)
+
+    if (state.sseConnection) {
+      state.sseConnection.close()
+      state.sseConnection = null
+      console.log('🔴 [SSE] Connection closed')
+    }
+  }
+
+  // Start polling for submission progress (fallback for SSE)
+  const startPolling = (jobId: string, labId: string, partId: string) => {
+    console.log('🔄 [DEBUG] startPolling() called for job:', jobId)
+
+    const state = getSubmissionState(labId, partId)
+
+    // If submission is already in a terminal state, don't start polling
+    if (state.currentSubmission && ['completed', 'failed', 'cancelled'].includes(state.currentSubmission.status)) {
+      console.log('ℹ️ [DEBUG] Submission already in terminal state:', state.currentSubmission.status, '- skipping polling')
+      return
+    }
+
+    // Clear any existing polling
+    if (state.pollingInterval) {
+      console.log('🔄 [DEBUG] Clearing existing polling interval before starting new one')
+      clearInterval(state.pollingInterval)
+      state.pollingInterval = null
+    }
+
+    console.log('🔄 [DEBUG] Starting polling for submission:', jobId, 'Current status:', state.currentSubmission?.status || 'no submission')
 
     // Poll immediately first, then set up interval
     const pollSubmission = async () => {
       const submission = await fetchSubmission(jobId)
-      
+
       if (submission) {
         state.currentSubmission = submission
 
@@ -205,6 +403,7 @@ export const useSubmissions = () => {
         if (['completed', 'failed', 'cancelled'].includes(submission.status)) {
           console.log('✅ [DEBUG] Submission finished, stopping polling:', submission.status)
           stopPolling(labId, partId)
+          stopSSE(labId, partId) // Also close SSE if still open
           return true // Indicates polling should stop
         }
       } else {
@@ -216,15 +415,18 @@ export const useSubmissions = () => {
 
     // Poll immediately
     pollSubmission().then(shouldStop => {
-      if (!shouldStop) {
-        // Set up interval for subsequent polls
+      if (!shouldStop && !state.pollingInterval) {
+        // Set up interval for subsequent polls (only if not already set)
         state.pollingInterval = setInterval(async () => {
           const shouldStop = await pollSubmission()
-          if (shouldStop && state.pollingInterval) {
-            clearInterval(state.pollingInterval)
-            state.pollingInterval = null
+          if (shouldStop) {
+            if (state.pollingInterval) {
+              clearInterval(state.pollingInterval)
+              state.pollingInterval = null
+            }
           }
-        }, 3000) // Poll every 3 seconds as specified
+        }, 3000) as any
+        console.log('⏱️ [DEBUG] Polling interval started')
       }
     })
   }
@@ -232,11 +434,13 @@ export const useSubmissions = () => {
   // Stop polling for a specific submission
   const stopPolling = (labId: string, partId: string) => {
     const state = getSubmissionState(labId, partId)
-    
+
     if (state.pollingInterval) {
       clearInterval(state.pollingInterval)
       state.pollingInterval = null
-      console.log('🛑 [DEBUG] Stopped polling for submission')
+      console.log('🛑 [DEBUG] Polling stopped. Submission status:', state.currentSubmission?.status || 'no submission')
+    } else {
+      console.log('ℹ️ [DEBUG] stopPolling() called but no polling interval was running')
     }
   }
 
@@ -391,13 +595,18 @@ export const useSubmissions = () => {
 
   // Cleanup when component unmounts
   const cleanup = () => {
-    // Stop all polling intervals
-    Object.values(currentSubmissionStates.value).forEach(state => {
+    // Stop all SSE connections and polling intervals
+    Object.entries(currentSubmissionStates.value).forEach(([key, state]) => {
+      // Close SSE connection
+      if (state.sseConnection) {
+        state.sseConnection.close()
+      }
+      // Clear polling interval
       if (state.pollingInterval) {
         clearInterval(state.pollingInterval)
       }
     })
-    
+
     // Clear states
     currentSubmissionStates.value = {}
   }
@@ -522,8 +731,10 @@ export const useSubmissions = () => {
     getGradingStatus,
     toggleProgressDetails,
     cancelSubmission,
-    startPolling,
-    stopPolling,
+    startSSE,      // New: Start SSE connection
+    stopSSE,       // New: Stop SSE connection
+    startPolling,  // Fallback polling
+    stopPolling,   // Stop fallback polling
     cleanup
   }
 }

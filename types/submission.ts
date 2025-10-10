@@ -130,6 +130,7 @@ export interface SubmissionState {
   currentSubmission: ISubmission | null;
   lastSubmissionJobId: string | null;
   pollingInterval: NodeJS.Timeout | null;
+  sseConnection: EventSource | null;  // SSE connection for real-time updates
   showProgressDetails: boolean;
 }
 

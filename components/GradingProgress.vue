@@ -77,7 +77,7 @@
         </div>
 
         <!-- Detailed Progress (Collapsible) -->
-        <div 
+        <div
           v-if="showProgressDetails"
           class="border-t border-primary/30 bg-primary/90"
         >
@@ -253,8 +253,32 @@ watch(() => props.status, (newStatus, oldStatus) => {
   if (newStatus === 'grading' || newStatus === 'submitting') {
     showProgressDetails.value = true
   }
-  console.log('🎯 [DEBUG] Status changed:', { oldStatus, newStatus, showProgressDetails: showProgressDetails.value })
+  console.log('🎯 [GradingProgress] Status changed:', { oldStatus, newStatus, showProgressDetails: showProgressDetails.value })
 }, { immediate: true })
+
+// Watch progress changes for debugging
+watch(() => props.progress, (newProgress, oldProgress) => {
+  if (newProgress) {
+    console.log('📊 [GradingProgress] Progress updated:', {
+      percentage: newProgress.percentage,
+      message: newProgress.message,
+      current_test: newProgress.current_test,
+      tests_completed: newProgress.tests_completed,
+      total_tests: newProgress.total_tests
+    })
+  }
+}, { deep: true })
+
+// Watch results for debugging
+watch(() => props.results, (newResults) => {
+  if (newResults) {
+    console.log('✅ [GradingProgress] Results received:', {
+      status: newResults.status,
+      points: `${newResults.total_points_earned}/${newResults.total_points_possible}`,
+      passed: isPassed.value
+    })
+  }
+}, { deep: true })
 
 const isPassed = computed(() => {
   if (props.status === 'completed' && props.results) {
