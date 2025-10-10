@@ -92,7 +92,7 @@ export interface ISubmission {
   
   // Additional metadata
   attempt: number;
-  ipMappings: Record<string, string>;
+  ipMappings: Record<string, { ip: string; vlan: number | null }>;
   callbackUrl: string;
   
   // Timestamps

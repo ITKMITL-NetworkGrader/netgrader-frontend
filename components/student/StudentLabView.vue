@@ -226,7 +226,7 @@ const completionStatus = ref({
 })
 
 // Backend IP Mappings (from POST /v0/labs/:id/start)
-const backendIpMappings = ref<Record<string, string>>({})
+const backendIpMappings = ref<Record<string, { ip: string; vlan: number | null }>>({})
 const backendVlanMappings = ref<Record<string, number>>({})
 
 interface Props {
@@ -300,7 +300,8 @@ const personalizedDevices = computed(() => {
       const mappingKey = `${device.deviceId}.${variable.name}`
 
       // Get IP from backend mappings
-      const resolvedIP = backendIpMappings.value[mappingKey] || 'Loading...'
+      const ipMapping = backendIpMappings.value[mappingKey]
+      const resolvedIP = ipMapping?.ip || 'Loading...'
 
       return {
         name: variable.name,

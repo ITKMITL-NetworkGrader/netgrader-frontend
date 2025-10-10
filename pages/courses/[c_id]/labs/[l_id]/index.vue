@@ -88,7 +88,7 @@ const progress = ref<Record<string, number>>({}) // partId -> percentage
 // IP Loading and Completion State
 const isLoadingIPs = ref(true)
 const ipLoadingStatus = ref('Gathering your IP addresses...')
-const backendIpMappings = ref<Record<string, string>>({})
+const backendIpMappings = ref<Record<string, { ip: string; vlan: number | null }>>({})
 const backendVlanMappings = ref<Record<string, number>>({})
 const showCompletionPrompt = ref(false)
 const showResultsModal = ref(false)
@@ -135,21 +135,23 @@ const courseTitle = computed(() => currentCourse.value?.title || `Course ${cours
 const ipVariablesTable = computed(() => {
   if (!currentLab.value?.network?.devices) return []
 
-  const variables: Array<{ deviceId: string; variableName: string; ipAddress: string }> = []
+  const variables: Array<{ deviceId: string; variableName: string; ipAddress: string; vlan: number | null | string }> = []
 
   currentLab.value.network.devices.forEach(device => {
     device.ipVariables.forEach(ipVar => {
       // Create mapping key: deviceId.variableName
       const mappingKey = `${device.deviceId}.${ipVar.name}`
 
-      // Get IP from backend mappings, or show loading/placeholder
-      const ipAddress = backendIpMappings.value[mappingKey] ||
-                       (isLoadingIPs.value ? 'Loading...' : 'Not assigned')
+      // Get IP and VLAN from backend mappings, or show loading/placeholder
+      const ipMapping = backendIpMappings.value[mappingKey]
+      const ipAddress = ipMapping?.ip || (isLoadingIPs.value ? 'Loading...' : 'Not assigned')
+      const vlan = ipMapping?.vlan ?? (isLoadingIPs.value ? 'Loading...' : '-')
 
       variables.push({
         deviceId: device.deviceId,
         variableName: ipVar.name,
-        ipAddress
+        ipAddress,
+        vlan
       })
     })
   })
@@ -851,17 +853,24 @@ watch(() => route.query.part, (newPart) => {
                         <TableHead class="font-semibold">Device</TableHead>
                         <TableHead class="font-semibold">Variable Name</TableHead>
                         <TableHead class="font-semibold">IP Address</TableHead>
+                        <TableHead class="font-semibold">VLAN</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      <TableRow 
-                        v-for="(variable, index) in ipVariablesTable" 
+                      <TableRow
+                        v-for="(variable, index) in ipVariablesTable"
                         :key="`${variable.deviceId}-${variable.variableName}-${index}`"
                         class="hover:bg-muted/30"
                       >
                         <TableCell class="font-medium">{{ variable.deviceId }}</TableCell>
                         <TableCell class="font-mono text-sm">{{ variable.variableName }}</TableCell>
                         <TableCell class="font-mono text-sm text-blue-600">{{ variable.ipAddress }}</TableCell>
+                        <TableCell class="font-mono text-sm">
+                          <Badge v-if="typeof variable.vlan === 'number'" variant="outline" class="font-mono">
+                            VLAN {{ variable.vlan }}
+                          </Badge>
+                          <span v-else class="text-muted-foreground">{{ variable.vlan }}</span>
+                        </TableCell>
                       </TableRow>
                     </TableBody>
                   </Table>
