@@ -941,8 +941,8 @@ const validateIpVariable = (deviceIndex: number, ipIndex: number, field: string)
       break
   }
 
-  // Check for IP duplication after field validation
-  validateIpDuplication(deviceIndex, ipIndex)
+  // Re-validate all IP variables for duplications to ensure all affected interfaces are updated
+  validateAllIpDuplications()
 
   emitValidation()
 }
