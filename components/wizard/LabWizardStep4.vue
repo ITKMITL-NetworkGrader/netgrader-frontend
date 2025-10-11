@@ -130,6 +130,53 @@
                         {{ getPartFieldError(partIndex, 'title') }}
                       </p>
                     </div>
+
+                    <!-- Part Type Selection (NEW) -->
+                    <div class="space-y-2">
+                      <Label class="text-sm font-medium">
+                        Part Type <span class="text-destructive">*</span>
+                      </Label>
+                      <RadioGroup v-model="part.partType" @update:modelValue="onPartTypeChange(partIndex)">
+                        <!-- Fill-in-the-Blank -->
+                        <div class="flex items-center space-x-2 p-3 border rounded-lg hover:bg-accent/50 cursor-pointer transition-colors">
+                          <RadioGroupItem value="fill_in_blank" :id="`fill-blank-${partIndex}`" />
+                          <Label :for="`fill-blank-${partIndex}`" class="flex items-center gap-3 cursor-pointer flex-1">
+                            <FileQuestion class="w-5 h-5 text-primary" />
+                            <div>
+                              <div class="font-medium">Fill-in-the-Blank Questions</div>
+                              <div class="text-xs text-muted-foreground">IP calculation, subnetting questions with auto schema mapping</div>
+                            </div>
+                          </Label>
+                        </div>
+
+                        <!-- DHCP Configuration -->
+                        <div class="flex items-center space-x-2 p-3 border rounded-lg hover:bg-accent/50 cursor-pointer transition-colors">
+                          <RadioGroupItem value="dhcp_config" :id="`dhcp-config-${partIndex}`" />
+                          <Label :for="`dhcp-config-${partIndex}`" class="flex items-center gap-3 cursor-pointer flex-1">
+                            <Server class="w-5 h-5 text-secondary" />
+                            <div>
+                              <div class="font-medium">DHCP Configuration</div>
+                              <div class="text-xs text-muted-foreground">Configure DHCP with lecturer-defined pool ranges</div>
+                            </div>
+                          </Label>
+                        </div>
+
+                        <!-- Network Configuration -->
+                        <div class="flex items-center space-x-2 p-3 border rounded-lg hover:bg-accent/50 cursor-pointer transition-colors">
+                          <RadioGroupItem value="network_config" :id="`network-config-${partIndex}`" />
+                          <Label :for="`network-config-${partIndex}`" class="flex items-center gap-3 cursor-pointer flex-1">
+                            <Network class="w-5 h-5 text-accent-foreground" />
+                            <div>
+                              <div class="font-medium">Network Configuration</div>
+                              <div class="text-xs text-muted-foreground">Hands-on device configuration tasks with automated grading</div>
+                            </div>
+                          </Label>
+                        </div>
+                      </RadioGroup>
+                      <p v-if="hasPartFieldError(partIndex, 'partType')" class="text-sm text-destructive">
+                        {{ getPartFieldError(partIndex, 'partType') }}
+                      </p>
+                    </div>
                   </div>
 
                   <!-- Description -->
@@ -302,7 +349,10 @@ import {
   Eye,
   Edit3,
   AlertCircle,
-  Loader2
+  Loader2,
+  FileQuestion,
+  Server,
+  Network
 } from 'lucide-vue-next'
 
 // UI Components
@@ -315,13 +365,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 
 // Local Components
 import TasksManager from './TasksManager.vue'
 import FullScreenEditor from '@/components/editor/FullScreenEditor.vue'
 
 // Types
-import type { WizardLabPart, WizardTaskGroup, Device, TaskTemplate, ValidationResult } from '@/types/wizard'
+import type { WizardLabPart, WizardTaskGroup, Device, TaskTemplate, ValidationResult, PartType } from '@/types/wizard'
 
 // Props
 interface Props {
@@ -394,6 +445,7 @@ const addPart = () => {
     description: '',
     instructions: '',
     order: localData.value.length + 1,
+    partType: 'network_config',  // NEW: Default to network_config
     tasks: [],
     task_groups: [],
     prerequisites: [],
@@ -403,6 +455,42 @@ const addPart = () => {
   }
   localData.value.push(newPart)
   validateStep()
+}
+
+const onPartTypeChange = (partIndex: number) => {
+  const part = localData.value[partIndex]
+
+  // Reset type-specific fields when changing part type
+  if (part.partType === 'fill_in_blank') {
+    // Initialize questions array if not exists
+    if (!part.questions) {
+      part.questions = []
+    }
+    // Clear DHCP config if exists
+    part.dhcpConfiguration = undefined
+  } else if (part.partType === 'dhcp_config') {
+    // Clear questions if exists
+    part.questions = undefined
+    // Initialize DHCP configuration with defaults
+    if (!part.dhcpConfiguration) {
+      part.dhcpConfiguration = {
+        poolName: '',
+        vlanIndex: 0,
+        startIp: '',
+        endIp: '',
+        subnetMask: '',
+        configurationInstructions: '',
+        dhcpServerDevice: ''
+      }
+    }
+  } else if (part.partType === 'network_config') {
+    // Clear questions and DHCP config
+    part.questions = undefined
+    part.dhcpConfiguration = undefined
+  }
+
+  // Validate the part
+  validatePart(partIndex, 'partType')
 }
 
 const removePart = (partIndex: number) => {
@@ -563,6 +651,16 @@ const validatePart = (partIndex: number, field: string) => {
   const part = localData.value[partIndex]
 
   switch (field) {
+    case 'partType':
+      if (!part.partType) {
+        partFieldErrors.value[partIndex].partType = 'Part type is required'
+      } else if (!['fill_in_blank', 'network_config', 'dhcp_config'].includes(part.partType)) {
+        partFieldErrors.value[partIndex].partType = 'Invalid part type'
+      } else {
+        delete partFieldErrors.value[partIndex].partType
+      }
+      break
+
     case 'partId':
       if (!part.partId.trim()) {
         partFieldErrors.value[partIndex].partId = 'Part ID is required'
@@ -615,6 +713,7 @@ const validateStep = () => {
   try {
     // Validate all parts
     localData.value.forEach((part, index) => {
+      validatePart(index, 'partType')
       validatePart(index, 'partId')
       validatePart(index, 'title')
       validatePart(index, 'instructions')

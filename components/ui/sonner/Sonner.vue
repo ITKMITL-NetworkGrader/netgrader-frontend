@@ -27,8 +27,6 @@ defineOptions({
 </script>
 
 <style>
-
-
 /* Custom styling to match vue-sonner appearance */
 /* .toaster {
   font-family: 'Bai Jamjuree', sans-serif !important;

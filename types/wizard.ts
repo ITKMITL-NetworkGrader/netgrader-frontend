@@ -49,6 +49,59 @@ export interface IpVariable {
   isVlanInterface?: boolean; // Whether this interface is a VLAN interface (for studentVlanX types)
 }
 
+// Part Types
+export type PartType = 'fill_in_blank' | 'network_config' | 'dhcp_config';
+
+// Question Types for Fill-in-Blank Parts
+export type QuestionType = 'network_address' | 'first_usable_ip' | 'last_usable_ip' |
+                          'broadcast_address' | 'subnet_mask' | 'ip_address' | 'number';
+
+// Question Interface
+export interface Question {
+  questionId: string;
+  questionText: string;
+  questionType: QuestionType;
+  order: number;
+  points: number;
+
+  // Hybrid Schema Mapping
+  schemaMapping: {
+    vlanIndex: number;         // Which VLAN (0-9), auto-detected from question text, editable
+    field: 'networkAddress' | 'subnetMask' | 'firstUsableIp' | 'lastUsableIp' | 'broadcastAddress';
+    deviceId?: string;         // For device-specific IPs
+    variableName?: string;     // For device interface IPs
+    autoDetected?: boolean;    // Was VLAN auto-detected?
+  };
+
+  // Validation
+  answerFormula?: string;
+  expectedAnswerType: 'exact' | 'range';
+  placeholder?: string;
+  inputFormat?: 'ip' | 'cidr' | 'number';
+}
+
+// DHCP Configuration Interface
+export interface DhcpConfiguration {
+  poolName: string;              // e.g., "VLAN1_POOL"
+  vlanIndex: number;             // Which VLAN this pool serves
+
+  // Lecturer-defined DHCP pool (STRICT VALIDATION)
+  startIp: string;               // e.g., "172.16.40.100"
+  endIp: string;                 // e.g., "172.16.40.150"
+  subnetMask: string;            // e.g., "255.255.255.192"
+
+  // Optional DHCP settings
+  defaultGateway?: string;
+  dnsServers?: string[];
+  leaseTime?: number;            // seconds
+
+  // Instructions for students
+  configurationInstructions: string;
+
+  // Expected device to configure DHCP on
+  dhcpServerDevice: string;      // e.g., "router1"
+}
+
 // Lab Parts Structure
 export interface LabPart {
   labId: string;             // Reference to lab (ObjectId from lab creation)
@@ -57,12 +110,21 @@ export interface LabPart {
   description?: string;      // Optional description (Markdown)
   instructions: string;      // Student instructions (Markdown, max 10000 chars)
   order: number;             // Display sequence
-  
-  tasks: Task[];             // Array of tasks (min 1 required)
+
+  // Enhanced part types
+  partType: PartType;        // Type of part: fill_in_blank, network_config, dhcp_config
+
+  // For fill-in-the-blank parts
+  questions?: Question[];
+
+  // For DHCP configuration parts
+  dhcpConfiguration?: DhcpConfiguration;
+
+  tasks: Task[];             // Array of tasks (min 1 required for network_config)
   task_groups: TaskGroup[];  // Optional task grouping
-  
+
   prerequisites: string[];   // Part IDs that must be completed first
-  totalPoints: number;       // Sum of task points
+  totalPoints: number;       // Sum of task points (or question points for fill_in_blank)
 }
 
 // Task Structure
@@ -169,6 +231,7 @@ export interface LabWizardData {
       calculationMultiplier?: number;
       baseNetwork: string;
       subnetMask: number;
+      subnetIndex: number;       // NEW: Which subnet block (0 = first, 1 = second, etc.)
       groupModifier?: number;
       isStudentGenerated: boolean;
     }>;
@@ -194,11 +257,54 @@ export interface LabWizardData {
   courseCode: string;
 }
 
+// Student IP Schema Types
+export interface VlanSchema {
+  vlanIndex: number;           // Which VLAN (0-9)
+  networkAddress: string;      // e.g., "172.16.40.64"
+  subnetMask: number;          // e.g., 26
+  subnetIndex: number;         // Which subnet block
+  firstUsableIp: string;       // e.g., "172.16.40.65"
+  lastUsableIp: string;        // e.g., "172.16.40.126"
+  broadcastAddress: string;    // e.g., "172.16.40.127"
+  source: 'calculated' | 'student_updated';
+  updatedAt: string;           // ISO date string
+}
+
+export interface DeviceInterface {
+  variableName: string;        // e.g., "gig0_0_vlan_1"
+  ipAddress: string;           // e.g., "172.16.40.112"
+  subnetMask?: string;
+  source: 'calculated' | 'dhcp' | 'manual_update';
+  dhcpPoolName?: string;       // If from DHCP
+  updatedAt: string;           // ISO date string
+  updatedBy: 'initial_calculation' | 'student_update';
+}
+
+export interface DeviceSchema {
+  deviceId: string;            // e.g., "router1"
+  interfaces: DeviceInterface[];
+}
+
+export interface StudentIpSchema {
+  exists: boolean;
+  schemaId?: string;
+  version: number;
+  schema: {
+    vlans: VlanSchema[];
+    devices: DeviceSchema[];
+  };
+  canEdit: boolean;
+  calculationPartId?: string;
+  updatedAt?: string;
+}
+
 // Wizard-specific Lab Part (extended with UI state)
 export interface WizardLabPart extends Omit<LabPart, 'labId'> {
   tempId: string;            // Temporary ID for wizard use
   isExpanded: boolean;       // UI state for accordion
   tasks: WizardTask[];       // Extended tasks with UI state
+  questions?: Question[];    // Questions for fill_in_blank parts
+  dhcpConfiguration?: DhcpConfiguration; // DHCP config for dhcp_config parts
 }
 
 // Wizard-specific Task (extended with UI state)

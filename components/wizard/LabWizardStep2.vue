@@ -368,6 +368,34 @@
                 </Select>
               </div>
 
+              <!-- Subnet Block Index (NEW) -->
+              <div class="space-y-2">
+                <Label class="text-sm font-medium">
+                  Subnet Block <span class="text-destructive">*</span>
+                </Label>
+                <Input
+                  v-model.number="vlan.subnetIndex"
+                  type="number"
+                  min="1"
+                  placeholder="1"
+                  @input="validateVlan(index)"
+                  @blur="validateVlan(index)"
+                  :class="{
+                    'border-destructive': hasError(`vlan_${index}_subnetIndex`),
+                    'border-green-500': !hasError(`vlan_${index}_subnetIndex`) && vlan.subnetIndex !== undefined
+                  }"
+                />
+                <p class="text-xs text-muted-foreground flex items-start gap-1">
+                  <Info class="w-3 h-3 mt-0.5 flex-shrink-0" />
+                  <span>
+                    Subnet block to use (1 = first, 2 = second, etc.).
+                    For /26: block 1 = .0-.63, block 2 = .64-.127, block 3 = .128-.191
+                  </span>
+                </p>
+                <p v-if="hasError(`vlan_${index}_subnetIndex`)" class="text-sm text-destructive">
+                  {{ getError(`vlan_${index}_subnetIndex`) }}
+                </p>
+              </div>
 
               <!-- Group Modifier (for lecturer_group mode) -->
               <div v-if="localData.mode === 'lecturer_group'" class="space-y-2">
@@ -392,11 +420,27 @@
       <div v-if="localData.vlans.length > 0" class="space-y-4">
         <Label class="text-sm font-medium">Student IP Preview</Label>
         <Card class="bg-accent/30">
-          <CardHeader>
-            <CardTitle class="text-base flex items-center">
-              <Eye class="w-4 h-4 mr-2" />
-              Sample Student: 65070232
-            </CardTitle>
+          <CardHeader class="pb-3">
+            <div class="flex items-center justify-between">
+              <CardTitle class="text-base flex items-center">
+                <Eye class="w-4 h-4 mr-2" />
+                Preview Student IP
+              </CardTitle>
+            </div>
+            <div class="flex items-center gap-2 mt-3">
+              <Label class="text-sm text-muted-foreground whitespace-nowrap">Student ID:</Label>
+              <Input
+                v-model.number="previewStudentId"
+                type="number"
+                class="w-32"
+                placeholder="65070232"
+                min="60000000"
+                max="99999999"
+              />
+              <span class="text-xs text-muted-foreground">
+                (Enter any 8-digit student ID)
+              </span>
+            </div>
           </CardHeader>
           <CardContent>
             <div class="space-y-3">
@@ -409,9 +453,14 @@
                   <span class="font-medium text-sm">
                     VLAN {{ index + 1 }}
                   </span>
-                  <span class="text-xs text-muted-foreground">
-                    {{ getVlanDisplay(vlan, index) }}
-                  </span>
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs text-muted-foreground">
+                      {{ getVlanDisplay(vlan, index) }}
+                    </span>
+                    <Badge v-if="vlan.subnetIndex !== undefined" variant="secondary" class="text-xs">
+                      Block {{ vlan.subnetIndex }}
+                    </Badge>
+                  </div>
                 </div>
                 <code class="text-sm text-primary">
                   {{ generatePreviewIP(vlan) }}
@@ -473,6 +522,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
 
 // Types
 import type { ValidationResult, IpRange } from '@/types/wizard'
@@ -484,6 +534,7 @@ interface VlanConfig {
   calculationMultiplier?: number
   baseNetwork: string
   subnetMask: number
+  subnetIndex: number        // NEW: Which subnet block (0 = first, 1 = second, etc.)
   groupModifier?: number
   isStudentGenerated: boolean
 }
@@ -526,6 +577,9 @@ const localData = ref<NetworkConfig>({
 })
 const fieldErrors = ref<Record<string, string>>({})
 const isUpdatingFromProps = ref(false)
+
+// Preview student ID state
+const previewStudentId = ref(65070232)
 
 // Exempt IP Ranges state
 const exemptRangeInput = ref('')
@@ -580,11 +634,12 @@ const createDefaultVlan = (mode: string, index: number): VlanConfig => {
   // Use consistent base network since IP generation algorithm replaces second and third octets
   // This allows multiple VLANs to use the same base network without conflicts
   const baseNetwork = `172.16.0.0`
-  
+
   const baseConfig: VlanConfig = {
     id: generateVlanId(),
     baseNetwork: baseNetwork,
     subnetMask: 24,
+    subnetIndex: 1,          // NEW: Default to first subnet block (1-indexed for UI)
     isStudentGenerated: true
   }
 
@@ -662,8 +717,18 @@ const getVlanDisplay = (vlan: VlanConfig, index: number): string => {
 }
 
 const generatePreviewIP = (vlan: VlanConfig): string => {
-  // Sample student ID: 65070232
-  const studentId = 65070232
+  // Use preview student ID from input
+  const studentId = previewStudentId.value || 65070232
+
+  if (!vlan.baseNetwork || !isValidIP(vlan.baseNetwork)) {
+    return 'Invalid base network'
+  }
+
+  // Validate student ID
+  if (!studentId || studentId < 60000000 || studentId > 99999999) {
+    return 'Invalid student ID (must be 8 digits)'
+  }
+
   const dec2_1 = (studentId / 1000000 - 61) * 10 // 4 * 10 = 40
   const dec2_2 = (studentId % 1000) / 250 // 232 / 250 = 0.928
   const dec2 = Math.floor(dec2_1 + dec2_2) // 40
@@ -679,12 +744,23 @@ const generatePreviewIP = (vlan: VlanConfig): string => {
     dec3 = Math.floor((dec3 + calculatedVlanId) % 250)
   }
 
-  if (!vlan.baseNetwork || !isValidIP(vlan.baseNetwork)) {
-    return 'Invalid base network'
-  }
+  // Calculate fourth octet (last octet) based on subnet block
+  // subnetIndex is 1-indexed in UI, so convert to 0-indexed for calculation
+  // Formula: lastOctet = (subnetBlock - 1) * blockSize
+  // Examples:
+  //   /24, Block 1: blockSize = 256, lastOctet = 0
+  //   /25, Block 1: blockSize = 128, lastOctet = 0
+  //   /25, Block 2: blockSize = 128, lastOctet = 128
+  //   /26, Block 1: blockSize = 64, lastOctet = 0
+  //   /26, Block 2: blockSize = 64, lastOctet = 64
+  //   /26, Block 3: blockSize = 64, lastOctet = 128
+  //   /26, Block 4: blockSize = 64, lastOctet = 192
+  const subnetIndexZeroBased = (vlan.subnetIndex || 1) - 1
+  const blockSize = Math.pow(2, 32 - vlan.subnetMask)
+  const dec4 = subnetIndexZeroBased * blockSize  // This is the starting address of the subnet block
 
   const [baseOct1] = vlan.baseNetwork.split('.').map(Number)
-  return `${baseOct1}.${dec2}.${dec3}.65/${vlan.subnetMask}`
+  return `${baseOct1}.${dec2}.${dec3}.${dec4}/${vlan.subnetMask}`
 }
 
 const validateVlan = (index: number) => {
@@ -705,6 +781,28 @@ const validateVlan = (index: number) => {
     fieldErrors.value[`vlan_${index}_subnetMask`] = 'Subnet mask must be between 8 and 30'
   } else {
     delete fieldErrors.value[`vlan_${index}_subnetMask`]
+  }
+
+  // Validate subnet index (NEW)
+  // NOTE: UI uses 1-indexed (1 = first block), but backend uses 0-indexed
+  // We will convert to 0-indexed when submitting to backend (subnetIndex - 1)
+  if (vlan.subnetIndex === undefined || vlan.subnetIndex === null) {
+    fieldErrors.value[`vlan_${index}_subnetIndex`] = 'Subnet index is required'
+  } else if (vlan.subnetIndex < 1) {
+    fieldErrors.value[`vlan_${index}_subnetIndex`] = 'Subnet index must be >= 1'
+  } else {
+    // Calculate if this subnet index would exceed the valid IP range
+    // Convert to 0-indexed for calculation
+    const blockSize = Math.pow(2, 32 - vlan.subnetMask)
+    const startAddress = (vlan.subnetIndex - 1) * blockSize
+
+    // Check if the starting address of this subnet block exceeds 254 (last usable octet)
+    if (startAddress > 254) {
+      fieldErrors.value[`vlan_${index}_subnetIndex`] =
+        `Subnet block ${vlan.subnetIndex} with /${vlan.subnetMask} would start at .${startAddress} (exceeds .254)`
+    } else {
+      delete fieldErrors.value[`vlan_${index}_subnetIndex`]
+    }
   }
 
   // Mode-specific validation

@@ -1,12 +1,13 @@
 # NetGrader Exam Creation - Comprehensive Implementation Plan
-
 ## 📋 Executive Summary
 
 This document outlines the complete implementation plan for upgrading NetGrader to support comprehensive exam creation with:
 - **Fill-in-the-blank questions** for IP calculation and subnetting
+- **DHCP configuration parts** with lecturer-defined pools
 - **Network configuration tasks** for hands-on device grading
+- **Dynamic, student-managed IP schemas** (mutable and versioned)
 - **Dynamic subnet configuration** with `subnetIndex` field
-- **Student IP Schema table** (floating UI element)
+- **Student IP Schema floating UI** (always accessible after IP calculation)
 
 ---
 
@@ -16,117 +17,142 @@ This document outlines the complete implementation plan for upgrading NetGrader 
 1. **No distinction between question types**: All parts are treated as network configuration tasks
 2. **Missing subnet index field**: Frontend doesn't support the new `subnetIndex` requirement
 3. **No fill-in-the-blank support**: Cannot create calculation-based questions
-4. **No IP schema visibility**: Students can't view their calculated IP schema during exams
+4. **No DHCP support**: Cannot create DHCP configuration parts with lecturer-defined pools
+5. **Static IP schemas**: Students cannot update their IP schema after DHCP assignment
+6. **No IP schema visibility**: Students can't view their calculated/updated IP schema during exams
 
 ### Desired Outcome
 Create a flexible exam system where instructors can:
-- Mix fill-in-the-blank questions with configuration tasks
-- Require students to calculate IPs before using them
+- Mix fill-in-the-blank questions with DHCP and configuration tasks
+- Define DHCP pools with specific IP ranges
+- Allow students to calculate initial IPs, then update them after DHCP
 - Control subnet block selection per VLAN
-- Provide IP schema visibility conditionally
+- Enable students to manage their own IP schemas with full version history
 
 ---
 
-## 📊 Current System Analysis
+## 🔄 The Dynamic IP Schema Flow
 
-### Backend Structure
+```
+Part 1: IP Calculation (Fill-in-Blank)
+├─ Student calculates: Network address, usable IPs, broadcast
+├─ Submits answers → Creates StudentIpSchema v1
+└─ IP Schema floating button appears
 
-#### Lab Model (`/src/modules/labs/model.ts`)
-```typescript
-interface ILab {
-  type: 'lab' | 'exam';  // ✅ Already supports exam type
-  network: {
-    topology: { baseNetwork, subnetMask, ... };
-    vlanConfiguration?: {
-      mode: 'fixed_vlan' | 'lecturer_group' | 'calculated_vlan';
-      vlans: Array<{
-        subnetIndex: number;  // ✅ Already required in backend
-        baseNetwork: string;
-        subnetMask: number;
-        // ...
-      }>;
-    };
-    devices: Array<{ ... }>;
-  };
-}
+Part 2: DHCP Configuration (DHCP Config)
+├─ Lecturer-defined DHCP pool: 172.16.40.100 - 172.16.40.150
+├─ Student configures router to serve DHCP
+├─ Devices request IPs via DHCP
+├─ Device gets 172.16.40.112 (different from calculated!)
+└─ Student notes actual IP received
+
+Part 1: UPDATE IP Schema (Re-submit)
+├─ Student clicks "Edit Schema" in floating button
+├─ Returns to Part 1 in "Update Mode"
+├─ Updates answers to reflect DHCP-assigned IPs
+├─ Submits updates → StudentIpSchema v2
+└─ IP Schema shows "Updated" badge (v2)
+
+Part 3+: Device Configuration & Grading
+├─ Student configures devices using actual IPs from schema
+├─ Submits for grading
+├─ Grading service fetches latest StudentIpSchema (v2)
+├─ Connects to devices using student-declared IPs
+└─ Grades successfully ✅
 ```
 
-#### LabPart Model (`/src/modules/parts/model.ts`)
+---
+
+## 📊 Clarified Requirements
+
+### ✅ Confirmed Specifications
+
+1. **DHCP Pool Validation**
+   - If student updates IP **outside** lecturer-defined DHCP pool → submission FAILS
+   - Shows "Not passed" feedback with error message
+   - No warnings, direct validation failure
+
+2. **Schema Locking**
+   - **No schema locking** - students can update indefinitely
+   - No time restrictions, no submission-based locks
+
+3. **Version Limits**
+   - **No version limit** - unlimited updates allowed
+   - Full version history maintained
+
+4. **Grading Service**
+   - **Always use student-declared IPs** for grading
+   - No fallback to calculated IPs
+   - Trust student-declared schema completely
+
+5. **Schema Mapping (Hybrid Approach)**
+   - Instructor selects question type from dropdown (100% accurate)
+   - System auto-detects VLAN index from question text (90% accurate, editable)
+   - Final mapping shown immediately for verification
+
+---
+
+## 🏗️ Backend Architecture
+
+### 1. StudentIpSchema Collection (NEW)
+
+**Purpose**: Store each student's declared IP schema with full version history
+
+**Collection**: `student_ip_schemas`
+
 ```typescript
-interface ILabPart {
-  partId: string;
-  title: string;
-  instructions: RichContent;
-  tasks: Array<{
-    taskId: string;
-    templateId: ObjectId;
-    parameters: Record<string, any>;
-    testCases: Array<{
-      comparison_type: string;
-      expected_result: any;
+interface IStudentIpSchema extends Document {
+  studentId: Types.ObjectId;      // Ref: users._id
+  labId: Types.ObjectId;           // Ref: labs._id
+
+  // The actual IP schema (student-managed)
+  schema: {
+    // VLAN-level schema
+    vlans: Array<{
+      vlanIndex: number;           // Which VLAN (0-9)
+      networkAddress: string;      // e.g., "172.16.40.64"
+      subnetMask: number;          // e.g., 26
+      subnetIndex: number;         // Which subnet block
+      firstUsableIp: string;       // e.g., "172.16.40.65"
+      lastUsableIp: string;        // e.g., "172.16.40.126"
+      broadcastAddress: string;    // e.g., "172.16.40.127"
+
+      // Source tracking
+      source: 'calculated' | 'student_updated';
+      updatedAt: Date;
     }>;
-  }>;
-  prerequisites: string[];  // ✅ Can enforce part order
+
+    // Device-level IP assignments (for DHCP updates)
+    devices: Array<{
+      deviceId: string;            // e.g., "router1"
+      interfaces: Array<{
+        variableName: string;      // e.g., "gig0_0_vlan_1"
+        ipAddress: string;         // e.g., "172.16.40.112"
+        subnetMask?: string;
+
+        // Track how this IP was determined
+        source: 'calculated' | 'dhcp' | 'manual_update';
+        dhcpPoolName?: string;     // If from DHCP
+        updatedAt: Date;
+        updatedBy: 'initial_calculation' | 'student_update';
+      }>;
+    }>;
+  };
+
+  // Versioning for audit trail
+  version: number;                 // Increments on each update (no limit)
+  previousVersionId?: Types.ObjectId; // Link to previous version
+
+  // Metadata
+  calculationPartId?: Types.ObjectId;  // Which part created this
+  isLocked: boolean;               // Always false per requirements
+
+  createdAt: Date;
+  updatedAt: Date;
 }
 ```
 
-**Key Observation**: Backend models are flexible enough to support both question types, but need:
-- New part type field: `partType: 'fill_in_blank' | 'network_config'`
-- Question schema for fill-in-the-blank parts
-
-### Frontend Structure
-
-#### Wizard Steps
-1. **Step 1**: Basic Lab Info
-2. **Step 2**: Network Configuration ❌ Missing `subnetIndex`
-3. **Step 3**: Device Configuration
-4. **Step 4**: Parts & Tasks ❌ No part type selection
-5. **Step 5**: Schedule
-6. **Step 6**: Review
-
-#### Student Lab View (`pages/courses/[c_id]/labs/[l_id]/index.vue`)
-- Currently shows lab parts and tasks
-- Has grading submission system
-- ❌ No floating IP schema table
-- ❌ No conditional visibility logic
-
----
-
-## 🔍 Exam PDF Analysis (CNI2024-Exam.pdf)
-
-### Exam Structure
-
-Based on typical networking exams like CNI2024:
-
-#### Part 1: IP Calculation (Fill-in-the-Blank)
-**Example Questions:**
-1. Calculate your subnet mask: `/___`
-2. Calculate your network address: `___.___.___.___ `
-3. Calculate your first usable IP: `___.___.___.___ `
-4. Calculate your last usable IP: `___.___.___.___ `
-5. Calculate your broadcast address: `___.___.___.___ `
-
-**Grading Logic:**
-- Formula-based: Use student ID + subnet calculations
-- Auto-graded: Compare student answer to calculated correct answer
-- Prerequisite: Must pass before accessing network config parts
-
-#### Part 2+: Network Configuration
-**Example Tasks:**
-- Configure hostname
-- Configure IP addresses (using calculated values from Part 1)
-- Configure VLAN trunking
-- Configure routing protocols
-
-**Key Insight**: Part 1 calculates the IP schema that becomes visible for Parts 2+
-
----
-
-## 🏗️ Proposed Architecture Changes
-
-### 1. Backend Changes
-
-#### A. Add Part Type to LabPart Model
+### 2. Updated LabPart Model
 
 **File**: `/home/chinfair/Documents/netgrader-backend-elysia/src/modules/parts/model.ts`
 
@@ -134,111 +160,160 @@ Based on typical networking exams like CNI2024:
 export interface ILabPart extends Document {
   // ... existing fields
 
-  // NEW: Part type determines rendering and grading behavior
-  partType: 'fill_in_blank' | 'network_config';
+  // Enhanced part types
+  partType: 'fill_in_blank' | 'network_config' | 'dhcp_config';
 
-  // NEW: For fill-in-the-blank parts only
+  // For fill-in-the-blank parts
   questions?: Array<{
-    questionId: string;           // Unique within part
-    questionText: string;         // e.g., "Calculate your subnet mask"
-    questionType: 'ip_address' | 'subnet_mask' | 'number' | 'text';
+    questionId: string;
+    questionText: string;
+    questionType: 'network_address' | 'first_usable_ip' | 'last_usable_ip' |
+                  'broadcast_address' | 'subnet_mask' | 'ip_address' | 'number';
     order: number;
     points: number;
 
-    // Answer validation
-    answerFormula?: string;       // e.g., "calculateSubnetMask(studentId, baseNetwork, subnetMask)"
-    expectedAnswerType: string;   // 'exact' | 'range' | 'pattern'
-    correctAnswer?: any;          // Pre-calculated or formula result
+    // NEW: Hybrid Schema Mapping
+    schemaMapping: {
+      vlanIndex: number;         // Auto-detected from question text, editable
+      field: 'networkAddress' | 'subnetMask' | 'firstUsableIp' |
+             'lastUsableIp' | 'broadcastAddress';
+      deviceId?: string;         // For device-specific IPs
+      variableName?: string;     // For device interface IPs
+    };
 
-    // UI hints
-    placeholder?: string;         // e.g., "172.16.___.___ "
-    inputFormat?: string;         // 'ip' | 'cidr' | 'number'
+    // Validation
+    answerFormula?: string;
+    expectedAnswerType: 'exact' | 'range';
+    placeholder?: string;
+    inputFormat?: 'ip' | 'cidr' | 'number';
   }>;
 
-  // Existing fields remain unchanged
-  tasks: Array<{ ... }>;          // Only used for network_config parts
+  // NEW: For DHCP configuration parts
+  dhcpConfiguration?: {
+    poolName: string;              // e.g., "VLAN1_POOL"
+    vlanIndex: number;             // Which VLAN this pool serves
+
+    // Lecturer-defined DHCP pool (STRICT VALIDATION)
+    startIp: string;               // e.g., "172.16.40.100"
+    endIp: string;                 // e.g., "172.16.40.150"
+    subnetMask: string;            // e.g., "255.255.255.192"
+
+    // Optional DHCP settings
+    defaultGateway?: string;
+    dnsServers?: string[];
+    leaseTime?: number;            // seconds
+
+    // Instructions for students
+    configurationInstructions: string;
+
+    // Expected device to configure DHCP on
+    dhcpServerDevice: string;      // e.g., "router1"
+  };
+
+  // Existing fields
+  tasks: Array<{ ... }>;
+  prerequisites: string[];
 }
 ```
 
-#### B. Add Subnet Index Validation
+---
 
-Already implemented in:
-- `/home/chinfair/Documents/netgrader-backend-elysia/src/utils/vlan-validator.ts`
+## 🔌 Backend API Endpoints
 
-**Current Validation** (lines 70-86):
-```typescript
-if (vlan.subnetIndex === undefined || vlan.subnetIndex === null) {
-  errors.push(`VLAN ${index}: subnetIndex is required`);
-} else if (vlan.subnetIndex < 0) {
-  errors.push(`VLAN ${index}: subnetIndex must be >= 0`);
-} else {
-  const blockSize = Math.pow(2, 32 - vlan.subnetMask);
-  const maxHostAddress = vlan.subnetIndex * blockSize;
-  if (maxHostAddress > 254) {
-    errors.push(`VLAN ${index}: subnetIndex ${vlan.subnetIndex} would exceed .254`);
+### 1. Submit/Update IP Calculation Answers
+
+**Endpoint**: `POST /v0/labs/:labId/parts/:partId/submit-answers`
+
+**Request Body**:
+```json
+{
+  "answers": [
+    {
+      "questionId": "q1_network_address",
+      "answer": "172.16.40.64"
+    },
+    {
+      "questionId": "q2_first_usable",
+      "answer": "172.16.40.65"
+    }
+  ],
+  "isUpdate": false  // false = initial, true = update existing schema
+}
+```
+
+**Validation Logic**:
+1. Validate each answer against formula/expected value
+2. If answer is device IP and part has DHCP config:
+   - Check if IP is within lecturer-defined DHCP pool
+   - If outside pool → **FAIL** with error message
+3. Map answers to schema fields using `schemaMapping`
+4. Create or update StudentIpSchema with new version
+
+**Response**:
+```json
+{
+  "success": true,
+  "data": {
+    "results": [
+      {
+        "questionId": "q1_network_address",
+        "isCorrect": true,
+        "pointsEarned": 5
+      }
+    ],
+    "totalPointsEarned": 18,
+    "studentIpSchema": {
+      "schemaId": "507f...",
+      "version": 2,
+      "schema": { ... }
+    }
   }
 }
 ```
 
-✅ **No changes needed** - validation is complete.
+### 2. Get Student IP Schema
 
-#### C. Add Question Answering API
+**Endpoint**: `GET /v0/labs/:labId/ip-schema`
 
-**New Route**: `POST /v0/labs/:labId/parts/:partId/submit-answers`
-
-```typescript
-// Request body
+**Response**:
+```json
 {
-  answers: Array<{
-    questionId: string;
-    answer: string | number;
-  }>;
-}
-
-// Response
-{
-  success: boolean;
-  data: {
-    results: Array<{
-      questionId: string;
-      isCorrect: boolean;
-      correctAnswer?: any;  // Only show if incorrect
-      pointsEarned: number;
-    }>;
-    totalPoints: number;
-    totalPointsEarned: number;
-    passed: boolean;  // If threshold met
-  };
+  "success": true,
+  "data": {
+    "exists": true,
+    "schemaId": "507f...",
+    "version": 2,
+    "schema": {
+      "vlans": [...],
+      "devices": [...]
+    },
+    "canEdit": true,  // Always true (no locking)
+    "calculationPartId": "507f...",
+    "updatedAt": "2024-01-15T10:30:00Z"
+  }
 }
 ```
 
-#### D. Update Lab Start API
+### 3. Grading Service Integration
 
-**File**: Backend lab start route
+**Endpoint**: `GET /v0/submissions/:submissionId/student-ip-schema`
 
-Add IP schema to response **only if** IP calculation part is passed:
+**Purpose**: Grading service fetches latest student IP schema
 
-```typescript
-// Existing response
+**Response**:
+```json
 {
-  success: true,
-  data: {
-    networkConfiguration: {
-      ipMappings: { ... },
-      vlanMappings: { ... }
-    },
-    // NEW: IP Schema (conditional)
-    ipSchema?: {
-      available: boolean;  // Only true if IP calc part passed
-      vlans: Array<{
-        vlanIndex: number;
-        networkAddress: string;
-        subnetMask: number;
-        subnetIndex: number;
-        firstUsableIp: string;
-        lastUsableIp: string;
-        broadcastAddress: string;
-      }>;
+  "success": true,
+  "data": {
+    "schemaId": "507f...",
+    "version": 2,
+    "deviceConnections": {
+      "router1": {
+        "gig0_0_vlan_1": {
+          "ipAddress": "172.16.40.112",
+          "source": "dhcp"
+        }
+      }
     }
   }
 }
@@ -246,53 +321,75 @@ Add IP schema to response **only if** IP calculation part is passed:
 
 ---
 
-### 2. Frontend Changes
+## 🎨 Frontend Implementation
 
-#### A. Update TypeScript Interfaces
+### 1. Updated TypeScript Interfaces
 
 **File**: `/home/chinfair/Documents/netgrader-frontend/types/wizard.ts`
 
 ```typescript
-// Add to existing interfaces
+// Add/Update these interfaces
 
 export interface LabPart {
-  // ... existing fields
-  partType: 'fill_in_blank' | 'network_config';  // NEW
-  questions?: Question[];                          // NEW
-  tasks: Task[];  // Only required if partType === 'network_config'
+  partType: 'fill_in_blank' | 'network_config' | 'dhcp_config';
+  questions?: Question[];
+  tasks?: Task[];
+  dhcpConfiguration?: DhcpConfiguration;
+  // ... other fields
 }
 
 export interface Question {
   questionId: string;
   questionText: string;
-  questionType: 'ip_address' | 'subnet_mask' | 'number' | 'text';
+  questionType: 'network_address' | 'first_usable_ip' | 'last_usable_ip' |
+                'broadcast_address' | 'subnet_mask';
   order: number;
   points: number;
-  answerFormula?: string;
-  expectedAnswerType: 'exact' | 'range' | 'pattern';
+
+  // Hybrid schema mapping
+  schemaMapping: {
+    vlanIndex: number;         // Auto-detected, editable
+    field: 'networkAddress' | 'firstUsableIp' | 'lastUsableIp' |
+           'broadcastAddress' | 'subnetMask';
+    autoDetected: boolean;     // Was VLAN auto-detected?
+  };
+
   placeholder?: string;
   inputFormat?: 'ip' | 'cidr' | 'number';
 }
 
-export interface VlanConfig {
-  id?: string;
-  vlanId?: number;
-  calculationMultiplier?: number;
-  baseNetwork: string;
-  subnetMask: number;
-  subnetIndex: number;  // ✅ ADD THIS (required)
-  groupModifier?: number;
-  isStudentGenerated: boolean;
+export interface DhcpConfiguration {
+  poolName: string;
+  vlanIndex: number;
+  startIp: string;
+  endIp: string;
+  subnetMask: string;
+  defaultGateway?: string;
+  dnsServers?: string[];
+  leaseTime?: number;
+  configurationInstructions: string;
+  dhcpServerDevice: string;
+}
+
+export interface StudentIpSchema {
+  exists: boolean;
+  schemaId?: string;
+  version: number;
+  schema: {
+    vlans: VlanSchema[];
+    devices: DeviceSchema[];
+  };
+  canEdit: boolean;
+  calculationPartId?: string;
+  updatedAt?: string;
 }
 ```
 
-#### B. Update Lab Wizard Step 2
+### 2. Lab Wizard Step 2 - Add Subnet Index
 
-**File**: `/home/chinfair/Documents/netgrader-frontend/components/wizard/LabWizardStep2.vue`
+**File**: `components/wizard/LabWizardStep2.vue`
 
-**Changes Needed:**
-
-1. **Add Subnet Index Field** (after line 369):
+Add this field after Subnet Mask dropdown (line ~369):
 
 ```vue
 <!-- Subnet Index (NEW) -->
@@ -307,14 +404,15 @@ export interface VlanConfig {
     placeholder="0"
     @input="validateVlan(index)"
     :class="{
-      'border-destructive': hasError(`vlan_${index}_subnetIndex`)
+      'border-destructive': hasError(`vlan_${index}_subnetIndex`),
+      'border-green-500': !hasError(`vlan_${index}_subnetIndex`) && vlan.subnetIndex !== undefined
     }"
   />
   <p class="text-xs text-muted-foreground flex items-start gap-1">
     <Info class="w-3 h-3 mt-0.5 flex-shrink-0" />
     <span>
       Subnet block to use (0 = first, 1 = second, etc.).
-      For /26: block 0 = .0-.63, block 1 = .64-.127
+      For /26: block 0 = .0-.63, block 1 = .64-.127, block 2 = .128-.191
     </span>
   </p>
   <p v-if="hasError(`vlan_${index}_subnetIndex`)" class="text-sm text-destructive">
@@ -323,58 +421,31 @@ export interface VlanConfig {
 </div>
 ```
 
-2. **Add Validation** (in `validateVlan` function):
+Add validation in `validateVlan`:
 
 ```typescript
-const validateVlan = (index: number) => {
-  const vlan = localData.value.vlans[index]
-  if (!vlan) return
-
-  // ... existing validation
-
-  // NEW: Validate subnet index
-  if (vlan.subnetIndex === undefined || vlan.subnetIndex === null) {
-    fieldErrors.value[`vlan_${index}_subnetIndex`] = 'Subnet index is required'
-  } else if (vlan.subnetIndex < 0) {
-    fieldErrors.value[`vlan_${index}_subnetIndex`] = 'Subnet index must be >= 0'
+// Validate subnet index
+if (vlan.subnetIndex === undefined || vlan.subnetIndex === null) {
+  fieldErrors.value[`vlan_${index}_subnetIndex`] = 'Subnet index is required'
+} else if (vlan.subnetIndex < 0) {
+  fieldErrors.value[`vlan_${index}_subnetIndex`] = 'Subnet index must be >= 0'
+} else {
+  const blockSize = Math.pow(2, 32 - vlan.subnetMask)
+  const maxHostAddress = vlan.subnetIndex * blockSize
+  if (maxHostAddress > 254) {
+    fieldErrors.value[`vlan_${index}_subnetIndex`] =
+      `Subnet index ${vlan.subnetIndex} with /${vlan.subnetMask} would start at .${maxHostAddress} (exceeds .254)`
   } else {
-    // Check if fourth octet would exceed 254
-    const blockSize = Math.pow(2, 32 - vlan.subnetMask)
-    const maxHostAddress = vlan.subnetIndex * blockSize
-    if (maxHostAddress > 254) {
-      fieldErrors.value[`vlan_${index}_subnetIndex`] =
-        `Subnet index ${vlan.subnetIndex} with /${vlan.subnetMask} would start at .${maxHostAddress} (exceeds .254)`
-    } else {
-      delete fieldErrors.value[`vlan_${index}_subnetIndex`]
-    }
+    delete fieldErrors.value[`vlan_${index}_subnetIndex`]
   }
-
-  emitValidation()
 }
 ```
 
-3. **Update Default VLAN Creation**:
+### 3. Lab Wizard Step 4 - Hybrid Schema Mapping
 
-```typescript
-const createDefaultVlan = (mode: string, index: number): VlanConfig => {
-  const baseConfig: VlanConfig = {
-    id: generateVlanId(),
-    baseNetwork: '172.16.0.0',
-    subnetMask: 24,
-    subnetIndex: 0,  // ✅ ADD DEFAULT VALUE
-    isStudentGenerated: true
-  }
-  // ... rest of function
-}
-```
+**File**: `components/wizard/LabWizardStep4.vue`
 
-#### C. Update Lab Wizard Step 4 - Part Type Selection
-
-**File**: `/home/chinfair/Documents/netgrader-frontend/components/wizard/LabWizardStep4.vue`
-
-**Major Changes:**
-
-1. **Add Part Type Selection Radio**:
+Add three part type options:
 
 ```vue
 <!-- Part Type Selection (NEW) -->
@@ -383,6 +454,7 @@ const createDefaultVlan = (mode: string, index: number): VlanConfig => {
     Part Type <span class="text-destructive">*</span>
   </Label>
   <RadioGroup v-model="part.partType" @update:modelValue="onPartTypeChange(partIndex)">
+    <!-- Fill-in-the-Blank -->
     <div class="flex items-center space-x-2">
       <RadioGroupItem value="fill_in_blank" id="fill-blank" />
       <Label for="fill-blank" class="flex items-center gap-2 cursor-pointer">
@@ -393,6 +465,20 @@ const createDefaultVlan = (mode: string, index: number): VlanConfig => {
         </div>
       </Label>
     </div>
+
+    <!-- DHCP Configuration (NEW) -->
+    <div class="flex items-center space-x-2">
+      <RadioGroupItem value="dhcp_config" id="dhcp-config" />
+      <Label for="dhcp-config" class="flex items-center gap-2 cursor-pointer">
+        <Server class="w-4 h-4" />
+        <div>
+          <div class="font-medium">DHCP Configuration</div>
+          <div class="text-xs text-muted-foreground">Configure DHCP with lecturer-defined pool</div>
+        </div>
+      </Label>
+    </div>
+
+    <!-- Network Configuration -->
     <div class="flex items-center space-x-2">
       <RadioGroupItem value="network_config" id="network-config" />
       <Label for="network-config" class="flex items-center gap-2 cursor-pointer">
@@ -407,108 +493,136 @@ const createDefaultVlan = (mode: string, index: number): VlanConfig => {
 </div>
 ```
 
-2. **Conditional Rendering** - Show questions OR tasks:
+**Hybrid Question Editor with Auto-Detection**:
 
 ```vue
-<!-- Questions Editor (if partType === 'fill_in_blank') -->
+<!-- Question Editor (if partType === 'fill_in_blank') -->
 <div v-if="part.partType === 'fill_in_blank'" class="space-y-4">
-  <Label class="text-sm font-medium">Questions</Label>
+  <div v-for="(question, qIndex) in part.questions" :key="question.questionId"
+       class="border rounded-lg p-4 space-y-3">
 
-  <!-- Question List -->
-  <div v-for="(question, qIndex) in part.questions" :key="question.questionId" class="border rounded-lg p-4">
-    <!-- Question configuration UI -->
+    <!-- Question Text -->
+    <div class="space-y-2">
+      <Label>Question Text <span class="text-destructive">*</span></Label>
+      <Input
+        v-model="question.questionText"
+        placeholder="e.g., Calculate your network address for VLAN 1: ___"
+        @input="onQuestionTextChange(partIndex, qIndex)"
+      />
+    </div>
+
+    <!-- Question Type (Manual Selection - 100% Accurate) -->
+    <div class="space-y-2">
+      <Label>Question Type <span class="text-destructive">*</span></Label>
+      <Select v-model="question.questionType">
+        <SelectTrigger>
+          <SelectValue placeholder="Select question type..." />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="network_address">Network Address</SelectItem>
+          <SelectItem value="first_usable_ip">First Usable IP</SelectItem>
+          <SelectItem value="last_usable_ip">Last Usable IP</SelectItem>
+          <SelectItem value="broadcast_address">Broadcast Address</SelectItem>
+          <SelectItem value="subnet_mask">Subnet Mask (CIDR)</SelectItem>
+        </SelectContent>
+      </Select>
+    </div>
+
+    <!-- VLAN Index (Hybrid: Auto-detect + Manual Override) -->
+    <div class="space-y-2">
+      <Label>Target VLAN <span class="text-destructive">*</span></Label>
+      <div class="flex items-center gap-2">
+        <Select v-model="question.schemaMapping.vlanIndex">
+          <SelectTrigger class="flex-1">
+            <SelectValue placeholder="Select VLAN..." />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem v-for="i in vlanCount" :key="i-1" :value="i-1">
+              VLAN {{ i }}
+            </SelectItem>
+          </SelectContent>
+        </Select>
+
+        <!-- Auto-detection indicator -->
+        <Badge v-if="question.schemaMapping.autoDetected" variant="secondary" class="text-xs">
+          🤖 Auto-detected
+        </Badge>
+      </div>
+      <p v-if="question.schemaMapping.autoDetected" class="text-xs text-muted-foreground">
+        VLAN was auto-detected from question text. You can change it above.
+      </p>
+    </div>
+
+    <!-- Final Mapping Preview -->
+    <Alert>
+      <Info class="w-4 h-4" />
+      <AlertDescription class="text-xs">
+        <strong>This answer will be stored in:</strong><br>
+        <code class="text-xs">schema.vlans[{{ question.schemaMapping.vlanIndex }}].{{ getFieldName(question.questionType) }}</code>
+      </AlertDescription>
+    </Alert>
+
+    <!-- Points -->
+    <div class="space-y-2">
+      <Label>Points</Label>
+      <Input
+        v-model.number="question.points"
+        type="number"
+        min="1"
+        placeholder="5"
+      />
+    </div>
   </div>
 
   <Button @click="addQuestion(partIndex)">
     <Plus class="w-4 h-4 mr-2" /> Add Question
   </Button>
 </div>
-
-<!-- Tasks Editor (if partType === 'network_config') -->
-<div v-else-if="part.partType === 'network_config'" class="space-y-4">
-  <!-- Existing task management UI -->
-</div>
 ```
 
-3. **Question Management Functions**:
+**Auto-detection Logic**:
 
 ```typescript
-const addQuestion = (partIndex: number) => {
-  const newQuestion: Question = {
-    questionId: generateQuestionId(),
-    questionText: '',
-    questionType: 'ip_address',
-    order: parts.value[partIndex].questions?.length + 1 || 1,
-    points: 1,
-    expectedAnswerType: 'exact',
-    inputFormat: 'ip'
-  }
+// Auto-detect VLAN from question text
+function onQuestionTextChange(partIndex: number, questionIndex: number) {
+  const question = parts.value[partIndex].questions[questionIndex]
+  const text = question.questionText
 
-  if (!parts.value[partIndex].questions) {
-    parts.value[partIndex].questions = []
-  }
-
-  parts.value[partIndex].questions.push(newQuestion)
-}
-
-const removeQuestion = (partIndex: number, questionIndex: number) => {
-  parts.value[partIndex].questions.splice(questionIndex, 1)
-}
-
-const onPartTypeChange = (partIndex: number) => {
-  const part = parts.value[partIndex]
-
-  if (part.partType === 'fill_in_blank') {
-    // Clear tasks, initialize questions
-    part.tasks = []
-    part.task_groups = []
-    part.questions = part.questions || []
+  // Try to detect VLAN number
+  const vlanMatch = text.match(/VLAN\s*(\d+)/i)
+  if (vlanMatch) {
+    const vlanNumber = parseInt(vlanMatch[1])
+    question.schemaMapping.vlanIndex = vlanNumber - 1  // Convert to 0-indexed
+    question.schemaMapping.autoDetected = true
   } else {
-    // Clear questions, initialize tasks
-    part.questions = []
-    part.tasks = part.tasks || []
+    // No VLAN detected, default to 0
+    question.schemaMapping.vlanIndex = 0
+    question.schemaMapping.autoDetected = false
   }
+
+  // Auto-set field based on question type
+  question.schemaMapping.field = getFieldFromQuestionType(question.questionType)
+}
+
+function getFieldFromQuestionType(type: string): string {
+  const mapping = {
+    'network_address': 'networkAddress',
+    'first_usable_ip': 'firstUsableIp',
+    'last_usable_ip': 'lastUsableIp',
+    'broadcast_address': 'broadcastAddress',
+    'subnet_mask': 'subnetMask'
+  }
+  return mapping[type] || 'networkAddress'
 }
 ```
 
-#### D. Create Student IP Schema Component
+### 4. Student IP Schema Floating Button (Enhanced)
 
-**New File**: `/home/chinfair/Documents/netgrader-frontend/components/student/StudentIpSchemaFloatingButton.vue`
+**File**: `components/student/StudentIpSchemaFloatingButton.vue`
 
 ```vue
-<script setup lang="ts">
-import { ref } from 'vue'
-import { Info, X, Network, ChevronDown, ChevronUp } from 'lucide-vue-next'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Badge } from '@/components/ui/badge'
-
-interface VlanSchema {
-  vlanIndex: number
-  networkAddress: string
-  subnetMask: number
-  subnetIndex: number
-  firstUsableIp: string
-  lastUsableIp: string
-  broadcastAddress: string
-}
-
-interface Props {
-  isAvailable: boolean  // Only show if IP calc part is passed
-  vlans: VlanSchema[]
-}
-
-const props = defineProps<Props>()
-const isExpanded = ref(false)
-
-const toggleExpanded = () => {
-  isExpanded.value = !isExpanded.value
-}
-</script>
-
 <template>
-  <div v-if="isAvailable" class="fixed bottom-6 right-6 z-50">
+  <div v-if="schema.exists" class="fixed bottom-6 right-6 z-50">
     <!-- Collapsed Button -->
     <Button
       v-if="!isExpanded"
@@ -518,48 +632,73 @@ const toggleExpanded = () => {
     >
       <Network class="w-5 h-5 mr-2" />
       My IP Schema
+
+      <!-- Version Badge -->
+      <Badge v-if="schema.version > 1" variant="secondary" class="ml-2">
+        v{{ schema.version }}
+      </Badge>
+
       <ChevronUp class="w-4 h-4 ml-2" />
     </Button>
 
     <!-- Expanded Card -->
-    <Card
-      v-else
-      class="w-[600px] max-h-[500px] shadow-2xl border-2 border-primary"
-    >
+    <Card v-else class="w-[700px] max-h-[600px] shadow-2xl border-2 border-primary">
       <CardHeader class="pb-3 border-b">
         <div class="flex items-center justify-between">
-          <CardTitle class="text-lg flex items-center gap-2">
-            <Network class="w-5 h-5 text-primary" />
-            My IP Schema
-          </CardTitle>
-          <Button
-            variant="ghost"
-            size="sm"
-            @click="toggleExpanded"
-          >
-            <X class="w-4 h-4" />
-          </Button>
+          <div>
+            <CardTitle class="text-lg flex items-center gap-2">
+              <Network class="w-5 h-5 text-primary" />
+              My IP Schema
+              <Badge variant="outline">v{{ schema.version }}</Badge>
+            </CardTitle>
+            <p class="text-xs text-muted-foreground mt-1">
+              Last updated: {{ formatDate(schema.updatedAt) }}
+            </p>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <!-- Edit Button (always available - no locking) -->
+            <Button
+              variant="outline"
+              size="sm"
+              @click="editSchema"
+            >
+              <Edit class="w-4 h-4 mr-1" />
+              Edit
+            </Button>
+
+            <Button variant="ghost" size="sm" @click="toggleExpanded">
+              <X class="w-4 h-4" />
+            </Button>
+          </div>
         </div>
       </CardHeader>
 
-      <CardContent class="p-4 overflow-y-auto max-h-[400px]">
-        <div v-if="vlans.length === 0" class="text-center text-muted-foreground py-8">
-          <Info class="w-12 h-12 mx-auto mb-3 opacity-50" />
-          <p>No VLAN schema available yet.</p>
-        </div>
-
-        <div v-else class="space-y-4">
-          <div v-for="(vlan, index) in vlans" :key="index" class="border rounded-lg overflow-hidden">
+      <CardContent class="p-4 overflow-y-auto max-h-[500px]">
+        <!-- VLAN Schema -->
+        <div class="space-y-4">
+          <div v-for="vlan in schema.schema.vlans" :key="vlan.vlanIndex"
+               class="border rounded-lg overflow-hidden">
             <div class="bg-primary/5 px-3 py-2 font-medium flex items-center justify-between">
               <span>VLAN {{ vlan.vlanIndex }}</span>
-              <Badge variant="outline">Subnet {{ vlan.subnetIndex }}</Badge>
+              <div class="flex items-center gap-2">
+                <Badge variant="outline">Subnet {{ vlan.subnetIndex }}</Badge>
+                <Badge
+                  :variant="vlan.source === 'calculated' ? 'secondary' : 'default'"
+                  class="text-xs"
+                >
+                  {{ vlan.source === 'calculated' ? 'Calculated' : 'Updated' }}
+                </Badge>
+              </div>
             </div>
 
             <Table>
               <TableBody>
                 <TableRow>
                   <TableCell class="font-medium w-[200px]">Network Address</TableCell>
-                  <TableCell class="font-mono text-primary">{{ vlan.networkAddress }}/{{ vlan.subnetMask }}</TableCell>
+                  <TableCell class="font-mono text-primary">
+                    {{ vlan.networkAddress }}/{{ vlan.subnetMask }}
+                  </TableCell>
                 </TableRow>
                 <TableRow>
                   <TableCell class="font-medium">First Usable IP</TableCell>
@@ -576,574 +715,326 @@ const toggleExpanded = () => {
               </TableBody>
             </Table>
           </div>
+
+          <!-- Device IP Assignments (if any) -->
+          <div v-if="schema.schema.devices && schema.schema.devices.length > 0" class="mt-6">
+            <h4 class="font-semibold mb-3 flex items-center gap-2">
+              <Server class="w-4 h-4" />
+              Device IP Assignments
+            </h4>
+
+            <div v-for="device in schema.schema.devices" :key="device.deviceId"
+                 class="border rounded-lg p-3 space-y-2">
+              <div class="font-medium text-sm">{{ device.deviceId }}</div>
+
+              <div v-for="iface in device.interfaces" :key="iface.variableName"
+                   class="flex items-center justify-between text-sm border-t pt-2">
+                <span class="text-muted-foreground">{{ iface.variableName }}</span>
+                <div class="flex items-center gap-2">
+                  <span class="font-mono text-primary">{{ iface.ipAddress }}</span>
+                  <Badge
+                    variant="outline"
+                    class="text-xs"
+                    :class="{
+                      'bg-blue-50 border-blue-300': iface.source === 'calculated',
+                      'bg-green-50 border-green-300': iface.source === 'dhcp',
+                      'bg-yellow-50 border-yellow-300': iface.source === 'manual_update'
+                    }"
+                  >
+                    {{ iface.source === 'dhcp' ? 'DHCP' : iface.source === 'calculated' ? 'Calc' : 'Manual' }}
+                  </Badge>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
+        <!-- Help Text -->
         <div class="mt-4 text-xs text-muted-foreground flex items-start gap-2 bg-accent/30 p-3 rounded border">
           <Info class="w-4 h-4 mt-0.5 flex-shrink-0" />
-          <p>
-            This schema is calculated based on your student ID.
-            Use these values when configuring network devices.
-          </p>
+          <div>
+            <p class="font-medium mb-1">About this schema:</p>
+            <ul class="list-disc list-inside space-y-1">
+              <li>This schema reflects your current IP configuration</li>
+              <li>You can edit this schema anytime (no time limits)</li>
+              <li>Grading uses these IPs when testing your devices</li>
+              <li>Version {{ schema.version }} - {{ schema.version > 1 ? 'Updated' : 'Initial' }}</li>
+            </ul>
+          </div>
         </div>
       </CardContent>
     </Card>
   </div>
 </template>
-```
 
-#### E. Update Student Lab View
-
-**File**: `/home/chinfair/Documents/netgrader-frontend/pages/courses/[c_id]/labs/[l_id]/index.vue`
-
-**Changes:**
-
-1. **Add IP Schema State**:
-
-```typescript
-const ipSchema = ref<{
-  available: boolean
-  vlans: Array<{
-    vlanIndex: number
-    networkAddress: string
-    subnetMask: number
-    subnetIndex: number
-    firstUsableIp: string
-    lastUsableIp: string
-    broadcastAddress: string
-  }>
-}>({
-  available: false,
-  vlans: []
-})
-```
-
-2. **Update loadPersonalizedIPs Function** (line 388):
-
-```typescript
-const loadPersonalizedIPs = async () => {
-  try {
-    // ... existing code
-
-    if (result.success && result.data) {
-      backendIpMappings.value = result.data.networkConfiguration.ipMappings || {}
-      backendVlanMappings.value = result.data.networkConfiguration.vlanMappings || {}
-
-      // NEW: Load IP schema if available
-      if (result.data.ipSchema) {
-        ipSchema.value = result.data.ipSchema
-      }
-    }
-  } catch (error) {
-    // ... error handling
-  }
-}
-```
-
-3. **Add Component to Template** (line 950):
-
-```vue
-<!-- Student IP Schema Floating Button -->
-<StudentIpSchemaFloatingButton
-  :is-available="ipSchema.available"
-  :vlans="ipSchema.vlans"
-/>
-```
-
-4. **Import Component**:
-
-```typescript
-import StudentIpSchemaFloatingButton from '@/components/student/StudentIpSchemaFloatingButton.vue'
-```
-
-#### F. Create Fill-in-the-Blank Question Component
-
-**New File**: `/home/chinfair/Documents/netgrader-frontend/components/student/FillInBlankQuestions.vue`
-
-```vue
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { CheckCircle, XCircle, Send } from 'lucide-vue-next'
-
-interface Question {
-  questionId: string
-  questionText: string
-  questionType: string
-  placeholder?: string
-  inputFormat?: string
-  points: number
-}
-
-interface QuestionResult {
-  questionId: string
-  isCorrect: boolean
-  correctAnswer?: any
-  pointsEarned: number
-}
+import { ref } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 
 interface Props {
-  questions: Question[]
-  labId: string
-  partId: string
+  schema: StudentIpSchema
 }
 
 const props = defineProps<Props>()
-const emit = defineEmits<{
-  (e: 'submitted', results: any): void
-}>()
+const router = useRouter()
+const route = useRoute()
+const isExpanded = ref(false)
 
-const answers = ref<Record<string, string>>({})
-const isSubmitting = ref(false)
-const results = ref<Record<string, QuestionResult>>({})
-const hasSubmitted = ref(false)
-
-const submitAnswers = async () => {
-  isSubmitting.value = true
-
-  try {
-    const config = useRuntimeConfig()
-    const response = await fetch(
-      `${config.public.backendurl}/v0/labs/${props.labId}/parts/${props.partId}/submit-answers`,
-      {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          answers: Object.entries(answers.value).map(([questionId, answer]) => ({
-            questionId,
-            answer
-          }))
-        })
-      }
-    )
-
-    const result = await response.json()
-
-    if (result.success) {
-      // Process results
-      result.data.results.forEach((r: QuestionResult) => {
-        results.value[r.questionId] = r
-      })
-      hasSubmitted.value = true
-      emit('submitted', result.data)
-    }
-  } catch (error) {
-    console.error('Failed to submit answers:', error)
-  } finally {
-    isSubmitting.value = false
-  }
+const toggleExpanded = () => {
+  isExpanded.value = !isExpanded.value
 }
 
-const getInputType = (format?: string) => {
-  switch (format) {
-    case 'number': return 'number'
-    default: return 'text'
-  }
+const editSchema = () => {
+  // Navigate to IP Calculation part in update mode
+  router.push({
+    path: route.path,
+    query: {
+      part: props.schema.calculationPartId,
+      mode: 'update'
+    }
+  })
+}
+
+const formatDate = (dateStr?: string) => {
+  if (!dateStr) return 'Unknown'
+  return new Date(dateStr).toLocaleString()
 }
 </script>
+```
 
+### 5. DHCP Configuration Part Component (NEW)
+
+**File**: `components/student/DhcpConfigurationPart.vue`
+
+```vue
 <template>
   <Card>
     <CardHeader>
-      <CardTitle>Answer the Following Questions</CardTitle>
+      <CardTitle class="flex items-center gap-2">
+        <Server class="w-5 h-5" />
+        DHCP Configuration
+      </CardTitle>
     </CardHeader>
+
     <CardContent class="space-y-4">
-      <div v-for="question in questions" :key="question.questionId" class="space-y-2">
-        <label class="text-sm font-medium flex items-center gap-2">
-          {{ question.questionText }}
-          <span class="text-xs text-muted-foreground">({{ question.points }} pts)</span>
+      <!-- Lecturer-Defined DHCP Pool -->
+      <Alert>
+        <Info class="w-4 h-4" />
+        <AlertTitle>DHCP Pool Configuration</AlertTitle>
+        <AlertDescription class="space-y-2 mt-2">
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <span class="text-xs text-muted-foreground">Pool Name:</span>
+              <div class="font-mono font-medium">{{ dhcpConfig.poolName }}</div>
+            </div>
+            <div>
+              <span class="text-xs text-muted-foreground">VLAN:</span>
+              <div class="font-mono font-medium">{{ dhcpConfig.vlanIndex }}</div>
+            </div>
+            <div>
+              <span class="text-xs text-muted-foreground">Start IP:</span>
+              <div class="font-mono font-medium text-primary">{{ dhcpConfig.startIp }}</div>
+            </div>
+            <div>
+              <span class="text-xs text-muted-foreground">End IP:</span>
+              <div class="font-mono font-medium text-primary">{{ dhcpConfig.endIp }}</div>
+            </div>
+            <div>
+              <span class="text-xs text-muted-foreground">Subnet Mask:</span>
+              <div class="font-mono font-medium">{{ dhcpConfig.subnetMask }}</div>
+            </div>
+            <div v-if="dhcpConfig.defaultGateway">
+              <span class="text-xs text-muted-foreground">Gateway:</span>
+              <div class="font-mono font-medium">{{ dhcpConfig.defaultGateway }}</div>
+            </div>
+          </div>
+        </AlertDescription>
+      </Alert>
 
-          <!-- Result Icons -->
-          <CheckCircle v-if="results[question.questionId]?.isCorrect" class="w-4 h-4 text-green-600" />
-          <XCircle v-else-if="hasSubmitted && !results[question.questionId]?.isCorrect" class="w-4 h-4 text-destructive" />
-        </label>
-
-        <Input
-          v-model="answers[question.questionId]"
-          :type="getInputType(question.inputFormat)"
-          :placeholder="question.placeholder"
-          :disabled="hasSubmitted"
-          :class="{
-            'border-green-500': results[question.questionId]?.isCorrect,
-            'border-destructive': hasSubmitted && !results[question.questionId]?.isCorrect
-          }"
-        />
-
-        <!-- Show correct answer if wrong -->
-        <Alert v-if="hasSubmitted && !results[question.questionId]?.isCorrect" variant="destructive" class="text-sm">
-          <AlertDescription>
-            Correct answer: <span class="font-mono font-bold">{{ results[question.questionId]?.correctAnswer }}</span>
-          </AlertDescription>
-        </Alert>
+      <!-- Instructions -->
+      <div class="prose prose-sm max-w-none">
+        <div v-html="renderMarkdown(dhcpConfig.configurationInstructions)" />
       </div>
 
-      <Button
-        @click="submitAnswers"
-        :disabled="isSubmitting || hasSubmitted"
-        class="w-full"
-      >
-        <Send class="w-4 h-4 mr-2" />
-        {{ hasSubmitted ? 'Submitted' : 'Submit Answers' }}
-      </Button>
+      <!-- Important Steps -->
+      <Alert variant="default" class="bg-blue-50 border-blue-200">
+        <AlertCircle class="w-4 h-4 text-blue-600" />
+        <AlertTitle class="text-blue-800">Important Steps</AlertTitle>
+        <AlertDescription class="text-blue-700">
+          <ol class="list-decimal list-inside space-y-1 text-sm mt-2">
+            <li>Configure your {{ dhcpConfig.dhcpServerDevice }} with the DHCP pool above</li>
+            <li>Note the IP addresses assigned to each device</li>
+            <li>Update your IP Schema with the actual DHCP-assigned IPs</li>
+            <li>Continue with device configuration using the actual IPs</li>
+          </ol>
+        </AlertDescription>
+      </Alert>
+
+      <!-- Validation Warning -->
+      <Alert variant="destructive">
+        <AlertTriangle class="w-4 h-4" />
+        <AlertTitle>DHCP Pool Validation</AlertTitle>
+        <AlertDescription class="text-sm">
+          <strong>Important:</strong> When updating your IP schema, device IPs <strong>must be within</strong>
+          the lecturer-defined pool ({{ dhcpConfig.startIp }} - {{ dhcpConfig.endIp }}).
+          IPs outside this range will fail validation.
+        </AlertDescription>
+      </Alert>
+
+      <!-- Link to Update IP Schema -->
+      <div class="flex justify-end">
+        <Button @click="goToUpdateSchema" variant="outline">
+          <Edit class="w-4 h-4 mr-2" />
+          Update My IP Schema
+        </Button>
+      </div>
     </CardContent>
   </Card>
 </template>
-```
 
----
+<script setup lang="ts">
+import { useRouter } from 'vue-router'
+import { marked } from 'marked'
 
-## 🔄 Complete User Flow
+interface DhcpConfig {
+  poolName: string
+  vlanIndex: number
+  startIp: string
+  endIp: string
+  subnetMask: string
+  defaultGateway?: string
+  configurationInstructions: string
+  dhcpServerDevice: string
+}
 
-### Instructor Flow: Creating an Exam
+interface Props {
+  dhcpConfig: DhcpConfig
+  calculationPartId: string
+}
 
-```
-1. Click "Add Lab" on Course page
-   ↓
-2. Step 1: Enter exam name, description
-   - Set type = "exam" (or keep as "lab")
-   ↓
-3. Step 2: Configure Network
-   - Set management network
-   - Select VLAN mode
-   - Configure VLANs with:
-     * Base network
-     * Subnet mask
-     * ✨ Subnet index (NEW)
-   ↓
-4. Step 3: Add Devices
-   - Configure device IP variables
-   ↓
-5. Step 4: Create Parts
+const props = defineProps<Props>()
+const router = useRouter()
 
-   PART 1: IP Calculation (Fill-in-the-Blank)
-   - Select "Fill-in-the-Blank Questions"
-   - Add questions:
-     * Network address
-     * Subnet mask
-     * First usable IP
-     * Broadcast address
-   - Set points per question
+const goToUpdateSchema = () => {
+  router.push({
+    path: router.currentRoute.value.path,
+    query: {
+      part: props.calculationPartId,
+      mode: 'update'
+    }
+  })
+}
 
-   PART 2+: Network Configuration
-   - Select "Network Configuration"
-   - Add tasks (existing workflow)
-   - Set prerequisites: [part1]
-   ↓
-6. Step 5: Set schedule & due date
-   ↓
-7. Step 6: Review & Create
-```
-
-### Student Flow: Taking an Exam
-
-```
-1. Student opens exam
-   ↓
-2. Lab loads → Backend calculates student IPs
-   ↓
-3. Part 1: IP Calculation Questions
-   - Student sees fill-in-the-blank form
-   - Enters calculated answers
-   - Submits answers
-   - Gets immediate feedback
-   ↓
-4. If Part 1 passed:
-   - ✨ Floating "My IP Schema" button appears (bottom-right)
-   - Student can click to view calculated IPs
-   - Part 2+ unlocked
-   ↓
-5. Part 2+: Network Configuration
-   - Student configures devices
-   - Uses IP schema from floating button
-   - Submits configuration for grading
+const renderMarkdown = (markdown: string) => {
+  return marked(markdown)
+}
+</script>
 ```
 
 ---
 
 ## 📦 Implementation Phases
 
-### Phase 1: Backend Foundation (Week 1)
-**Estimated Time**: 2-3 days
+### Phase 1: Backend - StudentIpSchema Model (3 days)
+- [ ] Create StudentIpSchema MongoDB model
+- [ ] Add indexes (studentId + labId, version)
+- [ ] Write migration for existing data
+- [ ] Create schema calculation service
+- [ ] Add version management (unlimited versions)
 
-- [ ] Add `partType` field to LabPart model
-- [ ] Add `questions` schema to LabPart model
-- [ ] Create question answering API endpoint
-- [ ] Update lab start API to include IP schema
-- [ ] Add IP schema visibility logic (check if IP calc part passed)
-- [ ] Create question grading service
-- [ ] Write unit tests for question grading
+### Phase 2: Backend - IP Schema APIs (4 days)
+- [ ] Update submit-answers endpoint (support isUpdate flag)
+- [ ] Add DHCP pool validation (fail if outside pool)
+- [ ] Create get-ip-schema endpoint
+- [ ] Update lab start API to include schema
+- [ ] Create grading service integration endpoint
+- [ ] Test versioning and updates
 
-**Deliverables**:
-- Updated LabPart model with migrations
-- Working question submission API
-- IP schema calculation logic
+### Phase 3: Backend - DHCP Part Type (2 days)
+- [ ] Update LabPart model with dhcpConfiguration
+- [ ] Add DHCP part validation
+- [ ] Create DHCP part creation flow
+- [ ] Add DHCP pool validation logic
 
----
+### Phase 4: Frontend - Subnet Index (1 day) ✅ COMPLETED
+- [x] Add subnetIndex field to VlanConfig interface
+- [x] Update LabWizardStep2.vue with subnet index input
+- [x] Add subnet index validation
+- [x] Update default VLAN creation with subnetIndex: 1 (UI uses 1-indexed)
+- [x] Test with various subnet masks
 
-### Phase 2: Frontend - Subnet Index (Week 1)
-**Estimated Time**: 1 day
+**⚠️ CRITICAL NOTE - Subnet Index Conversion**:
+- **Frontend UI**: Uses **1-indexed** subnet blocks (1 = first, 2 = second, etc.) for better UX
+- **Backend API**: Expects **0-indexed** values (0 = first, 1 = second, etc.)
+- **Conversion Required**: Before submitting to backend → `backendValue = uiValue - 1`
+- This conversion must happen in the lab creation/update API submission logic
 
-- [x] Already analyzed current implementation
-- [ ] Add `subnetIndex` field to VlanConfig interface
-- [ ] Update LabWizardStep2.vue with subnet index input
-- [ ] Add subnet index validation
-- [ ] Update default VLAN creation to include subnetIndex: 0
-- [ ] Test VLAN creation with various subnet indexes
+### Phase 5: Frontend - Hybrid Schema Mapping (5 days)
+- [ ] Update TypeScript interfaces with schemaMapping
+- [ ] Add DHCP part type to Step 4
+- [ ] Implement VLAN auto-detection logic (regex-based)
+- [ ] Create question editor with hybrid mapping UI
+- [ ] Show "Auto-detected" badge
+- [ ] Add final mapping preview
+- [ ] Test auto-detection accuracy
 
-**Deliverables**:
-- Updated Lab Wizard Step 2
-- Validation for subnet index
-- Updated type definitions
+### Phase 6: Frontend - Student Components (5 days)
+- [ ] Update StudentIpSchemaFloatingButton:
+  - Version display
+  - Edit button (always available)
+  - Source indicators
+  - Device IP assignments
+- [ ] Update FillInBlankQuestions with update mode
+- [ ] Create DhcpConfigurationPart component
+- [ ] Add navigation to update schema
+- [ ] Test DHCP pool validation on frontend
 
----
+### Phase 7: Integration & Testing (5 days)
+- [ ] E2E: Create exam → Take exam → Update schema
+- [ ] Test DHCP flow with actual IPs
+- [ ] Test grading with updated schema
+- [ ] Test version history
+- [ ] Test unlimited updates (no locking)
+- [ ] Test DHCP pool validation failure
 
-### Phase 3: Frontend - Part Type Selection (Week 2)
-**Estimated Time**: 3-4 days
+### Phase 8: Documentation & Polish (2 days)
+- [ ] Update CLAUDE.md
+- [ ] Create instructor guide
+- [ ] Add inline help text
+- [ ] Performance optimization
 
-- [ ] Update TypeScript interfaces for Question type
-- [ ] Add part type radio selection to Step 4
-- [ ] Create question editor UI
-- [ ] Implement conditional rendering (questions vs tasks)
-- [ ] Add question management functions
-- [ ] Update part validation logic
-- [ ] Test part creation with both types
-
-**Deliverables**:
-- Updated Lab Wizard Step 4
-- Question editor component
-- Validation for fill-in-the-blank parts
-
----
-
-### Phase 4: Frontend - Student Components (Week 2)
-**Estimated Time**: 3-4 days
-
-- [ ] Create StudentIpSchemaFloatingButton.vue
-- [ ] Create FillInBlankQuestions.vue
-- [ ] Update Student Lab View with:
-  - IP schema state
-  - Conditional rendering for part types
-  - Question submission logic
-- [ ] Add answer validation UI
-- [ ] Implement floating button toggle
-- [ ] Test IP schema visibility conditions
-
-**Deliverables**:
-- Working floating IP schema button
-- Question answering interface
-- Integrated student lab view
-
----
-
-### Phase 5: Integration & Testing (Week 3)
-**Estimated Time**: 3-5 days
-
-- [ ] End-to-end testing: Create exam → Take exam
-- [ ] Test IP calculation questions
-- [ ] Test prerequisite enforcement
-- [ ] Test IP schema visibility
-- [ ] Test subnet index validation
-- [ ] Fix bugs and edge cases
-- [ ] Performance testing with large question sets
-- [ ] Cross-browser testing
-
-**Deliverables**:
-- Fully functional exam creation system
-- Bug fixes
-- Performance optimizations
+**Total Time**: ~27 days (5-6 weeks)
 
 ---
 
-### Phase 6: Documentation & Polish (Week 3)
-**Estimated Time**: 2 days
+## 🎯 Success Criteria
 
-- [ ] Update CLAUDE.md with new features
-- [ ] Create instructor guide for exam creation
-- [ ] Add tooltips and help text
-- [ ] Improve error messages
-- [ ] Add success animations
-- [ ] Create demo exam template
-
-**Deliverables**:
-- Complete documentation
-- Polished UI/UX
-- Example exam template
+- [ ] Instructors can create exams with three part types
+- [ ] Students can calculate initial IPs (Part 1)
+- [ ] Students can configure DHCP with lecturer pools (Part 2)
+- [ ] Students can update IP schemas unlimited times
+- [ ] DHCP pool validation fails IPs outside range
+- [ ] Grading always uses student-declared IPs
+- [ ] IP schema shows version history
+- [ ] No schema locking - always editable
+- [ ] Subnet index validated correctly
+- [ ] No breaking changes to existing labs
 
 ---
 
-## 🧪 Testing Checklist
+## 🚀 Ready to Start!
 
-### Unit Tests
-- [ ] Question answer validation
-- [ ] IP schema calculation
-- [ ] Subnet index validation
-- [ ] Part prerequisite checking
+**Recommendation: Start with Phase 4 (Frontend Subnet Index) - Quick Win (1 day)**
 
-### Integration Tests
-- [ ] Complete exam creation flow
-- [ ] Student question submission
-- [ ] IP schema visibility logic
-- [ ] Part unlocking based on prerequisites
+This gives immediate value and is independent of other phases. Then proceed with backend phases 1-3, followed by frontend phases 5-6.
 
-### E2E Tests
-- [ ] Instructor creates exam with mixed part types
-- [ ] Student takes exam, answers questions
-- [ ] IP schema appears after Part 1 completion
-- [ ] Network config uses calculated IPs
+**Or start with Phase 1 (Backend StudentIpSchema) if you prefer backend-first approach.**
 
----
+Which would you like to begin with? 🎯
 
-## 🚨 Migration Notes
-
-### Database Migration
-
-If backend schema changes require migration:
-
-```javascript
-// Migration: Add partType to existing parts
-db.lab_parts.updateMany(
-  { partType: { $exists: false } },
-  { $set: { partType: 'network_config' } }
-)
-
-// Migration: Add subnetIndex default to existing VLANs
-db.labs.updateMany(
-  { 'network.vlanConfiguration.vlans.subnetIndex': { $exists: false } },
-  { $set: { 'network.vlanConfiguration.vlans.$[].subnetIndex': 0 } }
-)
-```
-
-### Frontend Migration
-
-Update existing labs to include default `subnetIndex`:
-
-```typescript
-// In lab loading logic
-if (lab.network?.vlanConfiguration?.vlans) {
-  lab.network.vlanConfiguration.vlans = lab.network.vlanConfiguration.vlans.map(vlan => ({
-    ...vlan,
-    subnetIndex: vlan.subnetIndex ?? 0  // Default to 0 if missing
-  }))
-}
-```
-
----
-
-## 🎨 UI/UX Mockups
-
-### Lab Wizard Step 2 - Subnet Index
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│ VLAN 1                                                      │
-├─────────────────────────────────────────────────────────────┤
-│ Base Network     [172.16.0.0        ]                      │
-│ Subnet Mask      [/26 ▼] (62 hosts)                        │
-│ Subnet Block  ✨ [ 1                ] *                     │
-│                  ℹ️  Subnet block to use (0 = first,        │
-│                     1 = second, etc.). For /26: block 1     │
-│                     starts at .64                           │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### Lab Wizard Step 4 - Part Type Selection
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│ Part Type *                                                 │
-├─────────────────────────────────────────────────────────────┤
-│ ◉ Fill-in-the-Blank Questions                              │
-│   📝 IP calculation, subnetting questions                   │
-│                                                             │
-│ ○ Network Configuration                                     │
-│   🌐 Hands-on device configuration tasks                    │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### Student View - Floating Button
-
-```
-                                            ┌─────────────────┐
-                                            │  🌐 My IP       │
-                                            │  Schema    ▲   │
-                                            └─────────────────┘
-                                                    ↓ (click)
-┌────────────────────────────────────────────────────────────┐
-│ 🌐 My IP Schema                                        ✕  │
-├────────────────────────────────────────────────────────────┤
-│                                                            │
-│  VLAN 0                              Subnet 1              │
-│  ┌──────────────────────────────────────────────────────┐ │
-│  │ Network Address    │ 172.16.40.64/26                 │ │
-│  │ First Usable IP    │ 172.16.40.65                    │ │
-│  │ Last Usable IP     │ 172.16.40.126                   │ │
-│  │ Broadcast Address  │ 172.16.40.127                   │ │
-│  └──────────────────────────────────────────────────────┘ │
-│                                                            │
-│  ℹ️  This schema is calculated based on your student ID.  │
-│     Use these values when configuring network devices.     │
-└────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 🔐 Security Considerations
-
-1. **Answer Validation**: Validate answers server-side only
-2. **IP Schema Visibility**: Enforce prerequisite checking on backend
-3. **Student ID Validation**: Ensure student can only access their own IPs
-4. **Question Tampering**: Don't expose correct answers in API unless submission failed
-
----
-
-## 📊 Success Metrics
-
-- [ ] Instructors can create exams with mixed question types
-- [ ] Students can answer fill-in-the-blank questions
-- [ ] IP schema appears only after IP calculation part is passed
-- [ ] Subnet index is validated and prevents overflow
-- [ ] Exam flow matches CNI2024 exam structure
-- [ ] No breaking changes to existing lab functionality
-
----
-
-## 🎯 Next Steps
-
-1. **Get User Approval**: Review this plan with the user
-2. **Backend First**: Start with Phase 1 (backend changes)
-3. **Frontend Incremental**: Implement Phase 2 → 3 → 4
-4. **Test Thoroughly**: Phase 5 is critical
-5. **Polish**: Phase 6 makes it production-ready
-
----
-
-## 📞 Questions for User
-
-Before implementation, please clarify:
-
-1. **Question Formula**: How should IP calculation answers be validated?
-   - Pre-calculate based on student ID?
-   - Use formula engine?
-   - Store expected answers in database?
-
-2. **IP Schema Timing**: Should IP schema be:
-   - Available immediately after Part 1 submission?
-   - Only after Part 1 is passed with a certain score?
-   - Always visible but grayed out until unlocked?
-
-3. **Partial Credit**: For fill-in-the-blank questions:
-   - All or nothing grading?
-   - Partial credit allowed?
-   - Retry allowed?
-
-4. **Subnet Index UI**: Should we add:
-   - Live preview of subnet range (e.g., ".64 - .127")?
-   - Visual subnet calculator?
-   - Example calculation?
-
----
-
-**Ready to implement? Let's start with Phase 1! 🚀**
+ ☐ Implement question editor with hybrid schema mapping and auto-detection
+  ☐ Create DHCP configuration editor in Step 4
+  ☐ Create/Enhance Student IP Schema Floating Button component
+  ☐ Create Fill-in-Blank Questions student component with update mode
+  ☐ Create DHCP Configuration Part student component
+  ☐ Test complete exam creation and student workflow
