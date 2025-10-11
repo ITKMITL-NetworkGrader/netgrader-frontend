@@ -1,19 +1,44 @@
 <template>
+  <!-- Confetti Canvas (full screen overlay) -->
+  <Confetti
+    v-if="showConfetti"
+    ref="confettiRef"
+    :manual-start="true"
+    class="fixed inset-0 z-[60] pointer-events-none"
+  />
+
   <div v-if="isOpen" class="fixed inset-x-0 top-[73px] bottom-0 z-50 flex items-center justify-center bg-background/95">
     <div class="bg-card border border-border rounded-lg shadow-2xl max-w-4xl w-full mx-4 max-h-[90vh] flex flex-col overflow-hidden">
       <!-- Header -->
-      <div class="bg-gradient-to-r from-primary to-primary/80 p-6 text-primary-foreground flex-shrink-0">
+      <div
+        :class="[
+          'p-6 text-primary-foreground flex-shrink-0',
+          mode === 'timer_expired'
+            ? 'bg-gradient-to-r from-red-600 to-red-500'
+            : mode === 'unavailable'
+            ? 'bg-gradient-to-r from-gray-600 to-gray-500'
+            : 'bg-gradient-to-r from-primary to-primary/80'
+        ]"
+      >
         <div class="flex items-center justify-between">
           <div class="flex items-center space-x-3">
             <div class="w-12 h-12 bg-primary-foreground/20 rounded-full flex items-center justify-center">
-              <Award class="w-7 h-7" />
+              <TimerOffIcon v-if="mode === 'timer_expired'" class="w-7 h-7" />
+              <XCircle v-else-if="mode === 'unavailable'" class="w-7 h-7" />
+              <Award v-else class="w-7 h-7" />
             </div>
             <div>
-              <h2 class="text-2xl font-bold">Lab Results</h2>
-              <p class="text-primary-foreground/80 text-sm">Detailed grading breakdown</p>
+              <h2 class="text-2xl font-bold">
+                {{ headerTitle }}
+              </h2>
+              <p class="text-primary-foreground/80 text-sm">{{ headerSubtitle }}</p>
             </div>
           </div>
-          <Badge variant="secondary" class="bg-primary-foreground/20 text-primary-foreground border-primary-foreground/30 font-semibold text-lg px-4 py-2">
+          <Badge
+            v-if="mode === 'results'"
+            variant="secondary"
+            class="bg-primary-foreground/20 text-primary-foreground border-primary-foreground/30 font-semibold text-lg px-4 py-2"
+          >
             {{ totalPointsEarned }}/{{ totalPointsPossible }} pts
           </Badge>
         </div>
@@ -21,7 +46,53 @@
 
       <!-- Content - Scrollable -->
       <ScrollArea class="flex-1 p-6">
-        <div class="space-y-6">
+        <!-- Timer Expired Mode -->
+        <div v-if="mode === 'timer_expired'" class="text-center py-8">
+          <TimerOffIcon class="w-16 h-16 mx-auto text-red-500 mb-4" />
+          <h3 class="text-2xl font-bold text-foreground mb-3">Time's Up!</h3>
+          <p class="text-muted-foreground mb-6">
+            The time limit for this lab/exam has expired.
+          </p>
+          <!-- Show results if available -->
+          <div v-if="partResults.length > 0" class="mt-6">
+            <Alert class="mb-4">
+              <AlertCircle class="h-4 w-4" />
+              <AlertTitle>Your Final Results</AlertTitle>
+              <AlertDescription>
+                Here are your results up to the point when time expired.
+              </AlertDescription>
+            </Alert>
+            <div class="grid grid-cols-3 gap-4 mt-4">
+              <div class="text-center p-3 bg-card rounded-lg border border-border">
+                <div class="text-2xl font-bold text-foreground">{{ totalPointsEarned }}</div>
+                <div class="text-xs text-muted-foreground">Points Earned</div>
+              </div>
+              <div class="text-center p-3 bg-card rounded-lg border border-border">
+                <div class="text-2xl font-bold text-foreground">{{ totalPointsPossible }}</div>
+                <div class="text-xs text-muted-foreground">Total Points</div>
+              </div>
+              <div class="text-center p-3 bg-card rounded-lg border border-border">
+                <div class="text-2xl font-bold text-green-600">{{ successRate }}%</div>
+                <div class="text-xs text-muted-foreground">Success Rate</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Lab Unavailable Mode -->
+        <div v-else-if="mode === 'unavailable'" class="text-center py-8">
+          <XCircle class="w-16 h-16 mx-auto text-gray-500 mb-4" />
+          <h3 class="text-2xl font-bold text-foreground mb-3">Lab Unavailable</h3>
+          <p class="text-muted-foreground mb-4">
+            This lab/exam is no longer available.
+          </p>
+          <p class="text-sm text-muted-foreground">
+            Please contact your instructor if you believe this is an error.
+          </p>
+        </div>
+
+        <!-- Results Mode -->
+        <div v-else class="space-y-6">
           <!-- Overall Summary -->
           <Card class="border-primary/20 bg-primary/5">
             <CardHeader class="pb-3">
@@ -198,7 +269,32 @@
 
       <!-- Actions - Fixed at bottom -->
       <div class="border-t border-border p-4 bg-muted/20 flex-shrink-0">
-        <div class="flex justify-end space-x-3">
+        <!-- Timer Expired Mode - Only Leave Button -->
+        <div v-if="mode === 'timer_expired'" class="flex justify-end">
+          <Button
+            variant="outline"
+            @click="handleLeave"
+            class="min-w-[120px]"
+          >
+            <ArrowLeft class="w-4 h-4 mr-2" />
+            Leave
+          </Button>
+        </div>
+
+        <!-- Lab Unavailable Mode - Only Leave Button -->
+        <div v-else-if="mode === 'unavailable'" class="flex justify-end">
+          <Button
+            variant="outline"
+            @click="handleLeave"
+            class="min-w-[120px]"
+          >
+            <ArrowLeft class="w-4 h-4 mr-2" />
+            Leave
+          </Button>
+        </div>
+
+        <!-- Results Mode - Both Buttons -->
+        <div v-else class="flex justify-end space-x-3">
           <Button
             variant="outline"
             @click="handleLeave"
@@ -209,10 +305,16 @@
           </Button>
           <Button
             @click="handleStartOver"
-            class="min-w-[120px]"
+            :disabled="isLabUnavailable"
+            class="min-w-[120px] relative"
           >
             <RotateCcw class="w-4 h-4 mr-2" />
-            Start Over
+            <div class="flex flex-col items-center">
+              <span>Start Over</span>
+              <span v-if="isLabUnavailable" class="text-xs text-muted-foreground">
+                Unavailable
+              </span>
+            </div>
           </Button>
         </div>
       </div>
@@ -221,7 +323,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   Award,
@@ -235,15 +337,22 @@ import {
   Target,
   Layers,
   ArrowLeft,
-  RotateCcw
+  RotateCcw,
+  TimerOff as TimerOffIcon,
+  AlertCircle
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
+import { Confetti } from '@/components/ui/confetti'
 import type { ISubmission } from '@/types/submission'
 import type { LabPart } from '@/composables/useCourseLabs'
+
+// Modal modes
+type ModalMode = 'results' | 'timer_expired' | 'unavailable'
 
 interface Props {
   isOpen: boolean
@@ -251,6 +360,8 @@ interface Props {
   labName: string
   submissions: ISubmission[]
   labParts: LabPart[]
+  mode?: ModalMode // NEW: Modal display mode
+  availableUntil?: Date | string | null // NEW: For checking if lab is unavailable
 }
 
 interface Emits {
@@ -258,9 +369,48 @@ interface Emits {
   (e: 'close'): void
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  mode: 'results',
+  availableUntil: null
+})
 const emit = defineEmits<Emits>()
 const router = useRouter()
+
+// Confetti state
+const confettiRef = ref<InstanceType<typeof Confetti> | null>(null)
+const showConfetti = ref(false)
+
+// Computed header based on mode
+const headerTitle = computed(() => {
+  switch (props.mode) {
+    case 'timer_expired':
+      return 'Time Expired'
+    case 'unavailable':
+      return 'Lab Unavailable'
+    default:
+      return 'Lab Results'
+  }
+})
+
+const headerSubtitle = computed(() => {
+  switch (props.mode) {
+    case 'timer_expired':
+      return 'The time limit has been reached'
+    case 'unavailable':
+      return 'This lab is no longer accessible'
+    default:
+      return 'Detailed grading breakdown'
+  }
+})
+
+// Check if lab is unavailable
+const isLabUnavailable = computed(() => {
+  if (!props.availableUntil) return false
+  const until = typeof props.availableUntil === 'string'
+    ? new Date(props.availableUntil)
+    : props.availableUntil
+  return Date.now() >= until.getTime()
+})
 
 // Compute part results from submissions
 interface PartResult {
@@ -367,9 +517,70 @@ const handleLeave = () => {
 }
 
 const handleStartOver = () => {
-  emit('start-over')
-  emit('close')
+  if (!isLabUnavailable.value) {
+    emit('start-over')
+    emit('close')
+  }
 }
+
+// Check if lab is fully completed (all parts passed with full points)
+const isLabFullyCompleted = computed(() => {
+  if (partResults.value.length === 0) return false
+  return partResults.value.every(part => part.isPassed)
+})
+
+// Fire confetti when lab is completed
+watch(() => props.isOpen, async (isOpen) => {
+  if (isOpen && props.mode === 'results' && isLabFullyCompleted.value) {
+    // Show confetti after a short delay
+    await nextTick()
+    showConfetti.value = true
+
+    // Wait a bit then fire confetti
+    setTimeout(() => {
+      if (confettiRef.value) {
+        // Fire multiple confetti bursts
+        const duration = 3000
+        const animationEnd = Date.now() + duration
+        const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 0 }
+
+        function randomInRange(min: number, max: number) {
+          return Math.random() * (max - min) + min
+        }
+
+        const interval = setInterval(function() {
+          const timeLeft = animationEnd - Date.now()
+
+          if (timeLeft <= 0) {
+            clearInterval(interval)
+            return
+          }
+
+          const particleCount = 50 * (timeLeft / duration)
+
+          // Fire from two sides
+          confettiRef.value?.fire({
+            ...defaults,
+            particleCount,
+            origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 }
+          })
+          confettiRef.value?.fire({
+            ...defaults,
+            particleCount,
+            origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 }
+          })
+        }, 250)
+      }
+    }, 300)
+  }
+}, { immediate: true })
+
+// Cleanup confetti when modal closes
+watch(() => props.isOpen, (isOpen) => {
+  if (!isOpen) {
+    showConfetti.value = false
+  }
+})
 </script>
 
 <style scoped>

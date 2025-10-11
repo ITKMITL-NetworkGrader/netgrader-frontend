@@ -42,6 +42,7 @@ import { useSubmissions } from '@/composables/useSubmissions'
 import GradingProgress from '@/components/GradingProgress.vue'
 import LabCompletionPrompt from '@/components/student/LabCompletionPrompt.vue'
 import LabResultsModal from '@/components/student/LabResultsModal.vue'
+import LabTimer from '@/components/student/LabTimer.vue'
 import type { ISubmission } from '@/types/submission'
 
 // Configure marked for safe HTML rendering
@@ -92,6 +93,7 @@ const backendIpMappings = ref<Record<string, { ip: string; vlan: number | null }
 const backendVlanMappings = ref<Record<string, number>>({})
 const showCompletionPrompt = ref(false)
 const showResultsModal = ref(false)
+const timerExpiredModalMode = ref<'results' | 'timer_expired' | 'unavailable'>('results')
 const studentSubmissions = ref<ISubmission[]>([])
 const completionStatus = ref({
   isFullyCompleted: false,
@@ -475,6 +477,13 @@ const handleRestartLabFromResults = () => {
   loadPersonalizedIPs()
 }
 
+// Handle timer expiration
+const handleTimerExpired = () => {
+  console.log('⏰ Timer expired!')
+  timerExpiredModalMode.value = 'timer_expired'
+  showResultsModal.value = true
+}
+
 // Data Loading
 const loadLabData = async () => {
   console.log('🚀 [DEBUG] loadLabData started')
@@ -553,8 +562,19 @@ watch(() => route.query.part, (newPart) => {
       :lab-name="currentLab?.title || 'Lab'"
       :submissions="studentSubmissions"
       :lab-parts="currentLabParts || []"
+      :mode="timerExpiredModalMode"
+      :available-until="currentLab?.availableUntil"
       @start-over="handleRestartLabFromResults()"
       @close="showResultsModal = false"
+    />
+
+    <!-- Lab Timer (Fixed at bottom center) -->
+    <LabTimer
+      v-if="!isLoadingIPs && !isLoading && !isLoadingParts && currentLab"
+      :available-from="currentLab?.availableFrom"
+      :due-date="currentLab?.dueDate"
+      :available-until="currentLab?.availableUntil"
+      @timer-expired="handleTimerExpired"
     />
 
     <!-- Navigation Breadcrumb -->

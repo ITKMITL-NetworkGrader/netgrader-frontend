@@ -11,6 +11,28 @@
       @close="showCompletionPrompt = false"
     />
 
+    <!-- Timer Expired Modal -->
+    <LabResultsModal
+      :is-open="showTimerExpiredModal"
+      :course-id="labData.courseCode"
+      :lab-name="labData.name"
+      :submissions="studentSubmissions"
+      :lab-parts="labData.parts"
+      :mode="timerExpiredModalMode"
+      :available-until="labData.availableUntil"
+      @close="handleTimerExpiredModalClose"
+      @start-over="handleRestartLab"
+    />
+
+    <!-- Lab Timer (Fixed at bottom center) -->
+    <LabTimer
+      v-if="!isCalculatingIPs"
+      :available-from="labData.availableFrom"
+      :due-date="labData.dueDate"
+      :available-until="labData.availableUntil"
+      @timer-expired="handleTimerExpired"
+    />
+
     <!-- IP Calculation Loading Screen -->
     <div v-if="isCalculatingIPs" class="fixed inset-0 z-40 flex items-center justify-center bg-background/95 backdrop-blur-sm">
       <div class="text-center space-y-6 px-4">
@@ -207,6 +229,8 @@ import { computed, ref, onMounted } from 'vue'
 import { Router, Monitor, HardDrive } from 'lucide-vue-next'
 import { Badge } from '@/components/ui/badge'
 import LabCompletionPrompt from '@/components/student/LabCompletionPrompt.vue'
+import LabResultsModal from '@/components/student/LabResultsModal.vue'
+import LabTimer from '@/components/student/LabTimer.vue'
 import { useSubmissions } from '@/composables/useSubmissions'
 import type { ISubmission } from '@/types/submission'
 
@@ -225,6 +249,10 @@ const completionStatus = ref({
   allPartsPassedWithFullPoints: false
 })
 
+// Timer State
+const showTimerExpiredModal = ref(false)
+const timerExpiredModalMode = ref<'results' | 'timer_expired' | 'unavailable'>('results')
+
 // Backend IP Mappings (from POST /v0/labs/:id/start)
 const backendIpMappings = ref<Record<string, { ip: string; vlan: number | null }>>({})
 const backendVlanMappings = ref<Record<string, number>>({})
@@ -236,6 +264,10 @@ interface Props {
     description: string
     courseCode: string
     instructions: string
+    // Timer fields
+    availableFrom?: Date | string | null
+    dueDate?: Date | string | null
+    availableUntil?: Date | string | null
     network: {
       devices: Array<{
         deviceId: string
@@ -478,6 +510,18 @@ function handleRestartLab() {
     allPartsPassedWithFullPoints: false
   }
   loadPersonalizedIPs()
+}
+
+// Handle timer expiration
+function handleTimerExpired() {
+  console.log('⏰ Timer expired!')
+  timerExpiredModalMode.value = 'timer_expired'
+  showTimerExpiredModal.value = true
+}
+
+// Handle timer expired modal close
+function handleTimerExpiredModalClose() {
+  showTimerExpiredModal.value = false
 }
 
 // Load personalized IPs from backend

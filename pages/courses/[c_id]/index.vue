@@ -314,16 +314,16 @@ const confirmEnrollment = async () => {
 // Lab management functions
 const handleDeleteLab = async (labId: string, labTitle: string) => {
   const confirmed = confirm(`Are you sure you want to delete "${labTitle}"? This action cannot be undone.`)
-  
+
   if (confirmed) {
     try {
       const success = await deleteLab(labId)
-      
+
       if (success) {
         toast.success('Lab deleted successfully!', {
           description: `"${labTitle}" has been removed from the course.`
         })
-        
+
         // Refresh labs data
         await fetchCourseLabs(courseId)
       } else {
@@ -338,6 +338,17 @@ const handleDeleteLab = async (labId: string, labTitle: string) => {
       })
     }
   }
+}
+
+// Check if lab/exam is available (not expired)
+const isLabAvailable = (lab: any): boolean => {
+  if (!lab.availableUntil) return true // No expiration date = always available
+
+  const availableUntil = typeof lab.availableUntil === 'string'
+    ? new Date(lab.availableUntil)
+    : lab.availableUntil
+
+  return Date.now() < availableUntil.getTime()
 }
 
 // Fetch labs when manage dialog opens
@@ -800,24 +811,45 @@ class="overflow-x-auto max-h-96"
                                 
                                 <!-- Labs List -->
                                 <div v-else-if="availableLabs.length > 0" class="space-y-3">
-                                    <Card 
-                                        v-for="lab in availableLabs" 
-                                        :key="lab.id" 
-                                        class="hover:shadow-md transition-shadow duration-200 border-l-4 border-l-primary/50"
+                                    <Card
+                                        v-for="lab in availableLabs"
+                                        :key="lab.id"
+                                        :class="[
+                                          'hover:shadow-md transition-shadow duration-200 border-l-4',
+                                          isLabAvailable(lab) ? 'border-l-primary/50' : 'border-l-gray-300 opacity-60'
+                                        ]"
                                     >
                                         <CardContent class="p-6">
                                             <div class="flex items-start justify-between">
                                                 <div class="flex-1 min-w-0">
                                                     <div class="flex items-start space-x-3">
                                                         <div class="flex-shrink-0 mt-1">
-                                                            <div class="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
-                                                                <BookOpen class="w-5 h-5 text-primary" />
+                                                            <div
+                                                              :class="[
+                                                                'w-10 h-10 rounded-lg flex items-center justify-center',
+                                                                isLabAvailable(lab) ? 'bg-primary/10' : 'bg-gray-100'
+                                                              ]"
+                                                            >
+                                                                <BookOpen
+                                                                  :class="[
+                                                                    'w-5 h-5',
+                                                                    isLabAvailable(lab) ? 'text-primary' : 'text-gray-400'
+                                                                  ]"
+                                                                />
                                                             </div>
                                                         </div>
                                                         <div class="flex-1 min-w-0">
-                                                            <h3 class="font-semibold text-lg text-foreground mb-1 truncate">
-                                                                {{ lab.title }}
-                                                            </h3>
+                                                            <div class="flex items-center gap-2">
+                                                              <h3 class="font-semibold text-lg text-foreground mb-1 truncate">
+                                                                  {{ lab.title }}
+                                                              </h3>
+                                                              <span
+                                                                v-if="!isLabAvailable(lab)"
+                                                                class="px-2 py-0.5 text-xs bg-gray-100 text-gray-600 rounded-full font-medium"
+                                                              >
+                                                                Expired
+                                                              </span>
+                                                            </div>
                                                             <p v-if="lab.description" class="text-muted-foreground text-sm mb-3 line-clamp-2">
                                                                 {{ lab.description }}
                                                             </p>
@@ -835,12 +867,24 @@ class="overflow-x-auto max-h-96"
                                                     </div>
                                                 </div>
                                                 <div class="flex-shrink-0 ml-4">
-                                                    <NuxtLink :to="`/courses/${courseId}/labs/${lab.id}`">
+                                                    <NuxtLink
+                                                      v-if="isLabAvailable(lab)"
+                                                      :to="`/courses/${courseId}/labs/${lab.id}`"
+                                                    >
                                                         <Button class="bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-white shadow-sm">
                                                             <Play class="w-4 h-4 mr-2" />
                                                             Start Lab
                                                         </Button>
                                                     </NuxtLink>
+                                                    <Button
+                                                      v-else
+                                                      disabled
+                                                      variant="outline"
+                                                      class="bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed"
+                                                    >
+                                                        <X class="w-4 h-4 mr-2" />
+                                                        Unavailable
+                                                    </Button>
                                                 </div>
                                             </div>
                                         </CardContent>
@@ -890,24 +934,45 @@ class="overflow-x-auto max-h-96"
                                 
                                 <!-- Exams List -->
                                 <div v-else-if="availableExams.length > 0" class="space-y-3">
-                                    <Card 
-                                        v-for="exam in availableExams" 
-                                        :key="exam.id" 
-                                        class="hover:shadow-md transition-shadow duration-200 border-l-4 border-l-orange-500/50"
+                                    <Card
+                                        v-for="exam in availableExams"
+                                        :key="exam.id"
+                                        :class="[
+                                          'hover:shadow-md transition-shadow duration-200 border-l-4',
+                                          isLabAvailable(exam) ? 'border-l-orange-500/50' : 'border-l-gray-300 opacity-60'
+                                        ]"
                                     >
                                         <CardContent class="p-6">
                                             <div class="flex items-start justify-between">
                                                 <div class="flex-1 min-w-0">
                                                     <div class="flex items-start space-x-3">
                                                         <div class="flex-shrink-0 mt-1">
-                                                            <div class="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
-                                                                <Settings class="w-5 h-5 text-orange-600" />
+                                                            <div
+                                                              :class="[
+                                                                'w-10 h-10 rounded-lg flex items-center justify-center',
+                                                                isLabAvailable(exam) ? 'bg-orange-100' : 'bg-gray-100'
+                                                              ]"
+                                                            >
+                                                                <Settings
+                                                                  :class="[
+                                                                    'w-5 h-5',
+                                                                    isLabAvailable(exam) ? 'text-orange-600' : 'text-gray-400'
+                                                                  ]"
+                                                                />
                                                             </div>
                                                         </div>
                                                         <div class="flex-1 min-w-0">
-                                                            <h3 class="font-semibold text-lg text-foreground mb-1 truncate">
-                                                                {{ exam.title }}
-                                                            </h3>
+                                                            <div class="flex items-center gap-2">
+                                                              <h3 class="font-semibold text-lg text-foreground mb-1 truncate">
+                                                                  {{ exam.title }}
+                                                              </h3>
+                                                              <span
+                                                                v-if="!isLabAvailable(exam)"
+                                                                class="px-2 py-0.5 text-xs bg-gray-100 text-gray-600 rounded-full font-medium"
+                                                              >
+                                                                Expired
+                                                              </span>
+                                                            </div>
                                                             <p v-if="exam.description" class="text-muted-foreground text-sm mb-3 line-clamp-2">
                                                                 {{ exam.description }}
                                                             </p>
@@ -925,12 +990,24 @@ class="overflow-x-auto max-h-96"
                                                     </div>
                                                 </div>
                                                 <div class="flex-shrink-0 ml-4">
-                                                    <NuxtLink :to="`/courses/${courseId}/exams/${exam.id}`">
+                                                    <NuxtLink
+                                                      v-if="isLabAvailable(exam)"
+                                                      :to="`/courses/${courseId}/exams/${exam.id}`"
+                                                    >
                                                         <Button variant="outline" class="border-orange-200 text-orange-700 hover:bg-orange-50">
                                                             <Play class="w-4 h-4 mr-2" />
                                                             Start Exam
                                                         </Button>
                                                     </NuxtLink>
+                                                    <Button
+                                                      v-else
+                                                      disabled
+                                                      variant="outline"
+                                                      class="bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed"
+                                                    >
+                                                        <X class="w-4 h-4 mr-2" />
+                                                        Unavailable
+                                                    </Button>
                                                 </div>
                                             </div>
                                         </CardContent>

@@ -19,6 +19,11 @@ export interface Lab {
   createdBy: string
   createdAt: string
   updatedAt: string
+
+  // Timer fields for lab availability and deadlines
+  availableFrom?: string | Date
+  dueDate?: string | Date
+  availableUntil?: string | Date
 }
 
 export interface Device {
