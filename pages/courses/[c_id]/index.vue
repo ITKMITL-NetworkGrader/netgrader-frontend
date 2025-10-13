@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ChevronRight, Home, Edit, Settings, X, Plus, Trash2, Play, BookOpen, Clock, Calendar } from 'lucide-vue-next'
+import { ChevronRight, Home, Edit, Settings, X, Plus, Trash2, Play, BookOpen, Clock, Calendar, Loader2 } from 'lucide-vue-next'
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Button } from '@/components/ui/button'
@@ -68,6 +68,17 @@ const userRole = computed(() => {
 
 const canManageCourse = canManageCurrentCourse
 
+const DEFAULT_BANNER_PLACEHOLDER = 'https://i.pinimg.com/736x/18/e3/ad/18e3ad7a432d41a6e2a57d1523e81c73.jpg'
+const ACCEPTED_BANNER_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+const MAX_BANNER_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
+
+const bannerFileInput = ref<HTMLInputElement | null>(null)
+const isUploadingBanner = ref(false)
+
+const courseBannerUrl = computed(() => {
+  return currentCourse.value?.bannerUrl || currentCourse.value?.bannerImage || DEFAULT_BANNER_PLACEHOLDER
+})
+
 // Modal states
 const isEditModalOpen = ref(false)
 const isManageModalOpen = ref(false)
@@ -85,7 +96,7 @@ const enrollmentForm = ref({
 const editForm = ref({
   title: '',
   description: '',
-  bannerImage: '',
+  bannerUrl: '',
   password: '',
   enrolledStudents: [] as Enrollment[],
   isPrivate: false
@@ -117,6 +128,7 @@ const initializeForm = () => {
   if (currentCourse.value) {
     editForm.value.title = currentCourse.value.title || ''
     editForm.value.description = currentCourse.value.description || ''
+    editForm.value.bannerUrl = currentCourse.value.bannerUrl || currentCourse.value.bannerImage || ''
     editForm.value.password = currentCourse.value.password || ''
     editForm.value.isPrivate = currentCourse.value.visibility === 'private'
     editForm.value.enrolledStudents = enrolledStudents.value || []
@@ -201,8 +213,79 @@ const removeStudent = (studentId: string) => {
   editForm.value.enrolledStudents = editForm.value.enrolledStudents.filter(s => s.u_id !== studentId)
 }
 
-const handleFileChange = () => {
-    // TODO: Implement file upload logic
+const handleFileChange = async (event: Event) => {
+  const target = event.target as HTMLInputElement | null
+  const file = target?.files?.[0]
+
+  if (!file) {
+    return
+  }
+
+  const resetInput = () => {
+    if (target) {
+      target.value = ''
+    }
+  }
+
+  if (!ACCEPTED_BANNER_TYPES.includes(file.type)) {
+    toast.error('Unsupported file type', {
+      description: 'Please upload a JPEG, PNG, or WebP image.'
+    })
+    resetInput()
+    return
+  }
+
+  if (file.size > MAX_BANNER_FILE_SIZE) {
+    toast.error('File is too large', {
+      description: 'Course banners must be 10 MB or smaller.'
+    })
+    resetInput()
+    return
+  }
+
+  const formData = new FormData()
+  formData.append('file', file)
+
+  try {
+    isUploadingBanner.value = true
+
+    interface UploadResponse {
+      message?: string
+      data?: {
+        objectName?: string
+        url?: string
+      }
+    }
+
+    const response = await $fetch<UploadResponse>(`${backendURL}/v0/storage/course/${courseId}/banner`, {
+      method: 'POST',
+      credentials: 'include',
+      body: formData
+    })
+
+    const uploadedUrl = response?.data?.url
+
+    toast.success('Course banner updated!', {
+      description: 'The new banner is now live.'
+    })
+
+    await fetchCourse(courseId)
+
+    if (uploadedUrl) {
+      editForm.value.bannerUrl = uploadedUrl
+    } else if (currentCourse.value?.bannerUrl || currentCourse.value?.bannerImage) {
+      editForm.value.bannerUrl = currentCourse.value.bannerUrl || currentCourse.value.bannerImage || ''
+    }
+  } catch (error: any) {
+    console.error('Failed to upload course banner:', error)
+    const errorMessage = error?.data?.message || 'Please try again in a few moments.'
+    toast.error('Failed to upload course banner', {
+      description: errorMessage
+    })
+  } finally {
+    resetInput()
+    isUploadingBanner.value = false
+  }
 }
 
 const enrollStudent = async () => {
@@ -416,7 +499,7 @@ watchEffect(() => {
                 <div class="relative">
                     <div class="h-48 rounded-lg overflow-hidden relative">
                         <div class="absolute inset-0 bg-gradient-to-r from-black/90 to-black/50 z-10"/>
-                        <img :src="currentCourse.bannerImage || 'https://i.pinimg.com/736x/18/e3/ad/18e3ad7a432d41a6e2a57d1523e81c73.jpg'" alt="Course banner" class="w-full h-full object-cover opacity-70">
+                        <img :src="courseBannerUrl" alt="Course banner" class="w-full h-full object-cover opacity-70">
                     </div>
                     <div class="absolute inset-0 p-6 flex flex-col justify-center z-20">
                         <h1 class="text-5xl font-bold mb-2 text-white mix-blend-difference">{{ currentCourse.title }}</h1>
@@ -451,8 +534,28 @@ class="space-y-4 overflow-y-auto max-h-[70vh] pr-2"
                                         <Textarea id="course-description" v-model="editForm.description" placeholder="Enter course description" rows="3" />
                                     </div>
                                     <div>
-                                        <Label class="pb-2" for="banner-image">Banner Image URL</Label>
-                                        <Input id="banner-image" type="file" accept="image/*" @change="handleFileChange" />
+                                        <Label class="pb-2" for="banner-image">Course Banner</Label>
+                                        <Input
+                                            id="banner-image"
+                                            ref="bannerFileInput"
+                                            type="file"
+                                            accept="image/*"
+                                            :disabled="isUploadingBanner"
+                                            @change="handleFileChange"
+                                        />
+                                        <p class="text-xs text-muted-foreground mt-1">
+                                            Supported formats: JPEG, PNG, WebP. Maximum size: 10 MB.
+                                        </p>
+                                        <div v-if="isUploadingBanner" class="flex items-center gap-2 text-xs text-muted-foreground mt-2">
+                                            <Loader2 class="w-4 h-4 animate-spin" />
+                                            Uploading banner...
+                                        </div>
+                                        <div v-else class="mt-3">
+                                            <Label class="text-xs text-muted-foreground uppercase tracking-wide">Current banner preview</Label>
+                                            <div class="mt-2 h-32 rounded-md overflow-hidden border border-muted">
+                                                <img :src="courseBannerUrl" alt="Current course banner preview" class="w-full h-full object-cover" />
+                                            </div>
+                                        </div>
                                     </div>
                                     <div>
                                         <Label class="pb-2" for="course-password">Course Password (Optional)</Label>

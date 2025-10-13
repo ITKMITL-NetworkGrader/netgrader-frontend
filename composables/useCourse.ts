@@ -9,6 +9,8 @@ interface Course {
   updatedAt: string
   visibility: 'public' | 'private'
   requiresPassword: boolean
+  bannerUrl?: string
+  bannerImage?: string
 }
 
 interface CourseResponse {

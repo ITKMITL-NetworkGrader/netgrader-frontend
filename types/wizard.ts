@@ -54,7 +54,8 @@ export type PartType = 'fill_in_blank' | 'network_config' | 'dhcp_config';
 
 // Question Types for Fill-in-Blank Parts
 export type QuestionType = 'network_address' | 'first_usable_ip' | 'last_usable_ip' |
-                          'broadcast_address' | 'subnet_mask' | 'ip_address' | 'number';
+                          'broadcast_address' | 'subnet_mask' | 'ip_address' | 'number' |
+                          'custom_text';
 
 // Question Interface
 export interface Question {
@@ -65,7 +66,7 @@ export interface Question {
   points: number;
 
   // Hybrid Schema Mapping
-  schemaMapping: {
+  schemaMapping?: {
     vlanIndex: number;         // Which VLAN (0-9), auto-detected from question text, editable
     field: 'networkAddress' | 'subnetMask' | 'firstUsableIp' | 'lastUsableIp' | 'broadcastAddress';
     deviceId?: string;         // For device-specific IPs
@@ -77,29 +78,20 @@ export interface Question {
   answerFormula?: string;
   expectedAnswerType: 'exact' | 'range';
   placeholder?: string;
-  inputFormat?: 'ip' | 'cidr' | 'number';
+  inputFormat?: 'ip' | 'cidr' | 'number' | 'text';
+
+  // Custom question support
+  expectedAnswer?: string;        // Lecturer-defined exact match answer
+  caseSensitive?: boolean;        // Whether comparison is case-sensitive
+  trimWhitespace?: boolean;       // Whether to trim whitespace before comparison
 }
 
 // DHCP Configuration Interface
 export interface DhcpConfiguration {
-  poolName: string;              // e.g., "VLAN1_POOL"
-  vlanIndex: number;             // Which VLAN this pool serves
-
-  // Lecturer-defined DHCP pool (STRICT VALIDATION)
-  startIp: string;               // e.g., "172.16.40.100"
-  endIp: string;                 // e.g., "172.16.40.150"
-  subnetMask: string;            // e.g., "255.255.255.192"
-
-  // Optional DHCP settings
-  defaultGateway?: string;
-  dnsServers?: string[];
-  leaseTime?: number;            // seconds
-
-  // Instructions for students
-  configurationInstructions: string;
-
-  // Expected device to configure DHCP on
-  dhcpServerDevice: string;      // e.g., "router1"
+  vlanIndex: number;                 // Which VLAN this pool serves
+  startOffset: number;               // Last octet offset (e.g., 100 for x.x.x.100)
+  endOffset: number;                 // Last octet offset (e.g., 150 for x.x.x.150)
+  dhcpServerDevice: string;          // Device expected to run DHCP
 }
 
 // Lab Parts Structure
@@ -275,7 +267,6 @@ export interface DeviceInterface {
   ipAddress: string;           // e.g., "172.16.40.112"
   subnetMask?: string;
   source: 'calculated' | 'dhcp' | 'manual_update';
-  dhcpPoolName?: string;       // If from DHCP
   updatedAt: string;           // ISO date string
   updatedBy: 'initial_calculation' | 'student_update';
 }

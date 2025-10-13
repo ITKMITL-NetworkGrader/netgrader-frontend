@@ -1,1 +1,1 @@
-export { default as FormField } from './FormField.vue'
+export { default as BaseFormField } from './BaseFormField.vue'

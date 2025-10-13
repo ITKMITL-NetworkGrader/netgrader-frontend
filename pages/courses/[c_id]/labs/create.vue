@@ -120,6 +120,7 @@
               v-if="currentStep === 4"
               v-model="wizardData.parts"
               :devices="wizardData.devices"
+              :vlans="wizardData.networkConfig.vlans"
               :validation="validation.step4"
               @validate="handleStepValidation(4, $event)"
             />
@@ -597,36 +598,74 @@ const handleCreateLab = async () => {
         description: part.description,
         instructions: part.instructions,
         order: part.order,
-        tasks: part.tasks.map(task => ({
-          taskId: task.taskId,
-          name: task.name,
-          description: task.description,
-          templateId: task.templateId,
-          executionDevice: task.executionDevice,
-          targetDevices: task.targetDevices,
-          parameters: Object.fromEntries(
-            Object.entries(task.parameters).map(([key, value]) => [
-              key,
-              formatParameterValue(value)
-            ])
-          ),
-          testCases: task.testCases.map(testCase => ({
-            ...testCase,
-            expected_result: convertStringToBoolean(testCase.expected_result)
-          })),
-          order: task.order,
-          points: task.points,
-          group_id: task.groupId || undefined
-        })),
-        task_groups: part.task_groups.map(group => ({
-          group_id: group.group_id,
-          title: group.title,
-          description: group.description,
-          group_type: group.group_type,
-          points: group.points,
-          continue_on_failure: group.continue_on_failure,
-          timeout_seconds: group.timeout_seconds
-        })),
+        partType: part.partType,
+        tasks: part.partType === 'network_config'
+          ? part.tasks.map(task => ({
+              taskId: task.taskId,
+              name: task.name,
+              description: task.description,
+              templateId: task.templateId,
+              executionDevice: task.executionDevice,
+              targetDevices: task.targetDevices,
+              parameters: Object.fromEntries(
+                Object.entries(task.parameters).map(([key, value]) => [
+                  key,
+                  formatParameterValue(value)
+                ])
+              ),
+              testCases: task.testCases.map(testCase => ({
+                ...testCase,
+                expected_result: convertStringToBoolean(testCase.expected_result)
+              })),
+              order: task.order,
+              points: task.points,
+              group_id: task.groupId || undefined
+            }))
+          : [],
+        task_groups: part.partType === 'network_config'
+          ? part.task_groups.map(group => ({
+              group_id: group.group_id,
+              title: group.title,
+              description: group.description,
+              group_type: group.group_type,
+              points: group.points,
+              continue_on_failure: group.continue_on_failure,
+              timeout_seconds: group.timeout_seconds
+            }))
+          : [],
+        questions: part.partType === 'fill_in_blank'
+          ? part.questions?.map(question => ({
+              questionId: question.questionId,
+              questionText: question.questionText,
+              questionType: question.questionType,
+              order: question.order,
+              points: question.points,
+              schemaMapping: question.schemaMapping
+                ? {
+                    vlanIndex: question.schemaMapping.vlanIndex,
+                    field: question.schemaMapping.field,
+                    deviceId: question.schemaMapping.deviceId,
+                    variableName: question.schemaMapping.variableName,
+                    autoDetected: question.schemaMapping.autoDetected
+                  }
+                : undefined,
+              answerFormula: question.answerFormula,
+              expectedAnswerType: question.expectedAnswerType,
+              placeholder: question.placeholder,
+              inputFormat: question.inputFormat,
+              expectedAnswer: question.expectedAnswer,
+              caseSensitive: question.caseSensitive,
+              trimWhitespace: question.trimWhitespace
+            }))
+          : undefined,
+        dhcpConfiguration: part.partType === 'dhcp_config'
+          ? {
+              vlanIndex: part.dhcpConfiguration?.vlanIndex ?? 0,
+              startOffset: part.dhcpConfiguration?.startOffset ?? 0,
+              endOffset: part.dhcpConfiguration?.endOffset ?? 0,
+              dhcpServerDevice: part.dhcpConfiguration?.dhcpServerDevice || ''
+            }
+          : undefined,
         prerequisites: part.prerequisites,
         totalPoints: part.totalPoints
       }

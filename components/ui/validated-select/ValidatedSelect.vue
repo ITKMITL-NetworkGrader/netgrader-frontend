@@ -1,5 +1,5 @@
 <template>
-  <FormField
+  <BaseFormField
     :label="label"
     :model-value="modelValue"
     :error="error"
@@ -22,12 +22,12 @@
         </SelectContent>
       </Select>
     </template>
-  </FormField>
+  </BaseFormField>
 </template>
 
 <script setup lang="ts">
 import { Select, SelectContent, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { FormField } from '@/components/ui/form-field'
+import { BaseFormField } from '@/components/ui/form-field'
 
 interface Props {
   label?: string

@@ -657,6 +657,8 @@ const validateTask = (taskIndex: number, field: string) => {
     case 'executionDevice':
       if (!task.executionDevice) {
         taskFieldErrors.value[taskIndex].executionDevice = 'Execution device is required'
+      } else if (!props.devices.some(d => d.deviceId === task.executionDevice)) {
+        taskFieldErrors.value[taskIndex].executionDevice = `Selected device '${task.executionDevice}' does not exist in configured devices`
       } else {
         delete taskFieldErrors.value[taskIndex].executionDevice
       }
@@ -815,6 +817,23 @@ const validateTasks = () => {
       } else {
         if (taskFieldErrors.value[index]) {
           delete taskFieldErrors.value[index].testCases
+        }
+      }
+
+      // Validate targetDevices existence
+      if (task.targetDevices && task.targetDevices.length > 0) {
+        const invalidDevices = task.targetDevices.filter(deviceId =>
+          !props.devices.some(d => d.deviceId === deviceId)
+        )
+        if (invalidDevices.length > 0) {
+          if (!taskFieldErrors.value[index]) {
+            taskFieldErrors.value[index] = {}
+          }
+          taskFieldErrors.value[index].targetDevices = `Target device(s) do not exist: ${invalidDevices.join(', ')}`
+        } else {
+          if (taskFieldErrors.value[index]) {
+            delete taskFieldErrors.value[index].targetDevices
+          }
         }
       }
 

@@ -1,5 +1,5 @@
 <template>
-  <FormField
+  <BaseFormField
     :label="label"
     :model-value="modelValue"
     :error="error"
@@ -25,13 +25,13 @@
         @blur="onBlur"
       />
     </template>
-  </FormField>
+  </BaseFormField>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
 import { Input } from '@/components/ui/input'
-import { FormField } from '@/components/ui/form-field'
+import { BaseFormField } from '@/components/ui/form-field'
 
 interface Props {
   label?: string

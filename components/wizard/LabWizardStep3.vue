@@ -706,9 +706,9 @@ const addDevice = () => {
 
 const removeDevice = (index: number) => {
   localData.value.splice(index, 1)
-  // Clean up errors for this device
-  delete fieldErrors.value[index]
-  delete ipVarErrors.value[index]
+  // Reset validation state to avoid stale error references
+  fieldErrors.value = {}
+  ipVarErrors.value = {}
   validateAllIpDuplications()
   validateStep()
 }
@@ -738,6 +738,8 @@ const addIpVariable = (deviceIndex: number) => {
 
 const removeIpVariable = (deviceIndex: number, ipIndex: number) => {
   localData.value[deviceIndex].ipVariables.splice(ipIndex, 1)
+  // Clear existing validation errors for this device to prevent stale entries
+  delete ipVarErrors.value[deviceIndex]
   validateAllIpDuplications()
   validateStep()
 }

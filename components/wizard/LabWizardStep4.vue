@@ -177,6 +177,370 @@
                         {{ getPartFieldError(partIndex, 'partType') }}
                       </p>
                     </div>
+
+                    <!-- Question Editor (Fill-in-Blank Type) -->
+                    <div v-if="part.partType === 'fill_in_blank'" class="border-t pt-6 mt-6 space-y-4">
+                      <div class="flex items-center justify-between">
+                        <div>
+                          <h4 class="text-sm font-semibold flex items-center gap-2">
+                            <FileQuestion class="w-4 h-4 text-primary" />
+                            Questions Configuration
+                          </h4>
+                          <p class="text-xs text-muted-foreground mt-1">
+                            Add IP calculation and subnetting questions
+                          </p>
+                        </div>
+                        <Button
+                          @click="addQuestion(partIndex)"
+                          size="sm"
+                          variant="outline"
+                        >
+                          <Plus class="w-4 h-4 mr-1" />
+                          Add Question
+                        </Button>
+                      </div>
+
+                      <!-- Questions List -->
+                      <div v-if="part.questions && part.questions.length > 0" class="space-y-4">
+                        <Card
+                          v-for="(question, qIndex) in part.questions"
+                          :key="question.questionId"
+                          class="border-l-4 border-l-blue-500"
+                        >
+                          <CardHeader class="pb-3">
+                            <div class="flex items-center justify-between">
+                              <CardTitle class="text-sm flex items-center gap-2">
+                                Question {{ qIndex + 1 }}
+                                <Badge variant="outline">{{ question.points || 0 }} pts</Badge>
+                                <Badge v-if="question.schemaMapping?.autoDetected" variant="secondary" class="text-xs">
+                                  🤖 Auto-detected
+                                </Badge>
+                              </CardTitle>
+                              <div class="flex items-center gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  @click="moveQuestion(partIndex, qIndex, -1)"
+                                  :disabled="qIndex === 0"
+                                >
+                                  <MoveUp class="w-3 h-3" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  @click="moveQuestion(partIndex, qIndex, 1)"
+                                  :disabled="qIndex === part.questions!.length - 1"
+                                >
+                                  <MoveDown class="w-3 h-3" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  @click="removeQuestion(partIndex, qIndex)"
+                                  class="text-destructive hover:text-destructive"
+                                >
+                                  <Trash2 class="w-3 h-3" />
+                                </Button>
+                              </div>
+                            </div>
+                          </CardHeader>
+
+                          <CardContent class="space-y-4">
+                            <!-- Question Text -->
+                            <div class="space-y-2">
+                              <Label class="text-sm font-medium">
+                                Question Text <span class="text-destructive">*</span>
+                              </Label>
+                              <Textarea
+                                v-model="question.questionText"
+                                placeholder="e.g., Calculate your network address for VLAN 1: ___"
+                                rows="2"
+                                @input="onQuestionTextChange(partIndex, qIndex)"
+                              />
+                              <p v-if="question.questionType !== 'custom_text'" class="text-xs text-muted-foreground">
+                                💡 Tip: Include "VLAN X" in your question for automatic VLAN detection
+                              </p>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-4">
+                              <!-- Question Type -->
+                              <div class="space-y-2">
+                                <Label class="text-sm font-medium">
+                                  Question Type <span class="text-destructive">*</span>
+                                </Label>
+                                <Select v-model="question.questionType" @update:modelValue="onQuestionTypeChange(partIndex, qIndex)">
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Select type..." />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="network_address">Network Address</SelectItem>
+                                    <SelectItem value="first_usable_ip">First Usable IP</SelectItem>
+                                    <SelectItem value="last_usable_ip">Last Usable IP</SelectItem>
+                                    <SelectItem value="broadcast_address">Broadcast Address</SelectItem>
+                                    <SelectItem value="subnet_mask">Subnet Mask (CIDR)</SelectItem>
+                                    <SelectItem value="ip_address">IP Address</SelectItem>
+                                    <SelectItem value="number">Number</SelectItem>
+                                    <SelectItem value="custom_text">Custom Text Match</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+
+                              <!-- Points -->
+                              <div class="space-y-2">
+                                <Label class="text-sm font-medium">
+                                  Points <span class="text-destructive">*</span>
+                                </Label>
+                                <Input
+                                  v-model.number="question.points"
+                                  type="number"
+                                  min="1"
+                                  placeholder="5"
+                                  @input="onQuestionPointsChange(partIndex)"
+                                />
+                              </div>
+                            </div>
+
+                            <!-- VLAN Index (Hybrid: Auto-detect + Manual Override) -->
+                            <div v-if="question.questionType !== 'custom_text' && question.schemaMapping" class="space-y-2">
+                              <Label class="text-sm font-medium">
+                                Target VLAN <span class="text-destructive">*</span>
+                              </Label>
+                              <div class="flex items-center gap-2">
+                                <Select
+                                  v-model="question.schemaMapping.vlanIndex"
+                                  @update:modelValue="value => onVlanIndexChange(partIndex, qIndex, value)"
+                                >
+                                  <SelectTrigger class="flex-1">
+                                    <SelectValue placeholder="Select VLAN..." />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem v-for="(vlan, vlanIdx) in vlans" :key="vlanIdx" :value="vlanIdx">
+                                      VLAN {{ vlanIdx + 1 }} ({{ vlan.baseNetwork }}/{{ vlan.subnetMask }})
+                                    </SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <p v-if="question.schemaMapping?.autoDetected" class="text-xs text-muted-foreground">
+                                VLAN was auto-detected from question text. You can change it above.
+                              </p>
+                            </div>
+
+                            <!-- Schema Mapping Preview -->
+                            <Alert v-if="question.questionType !== 'custom_text' && question.schemaMapping" class="bg-blue-50 border-blue-200">
+                              <Info class="w-4 h-4 text-blue-600" />
+                              <AlertDescription class="text-xs text-blue-800">
+                                <strong>This answer will be stored in:</strong><br>
+                                <code class="text-xs bg-blue-100 px-2 py-1 rounded mt-1 inline-block">
+                                  schema.vlans[{{ question.schemaMapping.vlanIndex }}].{{ getFieldName(question.questionType) }}
+                                </code>
+                              </AlertDescription>
+                            </Alert>
+
+                            <!-- Custom Text Question Configuration -->
+                            <div v-else class="space-y-4">
+                              <div class="space-y-2">
+                                <Label class="text-sm font-medium">
+                                  Expected Answer <span class="text-destructive">*</span>
+                                </Label>
+                                <Input
+                                  v-model="question.expectedAnswer"
+                                  placeholder="e.g., chicken"
+                                  @input="onExpectedAnswerChange(partIndex, qIndex)"
+                                />
+                                <p class="text-xs text-muted-foreground">
+                                  Students must enter a response that matches this answer {{ question.caseSensitive ? 'with' : 'ignoring' }} letter casing.
+                                </p>
+                              </div>
+
+                              <div class="grid grid-cols-2 gap-4">
+                                <div class="space-y-2">
+                                  <Label class="text-sm font-medium flex items-center justify-between">
+                                    Case Sensitive
+                                    <Switch
+                                      :checked="question.caseSensitive"
+                                      @update:checked="value => onCaseSensitiveToggle(partIndex, qIndex, value)"
+                                    />
+                                  </Label>
+                                  <p class="text-xs text-muted-foreground">
+                                    Toggle on to require exact casing (e.g., "Router" ≠ "router").
+                                  </p>
+                                </div>
+
+                                <div class="space-y-2">
+                                  <Label class="text-sm font-medium flex items-center justify-between">
+                                    Trim Whitespace
+                                    <Switch
+                                      :checked="question.trimWhitespace !== false"
+                                      @update:checked="value => onTrimWhitespaceToggle(partIndex, qIndex, value)"
+                                    />
+                                  </Label>
+                                  <p class="text-xs text-muted-foreground">
+                                    When enabled, leading and trailing spaces are removed before comparison.
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+
+                            <!-- Optional Fields -->
+                            <div class="grid grid-cols-2 gap-4">
+                              <!-- Placeholder -->
+                              <div class="space-y-2">
+                                <Label class="text-sm font-medium">Placeholder Text</Label>
+                                <Input
+                                  v-model="question.placeholder"
+                                  placeholder="e.g., 192.168.1.0"
+                                />
+                              </div>
+
+                              <!-- Input Format -->
+                              <div class="space-y-2">
+                                <Label class="text-sm font-medium">Input Format</Label>
+                                <Select v-model="question.inputFormat">
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Auto-detect" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="ip">IP Address (xxx.xxx.xxx.xxx)</SelectItem>
+                                    <SelectItem value="cidr">CIDR Number (/24)</SelectItem>
+                                    <SelectItem value="number">Number</SelectItem>
+                                    <SelectItem value="text">Text</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </div>
+
+                      <!-- Empty State -->
+                      <Alert v-else class="border-dashed">
+                        <AlertCircle class="w-4 h-4" />
+                        <AlertTitle>No questions added yet</AlertTitle>
+                        <AlertDescription>
+                          Click "Add Question" to create your first fill-in-the-blank question.
+                        </AlertDescription>
+                      </Alert>
+                    </div>
+
+                    <!-- DHCP Configuration Editor (DHCP Config Type) -->
+                    <div v-if="part.partType === 'dhcp_config'" class="border-t pt-6 mt-6 space-y-4">
+                      <div>
+                        <h4 class="text-sm font-semibold flex items-center gap-2">
+                          <Server class="w-4 h-4 text-secondary" />
+                          DHCP Configuration
+                        </h4>
+                        <p class="text-xs text-muted-foreground mt-1">
+                          Define the dynamic IP range and device responsible for serving DHCP.
+                        </p>
+                      </div>
+
+                      <Alert class="bg-amber-50 border-amber-200">
+                        <Info class="w-4 h-4 text-amber-600" />
+                        <AlertDescription class="text-xs text-amber-800">
+                          <strong>Important:</strong> Devices will be validated against this IP range. Any IP outside this range will fail grading.
+                        </AlertDescription>
+                      </Alert>
+
+                      <div v-if="part.dhcpConfiguration" class="space-y-4">
+                        <div class="space-y-2">
+                          <Label class="text-sm font-medium">
+                            VLAN Index <span class="text-destructive">*</span>
+                          </Label>
+                          <Select
+                            :model-value="String(part.dhcpConfiguration.vlanIndex)"
+                            @update:model-value="value => handleDhcpVlanChange(partIndex, Number(value))"
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select VLAN..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem v-for="(vlan, vlanIdx) in vlans" :key="vlanIdx" :value="String(vlanIdx)">
+                                VLAN {{ vlanIdx + 1 }} ({{ vlan.baseNetwork }}/{{ vlan.subnetMask }})
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div class="space-y-2">
+                            <Label class="text-sm font-medium">
+                              Start Offset (Last Octet) <span class="text-destructive">*</span>
+                            </Label>
+                            <Input
+                              v-model.number="part.dhcpConfiguration.startOffset"
+                              type="number"
+                              :min="getDhcpOffsetBounds(part.dhcpConfiguration.vlanIndex).min"
+                              :max="getDhcpOffsetBounds(part.dhcpConfiguration.vlanIndex).max"
+                              :placeholder="`Within ${formatDhcpOffsetRange(part.dhcpConfiguration.vlanIndex)}`"
+                              @input="requestValidation()"
+                              @blur="validateDhcpOffsetRange(partIndex)"
+                            />
+                            <p class="text-xs text-muted-foreground">
+                              Offset value for the last octet ({{ formatDhcpOffsetRange(part.dhcpConfiguration.vlanIndex) }})
+                            </p>
+                          </div>
+
+                          <div class="space-y-2">
+                            <Label class="text-sm font-medium">
+                              End Offset (Last Octet) <span class="text-destructive">*</span>
+                            </Label>
+                            <Input
+                              v-model.number="part.dhcpConfiguration.endOffset"
+                              type="number"
+                              :min="getDhcpOffsetBounds(part.dhcpConfiguration.vlanIndex).min"
+                              :max="getDhcpOffsetBounds(part.dhcpConfiguration.vlanIndex).max"
+                              :placeholder="`Within ${formatDhcpOffsetRange(part.dhcpConfiguration.vlanIndex)}`"
+                              @input="requestValidation()"
+                              @blur="validateDhcpOffsetRange(partIndex)"
+                            />
+                            <p class="text-xs text-muted-foreground">
+                              Offset value for the last octet ({{ formatDhcpOffsetRange(part.dhcpConfiguration.vlanIndex) }})
+                            </p>
+                          </div>
+                        </div>
+
+                        <!-- IP Range Calculation Helper -->
+                        <div v-if="part.dhcpConfiguration.vlanIndex !== undefined && part.dhcpConfiguration.startOffset && part.dhcpConfiguration.endOffset" class="mt-2">
+                          <Alert class="bg-blue-50 border-blue-200">
+                            <Info class="w-4 h-4 text-blue-600" />
+                            <AlertTitle class="text-blue-800">IP Range Preview</AlertTitle>
+                            <AlertDescription class="text-xs text-blue-700">
+                              <div class="space-y-1 mt-2">
+                                <div><strong>Base Network:</strong> {{ getVlanBaseNetwork(part.dhcpConfiguration.vlanIndex) }}</div>
+                                <div><strong>Start IP:</strong> {{ calculateIpFromOffset(part.dhcpConfiguration.vlanIndex, part.dhcpConfiguration.startOffset) }}</div>
+                                <div><strong>End IP:</strong> {{ calculateIpFromOffset(part.dhcpConfiguration.vlanIndex, part.dhcpConfiguration.endOffset) }}</div>
+                                <div><strong>Available IPs:</strong> {{ calculateDhcpPoolSizeFromOffsets(part.dhcpConfiguration.startOffset, part.dhcpConfiguration.endOffset) }}</div>
+                              </div>
+                            </AlertDescription>
+                          </Alert>
+                        </div>
+
+                        <!-- DHCP Server Device -->
+                        <div class="space-y-2">
+                          <Label class="text-sm font-medium">
+                            DHCP Server Device <span class="text-destructive">*</span>
+                          </Label>
+                          <Select v-model="part.dhcpConfiguration.dhcpServerDevice" @update:modelValue="() => requestValidation()">
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select device..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem
+                                v-for="device in devices"
+                                :key="device.deviceId"
+                                :value="device.deviceId"
+                              >
+                                {{ device.deviceId }}
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <p class="text-xs text-muted-foreground">
+                            Select the device students must configure as the DHCP server.
+                          </p>
+                        </div>
+
+                      </div>
+                    </div>
                   </div>
 
                   <!-- Description -->
@@ -284,8 +648,8 @@
                     </Select>
                   </div>
 
-                  <!-- Tasks Management -->
-                  <div class="border-t pt-6">
+                  <!-- Tasks Management (Only for Network Configuration) -->
+                  <div v-if="part.partType === 'network_config'" class="border-t pt-6">
                     <TasksManager
                       v-model="part.tasks"
                       :task-templates="taskTemplates"
@@ -336,7 +700,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, watch, ref, onMounted, nextTick } from 'vue'
+import { computed, watch, ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { marked } from 'marked'
 import { toast } from 'vue-sonner'
 import {
@@ -352,7 +716,8 @@ import {
   Loader2,
   FileQuestion,
   Server,
-  Network
+  Network,
+  Info
 } from 'lucide-vue-next'
 
 // UI Components
@@ -366,18 +731,29 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { Switch } from '@/components/ui/switch'
 
 // Local Components
 import TasksManager from './TasksManager.vue'
 import FullScreenEditor from '@/components/editor/FullScreenEditor.vue'
 
 // Types
-import type { WizardLabPart, WizardTaskGroup, Device, TaskTemplate, ValidationResult, PartType } from '@/types/wizard'
+import type { WizardLabPart, WizardTaskGroup, Device, TaskTemplate, ValidationResult, PartType, Question } from '@/types/wizard'
 
 // Props
 interface Props {
   modelValue: WizardLabPart[]
   devices: Device[]
+  vlans: Array<{
+    id?: string
+    vlanId?: number
+    calculationMultiplier?: number
+    baseNetwork: string
+    subnetMask: number
+    subnetIndex: number
+    groupModifier?: number
+    isStudentGenerated: boolean
+  }>
   validation?: ValidationResult
 }
 
@@ -398,6 +774,8 @@ const partFieldErrors = ref<Record<string, Record<string, string>>>({})
 const taskValidationErrors = ref<Record<string, string[]>>({})
 const isUpdatingFromProps = ref(false)
 const isValidating = ref(false)
+const isChangingPartType = ref(false) // NEW: Flag to prevent validation during part type change
+const validationDebounceTimer = ref<ReturnType<typeof setTimeout> | null>(null)
 
 // Rich Text Editor state
 const showInstructionsEditor = ref(false)
@@ -457,7 +835,16 @@ const addPart = () => {
   validateStep()
 }
 
+const requestValidation = () => {
+  if (!isUpdatingFromProps.value && !isValidating.value && !isChangingPartType.value) {
+    debouncedValidateStep()
+  }
+}
+
 const onPartTypeChange = (partIndex: number) => {
+  // Set flag to prevent expensive validation during type change
+  isChangingPartType.value = true
+
   const part = localData.value[partIndex]
 
   // Reset type-specific fields when changing part type
@@ -468,29 +855,355 @@ const onPartTypeChange = (partIndex: number) => {
     }
     // Clear DHCP config if exists
     part.dhcpConfiguration = undefined
+    // Clear task validation errors (fill-in-blank doesn't use tasks)
+    delete taskValidationErrors.value[partIndex]
   } else if (part.partType === 'dhcp_config') {
     // Clear questions if exists
     part.questions = undefined
     // Initialize DHCP configuration with defaults
     if (!part.dhcpConfiguration) {
       part.dhcpConfiguration = {
-        poolName: '',
         vlanIndex: 0,
-        startIp: '',
-        endIp: '',
-        subnetMask: '',
-        configurationInstructions: '',
+        startOffset: 100,
+        endOffset: 150,
         dhcpServerDevice: ''
       }
     }
+    // Clear task validation errors (dhcp_config doesn't use tasks)
+    delete taskValidationErrors.value[partIndex]
   } else if (part.partType === 'network_config') {
     // Clear questions and DHCP config
     part.questions = undefined
     part.dhcpConfiguration = undefined
+    // Task validation errors will be handled by TasksManager component
   }
 
-  // Validate the part
-  validatePart(partIndex, 'partType')
+  // Use nextTick to batch updates and clear flag
+  nextTick(() => {
+    // Clear flag first
+    isChangingPartType.value = false
+
+    // Then validate - this will trigger the watcher which calls debouncedValidateStep
+    // No need to call debouncedValidateStep explicitly
+    validatePart(partIndex, 'partType')
+  })
+}
+
+// Question Management Functions
+const generateQuestionId = (): string => {
+  return 'q_' + Math.random().toString(36).substr(2, 9)
+}
+
+const addQuestion = (partIndex: number) => {
+  const part = localData.value[partIndex]
+  if (!part.questions) {
+    part.questions = []
+  }
+
+  const newQuestion: Question = {
+    questionId: generateQuestionId(),
+    questionText: '',
+    questionType: 'network_address',
+    order: part.questions.length + 1,
+    points: 5,
+    schemaMapping: {
+      vlanIndex: 0,
+      field: 'networkAddress',
+      autoDetected: false
+    },
+    expectedAnswerType: 'exact',
+    placeholder: '',
+    inputFormat: 'ip',
+    expectedAnswer: '',
+    caseSensitive: false,
+    trimWhitespace: true
+  }
+
+  part.questions.push(newQuestion)
+  updatePartTotalPointsFromQuestions(partIndex)
+  toast.success('Question added successfully')
+  requestValidation()
+}
+
+const removeQuestion = (partIndex: number, questionIndex: number) => {
+  const part = localData.value[partIndex]
+  if (part.questions) {
+    part.questions.splice(questionIndex, 1)
+    // Update order for remaining questions
+    part.questions.forEach((q, idx) => {
+      q.order = idx + 1
+    })
+    updatePartTotalPointsFromQuestions(partIndex)
+    toast.success('Question removed')
+    requestValidation()
+  }
+}
+
+const moveQuestion = (partIndex: number, questionIndex: number, direction: number) => {
+  const part = localData.value[partIndex]
+  if (!part.questions) return
+
+  const newIndex = questionIndex + direction
+  if (newIndex >= 0 && newIndex < part.questions.length) {
+    const question = part.questions.splice(questionIndex, 1)[0]
+    part.questions.splice(newIndex, 0, question)
+    // Update order
+    part.questions.forEach((q, idx) => {
+      q.order = idx + 1
+    })
+    requestValidation()
+  }
+}
+
+// Auto-detect VLAN from question text
+const onQuestionTextChange = (partIndex: number, questionIndex: number) => {
+  const question = localData.value[partIndex].questions?.[questionIndex]
+  if (!question) return
+
+  if (question.questionType !== 'custom_text' && question.schemaMapping) {
+    const text = question.questionText
+
+    // Try to detect VLAN number using regex
+    const vlanMatch = text.match(/VLAN\s*(\d+)/i)
+    if (vlanMatch) {
+      const vlanNumber = parseInt(vlanMatch[1])
+      // Convert to 0-indexed (VLAN 1 → index 0)
+      question.schemaMapping.vlanIndex = vlanNumber - 1
+      question.schemaMapping.autoDetected = true
+    } else {
+      // No VLAN detected, keep current or default to 0
+      if (question.schemaMapping.autoDetected) {
+        question.schemaMapping.vlanIndex = 0
+        question.schemaMapping.autoDetected = false
+      }
+    }
+
+    // Auto-set field based on question type
+    question.schemaMapping.field = getFieldFromQuestionType(question.questionType)
+  }
+
+  requestValidation()
+}
+
+const onQuestionTypeChange = (partIndex: number, questionIndex: number) => {
+  const question = localData.value[partIndex].questions?.[questionIndex]
+  if (!question) return
+
+  if (question.questionType === 'custom_text') {
+    // Remove schema mapping when switching to custom text
+    question.schemaMapping = undefined
+    question.inputFormat = 'text'
+    if (typeof question.expectedAnswer !== 'string') {
+      question.expectedAnswer = ''
+    }
+    if (typeof question.caseSensitive !== 'boolean') {
+      question.caseSensitive = false
+    }
+    if (typeof question.trimWhitespace !== 'boolean') {
+      question.trimWhitespace = true
+    }
+    if (!question.placeholder) {
+      question.placeholder = 'Type your answer here'
+    }
+    requestValidation()
+    return
+  }
+
+  // Ensure schema mapping exists for networking questions
+  if (!question.schemaMapping) {
+    question.schemaMapping = {
+      vlanIndex: 0,
+      field: getFieldFromQuestionType(question.questionType),
+      autoDetected: false
+    }
+  } else {
+    // Auto-map to schema field
+    question.schemaMapping.field = getFieldFromQuestionType(question.questionType)
+  }
+
+  // Auto-set input format based on question type
+  if (question.questionType === 'subnet_mask') {
+    question.inputFormat = 'cidr'
+  } else if (question.questionType === 'number') {
+    question.inputFormat = 'number'
+  } else {
+    question.inputFormat = 'ip'
+  }
+
+  requestValidation()
+}
+
+const getFieldFromQuestionType = (type: string): string => {
+  const mapping: Record<string, string> = {
+    'network_address': 'networkAddress',
+    'first_usable_ip': 'firstUsableIp',
+    'last_usable_ip': 'lastUsableIp',
+    'broadcast_address': 'broadcastAddress',
+    'subnet_mask': 'subnetMask',
+    'ip_address': 'networkAddress', // Default to network address
+    'number': 'subnetMask' // Default to subnet mask for numbers
+  }
+  return mapping[type] || 'networkAddress'
+}
+
+const getFieldName = (questionType: string): string => {
+  return getFieldFromQuestionType(questionType)
+}
+
+const updatePartTotalPointsFromQuestions = (partIndex: number) => {
+  const part = localData.value[partIndex]
+  if (part.questions) {
+    const total = part.questions.reduce((sum, q) => sum + (q.points || 0), 0)
+    part.totalPoints = total
+  }
+}
+
+const onQuestionPointsChange = (partIndex: number) => {
+  updatePartTotalPointsFromQuestions(partIndex)
+  requestValidation()
+}
+
+const onExpectedAnswerChange = (partIndex: number, questionIndex: number) => {
+  const question = localData.value[partIndex].questions?.[questionIndex]
+  if (!question) return
+  if (typeof question.trimWhitespace === 'undefined') {
+    question.trimWhitespace = true
+  }
+  if (typeof question.caseSensitive === 'undefined') {
+    question.caseSensitive = false
+  }
+  requestValidation()
+}
+
+const onCaseSensitiveToggle = (partIndex: number, questionIndex: number, value: boolean) => {
+  const question = localData.value[partIndex].questions?.[questionIndex]
+  if (!question) return
+  question.caseSensitive = value
+  requestValidation()
+}
+
+const onTrimWhitespaceToggle = (partIndex: number, questionIndex: number, value: boolean) => {
+  const question = localData.value[partIndex].questions?.[questionIndex]
+  if (!question) return
+  question.trimWhitespace = value
+  requestValidation()
+}
+
+const onVlanIndexChange = (partIndex: number, questionIndex: number, value: number | string) => {
+  const question = localData.value[partIndex].questions?.[questionIndex]
+  if (!question || !question.schemaMapping) return
+  question.schemaMapping.autoDetected = false
+  question.schemaMapping.vlanIndex = typeof value === 'string' ? Number(value) : value
+  requestValidation()
+}
+
+// DHCP Configuration Functions
+const getVlanBaseNetwork = (vlanIndex: number): string => {
+  if (vlanIndex < 0 || vlanIndex >= props.vlans.length) {
+    return 'N/A'
+  }
+  const vlan = props.vlans[vlanIndex]
+  return `${vlan.baseNetwork}/${vlan.subnetMask}`
+}
+
+const calculateIpFromOffset = (vlanIndex: number, offset: number): string => {
+  if (vlanIndex < 0 || vlanIndex >= props.vlans.length) {
+    return 'Invalid VLAN'
+  }
+
+  const vlan = props.vlans[vlanIndex]
+  const baseIp = vlan.baseNetwork
+  const parts = baseIp.split('.')
+
+  if (parts.length !== 4) {
+    return 'Invalid IP'
+  }
+
+  // Show format: {1st octet}.x.x.{offset}
+  return `${parts[0]}.x.x.${offset}`
+}
+
+interface DhcpOffsetBounds {
+  min: number
+  max: number
+}
+
+const DEFAULT_DHCP_OFFSET_BOUNDS: DhcpOffsetBounds = { min: 1, max: 254 }
+
+const getDhcpOffsetBounds = (vlanIndex: number | undefined | null): DhcpOffsetBounds => {
+  if (vlanIndex === undefined || vlanIndex === null) {
+    return DEFAULT_DHCP_OFFSET_BOUNDS
+  }
+
+  if (vlanIndex < 0 || vlanIndex >= props.vlans.length) {
+    return DEFAULT_DHCP_OFFSET_BOUNDS
+  }
+
+  const vlan = props.vlans[vlanIndex]
+  const subnetMask = vlan.subnetMask ?? 24
+  const blockSize = Math.pow(2, 32 - subnetMask)
+  const subnetIndexZeroBased = Math.max(0, (vlan.subnetIndex ?? 1) - 1)
+  const networkStart = subnetIndexZeroBased * blockSize
+
+  const firstHost = networkStart + 1
+  const lastHost = networkStart + Math.max(0, blockSize - 2)
+
+  const min = Math.min(254, Math.max(1, firstHost))
+  const boundedLastHost = Math.min(254, Math.max(1, lastHost))
+  const max = Math.max(min, boundedLastHost)
+
+  return { min, max }
+}
+
+const formatDhcpOffsetRange = (vlanIndex: number | undefined | null): string => {
+  const { min, max } = getDhcpOffsetBounds(vlanIndex)
+  return `${min}-${max}`
+}
+
+const handleDhcpVlanChange = (partIndex: number, vlanIndex: number) => {
+  const part = localData.value[partIndex]
+  if (!part?.dhcpConfiguration) return
+
+  part.dhcpConfiguration.vlanIndex = vlanIndex
+
+  requestValidation()
+
+  if (part.dhcpConfiguration.startOffset && part.dhcpConfiguration.endOffset) {
+    validateDhcpOffsetRange(partIndex)
+  }
+}
+
+const validateDhcpOffsetRange = (partIndex: number) => {
+  const part = localData.value[partIndex]
+  if (!part.dhcpConfiguration) return
+
+  const { startOffset, endOffset, vlanIndex } = part.dhcpConfiguration
+  const { min, max } = getDhcpOffsetBounds(vlanIndex)
+
+  if (!startOffset || !endOffset) return
+
+  if (startOffset < min || startOffset > max) {
+    toast.error(`Start offset must be between ${min} and ${max} for the selected VLAN`)
+    requestValidation()
+    return
+  }
+
+  if (endOffset < min || endOffset > max) {
+    toast.error(`End offset must be between ${min} and ${max} for the selected VLAN`)
+    requestValidation()
+    return
+  }
+
+  if (startOffset >= endOffset) {
+    toast.error('Start offset must be less than End offset')
+  }
+
+  requestValidation()
+}
+
+const calculateDhcpPoolSizeFromOffsets = (startOffset: number, endOffset: number): number => {
+  if (!startOffset || !endOffset) return 0
+  return Math.max(0, endOffset - startOffset + 1)
 }
 
 const removePart = (partIndex: number) => {
@@ -637,10 +1350,20 @@ const getPartFieldError = (partIndex: number, field: string): string => {
 }
 
 const isPartValid = (part: WizardLabPart): boolean => {
-  return part.partId.length > 0 && 
-         part.title.length > 0 && 
-         part.instructions.length > 0 &&
-         part.tasks.length > 0
+  const basicValid = part.partId.length > 0 &&
+                     part.title.length > 0 &&
+                     part.instructions.length > 0
+
+  // Different validation based on part type
+  if (part.partType === 'network_config') {
+    return basicValid && part.tasks.length > 0
+  } else if (part.partType === 'fill_in_blank') {
+    return basicValid && (part.questions?.length || 0) > 0
+  } else if (part.partType === 'dhcp_config') {
+    return basicValid && !!part.dhcpConfiguration
+  }
+
+  return basicValid
 }
 
 const validatePart = (partIndex: number, field: string) => {
@@ -707,7 +1430,7 @@ const validatePart = (partIndex: number, field: string) => {
 }
 
 const validateStep = () => {
-  if (isValidating.value) return // Prevent recursive validation
+  if (isValidating.value || isChangingPartType.value) return // Prevent recursive validation and validation during part type change
   isValidating.value = true
 
   try {
@@ -731,9 +1454,119 @@ const validateStep = () => {
       errors.push(...Object.values(partErrors))
     })
 
-    // Collect task validation errors
-    Object.values(taskValidationErrors.value).forEach(taskErrors => {
-      errors.push(...taskErrors)
+    // Additional validation for fill-in-the-blank parts
+    localData.value.forEach((part, partIndex) => {
+      if (part.partType !== 'fill_in_blank') return
+
+      const partLabel = part.title || part.partId || `Part ${partIndex + 1}`
+
+      // Check if VLANs are configured
+      if (props.vlans.length === 0) {
+        errors.push(`${partLabel}: Cannot create Fill-in-Blank part without configuring VLANs in Step 2`)
+        return
+      }
+
+      if (!part.questions || part.questions.length === 0) {
+        errors.push(`${partLabel}: At least one question is required`)
+        return
+      }
+
+      part.questions.forEach((question, qIndex) => {
+        const questionLabel = `Question ${qIndex + 1}`
+
+        if (!question.questionText || !question.questionText.trim()) {
+          errors.push(`${partLabel} • ${questionLabel}: Question text is required`)
+        }
+
+        if (!question.points || question.points <= 0) {
+          errors.push(`${partLabel} • ${questionLabel}: Points must be greater than zero`)
+        }
+
+        if (!question.questionType) {
+          errors.push(`${partLabel} • ${questionLabel}: Question type is required`)
+        }
+
+        // Validate inputFormat enum if provided
+        if (question.inputFormat && !['ip', 'cidr', 'number', 'text'].includes(question.inputFormat)) {
+          errors.push(`${partLabel} • ${questionLabel}: Invalid input format '${question.inputFormat}'. Must be one of: ip, cidr, number, text`)
+        }
+
+        if (question.questionType === 'custom_text') {
+          if (!question.expectedAnswer || !question.expectedAnswer.trim()) {
+            errors.push(`${partLabel} • ${questionLabel}: Expected answer is required for custom text questions`)
+          }
+        } else {
+          if (!question.schemaMapping) {
+            errors.push(`${partLabel} • ${questionLabel}: Schema mapping is required for networking questions`)
+          } else if (question.schemaMapping.vlanIndex === undefined || question.schemaMapping.vlanIndex < 0) {
+            errors.push(`${partLabel} • ${questionLabel}: Target VLAN must be specified`)
+          } else if (question.schemaMapping.vlanIndex >= props.vlans.length) {
+            errors.push(`${partLabel} • ${questionLabel}: Target VLAN index ${question.schemaMapping.vlanIndex} exceeds configured VLANs (max: ${props.vlans.length - 1})`)
+          }
+        }
+      })
+    })
+
+    localData.value.forEach((part, partIndex) => {
+      if (part.partType !== 'dhcp_config') return
+
+      const partLabel = part.title || part.partId || `Part ${partIndex + 1}`
+      const config = part.dhcpConfiguration
+
+      // Check if VLANs are configured
+      if (props.vlans.length === 0) {
+        errors.push(`${partLabel}: Cannot create DHCP Configuration part without configuring VLANs in Step 2`)
+        return
+      }
+
+      if (!config) {
+        errors.push(`${partLabel}: DHCP configuration is required`)
+        return
+      }
+
+      if (config.vlanIndex === undefined || config.vlanIndex < 0) {
+        errors.push(`${partLabel}: VLAN index is required`)
+      } else if (config.vlanIndex >= props.vlans.length) {
+        errors.push(`${partLabel}: VLAN index ${config.vlanIndex} exceeds configured VLANs (max: ${props.vlans.length - 1})`)
+      }
+
+      const bounds = getDhcpOffsetBounds(config.vlanIndex)
+      const rangeText = `${bounds.min}-${bounds.max}`
+
+      if (config.startOffset === undefined || config.startOffset === null) {
+        errors.push(`${partLabel}: Start offset is required`)
+      } else if (config.startOffset < bounds.min || config.startOffset > bounds.max) {
+        errors.push(`${partLabel}: Start offset must be between ${rangeText} for the selected VLAN`)
+      }
+
+      if (config.endOffset === undefined || config.endOffset === null) {
+        errors.push(`${partLabel}: End offset is required`)
+      } else if (config.endOffset < bounds.min || config.endOffset > bounds.max) {
+        errors.push(`${partLabel}: End offset must be between ${rangeText} for the selected VLAN`)
+      }
+
+      if (
+        config.startOffset !== undefined &&
+        config.startOffset !== null &&
+        config.endOffset !== undefined &&
+        config.endOffset !== null &&
+        config.startOffset >= config.endOffset
+      ) {
+        errors.push(`${partLabel}: Start offset must be lower than End offset`)
+      }
+
+      if (!config.dhcpServerDevice || !config.dhcpServerDevice.trim()) {
+        errors.push(`${partLabel}: DHCP server device is required`)
+      } else if (!props.devices.some(d => d.deviceId === config.dhcpServerDevice)) {
+        errors.push(`${partLabel}: Selected DHCP server device '${config.dhcpServerDevice}' does not exist in configured devices`)
+      }
+    })
+
+    // Collect task validation errors ONLY for network_config parts
+    localData.value.forEach((part, index) => {
+      if (part.partType === 'network_config' && taskValidationErrors.value[index]) {
+        errors.push(...taskValidationErrors.value[index])
+      }
     })
 
     const isValid = errors.length === 0
@@ -747,6 +1580,17 @@ const validateStep = () => {
   } finally {
     isValidating.value = false
   }
+}
+
+// NEW: Debounced version of validateStep to prevent rapid consecutive calls
+const debouncedValidateStep = () => {
+  if (validationDebounceTimer.value) {
+    clearTimeout(validationDebounceTimer.value)
+  }
+
+  validationDebounceTimer.value = setTimeout(() => {
+    validateStep()
+  }, 150) // 150ms debounce - fast enough for good UX, slow enough to prevent lag
 }
 
 const loadTaskTemplates = async () => {
@@ -772,10 +1616,14 @@ const loadTaskTemplates = async () => {
 watch(
   localData,
   (newValue) => {
-    if (!isUpdatingFromProps.value) {
+    if (!isUpdatingFromProps.value && !isChangingPartType.value) {
       // Convert to regular WizardLabPart array (remove UI-specific props for parent)
       const cleanParts = newValue.map(({ showInstructionsPreview, ...part }) => part)
       emit('update:modelValue', cleanParts)
+
+      if (!isValidating.value) {
+        debouncedValidateStep()
+      }
     }
   },
   { deep: true }
@@ -802,23 +1650,43 @@ watch(
   { deep: true }
 )
 
-// Separate watcher for validation - triggered by data changes
+// Separate watchers for validation - optimized to prevent lag during part type switching
+// Watch error objects deeply (they're small and need deep watching for nested changes)
 watch(
-  [() => partFieldErrors.value, () => taskValidationErrors.value, () => localData.value.length],
+  () => partFieldErrors.value,
   () => {
-    if (!isUpdatingFromProps.value && !isValidating.value) {
-      nextTick(() => {
-        validateStep()
-      })
+    if (!isUpdatingFromProps.value && !isValidating.value && !isChangingPartType.value) {
+      debouncedValidateStep()
     }
   },
-  { deep: true }
+  { deep: true } // Keep deep watching for error objects - they're small
+)
+
+watch(
+  () => taskValidationErrors.value,
+  () => {
+    if (!isUpdatingFromProps.value && !isValidating.value && !isChangingPartType.value) {
+      debouncedValidateStep()
+    }
+  },
+  { deep: true } // Keep deep watching for task errors - they're small
+)
+
+// Watch localData length (shallow) - only care when parts are added/removed
+watch(
+  () => localData.value.length,
+  () => {
+    if (!isUpdatingFromProps.value && !isValidating.value && !isChangingPartType.value) {
+      debouncedValidateStep()
+    }
+  }
+  // No deep watching needed for length - it's just a number
 )
 
 // Lifecycle
 onMounted(async () => {
   await loadTaskTemplates()
-  
+
   // Initialize with existing parts if any
   if (props.modelValue.length > 0) {
     localData.value = props.modelValue.map(part => ({
@@ -827,8 +1695,16 @@ onMounted(async () => {
       tempId: generateTempId()
     }))
   }
-  
+
   validateStep()
+})
+
+// Cleanup on unmount
+onUnmounted(() => {
+  // Clear any pending validation timers
+  if (validationDebounceTimer.value) {
+    clearTimeout(validationDebounceTimer.value)
+  }
 })
 </script>
 

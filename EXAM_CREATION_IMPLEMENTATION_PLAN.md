@@ -36,29 +36,125 @@ Create a flexible exam system where instructors can:
 ```
 Part 1: IP Calculation (Fill-in-Blank)
 ├─ Student calculates: Network address, usable IPs, broadcast
-├─ Submits answers → Creates StudentIpSchema v1
+├─ Submits answers → POST /v0/labs/:labId/parts/:partId/submit-answers
+├─ Creates StudentIpSchema v1
 └─ IP Schema floating button appears
 
-Part 2: DHCP Configuration (DHCP Config)
+Part 2: DHCP Configuration (DHCP Config) - **WITH EMBEDDED IP UPDATE**
 ├─ Lecturer-defined DHCP pool: 172.16.40.100 - 172.16.40.150
 ├─ Student configures router to serve DHCP
 ├─ Devices request IPs via DHCP
 ├─ Device gets 172.16.40.112 (different from calculated!)
-└─ Student notes actual IP received
+├─ **Student sees IP update form embedded in same part**
+├─ Student updates IPs directly in the form (pre-filled with v1 values)
+├─ Student clicks "Update Schema & Submit"
+├─ **Two API calls in sequence:**
+│   1. POST /v0/labs/:labId/parts/:calculationPartId/submit-answers (isUpdate: true)
+│   2. POST /v0/labs/:labId/parts/:partId/submit-completion
+├─ Creates StudentIpSchema v2
+└─ Part marked as completed ✅
 
-Part 1: UPDATE IP Schema (Re-submit)
-├─ Student clicks "Edit Schema" in floating button
-├─ Returns to Part 1 in "Update Mode"
-├─ Updates answers to reflect DHCP-assigned IPs
-├─ Submits updates → StudentIpSchema v2
-└─ IP Schema shows "Updated" badge (v2)
-
-Part 3+: Device Configuration & Grading
+Part 3+: Device Configuration & Grading (Network Config)
 ├─ Student configures devices using actual IPs from schema
-├─ Submits for grading
+├─ Submits tasks → Traditional task execution endpoint
 ├─ Grading service fetches latest StudentIpSchema (v2)
 ├─ Connects to devices using student-declared IPs
 └─ Grades successfully ✅
+```
+
+## 📍 Grading Endpoint Separation
+
+**CRITICAL**: Each part type uses **DIFFERENT** grading/submission endpoints:
+
+| Part Type | Has Tasks? | Submission Endpoint | Grading Method | Points Awarded |
+|-----------|-----------|---------------------|----------------|----------------|
+| `fill_in_blank` | ❌ No | `POST /v0/labs/:labId/parts/:partId/submit-answers` | Answer validation against formulas | Per question |
+| `dhcp_config` | ❌ No | `POST /v0/labs/:labId/parts/:partId/submit-completion` | Completion confirmation | Per part |
+| `network_config` | ✅ Yes | Traditional task execution endpoints | SSH-based device testing | Per task |
+
+### Endpoint Details
+
+#### 1. Fill-in-Blank Submission
+```http
+POST /v0/labs/:labId/parts/:partId/submit-answers
+
+Body:
+{
+  "answers": [
+    { "questionId": "q1", "answer": "192.168.1.0" },
+    { "questionId": "q2", "answer": "24" }
+  ],
+  "isUpdate": false  // true when updating existing schema
+}
+
+Response:
+{
+  "success": true,
+  "data": {
+    "results": [...],
+    "totalPointsEarned": 40,
+    "passed": true,
+    "studentIpSchema": { "version": 1, ... }
+  }
+}
+```
+
+#### 2. DHCP Configuration Submission (Embedded Workflow)
+
+**DHCP Part Makes TWO Sequential API Calls:**
+
+**Call 1: Update IP Schema**
+```http
+POST /v0/labs/:labId/parts/:calculationPartId/submit-answers
+
+Body:
+{
+  "answers": [
+    { "questionId": "q1", "answer": "172.16.40.112" },  // Updated DHCP IP
+    { "questionId": "q2", "answer": "24" }
+  ],
+  "isUpdate": true  // Always true in DHCP part
+}
+
+Response:
+{
+  "success": true,
+  "data": {
+    "results": [...],
+    "totalPointsEarned": 40,
+    "passed": true,
+    "studentIpSchema": { "version": 2, ... }  // Version incremented
+  }
+}
+```
+
+**Call 2: Mark DHCP Part Complete**
+```http
+POST /v0/labs/:labId/parts/:partId/submit-completion
+
+Body:
+{
+  "dhcpPoolName": "VLAN1_POOL",
+  "vlanIndex": 0
+}
+
+Response:
+{
+  "success": true,
+  "data": {
+    "completed": true,
+    "message": "DHCP configuration submitted successfully"
+  }
+}
+```
+
+**⚠️ IMPORTANT**: If Call 1 fails, Call 2 is NOT executed. Both must succeed for completion.
+
+#### 3. Network Configuration (Tasks)
+```
+Uses existing task execution endpoints
+Student submits individual tasks
+Each task graded via SSH connection
 ```
 
 ---
@@ -210,10 +306,32 @@ export interface ILabPart extends Document {
     dhcpServerDevice: string;      // e.g., "router1"
   };
 
-  // Existing fields
-  tasks: Array<{ ... }>;
+  // Tasks (ONLY for network_config part type)
+  tasks: Array<{ ... }>;          // Empty for fill_in_blank and dhcp_config
   prerequisites: string[];
 }
+
+/**
+ * IMPORTANT: Part Type Content Rules
+ *
+ * fill_in_blank:
+ *   - MUST have: questions[]
+ *   - MUST NOT have: tasks[], dhcpConfiguration
+ *   - Grading: POST /v0/labs/:labId/parts/:partId/submit-answers
+ *   - Points: Per question validation
+ *
+ * dhcp_config:
+ *   - MUST have: dhcpConfiguration
+ *   - MUST NOT have: questions[], tasks[]
+ *   - Grading: POST /v0/labs/:labId/parts/:partId/submit-completion
+ *   - Points: Completion-based (configured per part)
+ *
+ * network_config:
+ *   - MUST have: tasks[]
+ *   - MUST NOT have: questions[], dhcpConfiguration
+ *   - Grading: Traditional task execution endpoints
+ *   - Points: Per task test results
+ */
 ```
 
 ---
@@ -969,25 +1087,74 @@ const renderMarkdown = (markdown: string) => {
 - **Conversion Required**: Before submitting to backend → `backendValue = uiValue - 1`
 - This conversion must happen in the lab creation/update API submission logic
 
-### Phase 5: Frontend - Hybrid Schema Mapping (5 days)
-- [ ] Update TypeScript interfaces with schemaMapping
-- [ ] Add DHCP part type to Step 4
-- [ ] Implement VLAN auto-detection logic (regex-based)
-- [ ] Create question editor with hybrid mapping UI
-- [ ] Show "Auto-detected" badge
-- [ ] Add final mapping preview
-- [ ] Test auto-detection accuracy
+### Phase 5: Frontend - Lab Wizard Step 4 Enhancements (5 days) ✅ COMPLETED
+- [x] Update TypeScript interfaces with schemaMapping (`types/wizard.ts`)
+- [x] Add DHCP part type to Step 4 (RadioGroup with 3 part types)
+- [x] Implement VLAN auto-detection logic (regex-based, detects "VLAN X")
+- [x] Create question editor with hybrid mapping UI
+- [x] Show "Auto-detected" badge for VLAN detection
+- [x] Add final mapping preview (`schema.vlans[X].fieldName`)
+- [x] Create DHCP configuration editor with all fields
+- [x] Fix validation to not require tasks for fill_in_blank/dhcp_config
+- [x] Fix DHCP configuration field initialization warnings
+- [x] Fix Part Type switching delays with debouncing
+- [x] Resolve FormField component naming conflict
 
-### Phase 6: Frontend - Student Components (5 days)
-- [ ] Update StudentIpSchemaFloatingButton:
+**Completed**: December 2024
+
+**Files Modified**:
+- `components/wizard/LabWizardStep4.vue` - Main implementation
+- `types/wizard.ts` - Type definitions
+- `components/ui/form-field/` - Renamed to BaseFormField to avoid conflicts
+
+**Key Validation Fixes (December 2024)**:
+1. **Task Validation Separation**:
+   - Only validate tasks for `network_config` parts
+   - Clear task validation errors when switching to `fill_in_blank` or `dhcp_config`
+   - Updated `validateStep()` to check part type before collecting task errors
+
+2. **DHCP Configuration Warnings Fixed**:
+   - Initialize all optional fields (`defaultGateway`, `dnsServers`, `leaseTime`)
+   - Fixed `vlanIndex` Select type handling (string↔number conversion)
+   - Initialized `dhcpDnsServersInput` array when switching to DHCP type
+   - Added safe default values for optional fields
+
+3. **Part Type Switching Performance**:
+   - Added `isChangingPartType` flag to prevent validation during type change
+   - Debounced validation calls (150ms) to prevent rapid consecutive calls
+   - Fixed deep watcher race condition on `localData`
+   - Eliminated redundant validation calls in `onPartTypeChange()`
+
+4. **Component Naming Conflict**:
+   - Renamed `FormField.vue` → `BaseFormField.vue` to avoid conflict with vee-validate
+   - Updated 3 dependent components (ValidatedInput, ValidatedSelect, ValidatedTextarea)
+   - Resolved Nuxt component registration warnings
+
+### Phase 6: Frontend - Student Components (5 days) ⏳ NOT STARTED
+**Status**: Awaiting backend StudentIpSchema API implementation
+
+**Requirements**:
+- [ ] Create StudentIpSchemaFloatingButton component:
   - Version display
   - Edit button (always available)
-  - Source indicators
+  - Source indicators (calculated/DHCP/manual)
   - Device IP assignments
-- [ ] Update FillInBlankQuestions with update mode
-- [ ] Create DhcpConfigurationPart component
+  - Expand/collapse functionality
+- [ ] Create FillInBlankQuestions student component:
+  - Normal mode (initial submission)
+  - Update mode (pre-filled with existing schema)
+  - Show previous answers vs new answers
+  - Submit to `/v0/labs/:labId/parts/:partId/submit-answers`
+- [ ] Create DhcpConfigurationPart student component:
+  - Display lecturer-defined DHCP pool
+  - Show configuration instructions
+  - Embedded IP update form
+  - Two-step submission (update schema + mark complete)
 - [ ] Add navigation to update schema
 - [ ] Test DHCP pool validation on frontend
+
+**Directory**: `components/student/`
+**Dependencies**: Backend Phase 1 & 2 (StudentIpSchema APIs)
 
 ### Phase 7: Integration & Testing (5 days)
 - [ ] E2E: Create exam → Take exam → Update schema
@@ -1009,32 +1176,83 @@ const renderMarkdown = (markdown: string) => {
 
 ## 🎯 Success Criteria
 
-- [ ] Instructors can create exams with three part types
-- [ ] Students can calculate initial IPs (Part 1)
-- [ ] Students can configure DHCP with lecturer pools (Part 2)
-- [ ] Students can update IP schemas unlimited times
-- [ ] DHCP pool validation fails IPs outside range
-- [ ] Grading always uses student-declared IPs
-- [ ] IP schema shows version history
-- [ ] No schema locking - always editable
-- [ ] Subnet index validated correctly
+### Instructor Features (Lab Creation)
+- [x] Instructors can create exams with three part types (✅ Lab Wizard Step 4)
+- [x] Fill-in-blank questions with auto VLAN detection (✅ Implemented)
+- [x] DHCP configuration with lecturer-defined pools (✅ Implemented)
+- [x] Network configuration with tasks (✅ Existing TasksManager)
+- [x] Subnet index validated correctly (✅ Step 2)
+- [x] Validation prevents incorrect part type submissions (✅ Fixed today)
+
+### Student Features (Lab Execution) - PENDING
+- [ ] Students can calculate initial IPs (Part 1) - **Requires: FillInBlankQuestions.vue**
+- [ ] Students can configure DHCP with lecturer pools (Part 2) - **Requires: DhcpConfigurationPart.vue**
+- [ ] Students can update IP schemas unlimited times - **Requires: Backend APIs**
+- [ ] DHCP pool validation fails IPs outside range - **Requires: Backend validation**
+- [ ] IP schema floating button shows version history - **Requires: StudentIpSchemaFloatingButton.vue**
+- [ ] No schema locking - always editable - **Requires: Backend logic**
+
+### Backend Features - PENDING
+- [ ] StudentIpSchema model and versioning
+- [ ] Submit/update IP calculation answers API
+- [ ] Get student IP schema API
+- [ ] Grading service integration (always use student-declared IPs)
+
+### Integration
 - [ ] No breaking changes to existing labs
+- [ ] E2E test: Create exam → Take exam → Update schema → Grade
 
 ---
 
-## 🚀 Ready to Start!
+## 🚀 Next Steps (Priority Order)
 
-**Recommendation: Start with Phase 4 (Frontend Subnet Index) - Quick Win (1 day)**
+### ✅ COMPLETED: Frontend Lab Creation UI
+Phases 4 & 5 are **fully implemented**. Instructors can now create exams with:
+- Fill-in-blank questions with auto VLAN detection
+- DHCP configuration with lecturer-defined pools
+- Network configuration tasks
 
-This gives immediate value and is independent of other phases. Then proceed with backend phases 1-3, followed by frontend phases 5-6.
+### 🎯 NEXT: Backend Implementation (Critical Path)
 
-**Or start with Phase 1 (Backend StudentIpSchema) if you prefer backend-first approach.**
+**Phase 1: StudentIpSchema Model (3 days)** - **START HERE**
+Must be completed before any student components can function.
+- Create `StudentIpSchema` MongoDB model with versioning
+- Implement schema calculation service
+- Add version management (unlimited updates)
 
-Which would you like to begin with? 🎯
+**Phase 2: IP Schema APIs (4 days)**
+Required for student interaction with IP schemas.
+- `POST /v0/labs/:labId/parts/:partId/submit-answers`
+- `GET /v0/labs/:labId/ip-schema`
+- `POST /v0/labs/:labId/parts/:partId/submit-completion` (DHCP)
+- `GET /v0/submissions/:submissionId/student-ip-schema` (Grading)
 
- ☐ Implement question editor with hybrid schema mapping and auto-detection
-  ☐ Create DHCP configuration editor in Step 4
-  ☐ Create/Enhance Student IP Schema Floating Button component
-  ☐ Create Fill-in-Blank Questions student component with update mode
-  ☐ Create DHCP Configuration Part student component
-  ☐ Test complete exam creation and student workflow
+**Phase 3: DHCP Part Type Support (2 days)**
+Complete backend support for DHCP configuration.
+- Update LabPart model validation
+- Implement DHCP pool IP range validation
+- Create part completion endpoint
+
+### 🎨 THEN: Frontend Student Components (5 days)
+
+Once backend APIs are ready:
+- Create `StudentIpSchemaFloatingButton.vue`
+- Create `FillInBlankQuestions.vue`
+- Create `DhcpConfigurationPart.vue`
+
+### 📊 Current Blocking Issues
+
+**BLOCKER**: Student components **cannot be built** until backend APIs exist.
+
+**Estimated Timeline**:
+- Backend (Phases 1-3): ~9 days
+- Frontend Student Components (Phase 6): ~5 days
+- Testing & Integration (Phase 7): ~5 days
+- **Total Remaining**: ~19 days (4 weeks)
+
+---
+
+**Status Last Updated**: December 2024
+**Frontend Lab Creation**: ✅ Complete
+**Backend Implementation**: ⏳ Not Started
+**Student Components**: ⏳ Blocked by Backend

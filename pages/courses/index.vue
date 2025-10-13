@@ -28,6 +28,8 @@ interface CourseResponse {
         updatedAt: string
         visibility: 'public' | 'private'
         requiresPassword: boolean
+        bannerUrl?: string
+        bannerImage?: string
     }>
 }
 
@@ -44,6 +46,11 @@ const { data: coursesData, status } = await useFetch<CourseResponse>(backendURL 
     default: () => ({ courses: [] })
 })
 
+const DEFAULT_BANNER_PLACEHOLDER = '/placeholder.avif'
+
+const getCourseBanner = (course: CourseResponse['courses'][number]) => {
+  return course.bannerUrl || course.bannerImage || DEFAULT_BANNER_PLACEHOLDER
+}
 
 </script>
 
@@ -92,9 +99,10 @@ v-for="(course, index) in coursesData.courses"
                 `animation-delay-${index * 100}`
              ]">
           <img
-class="w-full h-48 object-cover rounded-t-xl hover:scale-105 transition-transform duration-500" 
-               src="https://i.pinimg.com/736x/18/e3/ad/18e3ad7a432d41a6e2a57d1523e81c73.jpg"
-               :alt="course.title + ' banner'">
+            class="w-full h-48 object-cover rounded-t-xl hover:scale-105 transition-transform duration-500"
+            :src="getCourseBanner(course)"
+            :alt="course.title + ' banner'"
+          >
           
           <div class="p-6 flex flex-col flex-grow">
             <CardHeader class="p-0 pb-2">

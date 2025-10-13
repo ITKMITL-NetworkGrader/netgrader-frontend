@@ -1,5 +1,29 @@
 # Dynamic IP Schema Architecture - NetGrader Exam System
 
+## 📊 Implementation Status (December 2024)
+
+### ✅ Frontend - Lab Creation (COMPLETED)
+- **Lab Wizard Step 4**: Full implementation of 3 part types
+  - Fill-in-blank questions with VLAN auto-detection
+  - DHCP configuration with lecturer-defined pools
+  - Network configuration with tasks
+  - Validation for each part type
+- **TypeScript Types**: All interfaces defined (`types/wizard.ts`)
+- **Validation**: Fixed to handle different part types correctly
+
+### ⏳ Frontend - Student Components (NOT STARTED)
+- ❌ StudentIpSchemaFloatingButton.vue (not created)
+- ❌ FillInBlankQuestions.vue (not created)
+- ❌ DhcpConfigurationPart.vue (not created)
+- **Blocker**: Requires backend StudentIpSchema APIs
+
+### ⏳ Backend (NOT STARTED)
+- ❌ StudentIpSchema model
+- ❌ IP Schema APIs (submit, get, update)
+- ❌ Grading service integration
+
+---
+
 ## 🎯 Core Concept
 
 **Student IP Schema is MUTABLE and STUDENT-MANAGED**
@@ -21,29 +45,125 @@ Students can:
 
 Part 1: IP Calculation (Fill-in-Blank)
 ├─ Student calculates: Network address, usable IPs, broadcast
-├─ Submits initial answers → Creates StudentIpSchema v1
+├─ Submits initial answers → POST /v0/labs/:labId/parts/:partId/submit-answers
+├─ Creates StudentIpSchema v1
 └─ IP Schema becomes visible in floating button
 
-Part 2: DHCP Configuration (Network Config)
+Part 2: DHCP Configuration (DHCP Config) - **WITH EMBEDDED IP UPDATE**
 ├─ Lecturer-defined DHCP pool: 172.16.40.100 - 172.16.40.150
 ├─ Student configures router to serve DHCP
 ├─ Devices request IPs via DHCP
 ├─ Device gets 172.16.40.112 (different from calculated!)
-└─ Student notes actual IP received
+├─ **Student sees IP update form embedded in same part**
+├─ Student updates IPs directly in the form (pre-filled with v1 values)
+├─ Student clicks "Update Schema & Submit"
+├─ **Two API calls in sequence:**
+│   1. POST /v0/labs/:labId/parts/:calculationPartId/submit-answers (isUpdate: true)
+│   2. POST /v0/labs/:labId/parts/:partId/submit-completion
+├─ Creates StudentIpSchema v2
+└─ Part marked as completed ✅
 
-Part 1: UPDATE IP Calculation (Re-submit)
-├─ Student clicks "Edit Schema" in floating button
-├─ Returns to Part 1 in "Update Mode"
-├─ Updates IP answers to reflect DHCP-assigned IPs
-├─ Submits updates → StudentIpSchema v2
-└─ IP Schema floating button shows "Updated" badge
-
-Part 3+: Device Configuration & Grading
+Part 3+: Device Configuration & Grading (Network Config)
 ├─ Student configures devices using actual IPs
-├─ Submits for grading
+├─ Submits tasks → Traditional task execution endpoint
 ├─ Grading service fetches latest StudentIpSchema (v2)
 ├─ Connects to devices using student-declared IPs
 └─ Grades successfully ✅
+
+## 📍 Grading Endpoint Separation
+
+**CRITICAL**: Each part type uses **DIFFERENT** grading/submission endpoints:
+
+| Part Type | Has Tasks? | Submission Endpoint | Grading Method | Points Awarded |
+|-----------|-----------|---------------------|----------------|----------------|
+| `fill_in_blank` | ❌ No | `POST /v0/labs/:labId/parts/:partId/submit-answers` | Answer validation against formulas | Per question |
+| `dhcp_config` | ❌ No | `POST /v0/labs/:labId/parts/:partId/submit-completion` | Completion confirmation | Per part |
+| `network_config` | ✅ Yes | Traditional task execution endpoints | SSH-based device testing | Per task |
+
+### Endpoint Details
+
+#### 1. Fill-in-Blank Submission
+```http
+POST /v0/labs/:labId/parts/:partId/submit-answers
+
+Body:
+{
+  "answers": [
+    { "questionId": "q1", "answer": "192.168.1.0" },
+    { "questionId": "q2", "answer": "24" }
+  ],
+  "isUpdate": false  // true when updating existing schema
+}
+
+Response:
+{
+  "success": true,
+  "data": {
+    "results": [...],
+    "totalPointsEarned": 40,
+    "passed": true,
+    "studentIpSchema": { "version": 1, ... }
+  }
+}
+```
+
+#### 2. DHCP Configuration Submission (Embedded Workflow)
+
+**DHCP Part Makes TWO Sequential API Calls:**
+
+**Call 1: Update IP Schema**
+```http
+POST /v0/labs/:labId/parts/:calculationPartId/submit-answers
+
+Body:
+{
+  "answers": [
+    { "questionId": "q1", "answer": "172.16.40.112" },  // Updated DHCP IP
+    { "questionId": "q2", "answer": "24" }
+  ],
+  "isUpdate": true  // Always true in DHCP part
+}
+
+Response:
+{
+  "success": true,
+  "data": {
+    "results": [...],
+    "totalPointsEarned": 40,
+    "passed": true,
+    "studentIpSchema": { "version": 2, ... }  // Version incremented
+  }
+}
+```
+
+**Call 2: Mark DHCP Part Complete**
+```http
+POST /v0/labs/:labId/parts/:partId/submit-completion
+
+Body:
+{
+  "dhcpPoolName": "VLAN1_POOL",
+  "vlanIndex": 0
+}
+
+Response:
+{
+  "success": true,
+  "data": {
+    "completed": true,
+    "message": "DHCP configuration submitted successfully"
+  }
+}
+```
+
+**⚠️ IMPORTANT**: If Call 1 fails, Call 2 is NOT executed. Both must succeed for completion.
+
+#### 3. Network Configuration (Tasks)
+```
+Uses existing task execution endpoints
+Student submits individual tasks
+Each task graded via SSH connection
+```
 ```
 
 ---
@@ -244,10 +364,32 @@ export interface ILabPart extends Document {
     dhcpServerDevice: string;      // e.g., "router1"
   };
 
-  // Existing fields
-  tasks: Array<{ ... }>;
+  // Tasks (ONLY for network_config part type)
+  tasks: Array<{ ... }>;          // Empty for fill_in_blank and dhcp_config
   prerequisites: string[];
 }
+
+/**
+ * IMPORTANT: Part Type Content Rules
+ *
+ * fill_in_blank:
+ *   - MUST have: questions[]
+ *   - MUST NOT have: tasks[], dhcpConfiguration
+ *   - Grading: POST /v0/labs/:labId/parts/:partId/submit-answers
+ *   - Points: Per question validation
+ *
+ * dhcp_config:
+ *   - MUST have: dhcpConfiguration
+ *   - MUST NOT have: questions[], tasks[]
+ *   - Grading: POST /v0/labs/:labId/parts/:partId/submit-completion
+ *   - Points: Completion-based (configured per part)
+ *
+ * network_config:
+ *   - MUST have: tasks[]
+ *   - MUST NOT have: questions[], dhcpConfiguration
+ *   - Grading: Traditional task execution endpoints
+ *   - Points: Per task test results
+ */
 ```
 
 **Schema Update**:
