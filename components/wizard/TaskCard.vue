@@ -13,12 +13,33 @@
     @dragstart="handleDragStart"
     @dragend="handleDragEnd"
   >
-    <CardHeader class="pb-3">
+    <!-- Compact Mode (for sidebar) -->
+    <CardHeader v-if="compact" :class="compact ? 'py-2 px-3' : 'pb-3'">
+      <div class="flex items-center justify-between gap-2">
+        <div class="flex items-center gap-2 flex-1 min-w-0">
+          <GripVertical class="w-3 h-3 text-gray-400 cursor-move flex-shrink-0" />
+          <CheckSquare
+            :class="groupColor ? `w-3 h-3 flex-shrink-0` : 'w-3 h-3 flex-shrink-0 text-green-600'"
+            :style="groupColor ? { color: groupColor } : {}"
+          />
+          <span class="text-xs font-medium truncate">
+            {{ task.name || `Task ${taskIndex + 1}` }}
+          </span>
+        </div>
+
+        <Badge v-if="task.points > 0" variant="outline" class="text-xs flex-shrink-0">
+          {{ task.points }}p
+        </Badge>
+      </div>
+    </CardHeader>
+
+    <!-- Normal Mode (for main area) -->
+    <CardHeader v-else class="pb-3">
       <div class="flex items-center justify-between">
         <CardTitle class="text-base flex items-center">
           <GripVertical class="w-4 h-4 mr-2 text-gray-400 cursor-move" />
-          <CheckSquare 
-            :class="groupColor ? `w-4 h-4 mr-2` : 'w-4 h-4 mr-2 text-green-600'" 
+          <CheckSquare
+            :class="groupColor ? `w-4 h-4 mr-2` : 'w-4 h-4 mr-2 text-green-600'"
             :style="groupColor ? { color: groupColor } : {}"
           />
           Task {{ taskIndex + 1 }}
@@ -32,7 +53,7 @@
             Grouped
           </Badge>
         </CardTitle>
-        
+
         <div class="flex items-center space-x-2">
           <Button
             variant="ghost"
@@ -40,11 +61,11 @@
             class="h-8 w-8 p-0"
             @click="toggleExpanded"
           >
-            <ChevronDown 
+            <ChevronDown
               :class="{
                 'w-4 h-4 transition-transform': true,
                 'transform rotate-180': task.isExpanded
-              }" 
+              }"
             />
           </Button>
         </div>
@@ -190,6 +211,7 @@ interface Props {
   taskIndex: number
   isDragging?: boolean
   groupColor?: string
+  compact?: boolean  // New: Compact mode for sidebar display
 }
 
 // Emits
@@ -200,7 +222,8 @@ interface Emits {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  isDragging: false
+  isDragging: false,
+  compact: false
 })
 
 const emit = defineEmits<Emits>()

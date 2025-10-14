@@ -453,7 +453,7 @@ const addTask = () => {
     testCases: [],
     order: localTasks.value.length + 1,
     points: 0,
-    isExpanded: true
+    isExpanded: false  // Changed from true to false - tasks are now collapsed by default
   }
   localTasks.value.push(newTask)
   // Don't call validateTasks() here - it will be called by the watcher

@@ -547,7 +547,7 @@ export interface ILabPart extends Document {
     questionText: string;
     questionType: 'network_address' | 'first_usable_ip' | 'last_usable_ip' |
                   'broadcast_address' | 'subnet_mask' | 'ip_address' | 'number' |
-                  'custom_text';
+                  'custom_text' | 'ip_table_questionnaire';
     order: number;
     points: number;
 
@@ -572,12 +572,56 @@ export interface ILabPart extends Document {
     expectedAnswer?: string;     // Required when questionType === 'custom_text'
     caseSensitive?: boolean;     // Default false
     trimWhitespace?: boolean;    // Default true
+
+    // IP Table Questionnaire (ONLY for 'ip_table_questionnaire' type)
+    ipTableQuestionnaire?: {
+      tableId: string;
+      rowCount: number;            // 1-10 rows
+      columnCount: number;         // 1-10 columns
+      autoCalculate: boolean;      // Whether answers were auto-calculated
+
+      columns: Array<{
+        columnId: string;
+        columnType: 'ipv4' | 'ipv6' | 'subnet_mask' | 'gateway' | 'default_gateway' |
+                    'broadcast_address' | 'network_address' | 'prefix_length' |
+                    'link_local_address' | 'dns';
+        vlanIndex?: number;        // Required for VLAN-specific column types
+        label?: string;            // Optional custom label
+        order: number;             // Column display order (0-based)
+      }>;
+
+      rows: Array<{
+        rowId: string;
+        deviceId: string;          // Device ID (e.g., "router1")
+        interfaceName: string;     // Interface name (e.g., "g0-1")
+        displayName: string;       // Display format (e.g., "router1.g0-1")
+        order: number;             // Row display order (0-based)
+      }>;
+
+      cells: Array<Array<{
+        cellId: string;
+        rowId: string;
+        columnId: string;
+        expectedAnswer: string;    // Lecturer-defined expected answer
+        points: number;            // Points for this cell (min: 1)
+        autoCalculated: boolean;   // Whether auto-calculated or manual
+      }>>;  // 2D array: cells[rowIndex][columnIndex]
+    };
   }>;
 
   /**
    * Validation rules (enforced in service + schema middleware):
    * - Every question requires non-empty questionText and positive points.
-   * - For networking-focused question types (anything except `custom_text`):
+   * - For `ip_table_questionnaire` questions:
+   *     • `ipTableQuestionnaire` is REQUIRED.
+   *     • `rowCount` and `columnCount` must be between 1-10.
+   *     • All columns must have valid `columnType`.
+   *     • VLAN-specific columns (ipv4, ipv6, subnet_mask, gateway, etc.) require `vlanIndex` (0-9).
+   *     • All rows must have `deviceId` and `interfaceName`.
+   *     • All cells must have `expectedAnswer` and `points >= 1`.
+   *     • Total question points = sum of all cell points.
+   *     • `schemaMapping` MUST be omitted (table answers do not update StudentIpSchema directly).
+   * - For networking-focused question types (anything except `custom_text` and `ip_table_questionnaire`):
    *     • `schemaMapping` is REQUIRED.
    *     • `schemaMapping.vlanIndex` must be between 0-9.
    * - For `custom_text` questions:
@@ -691,7 +735,7 @@ interface QuestionPayload {
   questionText: string;
   questionType: 'network_address' | 'first_usable_ip' | 'last_usable_ip' |
                 'broadcast_address' | 'subnet_mask' | 'ip_address' | 'number' |
-                'custom_text';
+                'custom_text' | 'ip_table_questionnaire';
   order: number;
   points: number;
   schemaMapping?: {
@@ -708,6 +752,43 @@ interface QuestionPayload {
   expectedAnswer?: string;     // REQUIRED when questionType === 'custom_text'
   caseSensitive?: boolean;     // Defaults to false when omitted
   trimWhitespace?: boolean;    // Defaults to true when omitted
+
+  // IP Table Questionnaire (REQUIRED when questionType === 'ip_table_questionnaire')
+  ipTableQuestionnaire?: IpTableQuestionnairePayload;
+}
+
+interface IpTableQuestionnairePayload {
+  tableId: string;
+  rowCount: number;            // 1-10 rows
+  columnCount: number;         // 1-10 columns
+  autoCalculate: boolean;
+
+  columns: Array<{
+    columnId: string;
+    columnType: 'ipv4' | 'ipv6' | 'subnet_mask' | 'gateway' | 'default_gateway' |
+                'broadcast_address' | 'network_address' | 'prefix_length' |
+                'link_local_address' | 'dns';
+    vlanIndex?: number;        // Required for VLAN-specific columns
+    label?: string;
+    order: number;
+  }>;
+
+  rows: Array<{
+    rowId: string;
+    deviceId: string;
+    interfaceName: string;
+    displayName: string;
+    order: number;
+  }>;
+
+  cells: Array<Array<{
+    cellId: string;
+    rowId: string;
+    columnId: string;
+    expectedAnswer: string;
+    points: number;
+    autoCalculated: boolean;
+  }>>;
 }
 
 interface DhcpConfigPayload {
@@ -786,6 +867,13 @@ interface DhcpConfigPayload {
 - `dhcpConfiguration` must be omitted unless `partType === 'dhcp_config'`.
 - `tasks` and `task_groups` must be empty arrays for non `network_config` parts (frontend already enforces this).
 - `dhcp_config` parts require: `vlanIndex`, `startOffset`, `endOffset`, `dhcpServerDevice`. Offsets must be within the usable host range for the VLAN and satisfy `startOffset < endOffset`.
+- `ip_table_questionnaire` questions require:
+  - Complete `ipTableQuestionnaire` object with all columns, rows, and cells configured
+  - All column types must be valid
+  - VLAN-specific columns must have `vlanIndex` (0-9)
+  - All rows must reference valid devices from lab configuration
+  - All cells must have non-empty `expectedAnswer` and `points >= 1`
+  - Question's total `points` should equal sum of all cell points
 
 The `labPartSchema.pre('save')` middleware (see Section 2) enforces these rules server-side.
 
@@ -814,13 +902,23 @@ Cookie: [session cookies sent automatically]
 interface SubmitAnswersRequest {
   answers: Array<{
     questionId: string;
-    answer: string;  // Could be IP, CIDR number, plain number, or lecturer-defined text
+    answer?: string;  // For simple questions: IP, CIDR number, plain number, or text
+
+    // For IP Table Questionnaire questions
+    tableAnswers?: Array<Array<string>>;  // 2D array: tableAnswers[rowIndex][columnIndex]
   }>;
   isUpdate: boolean;  // false = initial, true = update existing schema
 }
+
+/**
+ * Answer Format Rules:
+ * - Simple questions (network_address, custom_text, etc.): Use `answer` field
+ * - IP Table Questionnaire: Use `tableAnswers` field (2D array)
+ * - Exactly one of `answer` or `tableAnswers` must be provided per question
+ */
 ```
 
-**Request Example**:
+**Request Example (Simple Questions)**:
 ```json
 {
   "answers": [
@@ -853,6 +951,23 @@ interface SubmitAnswersRequest {
 }
 ```
 
+**Request Example (IP Table Questionnaire)**:
+```json
+{
+  "answers": [
+    {
+      "questionId": "q7_ip_table",
+      "tableAnswers": [
+        ["172.16.40.129", "255.255.255.224", "172.16.40.1", "8.8.8.8"],
+        ["172.16.40.130", "255.255.255.224", "172.16.40.1", "8.8.8.8"],
+        ["172.16.40.197", "255.255.255.192", "172.16.40.193", "172.16.40.1"]
+      ]
+    }
+  ],
+  "isUpdate": true
+}
+```
+
 **Processing Logic**:
 
 ```typescript
@@ -872,6 +987,52 @@ async function submitAnswers(req: Request, res: Response) {
   const missingQuestions = labPart.questions.filter(q => !answeredQuestionIds.has(q.questionId));
   if (missingQuestions.length > 0) {
     throw new ApiError(400, 'MISSING_ANSWERS', `Missing answers for: ${missingQuestions.map(q => q.questionId).join(', ')}`);
+  }
+
+  // 2a. Validate IP table questionnaire answers
+  for (const answer of answers) {
+    const question = labPart.questions.find(q => q.questionId === answer.questionId);
+    if (!question) continue;
+
+    if (question.questionType === 'ip_table_questionnaire') {
+      // Validate tableAnswers is provided and has correct dimensions
+      if (!answer.tableAnswers) {
+        throw new ApiError(400, 'MISSING_TABLE_ANSWERS',
+          `Question ${answer.questionId} requires tableAnswers field`);
+      }
+
+      const expectedRows = question.ipTableQuestionnaire.rowCount;
+      const expectedCols = question.ipTableQuestionnaire.columnCount;
+
+      if (answer.tableAnswers.length !== expectedRows) {
+        throw new ApiError(400, 'INVALID_TABLE_DIMENSIONS',
+          `Expected ${expectedRows} rows but got ${answer.tableAnswers.length}`);
+      }
+
+      for (let i = 0; i < answer.tableAnswers.length; i++) {
+        if (answer.tableAnswers[i].length !== expectedCols) {
+          throw new ApiError(400, 'INVALID_TABLE_DIMENSIONS',
+            `Row ${i} expected ${expectedCols} columns but got ${answer.tableAnswers[i].length}`);
+        }
+      }
+
+      // Validate each cell answer is not empty
+      for (let rowIdx = 0; rowIdx < answer.tableAnswers.length; rowIdx++) {
+        for (let colIdx = 0; colIdx < answer.tableAnswers[rowIdx].length; colIdx++) {
+          const cellAnswer = answer.tableAnswers[rowIdx][colIdx];
+          if (!cellAnswer || !cellAnswer.trim()) {
+            throw new ApiError(400, 'EMPTY_TABLE_CELL',
+              `Cell [${rowIdx + 1}, ${colIdx + 1}] cannot be empty`);
+          }
+        }
+      }
+    } else {
+      // Validate simple answer is provided
+      if (!answer.answer && answer.answer !== '') {
+        throw new ApiError(400, 'MISSING_ANSWER',
+          `Question ${answer.questionId} requires answer field`);
+      }
+    }
   }
 
   // 3. Check for DHCP range validation (if updating and part has DHCP config)
@@ -1070,8 +1231,15 @@ interface SubmitAnswersResponse {
       questionId: string;
       isCorrect: boolean;
       pointsEarned: number;
-      correctAnswer?: string;  // Only show if incorrect
+      correctAnswer?: string;  // Only show if incorrect (for simple questions)
       feedback?: string;
+
+      // For IP Table Questionnaire questions only
+      cellResults?: Array<Array<{
+        isCorrect: boolean;
+        pointsEarned: number;
+        correctAnswer?: string;  // Only show if cell is incorrect
+      }>>;  // 2D array: cellResults[rowIndex][columnIndex]
     }>;
     totalPoints: number;
     totalPointsEarned: number;
@@ -1089,7 +1257,7 @@ interface SubmitAnswersResponse {
 }
 ```
 
-**Response Example**:
+**Response Example (Simple Questions)**:
 ```json
 {
   "success": true,
@@ -1140,6 +1308,93 @@ interface SubmitAnswersResponse {
             ]
           }
         ]
+      }
+    },
+    "message": "IP Schema created successfully"
+  }
+}
+```
+
+**Response Example (IP Table Questionnaire)**:
+```json
+{
+  "success": true,
+  "data": {
+    "results": [
+      {
+        "questionId": "q7_ip_table",
+        "isCorrect": false,
+        "pointsEarned": 10,
+        "feedback": "10/12 points earned",
+        "cellResults": [
+          [
+            {
+              "isCorrect": true,
+              "pointsEarned": 1
+            },
+            {
+              "isCorrect": true,
+              "pointsEarned": 1
+            },
+            {
+              "isCorrect": false,
+              "pointsEarned": 0,
+              "correctAnswer": "172.16.40.1"
+            },
+            {
+              "isCorrect": true,
+              "pointsEarned": 1
+            }
+          ],
+          [
+            {
+              "isCorrect": true,
+              "pointsEarned": 1
+            },
+            {
+              "isCorrect": true,
+              "pointsEarned": 1
+            },
+            {
+              "isCorrect": true,
+              "pointsEarned": 1
+            },
+            {
+              "isCorrect": true,
+              "pointsEarned": 1
+            }
+          ],
+          [
+            {
+              "isCorrect": true,
+              "pointsEarned": 1
+            },
+            {
+              "isCorrect": true,
+              "pointsEarned": 1
+            },
+            {
+              "isCorrect": false,
+              "pointsEarned": 0,
+              "correctAnswer": "172.16.40.193"
+            },
+            {
+              "isCorrect": true,
+              "pointsEarned": 1
+            }
+          ]
+        ]
+      }
+    ],
+    "totalPoints": 12,
+    "totalPointsEarned": 10,
+    "passed": true,
+    "studentIpSchema": {
+      "schemaId": "507f1f77bcf86cd799439015",
+      "version": 1,
+      "schema": {
+        "vlans": [],
+        "devices": []
       }
     },
     "message": "IP Schema created successfully"
@@ -1616,7 +1871,7 @@ function validateSubnetMask(mask: string): boolean {
 
 ```typescript
 async function validateAnswers(
-  answers: Array<{ questionId: string; answer: string }>,
+  answers: Array<{ questionId: string; answer?: string; tableAnswers?: Array<Array<string>> }>,
   questions: ILabPart['questions'],
   schema: IStudentIpSchema['schema']
 ): Promise<Array<{
@@ -1625,6 +1880,11 @@ async function validateAnswers(
   pointsEarned: number;
   correctAnswer?: string;
   feedback?: string;
+  cellResults?: Array<Array<{
+    isCorrect: boolean;
+    pointsEarned: number;
+    correctAnswer?: string;
+  }>>;
 }>> {
   const results = [];
 
@@ -1634,8 +1894,65 @@ async function validateAnswers(
 
     let isCorrect = false;
     let correctAnswer: string | undefined;
+    let pointsEarned = 0;
 
-    if (question.questionType === 'custom_text') {
+    if (question.questionType === 'ip_table_questionnaire') {
+      // Validate IP table questionnaire
+      if (!question.ipTableQuestionnaire || !answer.tableAnswers) {
+        results.push({
+          questionId: question.questionId,
+          isCorrect: false,
+          pointsEarned: 0,
+          feedback: 'Invalid table questionnaire configuration'
+        });
+        continue;
+      }
+
+      const table = question.ipTableQuestionnaire;
+      const cellResults: Array<Array<any>> = [];
+      let totalCellPoints = 0;
+      let earnedCellPoints = 0;
+
+      // Validate each cell
+      for (let rowIdx = 0; rowIdx < table.rowCount; rowIdx++) {
+        cellResults[rowIdx] = [];
+        for (let colIdx = 0; colIdx < table.columnCount; colIdx++) {
+          const expectedCell = table.cells[rowIdx][colIdx];
+          const studentAnswer = answer.tableAnswers[rowIdx][colIdx];
+
+          // Normalize answers for comparison (trim, case-insensitive)
+          const normalizedExpected = expectedCell.expectedAnswer.trim().toLowerCase();
+          const normalizedStudent = studentAnswer.trim().toLowerCase();
+
+          const cellCorrect = normalizedExpected === normalizedStudent;
+          const cellPoints = cellCorrect ? expectedCell.points : 0;
+
+          totalCellPoints += expectedCell.points;
+          earnedCellPoints += cellPoints;
+
+          cellResults[rowIdx][colIdx] = {
+            isCorrect: cellCorrect,
+            pointsEarned: cellPoints,
+            correctAnswer: cellCorrect ? undefined : expectedCell.expectedAnswer
+          };
+        }
+      }
+
+      // Overall question result
+      isCorrect = earnedCellPoints === totalCellPoints;
+      pointsEarned = earnedCellPoints;
+
+      results.push({
+        questionId: question.questionId,
+        isCorrect,
+        pointsEarned,
+        cellResults,
+        feedback: isCorrect
+          ? 'All table cells correct!'
+          : `${earnedCellPoints}/${totalCellPoints} points earned`
+      });
+      continue;
+    } else if (question.questionType === 'custom_text') {
       if (!question.expectedAnswer) {
         results.push({
           questionId: question.questionId,
@@ -1733,6 +2050,9 @@ interface ApiErrorResponse {
 | 400 | `INVALID_IP_FORMAT` | Malformed IP address | `{ ip, field }` |
 | 400 | `INVALID_CIDR_PREFIX` | Invalid CIDR prefix (not 1-32) | `{ prefix, field }` |
 | 400 | `MISSING_ANSWERS` | Required questions not answered | `{ missingQuestionIds }` |
+| 400 | `MISSING_TABLE_ANSWERS` | IP table question requires tableAnswers field | `{ questionId }` |
+| 400 | `INVALID_TABLE_DIMENSIONS` | Table dimensions don't match expected | `{ expectedRows, expectedCols, actualRows, actualCols }` |
+| 400 | `EMPTY_TABLE_CELL` | Table cell cannot be empty | `{ rowIndex, colIndex }` |
 | 400 | `INVALID_PART_TYPE` | Part type doesn't match operation | `{ expectedType, actualType }` |
 | 400 | `SCHEMA_NOT_UPDATED` | Must update schema before DHCP submit | `{ currentVersion }` |
 | 404 | `PART_NOT_FOUND` | Lab part doesn't exist | `{ partId }` |

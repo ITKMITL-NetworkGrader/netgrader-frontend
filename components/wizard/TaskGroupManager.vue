@@ -14,137 +14,195 @@
       </Button>
     </div>
 
-    <!-- Task Group Swimlanes -->
-    <div class="space-y-6">
-      <!-- Ungrouped Tasks Swimlane -->
-      <div class="border-2 border-dashed border-gray-200 rounded-lg p-4 bg-gray-50/30">
-        <div class="flex items-center justify-between mb-4">
-          <div class="flex items-center space-x-2">
-            <Package class="w-4 h-4 text-gray-500" />
-            <h4 class="font-medium text-gray-700">Ungrouped Tasks</h4>
-            <Badge variant="secondary" class="text-xs">
-              {{ ungroupedTasks.length }} task{{ ungroupedTasks.length !== 1 ? 's' : '' }}
-            </Badge>
+    <!-- Layout: Main Area + Sidebar (only when task groups exist) -->
+    <div v-if="localTaskGroups.length > 0" class="flex gap-6 items-start">
+      <!-- Main Area: Ungrouped Tasks -->
+      <div class="flex-1 min-w-0">
+        <div class="border-2 border-dashed border-gray-200 rounded-lg p-4 bg-gray-50/30">
+          <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center space-x-2">
+              <Package class="w-4 h-4 text-gray-500" />
+              <h4 class="font-medium text-gray-700">Ungrouped Tasks</h4>
+              <Badge variant="secondary" class="text-xs">
+                {{ ungroupedTasks.length }} task{{ ungroupedTasks.length !== 1 ? 's' : '' }}
+              </Badge>
+            </div>
+            <span class="text-xs text-muted-foreground">
+              Drag tasks to the right sidebar →
+            </span>
           </div>
-          <span class="text-xs text-muted-foreground">
-            Drag tasks here to ungroup them
-          </span>
-        </div>
-        
-        <div 
-          ref="ungroupedDropZone"
-          class="min-h-[100px] space-y-3 transition-colors"
-          :class="{
-            'bg-green-50 border-green-200': isDragOverUngrouped,
-            'border-2 border-dashed border-gray-300 rounded-md p-3': ungroupedTasks.length === 0
-          }"
-        >
-          <div v-if="ungroupedTasks.length === 0" class="text-center text-sm text-muted-foreground py-4">
-            No ungrouped tasks
+
+          <div
+            ref="ungroupedDropZone"
+            class="min-h-[200px] space-y-3 transition-colors"
+            :class="{
+              'bg-green-50 border-2 border-green-300 rounded-md p-3': isDragOverUngrouped,
+              'border-2 border-dashed border-gray-300 rounded-md p-3': ungroupedTasks.length === 0 && !isDragOverUngrouped
+            }"
+          >
+            <div v-if="ungroupedTasks.length === 0" class="text-center text-sm text-muted-foreground py-8">
+              <Package class="w-12 h-12 mx-auto text-muted-foreground/30 mb-2" />
+              <p>All tasks are grouped</p>
+              <p class="text-xs mt-1">Drag tasks here to ungroup them</p>
+            </div>
+
+            <TaskCard
+              v-for="task in ungroupedTasks"
+              :key="task.tempId"
+              :task="task"
+              :task-index="getTaskIndex(task.tempId)"
+              :is-dragging="isDragging && draggedTaskId === task.tempId"
+              @start-drag="handleTaskDragStart"
+              @end-drag="handleTaskDragEnd"
+              @toggle-expanded="handleToggleExpanded"
+            />
           </div>
-          
-          <TaskCard
-            v-for="task in ungroupedTasks"
-            :key="task.tempId"
-            :task="task"
-            :task-index="getTaskIndex(task.tempId)"
-            :is-dragging="isDragging && draggedTaskId === task.tempId"
-            @start-drag="handleTaskDragStart"
-            @end-drag="handleTaskDragEnd"
-            @toggle-expanded="handleToggleExpanded"
-          />
         </div>
       </div>
 
-      <!-- Task Group Swimlanes -->
-      <div 
-        v-for="group in localTaskGroups" 
-        :key="group.tempId"
-        class="border-2 rounded-lg p-4 transition-colors"
-        :class="getGroupBorderClass(group)"
-        :style="{ borderColor: getGroupColor(group) }"
-      >
-        <div class="flex items-center justify-between mb-4">
-          <div class="flex items-center space-x-2">
-            <FolderOpen :class="`w-4 h-4`" :style="{ color: getGroupColor(group) }" />
-            <h4 class="font-medium" :style="{ color: getGroupColor(group) }">
-              {{ group.title }}
-            </h4>
-            <Badge 
-              :variant="group.group_type === 'all_or_nothing' ? 'destructive' : 'default'"
-              class="text-xs"
-            >
-              {{ group.group_type === 'all_or_nothing' ? 'All or Nothing' : 'Proportional' }}
-            </Badge>
-            <Badge variant="outline" class="text-xs">
-              {{ getGroupTasks(group.tempId).length }} task{{ getGroupTasks(group.tempId).length !== 1 ? 's' : '' }}
-            </Badge>
-            <Badge variant="secondary" class="text-xs">
-              {{ group.points }} pts
-            </Badge>
-          </div>
-          
-          <div class="flex items-center space-x-2">
-            <Button 
-              @click="editGroup(group)" 
-              variant="ghost" 
-              size="sm"
-              class="h-8 w-8 p-0"
-            >
-              <Settings class="w-4 h-4" />
-            </Button>
-            <Button 
-              @click="deleteGroup(group.tempId)" 
-              variant="ghost" 
-              size="sm"
-              class="h-8 w-8 p-0 text-destructive hover:text-destructive"
-            >
-              <Trash2 class="w-4 h-4" />
-            </Button>
-          </div>
-        </div>
-
-        <div class="text-xs text-muted-foreground mb-3" v-if="group.description">
-          {{ group.description }}
-        </div>
-        
-        <div 
-          :ref="el => setGroupDropZone(group.tempId, el)"
-          class="min-h-[80px] space-y-3 transition-colors rounded-md"
-          :class="{
-            'bg-green-50 border-green-200': isDragOverGroup === group.tempId,
-            'border-2 border-dashed border-gray-300 p-3': getGroupTasks(group.tempId).length === 0
-          }"
-        >
-          <div v-if="getGroupTasks(group.tempId).length === 0" class="text-center text-sm text-muted-foreground py-4">
-            Drag tasks here to add them to this group
-          </div>
-          
-          <TaskCard
-            v-for="task in getGroupTasks(group.tempId)"
-            :key="task.tempId"
-            :task="task"
-            :task-index="getTaskIndex(task.tempId)"
-            :is-dragging="isDragging && draggedTaskId === task.tempId"
-            :group-color="getGroupColor(group)"
-            @start-drag="handleTaskDragStart"
-            @end-drag="handleTaskDragEnd"
-            @toggle-expanded="handleToggleExpanded"
-          />
-        </div>
-
-        <!-- Group Summary -->
-        <div class="mt-3 pt-3 border-t border-gray-200">
-          <div class="flex items-center justify-between text-xs text-muted-foreground">
-            <div class="flex items-center space-x-4">
-              <span>Timeout: {{ group.timeout_seconds }}s</span>
-              <span>Continue on failure: {{ group.continue_on_failure ? 'Yes' : 'No' }}</span>
+      <!-- Right Sidebar: Task Groups -->
+      <div class="w-96 flex-shrink-0 space-y-4">
+        <div class="sticky top-4 space-y-4 max-h-[calc(100vh-8rem)] overflow-y-auto pr-2">
+          <div class="text-xs text-muted-foreground bg-blue-50 border border-blue-200 rounded-lg p-3">
+            <div class="flex items-start gap-2">
+              <FolderPlus class="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+              <div>
+                <p class="font-medium text-blue-900 mb-1">Task Group Sidebar</p>
+                <p class="text-blue-700">
+                  Drag tasks from the left into the groups below to organize them.
+                </p>
+              </div>
             </div>
-            <span class="font-medium">
-              Total: {{ group.points }} pts (overrides individual task points)
-            </span>
+          </div>
+
+          <!-- Task Group Cards in Sidebar -->
+          <div
+            v-for="group in localTaskGroups"
+            :key="group.tempId"
+            class="border-2 rounded-lg p-3 transition-all hover:shadow-md"
+            :class="getGroupBorderClass(group)"
+            :style="{ borderColor: getGroupColor(group) }"
+          >
+            <div class="flex items-center justify-between mb-3">
+              <div class="flex items-center space-x-2 flex-1 min-w-0">
+                <FolderOpen :class="`w-4 h-4 flex-shrink-0`" :style="{ color: getGroupColor(group) }" />
+                <h4 class="font-medium truncate" :style="{ color: getGroupColor(group) }">
+                  {{ group.title }}
+                </h4>
+              </div>
+
+              <div class="flex items-center space-x-1 flex-shrink-0">
+                <Button
+                  @click="editGroup(group)"
+                  variant="ghost"
+                  size="sm"
+                  class="h-7 w-7 p-0"
+                >
+                  <Settings class="w-3.5 h-3.5" />
+                </Button>
+                <Button
+                  @click="deleteGroup(group.tempId)"
+                  variant="ghost"
+                  size="sm"
+                  class="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                >
+                  <Trash2 class="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            </div>
+
+            <div class="flex flex-wrap gap-1.5 mb-2">
+              <Badge
+                :variant="group.group_type === 'all_or_nothing' ? 'destructive' : 'default'"
+                class="text-xs"
+              >
+                {{ group.group_type === 'all_or_nothing' ? 'All or Nothing' : 'Proportional' }}
+              </Badge>
+              <Badge variant="outline" class="text-xs">
+                {{ getGroupTasks(group.tempId).length }} task{{ getGroupTasks(group.tempId).length !== 1 ? 's' : '' }}
+              </Badge>
+              <Badge variant="secondary" class="text-xs">
+                {{ group.points }} pts
+              </Badge>
+            </div>
+
+            <div class="text-xs text-muted-foreground mb-2" v-if="group.description">
+              {{ group.description }}
+            </div>
+
+            <div
+              :ref="el => setGroupDropZone(group.tempId, el)"
+              class="min-h-[60px] space-y-2 transition-all rounded-md"
+              :class="{
+                'bg-green-50 border-2 border-green-300 p-2': isDragOverGroup === group.tempId,
+                'border-2 border-dashed border-gray-300 p-2': getGroupTasks(group.tempId).length === 0 && isDragOverGroup !== group.tempId
+              }"
+            >
+              <div v-if="getGroupTasks(group.tempId).length === 0" class="text-center text-xs text-muted-foreground py-3">
+                Drop tasks here
+              </div>
+
+              <TaskCard
+                v-for="task in getGroupTasks(group.tempId)"
+                :key="task.tempId"
+                :task="task"
+                :task-index="getTaskIndex(task.tempId)"
+                :is-dragging="isDragging && draggedTaskId === task.tempId"
+                :group-color="getGroupColor(group)"
+                :compact="true"
+                @start-drag="handleTaskDragStart"
+                @end-drag="handleTaskDragEnd"
+                @toggle-expanded="handleToggleExpanded"
+              />
+            </div>
+
+            <!-- Group Summary -->
+            <div class="mt-2 pt-2 border-t border-gray-200">
+              <div class="flex flex-col gap-1 text-xs text-muted-foreground">
+                <div class="flex items-center justify-between">
+                  <span>Timeout:</span>
+                  <span class="font-medium">{{ group.timeout_seconds }}s</span>
+                </div>
+                <div class="flex items-center justify-between">
+                  <span>Continue on failure:</span>
+                  <span class="font-medium">{{ group.continue_on_failure ? 'Yes' : 'No' }}</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- No Task Groups: Show ungrouped tasks normally -->
+    <div v-else class="border-2 border-dashed border-gray-200 rounded-lg p-4 bg-gray-50/30">
+      <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center space-x-2">
+          <Package class="w-4 h-4 text-gray-500" />
+          <h4 class="font-medium text-gray-700">All Tasks</h4>
+          <Badge variant="secondary" class="text-xs">
+            {{ ungroupedTasks.length }} task{{ ungroupedTasks.length !== 1 ? 's' : '' }}
+          </Badge>
+        </div>
+        <span class="text-xs text-muted-foreground">
+          Create a task group to organize tasks
+        </span>
+      </div>
+
+      <div class="space-y-3">
+        <div v-if="ungroupedTasks.length === 0" class="text-center text-sm text-muted-foreground py-8">
+          <Package class="w-12 h-12 mx-auto text-muted-foreground/30 mb-2" />
+          <p>No tasks yet</p>
+        </div>
+
+        <TaskCard
+          v-for="task in ungroupedTasks"
+          :key="task.tempId"
+          :task="task"
+          :task-index="getTaskIndex(task.tempId)"
+          :is-dragging="false"
+          @toggle-expanded="handleToggleExpanded"
+        />
       </div>
     </div>
 

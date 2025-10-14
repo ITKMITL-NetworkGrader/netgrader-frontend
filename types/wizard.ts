@@ -55,7 +55,56 @@ export type PartType = 'fill_in_blank' | 'network_config' | 'dhcp_config';
 // Question Types for Fill-in-Blank Parts
 export type QuestionType = 'network_address' | 'first_usable_ip' | 'last_usable_ip' |
                           'broadcast_address' | 'subnet_mask' | 'ip_address' | 'number' |
-                          'custom_text';
+                          'custom_text' | 'ip_table_questionnaire';
+
+// IP Table Column Header Types (for Advanced IP Table Questionnaire)
+export type IpTableColumnType =
+  | 'ipv4'                    // IPv4 address
+  | 'ipv6'                    // IPv6 GUA address
+  | 'subnet_mask'             // Subnet mask (e.g., 255.255.255.0)
+  | 'gateway'                 // Gateway address
+  | 'default_gateway'         // Default gateway
+  | 'broadcast_address'       // Broadcast address
+  | 'network_address'         // Network address
+  | 'prefix_length'           // IPv6 prefix length (e.g., /64)
+  | 'link_local_address'      // IPv6 link-local address
+  | 'dns';                    // DNS server address
+
+// IP Table Questionnaire Structure
+export interface IpTableQuestionnaire {
+  tableId: string;                    // Unique table identifier
+  rowCount: number;                   // Number of rows (min: 1, max: 10)
+  columnCount: number;                // Number of columns (min: 1, max: 10)
+  columns: IpTableColumn[];           // Column definitions
+  rows: IpTableRow[];                 // Row definitions
+  cells: IpTableCell[][];             // Cell data [rowIndex][columnIndex]
+  autoCalculate: boolean;             // Whether to auto-calculate from network config
+}
+
+export interface IpTableColumn {
+  columnId: string;                   // Unique column identifier
+  columnType: IpTableColumnType;      // Type of networking field
+  vlanIndex?: number;                 // Which VLAN (0-9) - required for VLAN-specific columns
+  label?: string;                     // Custom label override (optional)
+  order: number;                      // Display order (0-based)
+}
+
+export interface IpTableRow {
+  rowId: string;                      // Unique row identifier
+  deviceId: string;                   // Device ID (e.g., "router1")
+  interfaceName: string;              // Interface name (e.g., "GigabitEthernet0/0" or "g0-1")
+  displayName: string;                // Display format (e.g., "router1.g0-1")
+  order: number;                      // Display order (0-based)
+}
+
+export interface IpTableCell {
+  cellId: string;                     // Unique cell identifier
+  rowId: string;                      // Reference to row
+  columnId: string;                   // Reference to column
+  expectedAnswer: string;             // Lecturer-defined expected answer
+  points: number;                     // Points for this cell (default: 1)
+  autoCalculated: boolean;            // Whether this was auto-calculated or manually entered
+}
 
 // Question Interface
 export interface Question {
@@ -84,6 +133,9 @@ export interface Question {
   expectedAnswer?: string;        // Lecturer-defined exact match answer
   caseSensitive?: boolean;        // Whether comparison is case-sensitive
   trimWhitespace?: boolean;       // Whether to trim whitespace before comparison
+
+  // IP Table Questionnaire (only for 'ip_table_questionnaire' type)
+  ipTableQuestionnaire?: IpTableQuestionnaire;
 }
 
 // DHCP Configuration Interface

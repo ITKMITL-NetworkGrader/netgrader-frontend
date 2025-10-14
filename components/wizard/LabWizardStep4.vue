@@ -281,6 +281,7 @@
                                     <SelectItem value="ip_address">IP Address</SelectItem>
                                     <SelectItem value="number">Number</SelectItem>
                                     <SelectItem value="custom_text">Custom Text Match</SelectItem>
+                                    <SelectItem value="ip_table_questionnaire">Advanced IP Table Questionnaire</SelectItem>
                                   </SelectContent>
                                 </Select>
                               </div>
@@ -336,8 +337,78 @@
                               </AlertDescription>
                             </Alert>
 
+                            <!-- IP Table Questionnaire Configuration -->
+                            <div v-else-if="question.questionType === 'ip_table_questionnaire'" class="space-y-4">
+                              <Alert class="bg-purple-50 border-purple-200">
+                                <Table2 class="w-4 h-4 text-purple-600" />
+                                <AlertDescription class="text-xs text-purple-800">
+                                  <strong>Advanced IP Table Questionnaire:</strong> Create a comprehensive table where students fill in network configuration details across multiple devices and interfaces.
+                                </AlertDescription>
+                              </Alert>
+
+                              <!-- Create/Edit Table Button -->
+                              <div v-if="!question.ipTableQuestionnaire" class="flex flex-col items-center justify-center p-8 border-2 border-dashed border-purple-300 rounded-lg bg-purple-50/30 hover:bg-purple-50/50 transition-colors">
+                                <Table2 class="w-12 h-12 text-purple-400 mb-4" />
+                                <h4 class="text-lg font-semibold text-purple-900 mb-2">No Table Created Yet</h4>
+                                <p class="text-sm text-purple-700 mb-4 text-center max-w-md">
+                                  Click the button below to configure your IP table questionnaire with custom rows and columns
+                                </p>
+                                <Button
+                                  @click="openIpTableDimensionModal(partIndex, qIndex)"
+                                  variant="default"
+                                  class="bg-purple-600 hover:bg-purple-700"
+                                >
+                                  <Plus class="w-4 h-4 mr-2" />
+                                  Create Questionnaire Table
+                                </Button>
+                              </div>
+
+                              <!-- Table Summary (if created) -->
+                              <div v-else class="space-y-4">
+                                <Alert class="bg-green-50 border-green-200">
+                                  <Check class="w-4 h-4 text-green-600" />
+                                  <AlertDescription class="text-sm text-green-800">
+                                    <div class="space-y-2">
+                                      <div><strong>Table configured:</strong> {{ question.ipTableQuestionnaire.rowCount }} rows × {{ question.ipTableQuestionnaire.columnCount }} columns</div>
+                                      <div><strong>Total cells:</strong> {{ question.ipTableQuestionnaire.rowCount * question.ipTableQuestionnaire.columnCount }}</div>
+                                      <div><strong>Total points:</strong> {{ calculateTablePoints(question.ipTableQuestionnaire) }}</div>
+                                    </div>
+                                  </AlertDescription>
+                                </Alert>
+
+                                <!-- Action Buttons -->
+                                <div class="flex items-center gap-2">
+                                  <Button
+                                    @click="editIpTable(partIndex, qIndex)"
+                                    variant="outline"
+                                    size="sm"
+                                  >
+                                    <Edit class="w-4 h-4 mr-2" />
+                                    Edit Table
+                                  </Button>
+                                  <Button
+                                    @click="previewIpTable(partIndex, qIndex)"
+                                    variant="outline"
+                                    size="sm"
+                                  >
+                                    <Eye class="w-4 h-4 mr-2" />
+                                    Preview
+                                  </Button>
+                                  <Button
+                                    @click="deleteIpTable(partIndex, qIndex)"
+                                    variant="outline"
+                                    size="sm"
+                                    class="text-destructive hover:text-destructive"
+                                  >
+                                    <Trash2 class="w-4 h-4 mr-2" />
+                                    Delete Table
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+
                             <!-- Custom Text Question Configuration -->
-                            <div v-else class="space-y-4">
+                            <div v-else-if="question.questionType === 'custom_text'" class="space-y-4">
                               <div class="space-y-2">
                                 <Label class="text-sm font-medium">
                                   Expected Answer <span class="text-destructive">*</span>
@@ -696,6 +767,23 @@
         @close="handleInstructionsClose"
       />
     </ClientOnly>
+
+    <!-- IP Table Dimension Modal -->
+    <IpTableDimensionModal
+      v-model:open="showIpTableDimensionModal"
+      @create="handleIpTableDimensionCreate"
+    />
+
+    <!-- IP Table Builder Modal -->
+    <IpTableBuilderModal
+      v-model:open="showIpTableBuilderModal"
+      :initial-data="currentEditingIpTable"
+      :row-count="currentTableDimensions.rowCount"
+      :column-count="currentTableDimensions.columnCount"
+      :devices="devices"
+      :vlans="vlans"
+      @save="handleIpTableSave"
+    />
   </div>
 </template>
 
@@ -717,7 +805,10 @@ import {
   FileQuestion,
   Server,
   Network,
-  Info
+  Info,
+  Table2,
+  Check,
+  Edit
 } from 'lucide-vue-next'
 
 // UI Components
@@ -736,9 +827,11 @@ import { Switch } from '@/components/ui/switch'
 // Local Components
 import TasksManager from './TasksManager.vue'
 import FullScreenEditor from '@/components/editor/FullScreenEditor.vue'
+import IpTableDimensionModal from './IpTableDimensionModal.vue'
+import IpTableBuilderModal from './IpTableBuilderModal.vue'
 
 // Types
-import type { WizardLabPart, WizardTaskGroup, Device, TaskTemplate, ValidationResult, PartType, Question } from '@/types/wizard'
+import type { WizardLabPart, WizardTaskGroup, Device, TaskTemplate, ValidationResult, PartType, Question, IpTableQuestionnaire } from '@/types/wizard'
 
 // Props
 interface Props {
@@ -781,6 +874,14 @@ const validationDebounceTimer = ref<ReturnType<typeof setTimeout> | null>(null)
 const showInstructionsEditor = ref(false)
 const currentEditingPartIndex = ref<number | null>(null)
 const currentInstructionsContent = ref('')
+
+// IP Table Questionnaire state
+const showIpTableDimensionModal = ref(false)
+const showIpTableBuilderModal = ref(false)
+const currentEditingPartIndexForTable = ref<number | null>(null)
+const currentEditingQuestionIndexForTable = ref<number | null>(null)
+const currentEditingIpTable = ref<IpTableQuestionnaire | undefined>(undefined)
+const currentTableDimensions = ref({ rowCount: 3, columnCount: 4 })
 
 // Methods
 const generateTempId = (): string => {
@@ -989,6 +1090,27 @@ const onQuestionTypeChange = (partIndex: number, questionIndex: number) => {
   const question = localData.value[partIndex].questions?.[questionIndex]
   if (!question) return
 
+  if (question.questionType === 'ip_table_questionnaire') {
+    // Remove schema mapping and custom text fields for IP table
+    question.schemaMapping = undefined
+    question.expectedAnswer = undefined
+    question.caseSensitive = undefined
+    question.trimWhitespace = undefined
+    question.inputFormat = undefined
+    question.placeholder = undefined
+    // Initialize empty table questionnaire (will be configured via modal)
+    question.ipTableQuestionnaire = undefined
+    // Set default points (will be recalculated when table is created)
+    question.points = 0
+    requestValidation()
+    return
+  }
+
+  // Clear IP table questionnaire if switching away from it
+  if (question.ipTableQuestionnaire) {
+    question.ipTableQuestionnaire = undefined
+  }
+
   if (question.questionType === 'custom_text') {
     // Remove schema mapping when switching to custom text
     question.schemaMapping = undefined
@@ -1095,6 +1217,87 @@ const onVlanIndexChange = (partIndex: number, questionIndex: number, value: numb
   question.schemaMapping.autoDetected = false
   question.schemaMapping.vlanIndex = typeof value === 'string' ? Number(value) : value
   requestValidation()
+}
+
+// IP Table Questionnaire Management Functions
+const openIpTableDimensionModal = (partIndex: number, questionIndex: number) => {
+  currentEditingPartIndexForTable.value = partIndex
+  currentEditingQuestionIndexForTable.value = questionIndex
+  showIpTableDimensionModal.value = true
+}
+
+const handleIpTableDimensionCreate = (dimensions: { rowCount: number; columnCount: number }) => {
+  currentTableDimensions.value = dimensions
+  currentEditingIpTable.value = undefined // Start fresh
+  showIpTableBuilderModal.value = true
+}
+
+const editIpTable = (partIndex: number, questionIndex: number) => {
+  const question = localData.value[partIndex].questions?.[questionIndex]
+  if (!question || !question.ipTableQuestionnaire) return
+
+  currentEditingPartIndexForTable.value = partIndex
+  currentEditingQuestionIndexForTable.value = questionIndex
+  currentEditingIpTable.value = question.ipTableQuestionnaire
+  currentTableDimensions.value = {
+    rowCount: question.ipTableQuestionnaire.rowCount,
+    columnCount: question.ipTableQuestionnaire.columnCount
+  }
+  showIpTableBuilderModal.value = true
+}
+
+const handleIpTableSave = (tableData: IpTableQuestionnaire) => {
+  if (
+    currentEditingPartIndexForTable.value === null ||
+    currentEditingQuestionIndexForTable.value === null
+  ) {
+    return
+  }
+
+  const part = localData.value[currentEditingPartIndexForTable.value]
+  const question = part.questions?.[currentEditingQuestionIndexForTable.value]
+
+  if (!question) return
+
+  // Save the table data
+  question.ipTableQuestionnaire = tableData
+
+  // Calculate and update total points for this question
+  const totalPoints = calculateTablePoints(tableData)
+  question.points = totalPoints
+
+  // Update part total points
+  updatePartTotalPointsFromQuestions(currentEditingPartIndexForTable.value)
+
+  // Clear editing state
+  currentEditingPartIndexForTable.value = null
+  currentEditingQuestionIndexForTable.value = null
+  currentEditingIpTable.value = undefined
+
+  requestValidation()
+}
+
+const deleteIpTable = (partIndex: number, questionIndex: number) => {
+  const question = localData.value[partIndex].questions?.[questionIndex]
+  if (!question) return
+
+  question.ipTableQuestionnaire = undefined
+  question.points = 0
+
+  updatePartTotalPointsFromQuestions(partIndex)
+  toast.success('IP Table deleted successfully')
+  requestValidation()
+}
+
+const previewIpTable = (partIndex: number, questionIndex: number) => {
+  toast.info('Preview feature coming soon!')
+  // TODO: Implement preview modal
+}
+
+const calculateTablePoints = (table: IpTableQuestionnaire): number => {
+  return table.cells.reduce((total, row) => {
+    return total + row.reduce((rowTotal, cell) => rowTotal + (cell.points || 0), 0)
+  }, 0)
 }
 
 // DHCP Configuration Functions
@@ -1494,6 +1697,64 @@ const validateStep = () => {
         if (question.questionType === 'custom_text') {
           if (!question.expectedAnswer || !question.expectedAnswer.trim()) {
             errors.push(`${partLabel} • ${questionLabel}: Expected answer is required for custom text questions`)
+          }
+        } else if (question.questionType === 'ip_table_questionnaire') {
+          // Validate IP Table Questionnaire
+          if (!question.ipTableQuestionnaire) {
+            errors.push(`${partLabel} • ${questionLabel}: IP table questionnaire must be configured`)
+          } else {
+            const table = question.ipTableQuestionnaire
+
+            // Validate table structure
+            if (table.rowCount < 1 || table.rowCount > 10) {
+              errors.push(`${partLabel} • ${questionLabel}: Row count must be between 1 and 10`)
+            }
+            if (table.columnCount < 1 || table.columnCount > 10) {
+              errors.push(`${partLabel} • ${questionLabel}: Column count must be between 1 and 10`)
+            }
+
+            // Validate columns
+            table.columns.forEach((col, colIdx) => {
+              if (!col.columnType) {
+                errors.push(`${partLabel} • ${questionLabel} • Column ${colIdx + 1}: Column type is required`)
+              }
+
+              // Check if VLAN is required for this column type
+              const requiresVlan = ['ipv4', 'ipv6', 'subnet_mask', 'gateway', 'default_gateway', 'broadcast_address', 'network_address', 'prefix_length'].includes(col.columnType)
+              if (requiresVlan && (col.vlanIndex === undefined || col.vlanIndex < 0)) {
+                errors.push(`${partLabel} • ${questionLabel} • Column ${colIdx + 1}: VLAN selection is required for ${col.columnType}`)
+              }
+              if (requiresVlan && col.vlanIndex !== undefined && col.vlanIndex >= props.vlans.length) {
+                errors.push(`${partLabel} • ${questionLabel} • Column ${colIdx + 1}: VLAN index ${col.vlanIndex} exceeds configured VLANs (max: ${props.vlans.length - 1})`)
+              }
+            })
+
+            // Validate rows
+            table.rows.forEach((row, rowIdx) => {
+              if (!row.deviceId) {
+                errors.push(`${partLabel} • ${questionLabel} • Row ${rowIdx + 1}: Device is required`)
+              }
+              if (!row.interfaceName) {
+                errors.push(`${partLabel} • ${questionLabel} • Row ${rowIdx + 1}: Interface is required`)
+              }
+
+              // Check if device exists
+              if (row.deviceId && !props.devices.some(d => d.deviceId === row.deviceId)) {
+                errors.push(`${partLabel} • ${questionLabel} • Row ${rowIdx + 1}: Device '${row.deviceId}' does not exist in configured devices`)
+              }
+            })
+
+            // Validate cells
+            table.cells.forEach((row, rowIdx) => {
+              row.forEach((cell, colIdx) => {
+                if (!cell.expectedAnswer || !cell.expectedAnswer.trim()) {
+                  errors.push(`${partLabel} • ${questionLabel} • Cell [${rowIdx + 1}, ${colIdx + 1}]: Expected answer is required`)
+                }
+                if (!cell.points || cell.points < 1) {
+                  errors.push(`${partLabel} • ${questionLabel} • Cell [${rowIdx + 1}, ${colIdx + 1}]: Points must be at least 1`)
+                }
+              })
+            })
           }
         } else {
           if (!question.schemaMapping) {
