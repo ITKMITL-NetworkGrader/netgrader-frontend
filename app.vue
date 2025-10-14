@@ -1,7 +1,28 @@
 <script setup lang="ts">
 import '@fontsource/bai-jamjuree';
-import '@fontsource-variable/roboto-mono';
-import { StagewiseToolbar } from '@stagewise/toolbar-vue';
+import '@fontsource/geist-mono';
+import { SonnerToaster as Toaster } from '@/components/ui/sonner'
+import 'vue-sonner/style.css'
+
+// Initialize dark mode
+// useDarkMode()
+
+// Add script to head to apply dark mode immediately
+// useHead({
+//   script: [
+//     {
+//       innerHTML: `
+//         (function() {
+//           document.documentElement.classList.add('dark');
+//           if (typeof localStorage !== 'undefined') {
+//             localStorage.setItem('theme', 'dark');
+//           }
+//         })();
+//       `,
+//       type: 'text/javascript'
+//     }
+//   ]
+// })
 
 useSeoMeta({
         title: 'NetGrader',
@@ -18,37 +39,23 @@ useSeoMeta({
     <NuxtLayout>
       <NuxtPage />
     </NuxtLayout>
-    <!-- Stagewise Toolbar - Only renders in development mode and on client side -->
-    <ClientOnly>
-      <StagewiseToolbar />  <!-- Don't forget to delete this line when uninstall Stagewise -->
-    </ClientOnly>
     <!-- Toast notifications -->
     <Toaster 
       :toast-options="{
         classes: {
-          toast: 'group toast group-[.toaster]:bg-white group-[.toaster]:text-slate-950 group-[.toaster]:border-slate-200 group-[.toaster]:shadow-lg dark:group-[.toaster]:bg-slate-950 dark:group-[.toaster]:text-slate-50 dark:group-[.toaster]:border-slate-800',
-          description: 'group-[.toast]:text-slate-500 dark:group-[.toast]:text-slate-400',
-          actionButton: 'group-[.toast]:bg-slate-900 group-[.toast]:text-slate-50 dark:group-[.toast]:bg-slate-50 dark:group-[.toast]:text-slate-900',
-          cancelButton: 'group-[.toast]:bg-slate-100 group-[.toast]:text-slate-500 dark:group-[.toast]:bg-slate-800 dark:group-[.toast]:text-slate-400',
-          error: 'group-[.toaster]:bg-red-50 group-[.toaster]:text-red-900 group-[.toaster]:border-red-200 dark:group-[.toaster]:bg-red-900/10 dark:group-[.toaster]:text-red-400 dark:group-[.toaster]:border-red-900/20',
-          success: 'group-[.toaster]:bg-green-50 group-[.toaster]:text-green-900 group-[.toaster]:border-green-200 dark:group-[.toaster]:bg-green-900/10 dark:group-[.toaster]:text-green-400 dark:group-[.toaster]:border-green-900/20',
-          warning: 'group-[.toaster]:bg-yellow-50 group-[.toaster]:text-yellow-900 group-[.toaster]:border-yellow-200 dark:group-[.toaster]:bg-yellow-900/10 dark:group-[.toaster]:text-yellow-400 dark:group-[.toaster]:border-yellow-900/20',
-          info: 'group-[.toaster]:bg-blue-50 group-[.toaster]:text-blue-900 group-[.toaster]:border-blue-200 dark:group-[.toaster]:bg-blue-900/10 dark:group-[.toaster]:text-blue-400 dark:group-[.toaster]:border-blue-900/20'
+          toast: 'group toast group-[.toaster]:bg-card group-[.toaster]:text-card-foreground group-[.toaster]:border-border group-[.toaster]:shadow-lg',
+          description: 'group-[.toast]:text-muted-foreground',
+          actionButton: 'group-[.toast]:bg-primary group-[.toast]:text-primary-foreground hover:group-[.toast]:bg-primary/90',
+          cancelButton: 'group-[.toast]:bg-secondary group-[.toast]:text-secondary-foreground hover:group-[.toast]:bg-secondary/80',
+          error: 'group-[.toaster]:bg-destructive/10 group-[.toaster]:text-destructive-foreground group-[.toaster]:border-destructive/20 group-[.toaster]:shadow-lg [&_.toast-icon]:text-destructive',
+          success: 'group-[.toaster]:bg-green-900/10 group-[.toaster]:text-green-400 group-[.toaster]:border-green-900/20 group-[.toaster]:shadow-lg [&_.toast-icon]:text-green-400 dark:group-[.toaster]:bg-green-900/15 dark:group-[.toaster]:text-green-300 dark:group-[.toaster]:border-green-800/30',
+          warning: 'group-[.toaster]:bg-yellow-900/10 group-[.toaster]:text-yellow-400 group-[.toaster]:border-yellow-900/20 group-[.toaster]:shadow-lg [&_.toast-icon]:text-yellow-400 dark:group-[.toaster]:bg-yellow-900/15 dark:group-[.toaster]:text-yellow-300 dark:group-[.toaster]:border-yellow-800/30',
+          info: 'group-[.toaster]:bg-primary/10 group-[.toaster]:text-primary group-[.toaster]:border-primary/20 group-[.toaster]:shadow-lg [&_.toast-icon]:text-primary'
         }
       }"
       class="toaster group"
     />
 </template>
 <style>
-body, html {
-    font-family: 'Bai Jamjuree', sans-serif;
-}
-
-.font-bai-jamjuree {
-    font-family: 'Bai Jamjuree', sans-serif;
-}
-.font-roboto-mono {
-    font-family: 'Roboto Mono Variable', 'Roboto Mono', monospace;
-}
-
+/* Fonts are now handled by CSS variables in tailwind.css */
 </style>

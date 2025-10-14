@@ -1,12 +1,39 @@
-import type { PlayNode, Connection } from '@/types/play'
+// Legacy play types - consider removing if not needed
+interface PlayNode {
+    id: string;
+    type: string;
+}
+
+interface Connection {
+    id: string;
+    source: string;
+    target: string;
+}
 
 export interface User {
     u_id: string;
     fullName: string;
-    first_name: string;
-    last_name: string;
-    role: "STUDENT" | "INSTRUCTOR";
+    role: "STUDENT" | "INSTRUCTOR" | "ADMIN"; // Global Role
+    lastLogin?: string;
+    iat?: number;
+    exp?: number;
 }
+
+export interface CourseRole {
+    courseId: string;
+    isEnrolled: boolean;
+    role: "STUDENT" | "INSTRUCTOR" | "TA"; // Course Role
+    enrollmentDate: string;
+}
+
+export interface Enrollment {
+    u_id: string;
+    c_id: string;
+    u_role: "STUDENT" | "INSTRUCTOR" | "TA";
+    enrollmentDate: string;
+    fullName: string;
+}
+
 export interface NavBar {
     isOpen: boolean;
 }
@@ -19,6 +46,10 @@ export interface PlayState {
 
 export const useUserState = () =>
   useState<User | undefined | null>("user-state", () => null);
+
+export const useCourseRoleState = () =>
+  useState<CourseRole | undefined | null>("course-role-state", () => null);
+
 export const useNavBarState = () =>
   useState<NavBar | undefined | null>("navbar-state", () => {
     return { isOpen: false };

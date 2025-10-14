@@ -1,35 +1,50 @@
-import { useUserState } from "~/composables/states";
-export interface GetResponse {
-    message: string;
-    user: User;
-}
+import { useUserState, type User } from "~/composables/states";
 
-export default defineNuxtRouteMiddleware(async (to, from) => {
+export default defineNuxtRouteMiddleware(async (to, _from) => {
     const userState = useUserState();
     const config = useRuntimeConfig()
-    const dev_env = config.public.dev_env ?? false;
-    const access_token = useCookie("access_token");
+    const backendURL = config.public.backendurl;
     const excludedRoutes = [ "/login", "/", "/demo", "/oat"];
-    if (dev_env) {
-        console.log("Development environment detected, skipping authentication check.");
-        return;
-    }
-    if (!userState.value && access_token.value) {
-        await $fetch<GetResponse>("/api/auth/me", {
-            headers: {
-                Authorization: `Bearer ${access_token.value}`,
-            },
-        }).then((userDataResponse) => {
-            userState.value = userDataResponse.user;
-        }).catch(() => {
-            console.error("Failed to fetch user data");
-            access_token.value = null;
-            console.log("Access token has been cleared");
-        });
+    
+    // Always try to restore user state if it's not set, or if coming from login page
+    const shouldRefetchUser = !userState.value || 
+                              userState.value === false || 
+                              _from?.path === "/login";
+    
+    if (shouldRefetchUser) {
+        try {
+            const userDataResponse = await $fetch<User>(`${backendURL}/v0/auth/me`, {
+                method: "GET",
+                credentials: "include",
+            });
+
+            if (userDataResponse) {
+                userState.value = userDataResponse;
+                console.log("User data fetched:", userState.value);
+            } else {
+                userState.value = null; // Explicitly set to null when no data
+            }
+        } catch (err) {
+            console.error("Error fetching user data:", err);
+            userState.value = null; // Explicitly set to null on error
+        }
     }
 
-    if (!userState.value && !excludedRoutes.includes(to.path)) {
-        console.log("User not authenticated, redirecting to login");
+    // if (import.meta.dev) {
+    //     console.log("Development environment detected, skipping route protection.");
+    //     return;
+    // }
+    
+    // Check if user is properly authenticated (not just a falsy value)
+    const isAuthenticated = userState.value && 
+                           typeof userState.value === 'object' && 
+                           userState.value !== null &&
+                           userState.value.u_id &&
+                           userState.value.role; // Ensure role is present
+    
+    // Check authentication for protected routes
+    if (!isAuthenticated && !excludedRoutes.includes(to.path)) {
+        console.log("User is not authenticated, redirecting to login.");
         return navigateTo({
             path: "/login",
             query: {
@@ -39,11 +54,11 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
         });
     }
 
-    if (to.path === "/login" && userState.value) {
+    if (to.path === "/login" && isAuthenticated) {
         return navigateTo("/courses", { replace: true });
     }
 
-    if (to.path === "/manage" && userState.value?.role !== "INSTRUCTOR") {
+    if (to.path === "/manage" && (!isAuthenticated || !["INSTRUCTOR", "ADMIN"].includes(userState.value?.role || ""))) {
         return navigateTo("/courses", { replace: true });
     }
 });

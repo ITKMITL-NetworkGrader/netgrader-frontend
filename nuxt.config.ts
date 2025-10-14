@@ -2,7 +2,15 @@ import tailwindcss from "@tailwindcss/vite";
 
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
+  devtools: { enabled: false },
   css: ['@/assets/css/tailwind.css'],
+  ssr: false,
+  components: [
+    '~/components',
+    '~/components/editor',
+    '~/components/ui',
+    '~/components/wizard'
+  ],
   vite: {
     plugins: [
       tailwindcss()
@@ -10,8 +18,8 @@ export default defineNuxtConfig({
   },
   runtimeConfig: {
     public: {
-      backend1url: process.env.NUXT_BACKEND1_URL,
-      dev_env: process.env.NUXT_DEV_ENV,
+      backendurl: process.env.NUXT_BACKENDURL,
+      env: process.env.NUXT_ENV,
     },
   },
   compatibilityDate: '2025-05-15',

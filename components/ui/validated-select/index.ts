@@ -1,0 +1,1 @@
+export { default as ValidatedSelect } from './ValidatedSelect.vue'

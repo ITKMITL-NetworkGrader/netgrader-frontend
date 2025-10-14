@@ -1,9 +1,29 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { Button } from '@/components/ui/button'
+import { Globe } from '@/components/ui/globe'
+import { TextReveal } from '@/components/ui/text-reveal';
 
 const { $anime } = useNuxtApp()
 
-const vantaEffect = ref<unknown>(null)
+// Get the primary color from CSS variables for globe customization
+const primaryColor = computed(() => {
+  if (process.client) {
+    const styles = getComputedStyle(document.documentElement);
+    const colorValue = styles.getPropertyValue('--color-primary').trim();
+    // Convert OKLCH to RGB (approximate conversion for the globe)
+    // Default to a blue-ish color based on the primary theme
+    return [1, 1, 1]; // RGB values for globe
+  }
+  return [1, 1, 1];
+})
+
+const globeConfig = computed(() => ({
+  baseColor: primaryColor.value,
+  markerColor: [0.9, 0.4, 0.1],
+  glowColor: primaryColor.value,
+  dark: 0
+}))
 
 onMounted(() => {
     $anime({
@@ -25,54 +45,32 @@ onMounted(() => {
         opacity: [0, 1],
         duration: 2000,
     });
-    // Load Three.js
-    const threeScript = document.createElement('script')
-    threeScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js'
-    document.head.appendChild(threeScript)
-
-    threeScript.onload = () => {
-        // Load Vanta.js after Three.js is loaded
-        const vantaScript = document.createElement('script')
-        vantaScript.src = 'https://cdn.jsdelivr.net/npm/vanta@latest/dist/vanta.net.min.js'
-        document.head.appendChild(vantaScript)
-
-        vantaScript.onload = () => {
-            // Initialize Vanta effect
-            vantaEffect.value = (window as unknown as { VANTA: { NET: (config: unknown) => { destroy: () => void } } }).VANTA.NET({
-                el: "body",
-                mouseControls: true,
-                touchControls: true,
-                gyroControls: false,
-                minHeight: 200.00,
-                minWidth: 200.00,
-                scale: 1.00,
-                scaleMobile: 1.00,
-                color: 0xe4c090,
-                backgroundColor: 0xfdfbf7
-            })
-        }
-    }   
 });
-
-onBeforeUnmount(() => {
-    if (vantaEffect.value && typeof vantaEffect.value === 'object' && vantaEffect.value !== null && 'destroy' in vantaEffect.value) {
-        (vantaEffect.value as { destroy: () => void }).destroy()
-    }
-})
 
 </script>
 
 <template>
-    <div>
-        <div class="font-roboto-mono flex flex-col items-center justify-center min-h-[calc(100vh-theme(spacing.28))] text-center">
-            <h1 id="hero-title" class="text-5xl font-semibold">NetGrader</h1>
-            <p id="hero-subtitle" class="mt-2 text-xl">Your go-to platform for grading network configurations!</p>
+    <div class="relative min-h-[calc(100vh-theme(spacing.28))] overflow-hidden">
+        <!-- Globe Background -->
+        <ClientOnly>
+            <div class="w-full h-full top-30 absolute">
+                <Globe
+                    class="opacity-80"
+                    :config="globeConfig"
+                />
+            </div>
+        </ClientOnly>
+
+        <!-- Content -->
+        <div class="relative z-10 font-roboto-mono flex flex-col items-center justify-center min-h-[calc(100vh-theme(spacing.28))] text-center">
+            <TextReveal class="text-center text-4xl font-bold" :delay=0.2>NetGrader</TextReveal>
+            <TextReveal class="mt-2 text-xl" :delay=0.5>Your go-to platform for grading network configurations!</TextReveal>
             <div class="flex justify-center">
-                <NuxtLink to="/courses" class="mt-2">
-                    <Button id="get-started" class="mt-4 scale-100">
+                <NuxtLink to="/courses" class="mt-6">
+                    <Button id="get-started" class="scale-100 hover:cursor-pointer">
                         Get Started
                     </Button>
-                </NuxtLink>   
+                </NuxtLink>
             </div>
         </div>
     </div>
