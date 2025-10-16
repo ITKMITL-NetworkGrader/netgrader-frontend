@@ -57,19 +57,6 @@ export type QuestionType = 'network_address' | 'first_usable_ip' | 'last_usable_
                           'broadcast_address' | 'subnet_mask' | 'ip_address' | 'number' |
                           'custom_text' | 'ip_table_questionnaire';
 
-// IP Table Column Header Types (for Advanced IP Table Questionnaire)
-export type IpTableColumnType =
-  | 'ipv4'                    // IPv4 address
-  | 'ipv6'                    // IPv6 GUA address
-  | 'subnet_mask'             // Subnet mask (e.g., 255.255.255.0)
-  | 'gateway'                 // Gateway address
-  | 'default_gateway'         // Default gateway
-  | 'broadcast_address'       // Broadcast address
-  | 'network_address'         // Network address
-  | 'prefix_length'           // IPv6 prefix length (e.g., /64)
-  | 'link_local_address'      // IPv6 link-local address
-  | 'dns';                    // DNS server address
-
 // IP Table Questionnaire Structure
 export interface IpTableQuestionnaire {
   tableId: string;                    // Unique table identifier
@@ -83,9 +70,7 @@ export interface IpTableQuestionnaire {
 
 export interface IpTableColumn {
   columnId: string;                   // Unique column identifier
-  columnType: IpTableColumnType;      // Type of networking field
-  vlanIndex?: number;                 // Which VLAN (0-9) - required for VLAN-specific columns
-  label?: string;                     // Custom label override (optional)
+  label: string;                      // Column label (e.g., "IPv4 Address", "Subnet Mask")
   order: number;                      // Display order (0-based)
 }
 
@@ -97,11 +82,47 @@ export interface IpTableRow {
   order: number;                      // Display order (0-based)
 }
 
+// Answer Types for IP Table Cells (simplified to static vs calculated)
+export type CellAnswerType = 'static' | 'calculated';
+
+export type CalculationType =
+  | 'vlan_network_address'
+  | 'vlan_first_usable'
+  | 'vlan_last_usable'
+  | 'vlan_broadcast'
+  | 'vlan_subnet_mask'
+  | 'vlan_lecturer_offset'      // Lecturer-defined exact offset (exact match)
+  | 'vlan_lecturer_range'        // Lecturer-defined IP range (any IP in range is valid)
+  | 'device_interface_ip'        // From device.interface
+  | 'vlan_id';                   // The VLAN ID itself
+
+export interface CalculatedAnswer {
+  calculationType: CalculationType;
+  vlanIndex?: number;              // Which VLAN (0-9)
+  lecturerOffset?: number;         // For exact offset (1-254)
+  lecturerRangeStart?: number;     // For range start (1-254)
+  lecturerRangeEnd?: number;       // For range end (1-254)
+  deviceId?: string;               // For device interface IPs
+  interfaceName?: string;          // For device interface IPs
+}
+
 export interface IpTableCell {
   cellId: string;                     // Unique cell identifier
   rowId: string;                      // Reference to row
   columnId: string;                   // Reference to column
-  expectedAnswer: string;             // Lecturer-defined expected answer
+
+  // Answer configuration (simplified: static or calculated)
+  answerType: CellAnswerType;         // 'static' or 'calculated'
+
+  // For static answers
+  staticAnswer?: string;              // Direct text answer (e.g., "8.8.8.8")
+
+  // For calculated answers
+  calculatedAnswer?: CalculatedAnswer;
+
+  // Legacy field (keep for backward compatibility during migration)
+  expectedAnswer?: string;            // @deprecated Use staticAnswer or calculatedAnswer instead
+
   points: number;                     // Points for this cell (default: 1)
   autoCalculated: boolean;            // Whether this was auto-calculated or manually entered
 }

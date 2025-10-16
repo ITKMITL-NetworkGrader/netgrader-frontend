@@ -102,51 +102,14 @@
                   <th
                     v-for="(column, colIndex) in tableData.columns"
                     :key="column.columnId"
-                    class="border px-4 py-3 min-w-[250px]"
+                    class="border px-4 py-3 min-w-[200px]"
                   >
-                    <div class="space-y-2">
-                      <!-- Column Type Selector -->
-                      <Select
-                        v-model="column.columnType"
-                        @update:modelValue="() => handleColumnTypeChange(colIndex)"
-                      >
-                        <SelectTrigger class="w-full">
-                          <SelectValue placeholder="Select column type..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="ipv4">IPv4 Address</SelectItem>
-                          <SelectItem value="ipv6">IPv6 Address (GUA)</SelectItem>
-                          <SelectItem value="subnet_mask">Subnet Mask</SelectItem>
-                          <SelectItem value="gateway">Gateway</SelectItem>
-                          <SelectItem value="default_gateway">Default Gateway</SelectItem>
-                          <SelectItem value="broadcast_address">Broadcast Address</SelectItem>
-                          <SelectItem value="network_address">Network Address</SelectItem>
-                          <SelectItem value="prefix_length">Prefix Length (/64)</SelectItem>
-                          <SelectItem value="link_local_address">Link-Local Address</SelectItem>
-                          <SelectItem value="dns">DNS Server</SelectItem>
-                        </SelectContent>
-                      </Select>
-
-                      <!-- VLAN Selector (if column type requires VLAN) -->
-                      <Select
-                        v-if="requiresVlan(column.columnType)"
-                        v-model="column.vlanIndex"
-                        @update:modelValue="() => handleColumnVlanChange(colIndex)"
-                      >
-                        <SelectTrigger class="w-full">
-                          <SelectValue placeholder="Select VLAN..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem
-                            v-for="(vlan, vlanIdx) in vlans"
-                            :key="vlanIdx"
-                            :value="vlanIdx"
-                          >
-                            VLAN {{ vlanIdx + 1 }} ({{ vlan.baseNetwork }}/{{ vlan.subnetMask }})
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+                    <!-- Column Label Input -->
+                    <Input
+                      v-model="column.label"
+                      placeholder="Column label (e.g., IPv4, Subnet Mask)"
+                      class="font-semibold"
+                    />
                   </th>
                 </tr>
               </thead>
@@ -214,27 +177,37 @@
                     class="border px-4 py-3"
                   >
                     <div class="space-y-2">
-                      <!-- Expected Answer Input -->
-                      <Input
-                        v-model="tableData.cells[rowIndex][colIndex].expectedAnswer"
-                        placeholder="Expected answer..."
+                      <!-- Configure Cell Button -->
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        class="w-full justify-start text-left h-auto py-2"
                         :class="{
                           'border-destructive ring-1 ring-destructive/40':
-                            hasAttemptedSave && !tableData.cells[rowIndex][colIndex].expectedAnswer,
-                          'border-green-500': tableData.cells[rowIndex][colIndex].expectedAnswer,
+                            hasAttemptedSave && !isCellConfigured(tableData.cells[rowIndex][colIndex]),
+                          'border-green-500 bg-green-50': isCellConfigured(tableData.cells[rowIndex][colIndex]),
                           'bg-blue-50': tableData.cells[rowIndex][colIndex].autoCalculated
                         }"
-                      />
+                        @click="handleConfigureCell(rowIndex, colIndex)"
+                      >
+                        <Settings class="w-4 h-4 mr-2 shrink-0" />
+                        <div class="flex-1 min-w-0">
+                          <div class="text-xs font-normal truncate">
+                            {{ getCellDisplayText(tableData.cells[rowIndex][colIndex]) }}
+                          </div>
+                          <div class="text-xs text-muted-foreground mt-1">
+                            <Badge variant="secondary" class="text-xs">
+                              {{ tableData.cells[rowIndex][colIndex].answerType }}
+                            </Badge>
+                          </div>
+                        </div>
+                      </Button>
 
-                      <!-- Points Input -->
-                      <div class="flex items-center gap-2">
-                        <Label class="text-xs">Points:</Label>
-                        <Input
-                          v-model.number="tableData.cells[rowIndex][colIndex].points"
-                          type="number"
-                          min="1"
-                          class="w-20 h-8 text-sm"
-                        />
+                      <!-- Points Display -->
+                      <div class="flex items-center gap-2 justify-between">
+                        <span class="text-xs text-muted-foreground">
+                          Points: <span class="font-semibold">{{ tableData.cells[rowIndex][colIndex].points }}</span>
+                        </span>
                         <Badge
                           v-if="tableData.cells[rowIndex][colIndex].autoCalculated"
                           variant="secondary"
@@ -321,6 +294,19 @@
       </div>
     </DialogContent>
   </Dialog>
+
+  <!-- Cell Configuration Modal -->
+  <CellConfigModal
+    v-if="configuringCell && currentCellConfig"
+    :open="cellConfigModalOpen"
+    :cell="currentCellConfig"
+    :row-index="configuringCell.rowIndex"
+    :col-index="configuringCell.colIndex"
+    :devices="devices"
+    :vlans="vlans"
+    @update:open="(value) => cellConfigModalOpen = value"
+    @save="handleSaveCellConfig"
+  />
 </template>
 
 <script setup lang="ts">
@@ -336,7 +322,8 @@ import {
   Check,
   Eye,
   XCircle,
-  CheckCircle2
+  CheckCircle2,
+  Settings
 } from 'lucide-vue-next'
 import {
   Dialog,
@@ -358,12 +345,13 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 
+import CellConfigModal from './CellConfigModal.vue'
+
 import type {
   IpTableQuestionnaire,
   IpTableColumn,
   IpTableRow,
   IpTableCell,
-  IpTableColumnType,
   Device
 } from '@/types/wizard'
 
@@ -404,8 +392,7 @@ function initializeTable(): IpTableQuestionnaire {
 
   const columns: IpTableColumn[] = Array.from({ length: props.columnCount }, (_, i) => ({
     columnId: generateId('col'),
-    columnType: 'ipv4' as IpTableColumnType,
-    vlanIndex: 0,
+    label: '',  // Empty label by default
     order: i
   }))
 
@@ -422,7 +409,12 @@ function initializeTable(): IpTableQuestionnaire {
       cellId: generateId('cell'),
       rowId: rows[rowIdx].rowId,
       columnId: columns[colIdx].columnId,
-      expectedAnswer: '',
+      answerType: 'calculated',  // Default to calculated
+      calculatedAnswer: {
+        calculationType: 'vlan_lecturer_offset',
+        vlanIndex: 0,
+        lecturerOffset: 1
+      },
       points: 1,
       autoCalculated: false
     }))
@@ -445,22 +437,13 @@ const validationErrors = ref<string[]>([])
 const hasAttemptedSave = ref(false)
 const validationModalOpen = ref(false)
 
+// Cell Configuration Modal state
+const cellConfigModalOpen = ref(false)
+const configuringCell = ref<{ rowIndex: number; colIndex: number } | null>(null)
+const currentCellConfig = ref<IpTableCell | null>(null)
+
 const validationErrorCount = computed(() => validationErrors.value.length)
 const hasValidationErrors = computed(() => validationErrorCount.value > 0)
-
-// Column types that require VLAN selection
-const requiresVlan = (columnType: IpTableColumnType): boolean => {
-  return [
-    'ipv4',
-    'ipv6',
-    'subnet_mask',
-    'gateway',
-    'default_gateway',
-    'broadcast_address',
-    'network_address',
-    'prefix_length'
-  ].includes(columnType)
-}
 
 // Get device interfaces from device templates
 const getDeviceInterfaces = (deviceId: string) => {
@@ -475,23 +458,6 @@ const getDeviceInterfaces = (deviceId: string) => {
 }
 
 // Handlers
-const handleColumnTypeChange = (colIndex: number) => {
-  const column = tableData.value.columns[colIndex]
-
-  // Reset VLAN if column type doesn't require it
-  if (!requiresVlan(column.columnType)) {
-    column.vlanIndex = undefined
-  } else if (column.vlanIndex === undefined) {
-    column.vlanIndex = 0
-  }
-
-  validate()
-}
-
-const handleColumnVlanChange = (colIndex: number) => {
-  validate()
-}
-
 const handleRowDeviceChange = (rowIndex: number) => {
   const row = tableData.value.rows[rowIndex]
 
@@ -523,7 +489,9 @@ const handleAutoCalculate = () => {
 const handleClearAll = () => {
   tableData.value.cells.forEach(row => {
     row.forEach(cell => {
-      cell.expectedAnswer = ''
+      cell.answerType = 'static'
+      cell.staticAnswer = ''
+      cell.calculatedAnswer = undefined
       cell.autoCalculated = false
     })
   })
@@ -571,6 +539,50 @@ const handleOpenValidationModal = () => {
   }
 }
 
+// Cell Configuration Handlers
+const handleConfigureCell = (rowIndex: number, colIndex: number) => {
+  configuringCell.value = { rowIndex, colIndex }
+  currentCellConfig.value = JSON.parse(JSON.stringify(tableData.value.cells[rowIndex][colIndex]))
+  cellConfigModalOpen.value = true
+}
+
+const handleSaveCellConfig = (cell: IpTableCell) => {
+  if (configuringCell.value) {
+    const { rowIndex, colIndex } = configuringCell.value
+    tableData.value.cells[rowIndex][colIndex] = cell
+    validate()
+    toast.success('Cell configuration saved')
+  }
+  cellConfigModalOpen.value = false
+  configuringCell.value = null
+  currentCellConfig.value = null
+}
+
+// Helper to get cell display text
+const getCellDisplayText = (cell: IpTableCell): string => {
+  if (cell.answerType === 'static') {
+    return cell.staticAnswer || 'Not configured'
+  } else if (cell.answerType === 'calculated') {
+    const calcType = cell.calculatedAnswer?.calculationType || 'Not configured'
+    // Add friendlier display for range type
+    if (calcType === 'vlan_lecturer_range') {
+      return `Range: ${calcType}`
+    }
+    return `Calculated: ${calcType}`
+  }
+  return 'Not configured'
+}
+
+// Helper to check if cell is configured
+const isCellConfigured = (cell: IpTableCell): boolean => {
+  if (cell.answerType === 'static') {
+    return !!(cell.staticAnswer && cell.staticAnswer.trim())
+  } else if (cell.calculatedAnswer) {
+    return !!cell.calculatedAnswer.calculationType
+  }
+  return false
+}
+
 // Computed
 const totalPoints = computed(() => {
   return tableData.value.cells.reduce((total, row) => {
@@ -581,7 +593,7 @@ const totalPoints = computed(() => {
 const canAutoCalculate = computed(() => {
   // Can only auto-calculate if all columns and rows are configured
   const columnsConfigured = tableData.value.columns.every(col => {
-    return col.columnType && (!requiresVlan(col.columnType) || col.vlanIndex !== undefined)
+    return col.label && col.label.trim() !== ''
   })
 
   const rowsConfigured = tableData.value.rows.every(row => {
@@ -598,11 +610,8 @@ const validate = (options: { includeCellErrors?: boolean } = {}) => {
 
   // Validate columns
   tableData.value.columns.forEach((col, idx) => {
-    if (!col.columnType) {
-      errors.push(`Column ${idx + 1}: Column type is required`)
-    }
-    if (requiresVlan(col.columnType) && col.vlanIndex === undefined) {
-      errors.push(`Column ${idx + 1}: VLAN selection is required for ${col.columnType}`)
+    if (!col.label || col.label.trim() === '') {
+      errors.push(`Column ${idx + 1}: Column label is required`)
     }
   })
 
@@ -620,9 +629,24 @@ const validate = (options: { includeCellErrors?: boolean } = {}) => {
   if (includeCellErrors) {
     tableData.value.cells.forEach((row, rowIdx) => {
       row.forEach((cell, colIdx) => {
-        if (!cell.expectedAnswer || !cell.expectedAnswer.trim()) {
-          errors.push(`Cell [${rowIdx + 1}, ${colIdx + 1}]: Expected answer is required`)
+        // Check if cell is configured
+        if (!isCellConfigured(cell)) {
+          errors.push(`Cell [${rowIdx + 1}, ${colIdx + 1}]: Cell configuration is required`)
         }
+
+        // Validate based on answer type
+        if (cell.answerType === 'static') {
+          if (!cell.staticAnswer || !cell.staticAnswer.trim()) {
+            errors.push(`Cell [${rowIdx + 1}, ${colIdx + 1}]: Static answer is required`)
+          }
+        } else if (cell.answerType === 'calculated') {
+          if (!cell.calculatedAnswer) {
+            errors.push(`Cell [${rowIdx + 1}, ${colIdx + 1}]: Calculation configuration is required`)
+          } else if (!cell.calculatedAnswer.calculationType) {
+            errors.push(`Cell [${rowIdx + 1}, ${colIdx + 1}]: Calculation type is required`)
+          }
+        }
+
         if (!cell.points || cell.points < 1) {
           errors.push(`Cell [${rowIdx + 1}, ${colIdx + 1}]: Points must be at least 1`)
         }

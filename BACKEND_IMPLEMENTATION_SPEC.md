@@ -602,12 +602,66 @@ export interface ILabPart extends Document {
         cellId: string;
         rowId: string;
         columnId: string;
-        expectedAnswer: string;    // Lecturer-defined expected answer
+
+        /**
+         * How this cell should be evaluated:
+         * - manual        → Compare against a single literal answer
+         * - manual_range  → Accept any value within the defined range
+         * - dynamic       → Resolve value from generated student schema at grading time
+         */
+        answerMode: 'manual' | 'manual_range' | 'dynamic';
+
+        // Manual single-value answer (required when answerMode === 'manual')
+        expectedAnswer?: string;
+
+        // Manual range answer (required when answerMode === 'manual_range')
+        expectedRange?: {
+          start: string;           // Inclusive lower bound (normalised format per column type)
+          end: string;             // Inclusive upper bound
+          step?: number;           // Optional increment for numeric ranges (default = 1)
+          format?: 'ipv4' | 'ipv6' | 'cidr' | 'number' | 'text'; // Optional hint for validation/UI
+        };
+
+        // Dynamic reference (required when answerMode === 'dynamic')
+        dynamicReference?: {
+          source: 'vlan' | 'device_interface'; // Which resolver to use
+          field: 'ipv4' | 'ipv6' | 'subnet_mask' | 'gateway' | 'default_gateway' |
+                 'broadcast_address' | 'network_address' | 'prefix_length' |
+                 'link_local_address' | 'dns';
+          vlanIndex?: number;      // Required when resolving VLAN-level data
+          deviceId?: string;       // Required when resolving device/interface data
+          interfaceName?: string;  // Required with deviceId for interface-based lookups
+          previewValue?: string;   // Optional cached preview returned to the frontend
+        };
+
         points: number;            // Points for this cell (min: 1)
         autoCalculated: boolean;   // Whether auto-calculated or manual
       }>>;  // 2D array: cells[rowIndex][columnIndex]
     };
   }>;
+
+ /**
+  * 📘 IP Table Answer Modes
+  *
+  * `answerMode` mirrors the options exposed in the Lab Wizard (Step 4 → Advanced IP Table Questionnaire):
+  *
+   * - **manual** – the instructor types a single canonical value.
+   *   - Stored in `expectedAnswer`.
+   *   - Grading performs a normalised string comparison (trim + lowercase for IP-like types).
+   * - **manual_range** – the instructor supplies an inclusive range instead of a single value.
+   *   - Stored inside `expectedRange.start`/`expectedRange.end` (frontend enforces ordering).
+   *   - `utils/ipRangeUtils.ts` provides helpers for IPv4/IPv6 range comparison; numeric ranges use integer comparisons.
+   *   - Optional `step` lets lecturers constrain acceptable answers (e.g., “only even offsets”).
+   * - **dynamic** – the value comes from the generated Student IP Schema at grading time.
+   *   - `dynamicReference.source` tells the backend whether to read from `schema.vlans` (`vlan` source) or `schema.devices[].interfaces` (`device_interface` source).
+   *   - `field` maps directly to the column type dropdown in the UI.
+   *   - `previewValue` is optional and purely informational (frontend may pass a cached example, backend ignores during comparison).
+   *
+   * The frontend prevents illegal combinations (e.g., requiring `deviceId` + `interfaceName` whenever the source is `device_interface`).
+   * Metadata bindings:
+   *   - Columns inherit their `columnType` and optional `vlanIndex` directly from the wizard dropdowns (see `LabWizardStep4.vue` + `IpTableBuilderModal.vue`).
+   *   - Rows capture `deviceId`/`interfaceName` pairs sourced from Step 3's device inventory, ensuring backend lookups align with lab topology.
+   */
 
   /**
    * Validation rules (enforced in service + schema middleware):
@@ -618,7 +672,11 @@ export interface ILabPart extends Document {
    *     • All columns must have valid `columnType`.
    *     • VLAN-specific columns (ipv4, ipv6, subnet_mask, gateway, etc.) require `vlanIndex` (0-9).
    *     • All rows must have `deviceId` and `interfaceName`.
-   *     • All cells must have `expectedAnswer` and `points >= 1`.
+   *     • Every cell must define `answerMode`.
+   *     • For `answerMode === 'manual'`, `expectedAnswer` is required (non-empty).
+   *     • For `answerMode === 'manual_range'`, `expectedRange.start`/`expectedRange.end` are required, must parse to valid values for the column type, and `start <= end` after normalisation.
+   *     • For `answerMode === 'dynamic'`, `dynamicReference` must provide the appropriate identifiers (VLAN and/or device/interface).
+   *     • All cells must have `points >= 1`.
    *     • Total question points = sum of all cell points.
    *     • `schemaMapping` MUST be omitted (table answers do not update StudentIpSchema directly).
    * - For networking-focused question types (anything except `custom_text` and `ip_table_questionnaire`):
@@ -872,7 +930,11 @@ interface DhcpConfigPayload {
   - All column types must be valid
   - VLAN-specific columns must have `vlanIndex` (0-9)
   - All rows must reference valid devices from lab configuration
-  - All cells must have non-empty `expectedAnswer` and `points >= 1`
+  - Each cell must define `answerMode` and supply the matching data:
+    - `manual` → non-empty `expectedAnswer`
+    - `manual_range` → valid `expectedRange.start`/`end` (inclusive, start ≤ end)
+    - `dynamic` → populated `dynamicReference`
+  - All cells must have `points >= 1`
   - Question's total `points` should equal sum of all cell points
 
 The `labPartSchema.pre('save')` middleware (see Section 2) enforces these rules server-side.
@@ -1919,12 +1981,56 @@ async function validateAnswers(
         for (let colIdx = 0; colIdx < table.columnCount; colIdx++) {
           const expectedCell = table.cells[rowIdx][colIdx];
           const studentAnswer = answer.tableAnswers[rowIdx][colIdx];
+          const columnMeta = table.columns[colIdx];
+          const rowMeta = table.rows[rowIdx];
 
-          // Normalize answers for comparison (trim, case-insensitive)
-          const normalizedExpected = expectedCell.expectedAnswer.trim().toLowerCase();
           const normalizedStudent = studentAnswer.trim().toLowerCase();
 
-          const cellCorrect = normalizedExpected === normalizedStudent;
+          let resolvedExpected: string | null = null;
+          let cellCorrect = false;
+
+          switch (expectedCell.answerMode) {
+            case 'manual': {
+              resolvedExpected = (expectedCell.expectedAnswer || '').trim();
+              cellCorrect = normalizedStudent === resolvedExpected.toLowerCase();
+              break;
+            }
+
+            case 'manual_range': {
+              const range = expectedCell.expectedRange;
+              if (!range) {
+                cellCorrect = false;
+                break;
+              }
+
+              cellCorrect = isWithinIpTableRange({
+                studentAnswer,
+                range,
+                columnType: columnMeta.columnType
+              });
+
+              resolvedExpected = `${range.start} – ${range.end}`;
+              break;
+            }
+
+            case 'dynamic': {
+              resolvedExpected = resolveDynamicIpTableValue({
+                reference: expectedCell.dynamicReference,
+                column: columnMeta,
+                row: rowMeta,
+                schema
+              });
+
+              cellCorrect =
+                resolvedExpected !== null &&
+                normalizedStudent === resolvedExpected.trim().toLowerCase();
+              break;
+            }
+
+            default:
+              cellCorrect = false;
+          }
+
           const cellPoints = cellCorrect ? expectedCell.points : 0;
 
           totalCellPoints += expectedCell.points;
@@ -1933,7 +2039,7 @@ async function validateAnswers(
           cellResults[rowIdx][colIdx] = {
             isCorrect: cellCorrect,
             pointsEarned: cellPoints,
-            correctAnswer: cellCorrect ? undefined : expectedCell.expectedAnswer
+            correctAnswer: cellCorrect ? undefined : resolvedExpected ?? expectedCell.expectedAnswer
           };
         }
       }
@@ -2023,6 +2129,18 @@ async function validateAnswers(
   return results;
 }
 ```
+
+> ℹ️ **Helper Functions**
+>
+> - `isWithinIpTableRange(...)` should live alongside the existing IP utilities (`utils/ipRangeUtils.ts`). It accepts the raw student answer, a `expectedRange` object, and the column type so it can:
+>   - Convert IPv4/IPv6 strings to numeric space before comparison.
+>   - Validate prefix lengths / numeric values as integers (respecting optional `step`).
+>   - Fallback to lexical comparison for textual ranges if we ever allow them.
+>
+> - `resolveDynamicIpTableValue(...)` belongs in the grading service layer. It receives the saved `dynamicReference`, the column metadata, the row metadata, and the student's `StudentIpSchema`:
+>   - When `source === 'vlan'`, read from `schema.vlans[vlanIndex][field]`.
+>   - When `source === 'device_interface'`, locate `schema.devices.find(d => d.deviceId === reference.deviceId)` and then the matching interface by `interfaceName`.
+>   - If the value cannot be resolved, return `null` and report the anomaly (the cell will be marked incorrect; instructors can review via audit logs).
 
 ---
 
