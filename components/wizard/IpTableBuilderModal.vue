@@ -28,15 +28,6 @@
             <Button
               variant="outline"
               size="sm"
-              @click="handleAutoCalculate"
-              :disabled="!canAutoCalculate"
-            >
-              <Wand2 class="w-4 h-4 mr-2" />
-              Auto-Calculate Answers
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
               @click="handleClearAll"
             >
               <Eraser class="w-4 h-4 mr-2" />
@@ -76,9 +67,9 @@
           <AlertDescription class="text-sm text-blue-800">
             <strong>How to build your table:</strong>
             <ol class="list-decimal list-inside mt-2 space-y-1">
-              <li>Configure each column header by selecting the field type (and VLAN if applicable)</li>
+              <li>Enter a label for each column header (e.g., "IPv4 Address", "Subnet Mask")</li>
               <li>Configure each row header by selecting the device and interface</li>
-              <li>Fill in the expected answer for each cell, or use Auto-Calculate</li>
+              <li>Click "Configure Cell" to set expected answers for each cell (static or calculated)</li>
               <li>Adjust points per cell if needed (default: 1 point)</li>
             </ol>
           </AlertDescription>
@@ -426,8 +417,7 @@ function initializeTable(): IpTableQuestionnaire {
     columnCount: props.columnCount,
     columns,
     rows,
-    cells,
-    autoCalculate: false
+    cells
   }
 }
 
@@ -479,11 +469,6 @@ const handleRowInterfaceChange = (rowIndex: number) => {
   }
 
   validate()
-}
-
-const handleAutoCalculate = () => {
-  toast.info('Auto-calculation feature coming soon!')
-  // TODO: Implement auto-calculation logic based on network config from Step 2
 }
 
 const handleClearAll = () => {
@@ -588,19 +573,6 @@ const totalPoints = computed(() => {
   return tableData.value.cells.reduce((total, row) => {
     return total + row.reduce((rowTotal, cell) => rowTotal + (cell.points || 0), 0)
   }, 0)
-})
-
-const canAutoCalculate = computed(() => {
-  // Can only auto-calculate if all columns and rows are configured
-  const columnsConfigured = tableData.value.columns.every(col => {
-    return col.label && col.label.trim() !== ''
-  })
-
-  const rowsConfigured = tableData.value.rows.every(row => {
-    return row.deviceId && row.interfaceName
-  })
-
-  return columnsConfigured && rowsConfigured
 })
 
 // Validation

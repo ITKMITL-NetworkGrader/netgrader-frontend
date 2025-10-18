@@ -512,6 +512,7 @@ const handleCreateLab = async () => {
             calculationMultiplier: vlan.calculationMultiplier,
             baseNetwork: vlan.baseNetwork,
             subnetMask: vlan.subnetMask,
+            subnetIndex: vlan.subnetIndex,
             groupModifier: vlan.groupModifier,
             isStudentGenerated: vlan.isStudentGenerated
           }))

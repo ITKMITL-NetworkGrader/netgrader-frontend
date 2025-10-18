@@ -578,15 +578,10 @@ export interface ILabPart extends Document {
       tableId: string;
       rowCount: number;            // 1-10 rows
       columnCount: number;         // 1-10 columns
-      autoCalculate: boolean;      // Whether answers were auto-calculated
 
       columns: Array<{
         columnId: string;
-        columnType: 'ipv4' | 'ipv6' | 'subnet_mask' | 'gateway' | 'default_gateway' |
-                    'broadcast_address' | 'network_address' | 'prefix_length' |
-                    'link_local_address' | 'dns';
-        vlanIndex?: number;        // Required for VLAN-specific column types
-        label?: string;            // Optional custom label
+        label: string;             // Column label (e.g., "IPv4 Address", "Subnet Mask") - REQUIRED
         order: number;             // Column display order (0-based)
       }>;
 
@@ -605,62 +600,71 @@ export interface ILabPart extends Document {
 
         /**
          * How this cell should be evaluated:
-         * - manual        → Compare against a single literal answer
-         * - manual_range  → Accept any value within the defined range
-         * - dynamic       → Resolve value from generated student schema at grading time
+         * - static      → Compare against a single literal answer (e.g., "8.8.8.8")
+         * - calculated  → Calculate from student's network configuration dynamically
          */
-        answerMode: 'manual' | 'manual_range' | 'dynamic';
+        answerType: 'static' | 'calculated';
 
-        // Manual single-value answer (required when answerMode === 'manual')
-        expectedAnswer?: string;
+        // Static answer (required when answerType === 'static')
+        staticAnswer?: string;           // Direct text answer that's same for all students
 
-        // Manual range answer (required when answerMode === 'manual_range')
-        expectedRange?: {
-          start: string;           // Inclusive lower bound (normalised format per column type)
-          end: string;             // Inclusive upper bound
-          step?: number;           // Optional increment for numeric ranges (default = 1)
-          format?: 'ipv4' | 'ipv6' | 'cidr' | 'number' | 'text'; // Optional hint for validation/UI
+        // Calculated answer (required when answerType === 'calculated')
+        calculatedAnswer?: {
+          calculationType: 'vlan_network_address' | 'vlan_first_usable' | 'vlan_last_usable' |
+                          'vlan_broadcast' | 'vlan_subnet_mask' | 'vlan_lecturer_offset' |
+                          'vlan_lecturer_range' | 'device_interface_ip' | 'vlan_id';
+          vlanIndex?: number;              // Which VLAN (0-9) - required for VLAN-based calculations
+          lecturerOffset?: number;         // For exact offset (1-254) - required when calculationType === 'vlan_lecturer_offset'
+          lecturerRangeStart?: number;     // For range start (1-254) - required when calculationType === 'vlan_lecturer_range'
+          lecturerRangeEnd?: number;       // For range end (1-254) - required when calculationType === 'vlan_lecturer_range'
+          deviceId?: string;               // For device interface IPs - required when calculationType === 'device_interface_ip'
+          interfaceName?: string;          // For device interface IPs - required when calculationType === 'device_interface_ip'
         };
 
-        // Dynamic reference (required when answerMode === 'dynamic')
-        dynamicReference?: {
-          source: 'vlan' | 'device_interface'; // Which resolver to use
-          field: 'ipv4' | 'ipv6' | 'subnet_mask' | 'gateway' | 'default_gateway' |
-                 'broadcast_address' | 'network_address' | 'prefix_length' |
-                 'link_local_address' | 'dns';
-          vlanIndex?: number;      // Required when resolving VLAN-level data
-          deviceId?: string;       // Required when resolving device/interface data
-          interfaceName?: string;  // Required with deviceId for interface-based lookups
-          previewValue?: string;   // Optional cached preview returned to the frontend
-        };
+        // Legacy field for backward compatibility
+        expectedAnswer?: string;   // @deprecated - Only used during migration, prefer staticAnswer/calculatedAnswer
 
         points: number;            // Points for this cell (min: 1)
-        autoCalculated: boolean;   // Whether auto-calculated or manual
+        autoCalculated: boolean;   // Whether auto-calculated or manually entered
       }>>;  // 2D array: cells[rowIndex][columnIndex]
     };
   }>;
 
  /**
-  * 📘 IP Table Answer Modes
+  * 📘 IP Table Answer Types
   *
-  * `answerMode` mirrors the options exposed in the Lab Wizard (Step 4 → Advanced IP Table Questionnaire):
+  * `answerType` defines how each cell in the IP Table Questionnaire is validated:
   *
-   * - **manual** – the instructor types a single canonical value.
-   *   - Stored in `expectedAnswer`.
-   *   - Grading performs a normalised string comparison (trim + lowercase for IP-like types).
-   * - **manual_range** – the instructor supplies an inclusive range instead of a single value.
-   *   - Stored inside `expectedRange.start`/`expectedRange.end` (frontend enforces ordering).
-   *   - `utils/ipRangeUtils.ts` provides helpers for IPv4/IPv6 range comparison; numeric ranges use integer comparisons.
-   *   - Optional `step` lets lecturers constrain acceptable answers (e.g., “only even offsets”).
-   * - **dynamic** – the value comes from the generated Student IP Schema at grading time.
-   *   - `dynamicReference.source` tells the backend whether to read from `schema.vlans` (`vlan` source) or `schema.devices[].interfaces` (`device_interface` source).
-   *   - `field` maps directly to the column type dropdown in the UI.
-   *   - `previewValue` is optional and purely informational (frontend may pass a cached example, backend ignores during comparison).
+   * - **static** – A literal value that's the same for all students
+   *   - Stored in `staticAnswer` (e.g., "8.8.8.8" for DNS server)
+   *   - Grading performs normalized string comparison (trim + lowercase)
+   *   - Use case: DNS servers, public IPs, VLAN IDs, any value that doesn't change per student
    *
-   * The frontend prevents illegal combinations (e.g., requiring `deviceId` + `interfaceName` whenever the source is `device_interface`).
-   * Metadata bindings:
-   *   - Columns inherit their `columnType` and optional `vlanIndex` directly from the wizard dropdowns (see `LabWizardStep4.vue` + `IpTableBuilderModal.vue`).
-   *   - Rows capture `deviceId`/`interfaceName` pairs sourced from Step 3's device inventory, ensuring backend lookups align with lab topology.
+   * - **calculated** – Value calculated from student's network configuration
+   *   - Stored in `calculatedAnswer` object with calculation type and parameters
+   *   - Value is dynamically resolved at grading time based on student's generated network
+   *   - Supported calculation types:
+   *     • `vlan_network_address` - Network address of specified VLAN
+   *     • `vlan_first_usable` - First usable IP in VLAN
+   *     • `vlan_last_usable` - Last usable IP in VLAN
+   *     • `vlan_broadcast` - Broadcast address of VLAN
+   *     • `vlan_subnet_mask` - Subnet mask (CIDR) of VLAN
+   *     • `vlan_lecturer_offset` - Exact IP at lecturer-defined offset within VLAN (e.g., offset 5 = 5th host)
+   *     • `vlan_lecturer_range` - IP range within VLAN (any IP between start/end offsets is valid)
+   *     • `device_interface_ip` - IP assigned to specific device interface
+   *     • `vlan_id` - The VLAN ID number itself
+   *
+   * **Required fields per calculation type:**
+   * - All VLAN-based types require `vlanIndex` (0-9)
+   * - `vlan_lecturer_offset` requires `lecturerOffset` (1-254, relative to subnet block)
+   * - `vlan_lecturer_range` requires `lecturerRangeStart` and `lecturerRangeEnd` (1-254, relative to subnet block)
+   * - `device_interface_ip` requires `deviceId` and `interfaceName`
+   *
+   * **Frontend implementation:**
+   * - Cell configuration handled by `CellConfigModal.vue`
+   * - VLAN subnet blocks (subnetIndex) are considered when validating offsets
+   * - Valid offset ranges calculated dynamically based on subnet mask and subnet block
+   * - Example: VLAN with /26 mask and subnetIndex 1 allows offsets 1-62 relative to block start
    */
 
   /**
@@ -669,14 +673,21 @@ export interface ILabPart extends Document {
    * - For `ip_table_questionnaire` questions:
    *     • `ipTableQuestionnaire` is REQUIRED.
    *     • `rowCount` and `columnCount` must be between 1-10.
-   *     • All columns must have valid `columnType`.
-   *     • VLAN-specific columns (ipv4, ipv6, subnet_mask, gateway, etc.) require `vlanIndex` (0-9).
+   *     • `columns.length` must equal `columnCount`.
+   *     • `rows.length` must equal `rowCount`.
+   *     • `cells` must be a 2D array: `cells[rowIndex][columnIndex]` must exist for all valid indices.
+   *     • All columns must have non-empty `label` (string).
    *     • All rows must have `deviceId` and `interfaceName`.
-   *     • Every cell must define `answerMode`.
-   *     • For `answerMode === 'manual'`, `expectedAnswer` is required (non-empty).
-   *     • For `answerMode === 'manual_range'`, `expectedRange.start`/`expectedRange.end` are required, must parse to valid values for the column type, and `start <= end` after normalisation.
-   *     • For `answerMode === 'dynamic'`, `dynamicReference` must provide the appropriate identifiers (VLAN and/or device/interface).
+   *     • Every cell must define `answerType` ('static' or 'calculated').
+   *     • For `answerType === 'static'`: `staticAnswer` is required (non-empty string).
+   *     • For `answerType === 'calculated'`: `calculatedAnswer` object is required with:
+   *       - Valid `calculationType` (vlan_network_address, vlan_first_usable, vlan_last_usable, vlan_broadcast, vlan_subnet_mask, vlan_lecturer_offset, vlan_lecturer_range, device_interface_ip, vlan_id)
+   *       - All VLAN-based types require `vlanIndex` (0-9)
+   *       - `vlan_lecturer_offset` requires `lecturerOffset` (1-254, relative to subnet block)
+   *       - `vlan_lecturer_range` requires `lecturerRangeStart` and `lecturerRangeEnd` (1-254, start < end, relative to subnet block)
+   *       - `device_interface_ip` requires `deviceId` and `interfaceName`
    *     • All cells must have `points >= 1`.
+   *     • Each cell must correctly reference valid `rowId` and `columnId`.
    *     • Total question points = sum of all cell points.
    *     • `schemaMapping` MUST be omitted (table answers do not update StudentIpSchema directly).
    * - For networking-focused question types (anything except `custom_text` and `ip_table_questionnaire`):
@@ -819,33 +830,50 @@ interface IpTableQuestionnairePayload {
   tableId: string;
   rowCount: number;            // 1-10 rows
   columnCount: number;         // 1-10 columns
-  autoCalculate: boolean;
 
   columns: Array<{
     columnId: string;
-    columnType: 'ipv4' | 'ipv6' | 'subnet_mask' | 'gateway' | 'default_gateway' |
-                'broadcast_address' | 'network_address' | 'prefix_length' |
-                'link_local_address' | 'dns';
-    vlanIndex?: number;        // Required for VLAN-specific columns
-    label?: string;
-    order: number;
+    label: string;             // Column label (e.g., "IPv4 Address", "Subnet Mask") - REQUIRED
+    order: number;             // Column display order (0-based)
   }>;
 
   rows: Array<{
     rowId: string;
-    deviceId: string;
-    interfaceName: string;
-    displayName: string;
-    order: number;
+    deviceId: string;          // Device ID (e.g., "router1")
+    interfaceName: string;     // Interface name (e.g., "GigabitEthernet0/0" or "g0-1")
+    displayName: string;       // Display format (e.g., "router1.g0-1")
+    order: number;             // Row display order (0-based)
   }>;
 
   cells: Array<Array<{
     cellId: string;
     rowId: string;
     columnId: string;
-    expectedAnswer: string;
-    points: number;
-    autoCalculated: boolean;
+
+    // Answer configuration (static or calculated)
+    answerType: 'static' | 'calculated';
+
+    // For static answers
+    staticAnswer?: string;     // Direct text answer (e.g., "8.8.8.8")
+
+    // For calculated answers
+    calculatedAnswer?: {
+      calculationType: 'vlan_network_address' | 'vlan_first_usable' | 'vlan_last_usable' |
+                      'vlan_broadcast' | 'vlan_subnet_mask' | 'vlan_lecturer_offset' |
+                      'vlan_lecturer_range' | 'device_interface_ip' | 'vlan_id';
+      vlanIndex?: number;              // Which VLAN (0-9) - required for VLAN-based calculations
+      lecturerOffset?: number;         // For exact offset (1-254) - required when calculationType === 'vlan_lecturer_offset'
+      lecturerRangeStart?: number;     // For range start (1-254) - required when calculationType === 'vlan_lecturer_range'
+      lecturerRangeEnd?: number;       // For range end (1-254) - required when calculationType === 'vlan_lecturer_range'
+      deviceId?: string;               // For device interface IPs - required when calculationType === 'device_interface_ip'
+      interfaceName?: string;          // For device interface IPs - required when calculationType === 'device_interface_ip'
+    };
+
+    // Legacy field (keep for backward compatibility during migration)
+    expectedAnswer?: string;   // @deprecated Use staticAnswer or calculatedAnswer instead
+
+    points: number;            // Points for this cell (min: 1)
+    autoCalculated: boolean;   // Whether auto-calculated or manually entered
   }>>;
 }
 
@@ -927,13 +955,16 @@ interface DhcpConfigPayload {
 - `dhcp_config` parts require: `vlanIndex`, `startOffset`, `endOffset`, `dhcpServerDevice`. Offsets must be within the usable host range for the VLAN and satisfy `startOffset < endOffset`.
 - `ip_table_questionnaire` questions require:
   - Complete `ipTableQuestionnaire` object with all columns, rows, and cells configured
-  - All column types must be valid
-  - VLAN-specific columns must have `vlanIndex` (0-9)
+  - All columns must have non-empty `label` (string)
   - All rows must reference valid devices from lab configuration
-  - Each cell must define `answerMode` and supply the matching data:
-    - `manual` → non-empty `expectedAnswer`
-    - `manual_range` → valid `expectedRange.start`/`end` (inclusive, start ≤ end)
-    - `dynamic` → populated `dynamicReference`
+  - Each cell must define `answerType` ('static' or 'calculated') and supply the matching data:
+    - `static` → non-empty `staticAnswer` (string)
+    - `calculated` → populated `calculatedAnswer` object with:
+      - Valid `calculationType`
+      - All VLAN-based types require `vlanIndex` (0-9)
+      - `vlan_lecturer_offset` requires `lecturerOffset` (1-254, relative to subnet block)
+      - `vlan_lecturer_range` requires `lecturerRangeStart` and `lecturerRangeEnd` (1-254, start < end, relative to subnet block)
+      - `device_interface_ip` requires `deviceId` and `interfaceName`
   - All cells must have `points >= 1`
   - Question's total `points` should equal sum of all cell points
 
@@ -1989,41 +2020,49 @@ async function validateAnswers(
           let resolvedExpected: string | null = null;
           let cellCorrect = false;
 
-          switch (expectedCell.answerMode) {
-            case 'manual': {
-              resolvedExpected = (expectedCell.expectedAnswer || '').trim();
+          switch (expectedCell.answerType) {
+            case 'static': {
+              // Static answer: direct string comparison
+              resolvedExpected = (expectedCell.staticAnswer || '').trim();
               cellCorrect = normalizedStudent === resolvedExpected.toLowerCase();
               break;
             }
 
-            case 'manual_range': {
-              const range = expectedCell.expectedRange;
-              if (!range) {
+            case 'calculated': {
+              // Calculated answer: resolve from student's network configuration
+              if (!expectedCell.calculatedAnswer) {
                 cellCorrect = false;
                 break;
               }
 
-              cellCorrect = isWithinIpTableRange({
-                studentAnswer,
-                range,
-                columnType: columnMeta.columnType
+              const calc = expectedCell.calculatedAnswer;
+              resolvedExpected = resolveCalculatedIpTableValue({
+                calculationType: calc.calculationType,
+                vlanIndex: calc.vlanIndex,
+                lecturerOffset: calc.lecturerOffset,
+                lecturerRangeStart: calc.lecturerRangeStart,
+                lecturerRangeEnd: calc.lecturerRangeEnd,
+                deviceId: calc.deviceId,
+                interfaceName: calc.interfaceName,
+                schema,
+                row: rowMeta
               });
 
-              resolvedExpected = `${range.start} – ${range.end}`;
-              break;
-            }
-
-            case 'dynamic': {
-              resolvedExpected = resolveDynamicIpTableValue({
-                reference: expectedCell.dynamicReference,
-                column: columnMeta,
-                row: rowMeta,
-                schema
-              });
-
-              cellCorrect =
-                resolvedExpected !== null &&
-                normalizedStudent === resolvedExpected.trim().toLowerCase();
+              // For range calculations, check if student answer is within range
+              if (calc.calculationType === 'vlan_lecturer_range') {
+                cellCorrect = isWithinCalculatedRange({
+                  studentAnswer,
+                  vlanIndex: calc.vlanIndex!,
+                  rangeStart: calc.lecturerRangeStart!,
+                  rangeEnd: calc.lecturerRangeEnd!,
+                  schema
+                });
+              } else {
+                // For exact calculations, do string comparison
+                cellCorrect =
+                  resolvedExpected !== null &&
+                  normalizedStudent === resolvedExpected.trim().toLowerCase();
+              }
               break;
             }
 
@@ -2132,15 +2171,19 @@ async function validateAnswers(
 
 > ℹ️ **Helper Functions**
 >
-> - `isWithinIpTableRange(...)` should live alongside the existing IP utilities (`utils/ipRangeUtils.ts`). It accepts the raw student answer, a `expectedRange` object, and the column type so it can:
->   - Convert IPv4/IPv6 strings to numeric space before comparison.
->   - Validate prefix lengths / numeric values as integers (respecting optional `step`).
->   - Fallback to lexical comparison for textual ranges if we ever allow them.
+> - `resolveCalculatedIpTableValue(...)` belongs in the grading service layer. It receives the calculation parameters and the student's `StudentIpSchema`:
+>   - For VLAN-based calculations (vlan_network_address, vlan_first_usable, etc.), read from `schema.vlans[vlanIndex][field]`
+>   - For `vlan_lecturer_offset`, calculate IP using: `vlan.networkAddress + lecturerOffset`
+>   - For `vlan_lecturer_range`, return the range string for display (actual validation happens in `isWithinCalculatedRange`)
+>   - For `device_interface_ip`, locate `schema.devices.find(d => d.deviceId)` and then the matching interface by `interfaceName`
+>   - For `vlan_id`, return the VLAN ID as string
+>   - If the value cannot be resolved, return `null` and report the anomaly (the cell will be marked incorrect)
 >
-> - `resolveDynamicIpTableValue(...)` belongs in the grading service layer. It receives the saved `dynamicReference`, the column metadata, the row metadata, and the student's `StudentIpSchema`:
->   - When `source === 'vlan'`, read from `schema.vlans[vlanIndex][field]`.
->   - When `source === 'device_interface'`, locate `schema.devices.find(d => d.deviceId === reference.deviceId)` and then the matching interface by `interfaceName`.
->   - If the value cannot be resolved, return `null` and report the anomaly (the cell will be marked incorrect; instructors can review via audit logs).
+> - `isWithinCalculatedRange(...)` validates if a student's answer falls within a lecturer-defined offset range:
+>   - Takes the student answer, vlanIndex, rangeStart, rangeEnd, and schema
+>   - Converts student answer to IP number and compares against calculated range
+>   - Range IPs are calculated as: `vlan.networkAddress + offset` for start and end
+>   - Returns true if student IP is within the calculated range (inclusive)
 
 ---
 
