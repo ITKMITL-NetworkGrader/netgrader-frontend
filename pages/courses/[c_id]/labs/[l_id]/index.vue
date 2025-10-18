@@ -79,6 +79,12 @@ const {
   checkLabCompletionStatus
 } = useSubmissions()
 
+const {
+  isCourseTA,
+  isCourseInstructor,
+  canManageCurrentCourse
+} = useRoleGuard()
+
 // State Management
 const currentPartIndex = ref(0)
 const completedParts = ref<Set<string>>(new Set())
