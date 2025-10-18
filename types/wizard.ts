@@ -65,7 +65,6 @@ export interface IpTableQuestionnaire {
   columns: IpTableColumn[];           // Column definitions
   rows: IpTableRow[];                 // Row definitions
   cells: IpTableCell[][];             // Cell data [rowIndex][columnIndex]
-  autoCalculate: boolean;             // Whether to auto-calculate from network config
 }
 
 export interface IpTableColumn {
