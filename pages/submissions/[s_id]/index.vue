@@ -26,6 +26,8 @@ import { Separator } from '@/components/ui/separator'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 
 import { useLabStatus, type DetailedSubmission, type StudentSubmissionHistory } from '@/composables/useLabStatus'
+import { useCourseLabs } from '@/composables/useCourseLabs'
+import { useCourse } from '@/composables/useCourse'
 
 const route = useRoute()
 
@@ -34,12 +36,21 @@ const submissionId = computed(() => route.params.s_id as string)
 
 // Composables
 const { fetchSubmissionDetails, fetchStudentHistory } = useLabStatus()
+const { currentLab, fetchLabById } = useCourseLabs()
+const { currentCourse, fetchCourse } = useCourse()
 
 // State
 const isLoading = ref(true)
 const submissionData = ref<DetailedSubmission | null>(null)
 const studentHistory = ref<StudentSubmissionHistory[]>([])
 const expandedTests = ref<Record<string, boolean>>({})
+
+// Computed properties for navigation
+const courseId = computed(() => currentCourse.value?.shortcode || '')
+const labId = computed(() => submissionData.value?.labId || '')
+const studentId = computed(() => submissionData.value?.studentId || '')
+const courseTitle = computed(() => currentCourse.value?.title || 'Course')
+const labTitle = computed(() => currentLab.value?.title || 'Lab')
 
 // Computed
 const totalPoints = computed(() => {
@@ -106,6 +117,14 @@ const loadData = async () => {
     if (detailResult.success && detailResult.data) {
       submissionData.value = detailResult.data
 
+      // Fetch lab and course info for breadcrumb navigation
+      await fetchLabById(detailResult.data.labId)
+
+      // Fetch course info if lab has courseId
+      if (currentLab.value?.courseId) {
+        await fetchCourse(currentLab.value.courseId)
+      }
+
       // Fetch student history
       const historyResult = await fetchStudentHistory(
         detailResult.data.labId,
@@ -130,8 +149,8 @@ onMounted(() => {
 
 <template>
   <div class="min-h-screen bg-background">
-    <!-- Navigation Breadcrumb -->
-    <div class="border-b bg-background p-4 sticky top-0 z-[100] shadow-sm">
+    <!-- Navigation Breadcrumb - Sticks below NavigationBar -->
+    <div class="border-b bg-background p-4 sticky top-16 z-[150] shadow-sm">
       <Breadcrumb>
         <BreadcrumbList>
           <BreadcrumbItem>
@@ -143,8 +162,55 @@ onMounted(() => {
             <ChevronRight class="h-4 w-4" />
           </BreadcrumbSeparator>
           <BreadcrumbItem>
+            <NuxtLink to="/courses" class="hover:text-primary transition-colors">
+              Courses
+            </NuxtLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator>
+            <ChevronRight class="h-4 w-4" />
+          </BreadcrumbSeparator>
+          <BreadcrumbItem>
+            <NuxtLink
+              v-if="courseId"
+              :to="`/courses/${courseId}`"
+              class="hover:text-primary transition-colors"
+            >
+              {{ courseTitle }}
+            </NuxtLink>
+            <span v-else class="text-muted-foreground">{{ courseTitle }}</span>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator>
+            <ChevronRight class="h-4 w-4" />
+          </BreadcrumbSeparator>
+          <BreadcrumbItem>
+            <NuxtLink
+              v-if="courseId && labId"
+              :to="`/courses/${courseId}/labs/${labId}/status`"
+              class="hover:text-primary transition-colors"
+            >
+              {{ labTitle }}
+            </NuxtLink>
+            <span v-else class="text-muted-foreground">{{ labTitle }}</span>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator>
+            <ChevronRight class="h-4 w-4" />
+          </BreadcrumbSeparator>
+          <BreadcrumbItem>
+            <NuxtLink
+              v-if="courseId && labId && studentId"
+              :to="`/courses/${courseId}/labs/${labId}/students/${studentId}`"
+              class="hover:text-primary transition-colors"
+            >
+              {{ studentId }}
+            </NuxtLink>
+            <span v-else class="text-muted-foreground">{{ studentId }}</span>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator>
+            <ChevronRight class="h-4 w-4" />
+          </BreadcrumbSeparator>
+          <BreadcrumbItem>
             <BreadcrumbPage class="font-medium">
-              Submission Details
+              Submission #{{ submissionData?.attempt || '...' }}
             </BreadcrumbPage>
           </BreadcrumbItem>
         </BreadcrumbList>
@@ -161,12 +227,12 @@ onMounted(() => {
     </div>
 
     <!-- Main Content -->
-    <div v-else-if="submissionData" class="container mx-auto px-4 py-8 max-w-6xl">
+    <div v-else-if="submissionData" class="container mx-auto px-4 py-8">
       <!-- Back Button -->
       <div class="mb-6">
         <Button variant="ghost" @click="$router.back()" class="flex items-center space-x-2">
           <ArrowLeft class="w-4 h-4" />
-          <span>Back to Status</span>
+          <span>Back to History</span>
         </Button>
       </div>
 

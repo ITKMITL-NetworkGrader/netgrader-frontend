@@ -13,13 +13,11 @@ import {
   CheckCircle2,
   Clock,
   Loader2,
-  Eye,
   Server,
   Info
 } from 'lucide-vue-next'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -81,17 +79,17 @@ const sortedSubmissions = computed(() => {
 const getStatusBadge = (status: string) => {
   switch (status) {
     case 'passed':
-      return { variant: 'default' as const, class: 'bg-green-500 hover:bg-green-600 text-white', label: 'Passed' }
+      return { variant: 'default' as const, class: 'bg-green-500 hover:bg-green-600 text-white', label: 'Passed', showPing: false }
     case 'failed':
-      return { variant: 'destructive' as const, class: '', label: 'Not Passed' }
+      return { variant: 'destructive' as const, class: '', label: 'Not Passed', showPing: false }
     case 'running':
-      return { variant: 'default' as const, class: 'bg-blue-500 hover:bg-blue-600 text-white', label: 'Grading' }
+      return { variant: 'default' as const, class: 'bg-yellow-500 hover:bg-yellow-600', label: 'Grading', showPing: true }
     case 'pending':
-      return { variant: 'secondary' as const, class: '', label: 'In Queue' }
+      return { variant: 'secondary' as const, class: '', label: 'In Queue', showPing: false }
     case 'cancelled':
-      return { variant: 'outline' as const, class: '', label: 'Cancelled' }
+      return { variant: 'outline' as const, class: '', label: 'Cancelled', showPing: false }
     default:
-      return { variant: 'outline' as const, class: '', label: status }
+      return { variant: 'outline' as const, class: '', label: status, showPing: false }
   }
 }
 
@@ -124,15 +122,15 @@ const loadIPStats = async () => {
   }
 }
 
-// Start polling submissions every 5 seconds
+// Start polling submissions every 3 seconds
 const startPolling = () => {
   // Initial load
   loadSubmissions()
 
-  // Poll every 5 seconds
+  // Poll every 3 seconds
   pollingInterval.value = setInterval(() => {
     loadSubmissions()
-  }, 5000)
+  }, 3000)
 }
 
 // Stop polling
@@ -187,8 +185,8 @@ onUnmounted(() => {
 
 <template>
   <div class="min-h-screen bg-background">
-    <!-- Navigation Breadcrumb -->
-    <div class="border-b bg-background p-4 sticky top-0 z-[100] shadow-sm">
+    <!-- Navigation Breadcrumb - Sticks below NavigationBar -->
+    <div class="border-b bg-background p-4 sticky top-16 z-[150] shadow-sm">
       <Breadcrumb>
         <BreadcrumbList>
           <BreadcrumbItem>
@@ -210,14 +208,6 @@ onUnmounted(() => {
           <BreadcrumbItem>
             <NuxtLink :to="`/courses/${courseId}`" class="hover:text-primary transition-colors">
               {{ courseTitle }}
-            </NuxtLink>
-          </BreadcrumbItem>
-          <BreadcrumbSeparator>
-            <ChevronRight class="h-4 w-4" />
-          </BreadcrumbSeparator>
-          <BreadcrumbItem>
-            <NuxtLink :to="`/courses/${courseId}/labs/${labId}`" class="hover:text-primary transition-colors">
-              {{ labTitle }}
             </NuxtLink>
           </BreadcrumbItem>
           <BreadcrumbSeparator>
@@ -258,7 +248,7 @@ onUnmounted(() => {
 
       <!-- Tabs -->
       <Tabs v-model="activeTab" default-value="submissions" class="w-full">
-        <TabsList class="grid w-full max-w-md grid-cols-2">
+        <TabsList class="grid w-full grid-cols-2">
           <TabsTrigger value="submissions" class="flex items-center space-x-2">
             <Users class="w-4 h-4" />
             <span>Submissions</span>
@@ -280,7 +270,7 @@ onUnmounted(() => {
                     <span>Student Submissions</span>
                   </CardTitle>
                   <CardDescription class="mt-1">
-                    Real-time submission status (auto-refreshes every 5 seconds)
+                    Real-time submission status (auto-refreshes every 3 seconds)
                   </CardDescription>
                 </div>
                 <Badge variant="outline" class="flex items-center space-x-1">
@@ -309,96 +299,99 @@ onUnmounted(() => {
                     <TableRow>
                       <TableHead class="font-semibold w-[150px]">Student ID</TableHead>
                       <TableHead class="font-semibold">Student Name</TableHead>
-                      <TableHead class="font-semibold w-[200px]">Progress</TableHead>
-                      <TableHead class="font-semibold w-[140px]">Status</TableHead>
-                      <TableHead class="font-semibold w-[200px]">Last Submitted</TableHead>
-                      <TableHead class="font-semibold w-[100px]">Actions</TableHead>
+                      <TableHead class="font-semibold w-[220px] text-center">Progress</TableHead>
+                      <TableHead class="font-semibold w-[180px] text-center">Last Attempt</TableHead>
+                      <TableHead class="font-semibold w-[300px]">Last Submitted</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    <TableRow
+                    <NuxtLink
                       v-for="submission in sortedSubmissions"
                       :key="submission.studentId"
-                      class="hover:bg-muted/30 cursor-pointer transition-colors"
+                      :to="`/courses/${courseId}/labs/${labId}/students/${submission.studentId}`"
+                      custom
+                      v-slot="{ navigate }"
                     >
-                      <!-- Student ID -->
-                      <TableCell class="font-mono text-sm font-medium">
-                        {{ submission.studentId }}
-                      </TableCell>
+                      <TableRow
+                        @click="navigate"
+                        class="hover:bg-muted/30 cursor-pointer transition-colors"
+                      >
+                        <!-- Student ID -->
+                        <TableCell class="font-mono text-sm font-medium">
+                          {{ submission.studentId }}
+                        </TableCell>
 
-                      <!-- Student Name -->
-                      <TableCell class="font-medium">
-                        {{ submission.studentName }}
-                      </TableCell>
+                        <!-- Student Name -->
+                        <TableCell class="font-medium">
+                          {{ submission.studentName }}
+                        </TableCell>
 
-                      <!-- Progress with Visual Indicators -->
-                      <TableCell>
-                        <div class="space-y-2">
-                          <div class="text-sm font-medium">
-                            {{ submission.progression }}
-                          </div>
-                          <!-- Visual Progress Indicators -->
-                          <div class="flex items-center space-x-1.5">
-                            <div
-                              v-for="partNum in submission.totalParts"
-                              :key="partNum"
-                              class="relative"
-                            >
-                              <!-- Passed Part (Green) -->
+                        <!-- Progress with Visual Indicators -->
+                        <TableCell class="text-center">
+                          <div class="space-y-2 inline-block">
+                            <div class="text-sm font-medium">
+                              {{ submission.progression }}
+                            </div>
+                            <!-- Visual Progress Indicators -->
+                            <div class="flex items-center justify-center space-x-1.5">
                               <div
-                                v-if="partNum < submission.currentPart"
-                                class="w-3 h-3 rounded-full bg-green-500 border-2 border-green-600"
-                                :title="`Part ${partNum} - Completed`"
-                              />
-                              <!-- Current Part (Yellow with Ping) -->
-                              <div
-                                v-else-if="partNum === submission.currentPart"
-                                class="relative w-3 h-3"
-                                :title="`Part ${partNum} - Current`"
+                                v-for="partNum in submission.totalParts"
+                                :key="partNum"
+                                class="relative"
                               >
-                                <div class="absolute inset-0 w-3 h-3 rounded-full bg-yellow-400 animate-ping opacity-75" />
-                                <div class="relative w-3 h-3 rounded-full bg-yellow-500 border-2 border-yellow-600" />
+                                <!-- Completed Part (Green) - includes when lab is fully completed -->
+                                <div
+                                  v-if="partNum < submission.currentPart || (partNum === submission.currentPart && submission.currentPart === submission.totalParts)"
+                                  class="w-3 h-3 rounded-full bg-green-500 border-2 border-green-600"
+                                  :title="`Part ${partNum} - Completed`"
+                                />
+                                <!-- Current Part (Yellow with Ping) - only if not the last part -->
+                                <div
+                                  v-else-if="partNum === submission.currentPart && submission.currentPart < submission.totalParts"
+                                  class="relative w-3 h-3"
+                                  :title="`Part ${partNum} - Current`"
+                                >
+                                  <div class="absolute inset-0 w-3 h-3 rounded-full bg-yellow-400 animate-ping opacity-75" />
+                                  <div class="relative w-3 h-3 rounded-full bg-yellow-500 border-2 border-yellow-600" />
+                                </div>
+                                <!-- Not Reached Part (Grey) -->
+                                <div
+                                  v-else
+                                  class="w-3 h-3 rounded-full bg-gray-300 border-2 border-gray-400"
+                                  :title="`Part ${partNum} - Not Started`"
+                                />
                               </div>
-                              <!-- Not Reached Part (Grey) -->
-                              <div
-                                v-else
-                                class="w-3 h-3 rounded-full bg-gray-300 border-2 border-gray-400"
-                                :title="`Part ${partNum} - Not Started`"
-                              />
                             </div>
                           </div>
-                        </div>
-                      </TableCell>
+                        </TableCell>
 
-                      <!-- Status -->
-                      <TableCell>
-                        <Badge
-                          :variant="getStatusBadge(submission.latestSubmissionStatus).variant"
-                          :class="getStatusBadge(submission.latestSubmissionStatus).class"
-                        >
-                          {{ getStatusBadge(submission.latestSubmissionStatus).label }}
-                        </Badge>
-                      </TableCell>
+                        <!-- Status -->
+                        <TableCell class="text-center">
+                          <div class="relative inline-flex">
+                            <div
+                              v-if="getStatusBadge(submission.latestSubmissionStatus).showPing"
+                              class="absolute inset-0 rounded-full bg-blue-400 animate-ping opacity-75"
+                            />
+                            <Badge
+                              :variant="getStatusBadge(submission.latestSubmissionStatus).variant"
+                              :class="getStatusBadge(submission.latestSubmissionStatus).class"
+                              class="relative"
+                            >
+                              {{ getStatusBadge(submission.latestSubmissionStatus).label }}
+                            </Badge>
+                          </div>
+                        </TableCell>
 
-                      <!-- Submission Date/Time -->
-                      <TableCell class="text-sm text-muted-foreground">
-                        {{ formatDateTime(submission.latestSubmissionAt) }}
-                      </TableCell>
-
-                      <!-- Actions -->
-                      <TableCell>
-                        <NuxtLink :to="`/submissions/${submission.studentId}`">
-                          <Button variant="ghost" size="sm" class="flex items-center space-x-1">
-                            <Eye class="w-4 h-4" />
-                            <span>View</span>
-                          </Button>
-                        </NuxtLink>
-                      </TableCell>
-                    </TableRow>
+                        <!-- Submission Date/Time -->
+                        <TableCell class="text-sm text-muted-foreground">
+                          {{ formatDateTime(submission.latestSubmissionAt) }}
+                        </TableCell>
+                      </TableRow>
+                    </NuxtLink>
 
                     <!-- Empty State -->
                     <TableRow v-if="sortedSubmissions.length === 0">
-                      <TableCell colspan="6" class="text-center py-12">
+                      <TableCell colspan="5" class="text-center py-12">
                         <div class="flex flex-col items-center space-y-3">
                           <AlertCircle class="w-12 h-12 text-muted-foreground/50" />
                           <p class="text-muted-foreground">

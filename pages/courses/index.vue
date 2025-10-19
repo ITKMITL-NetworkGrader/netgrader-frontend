@@ -55,23 +55,28 @@ const getCourseBanner = (course: CourseResponse['courses'][number]) => {
 </script>
 
 <template>
-  <div class="p-4 pb-8">
-    <Breadcrumb class="mb-6">
-      <BreadcrumbList>
-        <BreadcrumbItem>
-          <NuxtLink to="/">
-            <Home class="h-4 w-4" />
-          </NuxtLink>
-        </BreadcrumbItem>
-        <BreadcrumbSeparator>
-          <ChevronRight class="h-4 w-4" />
-        </BreadcrumbSeparator>
-        <BreadcrumbItem>
-          <BreadcrumbPage>Courses</BreadcrumbPage>
-        </BreadcrumbItem>
-      </BreadcrumbList>
-    </Breadcrumb>
-    
+  <div>
+    <!-- Navigation Breadcrumb - Sticks below NavigationBar -->
+    <div class="border-b bg-background p-4 sticky top-16 z-[150] shadow-sm">
+      <Breadcrumb>
+        <BreadcrumbList>
+          <BreadcrumbItem>
+            <NuxtLink to="/" class="flex items-center hover:text-primary transition-colors">
+              <Home class="h-4 w-4" />
+            </NuxtLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator>
+            <ChevronRight class="h-4 w-4" />
+          </BreadcrumbSeparator>
+          <BreadcrumbItem>
+            <BreadcrumbPage class="font-medium">Courses</BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
+    </div>
+
+    <div class="p-4 pb-8">
+
     <h1 class="text-5xl font-bold mb-1">Courses</h1>
     <p class="text-xl text-muted-foreground mb-4">Access all of your courses from here!</p>
     
@@ -124,7 +129,8 @@ v-for="(course, index) in coursesData.courses"
         </div>
       </div>
     </div>
-    
+    </div>
+
     <!-- Only render particles on client side -->
     <ClientOnly>
       <ParticlesBg

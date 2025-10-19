@@ -454,11 +454,12 @@ watchEffect(() => {
 
 <template>
     <div class="min-h-screen bg-background">
-        <div class="mx-auto p-4 pb-8">
-            <Breadcrumb class="mb-6">
+        <!-- Navigation Breadcrumb - Sticks below NavigationBar -->
+        <div class="border-b bg-background p-4 sticky top-16 z-[150] shadow-sm mb-6">
+            <Breadcrumb>
                 <BreadcrumbList>
                     <BreadcrumbItem>
-                        <NuxtLink to="/" class="flex items-center">
+                        <NuxtLink to="/" class="flex items-center hover:text-primary transition-colors">
                             <Home class="h-4 w-4" />
                         </NuxtLink>
                     </BreadcrumbItem>
@@ -466,7 +467,7 @@ watchEffect(() => {
                         <ChevronRight class="h-4 w-4" />
                     </BreadcrumbSeparator>
                     <BreadcrumbItem>
-                        <NuxtLink to="/courses" class="flex items-center">
+                        <NuxtLink to="/courses" class="hover:text-primary transition-colors">
                             Courses
                         </NuxtLink>
                     </BreadcrumbItem>
@@ -474,14 +475,17 @@ watchEffect(() => {
                         <ChevronRight class="h-4 w-4" />
                     </BreadcrumbSeparator>
                     <BreadcrumbItem>
-                        <BreadcrumbPage>
+                        <BreadcrumbPage class="font-medium">
                             <span v-if="isLoading">Loading...</span>
                             <span v-else>{{ courseTitle }}</span>
                         </BreadcrumbPage>
                     </BreadcrumbItem>
                 </BreadcrumbList>
             </Breadcrumb>
-            
+        </div>
+
+        <div class="mx-auto p-4 pb-8">
+
             <div v-if="isLoading" class="flex items-center justify-center py-12">
                 <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"/>
             </div>
@@ -970,20 +974,34 @@ class="overflow-x-auto max-h-96"
                                                     </div>
                                                 </div>
                                                 <div class="flex-shrink-0 ml-4">
+                                                    <!-- Lab Status Button for Instructors/TAs -->
                                                     <NuxtLink
-                                                      v-if="isLabAvailable(lab)"
+                                                      v-if="canManageCourse && isLabAvailable(lab)"
+                                                      :to="`/courses/${courseId}/labs/${lab.id}/status`"
+                                                    >
+                                                        <Button class="bg-gradient-to-r from-secondary to-secondary/80 hover:from-secondary/90 hover:to-secondary/70 text-secondary-foreground shadow-sm">
+                                                            <Users class="w-4 h-4 mr-2" />
+                                                            Lab Status
+                                                        </Button>
+                                                    </NuxtLink>
+
+                                                    <!-- Start Lab Button for Students -->
+                                                    <NuxtLink
+                                                      v-else-if="!canManageCourse && isLabAvailable(lab)"
                                                       :to="`/courses/${courseId}/labs/${lab.id}`"
                                                     >
-                                                        <Button class="bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-white shadow-sm">
+                                                        <Button class="bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-primary-foreground shadow-sm">
                                                             <Play class="w-4 h-4 mr-2" />
                                                             Start Lab
                                                         </Button>
                                                     </NuxtLink>
+
+                                                    <!-- Unavailable Button -->
                                                     <Button
                                                       v-else
                                                       disabled
                                                       variant="outline"
-                                                      class="bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed"
+                                                      class="bg-muted text-muted-foreground border-border cursor-not-allowed"
                                                     >
                                                         <X class="w-4 h-4 mr-2" />
                                                         Unavailable

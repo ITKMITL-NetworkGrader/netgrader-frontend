@@ -198,15 +198,22 @@ export const useSubmissions = () => {
 
     // Flag to track if we've received the completed event
     let completedReceived = false
+    let connectionAttempts = 0
+    const MAX_RECONNECTION_ATTEMPTS = 3
 
     try {
-      // Create EventSource for SSE
-      const eventSource = new EventSource(`${backendUrl}/v0/submissions/${jobId}/stream`, {
-        withCredentials: true // Important: Include cookies for auth
+      // Create EventSource for SSE with credentials
+      // CRITICAL: The URL must be same-origin OR backend must have proper CORS setup with credentials
+      const sseUrl = `${backendUrl}/v0/submissions/${jobId}/stream`
+      console.log('🔌 [DEBUG] Connecting to SSE URL:', sseUrl)
+
+      const eventSource = new EventSource(sseUrl, {
+        withCredentials: true // Include cookies for authentication
       })
 
       // Store reference
       state.sseConnection = eventSource
+      connectionAttempts++
 
       // Handle connection opened
       eventSource.addEventListener('open', () => {
@@ -329,28 +336,53 @@ export const useSubmissions = () => {
           console.log('✅ [SSE] Submission updated with final results')
         }
 
-        // Close SSE connection immediately (don't wait for backend to close it)
-        console.log('🔴 [SSE] Closing connection immediately after receiving completion')
-        stopSSE(labId, partId)
+        // CRITICAL FIX: Delay closing the connection to allow any final events to arrive
+        // This prevents race condition where connection closes before backend sends all data
+        console.log('⏳ [SSE] Waiting 1 second before closing connection to ensure all events received')
+        setTimeout(() => {
+          console.log('🔴 [SSE] Closing connection after delay')
+          stopSSE(labId, partId)
+        }, 1000)
       })
 
       // Handle errors (single handler, not duplicate)
       eventSource.onerror = (error) => {
-        console.log('⚠️ [SSE] Error event fired, completedReceived:', completedReceived)
+        console.log('⚠️ [SSE] Error event fired, completedReceived:', completedReceived, 'readyState:', eventSource.readyState)
 
         // If we already received the completed event, this error is expected (connection closing)
         if (completedReceived) {
-          console.log('ℹ️ [SSE] Connection closed after completion (expected), not falling back to polling')
+          console.log('ℹ️ [SSE] Connection closed after completion (expected), not reconnecting')
           stopSSE(labId, partId)
           return
         }
 
-        console.error('❌ [SSE] EventSource error before completion:', error)
+        // Check connection state
+        // EventSource.CONNECTING = 0, EventSource.OPEN = 1, EventSource.CLOSED = 2
+        if (eventSource.readyState === EventSource.CLOSED) {
+          console.error('❌ [SSE] Connection closed unexpectedly before completion')
 
-        // Only fall back to polling if we haven't received completion
-        console.log('🔄 [SSE] Falling back to polling due to error before completion')
-        stopSSE(labId, partId)
-        startPolling(jobId, labId, partId)
+          // Try to reconnect if we haven't exceeded max attempts
+          if (connectionAttempts < MAX_RECONNECTION_ATTEMPTS) {
+            console.log(`🔄 [SSE] Attempting reconnection ${connectionAttempts + 1}/${MAX_RECONNECTION_ATTEMPTS}...`)
+            stopSSE(labId, partId)
+
+            // Wait a bit before reconnecting to avoid hammering the server
+            setTimeout(() => {
+              startSSE(jobId, labId, partId)
+            }, 2000)
+          } else {
+            console.log('❌ [SSE] Max reconnection attempts reached, falling back to polling')
+            stopSSE(labId, partId)
+            startPolling(jobId, labId, partId)
+          }
+        } else if (eventSource.readyState === EventSource.CONNECTING) {
+          console.log('🔄 [SSE] Connection is reconnecting automatically...')
+          // EventSource will try to reconnect automatically, don't do anything
+        } else {
+          console.error('❌ [SSE] Unknown error state:', error)
+          stopSSE(labId, partId)
+          startPolling(jobId, labId, partId)
+        }
       }
 
     } catch (error) {

@@ -79,8 +79,8 @@ watch(() => route.path, () => {
 
 <template>
     <div class="font-roboto-mono">
-        <!-- Enhanced navigation with better glass effect -->
-        <nav class="fixed top-0 w-full h-16 z-50 glass border-b border-border/30 supports-[backdrop-filter]:bg-background/60">
+        <!-- Enhanced navigation -->
+        <nav class="w-full h-16 bg-background border-b border-border relative">
             <div class="layout-container flex items-center justify-between h-full px-4 sm:px-6 lg:px-8 mx-8 sm:mx-10 lg:mx-12">
             <!-- Logo with improved styling -->
             <NuxtLink 
@@ -205,9 +205,9 @@ watch(() => route.path, () => {
             leave-from-class="opacity-100 translate-y-0"
             leave-to-class="opacity-0 -translate-y-2"
             >
-            <div 
-                v-if="mobileMenuOpen" 
-                class="md:hidden absolute top-full left-0 right-0 glass border-b border-border/30 supports-[backdrop-filter]:bg-background/90"
+            <div
+                v-if="mobileMenuOpen"
+                class="md:hidden absolute top-full left-0 right-0 bg-background border-b border-border"
             >
                 <div class="layout-container py-4 px-4 sm:px-6 lg:px-8 mx-4 sm:mx-6 lg:mx-8">
                 <!-- Mobile navigation items -->
