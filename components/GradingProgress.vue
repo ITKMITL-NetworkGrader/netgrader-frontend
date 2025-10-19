@@ -109,11 +109,21 @@
     >
       <!-- Results Card -->
       <div :class="[
-        'rounded-lg shadow-2xl border-2 overflow-hidden',
+        'rounded-lg shadow-2xl border-2 overflow-hidden relative',
         isPassed
           ? 'bg-gradient-to-r from-green-600 to-green-500 border-green-400'
           : 'bg-gradient-to-r from-red-600 to-red-500 border-red-400'
       ]">
+        <!-- Close Button (Only show if not passed) -->
+        <button
+          v-if="!isPassed"
+          @click="emit('closeResults')"
+          class="absolute top-3 right-3 p-2 rounded-full bg-white/20 hover:bg-white/30 transition-colors z-10"
+          aria-label="Close results"
+        >
+          <X class="w-4 h-4 text-white" />
+        </button>
+
         <!-- Results Header with Icon and Status -->
         <div class="p-6 text-white">
           <div class="flex items-center justify-center mb-4">
@@ -159,17 +169,31 @@
           </div>
         </div>
 
-        <!-- Percentage Display -->
-        <div class="p-4 text-center border-t border-white/20">
-          <div class="text-white/80 text-xs mb-1">Percentage</div>
-          <div class="text-2xl font-bold text-white">
-            <NumberTicker
-              :value="results ? (results.total_points_earned / results.total_points_possible * 100) : 0"
-              :duration="2000"
-              :decimal-places="1"
-              direction="up"
-              class="text-white"
-            />%
+        <!-- Percentage Display with Visual Bar -->
+        <div class="p-4 border-t border-white/20">
+          <div class="text-center mb-3">
+            <div class="text-white/80 text-xs mb-1">Percentage</div>
+            <div class="text-2xl font-bold text-white">
+              <NumberTicker
+                :value="results ? (results.total_points_earned / results.total_points_possible * 100) : 0"
+                :duration="2000"
+                :decimal-places="1"
+                direction="up"
+                class="text-white"
+              />%
+            </div>
+          </div>
+
+          <!-- Visual Progress Bar -->
+          <div class="bg-white/20 rounded-full h-2 overflow-hidden">
+            <div
+              class="h-full rounded-full transition-all duration-1000 ease-out"
+              :class="isPassed ? 'bg-white' : 'bg-white/60'"
+              :style="{
+                width: `${results ? (results.total_points_earned / results.total_points_possible * 100) : 0}%`,
+                transitionDelay: '500ms'
+              }"
+            ></div>
           </div>
         </div>
       </div>
@@ -196,7 +220,8 @@ import {
   XCircle,
   TestTube,
   ChevronUp,
-  ChevronDown
+  ChevronDown,
+  X
 } from 'lucide-vue-next'
 
 interface Props {
@@ -221,6 +246,7 @@ interface Props {
 interface Emits {
   (e: 'submit'): void
   (e: 'toggleDetails'): void
+  (e: 'closeResults'): void
 }
 
 const props = withDefaults(defineProps<Props>(), {

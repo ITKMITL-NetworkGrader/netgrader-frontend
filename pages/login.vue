@@ -195,7 +195,7 @@ const handleLogin = async () => {
     </div>
 
     <!-- Login Card -->
-    <Card id="card" class="relative w-full min-w-md bg-card backdrop-blur-lg border shadow-2xl">
+    <Card id="card" class="relative w-full min-w-md bg-card backdrop-blur-lg border shadow-2xl mt-24">
       <!-- Header -->
       <CardHeader class="text-center space-y-2">
         <div class="w-16 h-16 bg-primary rounded-2xl mx-auto flex items-center justify-center mb-4">

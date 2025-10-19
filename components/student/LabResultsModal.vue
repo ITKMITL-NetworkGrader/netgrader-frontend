@@ -4,7 +4,7 @@
     v-if="showConfetti"
     ref="confettiRef"
     :manual-start="true"
-    class="fixed inset-0 z-[60] pointer-events-none"
+    class="fixed inset-0 z-[9999] pointer-events-none w-screen h-screen"
   />
 
   <div v-if="isOpen" class="fixed inset-x-0 top-[73px] bottom-0 z-50 flex items-center justify-center bg-background/95">
@@ -46,8 +46,45 @@
 
       <!-- Content - Scrollable -->
       <ScrollArea class="flex-1 p-6">
+        <!-- Collapsed Summary (when initiallyCollapsed is true and not expanded) -->
+        <div v-if="!isExpanded && mode === 'results'" class="text-center py-8">
+          <Award class="w-20 h-20 mx-auto text-green-500 mb-4" />
+          <h3 class="text-2xl font-bold text-foreground mb-3">Lab Completed!</h3>
+          <p class="text-muted-foreground mb-6">
+            Congratulations on finishing this lab!
+          </p>
+
+          <div class="space-y-3 max-w-sm mx-auto">
+            <div class="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+              <span class="text-sm font-medium text-muted-foreground">Lab Name</span>
+              <span class="text-sm font-semibold text-foreground">{{ labName }}</span>
+            </div>
+
+            <div class="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+              <span class="text-sm font-medium text-muted-foreground">Parts Completed</span>
+              <Badge variant="secondary" class="font-semibold">
+                {{ completedParts }}/{{ partResults.length }}
+              </Badge>
+            </div>
+
+            <div class="flex items-center justify-between p-3 bg-green-50 dark:bg-green-950/30 rounded-lg border border-green-200 dark:border-green-800">
+              <span class="text-sm font-medium text-green-700 dark:text-green-300">Status</span>
+              <Badge variant="outline" class="border-green-500 text-green-700 dark:text-green-300 font-semibold">
+                ✓ All Parts Passed
+              </Badge>
+            </div>
+
+            <div class="flex items-center justify-between p-3 bg-primary/10 rounded-lg border border-primary/30">
+              <span class="text-sm font-medium text-primary">Total Score</span>
+              <span class="text-lg font-bold text-primary">
+                {{ totalPointsEarned }}/{{ totalPointsPossible }} pts
+              </span>
+            </div>
+          </div>
+        </div>
+
         <!-- Timer Expired Mode -->
-        <div v-if="mode === 'timer_expired'" class="text-center py-8">
+        <div v-else-if="mode === 'timer_expired'" class="text-center py-8">
           <TimerOffIcon class="w-16 h-16 mx-auto text-red-500 mb-4" />
           <h3 class="text-2xl font-bold text-foreground mb-3">Time's Up!</h3>
           <p class="text-muted-foreground mb-6">
@@ -91,8 +128,8 @@
           </p>
         </div>
 
-        <!-- Results Mode -->
-        <div v-else class="space-y-6">
+        <!-- Results Mode (Expanded) -->
+        <div v-else-if="isExpanded && mode === 'results'" class="space-y-6">
           <!-- Overall Summary -->
           <Card class="border-primary/20 bg-primary/5">
             <CardHeader class="pb-3">
@@ -293,7 +330,26 @@
           </Button>
         </div>
 
-        <!-- Results Mode - Both Buttons -->
+        <!-- Results Mode - Collapsed View (Leave + View Results) -->
+        <div v-else-if="!isExpanded" class="flex justify-end space-x-3">
+          <Button
+            variant="outline"
+            @click="handleLeave"
+            class="min-w-[120px]"
+          >
+            <ArrowLeft class="w-4 h-4 mr-2" />
+            Leave
+          </Button>
+          <Button
+            @click="handleViewResults"
+            class="min-w-[120px]"
+          >
+            <FileText class="w-4 h-4 mr-2" />
+            View Results
+          </Button>
+        </div>
+
+        <!-- Results Mode - Expanded View (Leave + Start Over) -->
         <div v-else class="flex justify-end space-x-3">
           <Button
             variant="outline"
@@ -362,6 +418,8 @@ interface Props {
   labParts: LabPart[]
   mode?: ModalMode // NEW: Modal display mode
   availableUntil?: Date | string | null // NEW: For checking if lab is unavailable
+  isFreshCompletion?: boolean // NEW: Whether this is a fresh completion (for confetti)
+  initiallyCollapsed?: boolean // NEW: Whether to show collapsed summary initially
 }
 
 interface Emits {
@@ -371,7 +429,9 @@ interface Emits {
 
 const props = withDefaults(defineProps<Props>(), {
   mode: 'results',
-  availableUntil: null
+  availableUntil: null,
+  isFreshCompletion: false,
+  initiallyCollapsed: false
 })
 const emit = defineEmits<Emits>()
 const router = useRouter()
@@ -379,6 +439,9 @@ const router = useRouter()
 // Confetti state
 const confettiRef = ref<InstanceType<typeof Confetti> | null>(null)
 const showConfetti = ref(false)
+
+// Collapsed/Expanded state
+const isExpanded = ref(!props.initiallyCollapsed)
 
 // Computed header based on mode
 const headerTitle = computed(() => {
@@ -523,15 +586,24 @@ const handleStartOver = () => {
   }
 }
 
+const handleViewResults = () => {
+  isExpanded.value = true
+}
+
 // Check if lab is fully completed (all parts passed with full points)
 const isLabFullyCompleted = computed(() => {
   if (partResults.value.length === 0) return false
   return partResults.value.every(part => part.isPassed)
 })
 
-// Fire confetti when lab is completed
+// Fire confetti when lab is freshly completed
+// Only fire confetti when:
+// 1. Modal is opened
+// 2. Mode is 'results' (not timer_expired or unavailable)
+// 3. Lab is fully completed
+// 4. This is a FRESH completion (isFreshCompletion is true)
 watch(() => props.isOpen, async (isOpen) => {
-  if (isOpen && props.mode === 'results' && isLabFullyCompleted.value) {
+  if (isOpen && props.mode === 'results' && isLabFullyCompleted.value && props.isFreshCompletion) {
     // Show confetti after a short delay
     await nextTick()
     showConfetti.value = true
@@ -575,10 +647,13 @@ watch(() => props.isOpen, async (isOpen) => {
   }
 }, { immediate: true })
 
-// Cleanup confetti when modal closes
+// Cleanup confetti when modal closes and reset expanded state
 watch(() => props.isOpen, (isOpen) => {
   if (!isOpen) {
     showConfetti.value = false
+  } else {
+    // Reset expanded state when modal opens
+    isExpanded.value = !props.initiallyCollapsed
   }
 })
 </script>

@@ -40,7 +40,6 @@ import { useCourseLabs, type Lab, type LabPart, type LabTask, type TaskGroup } f
 import { useCourse } from '@/composables/useCourse'
 import { useSubmissions } from '@/composables/useSubmissions'
 import GradingProgress from '@/components/GradingProgress.vue'
-import LabCompletionPrompt from '@/components/student/LabCompletionPrompt.vue'
 import LabResultsModal from '@/components/student/LabResultsModal.vue'
 import LabTimer from '@/components/student/LabTimer.vue'
 import type { ISubmission } from '@/types/submission'
@@ -75,6 +74,7 @@ const {
   createSubmission,
   getGradingStatus,
   toggleProgressDetails,
+  clearGradingResults,
   fetchStudentSubmissions,
   checkLabCompletionStatus
 } = useSubmissions()
@@ -97,9 +97,10 @@ const isLoadingIPs = ref(true)
 const ipLoadingStatus = ref('Gathering your IP addresses...')
 const backendIpMappings = ref<Record<string, { ip: string; vlan: number | null }>>({})
 const backendVlanMappings = ref<Record<string, number>>({})
-const showCompletionPrompt = ref(false)
 const showResultsModal = ref(false)
 const timerExpiredModalMode = ref<'results' | 'timer_expired' | 'unavailable'>('results')
+const isFreshCompletion = ref(false) // Track if this is a fresh completion for confetti
+const showCollapsedSummary = ref(false) // Track if modal should show collapsed summary initially
 const studentSubmissions = ref<ISubmission[]>([])
 const completionStatus = ref({
   isFullyCompleted: false,
@@ -329,12 +330,12 @@ const currentGradingStatus = computed(() => {
 })
 
 // Watch for completed submissions to update part completion status
-watch(() => currentGradingStatus.value, (newStatus) => {
+watch(() => currentGradingStatus.value, async (newStatus) => {
   if (newStatus.status === 'completed' && newStatus.results && currentPart.value) {
-    // Mark part as completed if grading was successful
-    if (newStatus.results.total_points_earned > 0) {
+    // Mark part as completed if grading was successful and got full points
+    if (newStatus.results.total_points_earned === newStatus.results.total_points_possible) {
       completedParts.value.add(currentPart.value.id)
-      
+
       // Mark all tasks in this part as completed
       const partId = currentPart.value.id
       if (!completedTasks.value[partId]) {
@@ -343,8 +344,14 @@ watch(() => currentGradingStatus.value, (newStatus) => {
       currentPart.value.tasks?.forEach(task => {
         completedTasks.value[partId].add(task.taskId)
       })
-      
+
       console.log('✅ Part completed and marked as done:', currentPart.value.partId)
+
+      // Check if ALL parts are now completed to show completion modal
+      // Add a small delay so student can see the grading results first
+      setTimeout(async () => {
+        await checkLabCompletion()
+      }, 2000)
     }
   }
 })
@@ -382,9 +389,14 @@ const checkLabCompletion = async () => {
         labParts
       )
 
-      // Show completion prompt if lab is fully completed
+      // Show completion modal if lab is fully completed
       if (completionStatus.value.isFullyCompleted) {
-        showCompletionPrompt.value = true
+        // Show LabResultsModal directly in collapsed state
+        showResultsModal.value = true
+        timerExpiredModalMode.value = 'results'
+        isFreshCompletion.value = true // This IS a fresh completion (first time seeing results)
+        showCollapsedSummary.value = true // Show collapsed summary initially
+        isLoadingIPs.value = false // Stop loading IPs since lab is completed
       }
     }
   } catch (error) {
@@ -439,37 +451,11 @@ const loadPersonalizedIPs = async () => {
   }
 }
 
-// Handle view results - show detailed results modal
-const handleViewResults = () => {
-  showCompletionPrompt.value = false
-  showResultsModal.value = true
-}
-
-// Handle continue after completion (just view the lab)
-const handleContinueAfterCompletion = () => {
-  showCompletionPrompt.value = false
-  // IPs should already be loaded or loading
-}
-
-// Handle restart lab from completion prompt
-const handleRestartLabFromPrompt = () => {
-  showCompletionPrompt.value = false
-  // Reset completion status
-  completionStatus.value = {
-    isFullyCompleted: false,
-    completedParts: [],
-    totalPartsCompleted: 0,
-    totalParts: 0,
-    allPartsPassedWithFullPoints: false
-  }
-  // Reload IPs
-  isLoadingIPs.value = true
-  loadPersonalizedIPs()
-}
 
 // Handle restart lab from results modal
 const handleRestartLabFromResults = () => {
   showResultsModal.value = false
+  showCollapsedSummary.value = false
   // Reset completion status
   completionStatus.value = {
     isFullyCompleted: false,
@@ -481,12 +467,21 @@ const handleRestartLabFromResults = () => {
   // Reload IPs
   isLoadingIPs.value = true
   loadPersonalizedIPs()
+}
+
+// Handle modal close
+const handleCloseResultsModal = () => {
+  showResultsModal.value = false
+  showCollapsedSummary.value = false
+  isFreshCompletion.value = false
 }
 
 // Handle timer expiration
 const handleTimerExpired = () => {
   console.log('⏰ Timer expired!')
   timerExpiredModalMode.value = 'timer_expired'
+  isFreshCompletion.value = false // Timer expiration is NOT a fresh completion
+  showCollapsedSummary.value = false // Show full details for timer expiration
   showResultsModal.value = true
 }
 
@@ -516,11 +511,11 @@ const loadLabData = async () => {
       // After loading lab data, check completion and load IPs
       await checkLabCompletion()
 
-      // If not showing completion prompt, load IPs immediately
-      if (!showCompletionPrompt.value) {
+      // If not showing results modal, load IPs immediately
+      if (!showResultsModal.value) {
         await loadPersonalizedIPs()
       }
-      // If showing completion prompt, IPs will be loaded when user makes a choice
+      // If showing results modal, don't load IPs (lab is completed)
     } else {
       console.log('🚀 [DEBUG] No currentLab found, skipping parts fetch')
       isLoadingIPs.value = false
@@ -549,18 +544,6 @@ watch(() => route.query.part, (newPart) => {
 
 <template>
   <div class="min-h-screen bg-background">
-    <!-- Lab Completion Prompt -->
-    <LabCompletionPrompt
-      :is-open="showCompletionPrompt"
-      :lab-name="currentLab?.title || 'Lab'"
-      :completed-parts="completionStatus.totalPartsCompleted"
-      :total-parts="completionStatus.totalParts"
-      @view-results="handleViewResults()"
-      @continue="handleContinueAfterCompletion(); loadPersonalizedIPs()"
-      @restart="handleRestartLabFromPrompt()"
-      @close="showCompletionPrompt = false"
-    />
-
     <!-- Lab Results Modal -->
     <LabResultsModal
       :is-open="showResultsModal"
@@ -570,8 +553,10 @@ watch(() => route.query.part, (newPart) => {
       :lab-parts="currentLabParts || []"
       :mode="timerExpiredModalMode"
       :available-until="currentLab?.availableUntil"
+      :is-fresh-completion="isFreshCompletion"
+      :initially-collapsed="showCollapsedSummary"
       @start-over="handleRestartLabFromResults()"
-      @close="showResultsModal = false"
+      @close="handleCloseResultsModal()"
     />
 
     <!-- Lab Timer (Fixed at bottom center) -->
@@ -944,6 +929,7 @@ watch(() => route.query.part, (newPart) => {
                   :total-test-cases="currentPartTotalTestCases"
                   @submit="submitPartForGrading"
                   @toggle-details="toggleProgressDetails(labId, currentPart.partId)"
+                  @close-results="clearGradingResults(labId, currentPart.partId)"
                 />
               </div>
             </div>

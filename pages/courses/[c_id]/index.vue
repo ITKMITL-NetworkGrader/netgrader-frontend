@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ChevronRight, Home, Edit, Settings, X, Plus, Trash2, Play, BookOpen, Clock, Calendar, Loader2 } from 'lucide-vue-next'
+import { ChevronRight, Home, Edit, Settings, X, Plus, Trash2, Play, BookOpen, Clock, Calendar, Loader2, CircleDotDashed } from 'lucide-vue-next'
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Button } from '@/components/ui/button'
@@ -926,7 +926,7 @@ class="overflow-x-auto max-h-96"
                                           isLabAvailable(lab) ? 'border-l-primary/50' : 'border-l-gray-300 opacity-60'
                                         ]"
                                     >
-                                        <CardContent class="p-6">
+                                        <CardContent class="p-2">
                                             <div class="flex items-start justify-between">
                                                 <div class="flex-1 min-w-0">
                                                     <div class="flex items-start space-x-3">
@@ -979,8 +979,8 @@ class="overflow-x-auto max-h-96"
                                                       v-if="canManageCourse && isLabAvailable(lab)"
                                                       :to="`/courses/${courseId}/labs/${lab.id}/status`"
                                                     >
-                                                        <Button class="bg-gradient-to-r from-secondary to-secondary/80 hover:from-secondary/90 hover:to-secondary/70 text-secondary-foreground shadow-sm">
-                                                            <Users class="w-4 h-4 mr-2" />
+                                                        <Button class="bg-secondary hover:to-secondary/70 text-secondary-foreground shadow-sm">
+                                                            <CircleDotDashed class="w-4 h-4 mr-2" />
                                                             Lab Status
                                                         </Button>
                                                     </NuxtLink>
@@ -990,7 +990,7 @@ class="overflow-x-auto max-h-96"
                                                       v-else-if="!canManageCourse && isLabAvailable(lab)"
                                                       :to="`/courses/${courseId}/labs/${lab.id}`"
                                                     >
-                                                        <Button class="bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-primary-foreground shadow-sm">
+                                                        <Button class="bg-secondary hover:to-primary/70 text-secondary-foreground shadow-sm">
                                                             <Play class="w-4 h-4 mr-2" />
                                                             Start Lab
                                                         </Button>
@@ -1063,7 +1063,7 @@ class="overflow-x-auto max-h-96"
                                           isLabAvailable(exam) ? 'border-l-orange-500/50' : 'border-l-gray-300 opacity-60'
                                         ]"
                                     >
-                                        <CardContent class="p-6">
+                                        <CardContent class="p-2">
                                             <div class="flex items-start justify-between">
                                                 <div class="flex-1 min-w-0">
                                                     <div class="flex items-start space-x-3">

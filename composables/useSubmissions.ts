@@ -601,6 +601,20 @@ export const useSubmissions = () => {
     state.showProgressDetails = !state.showProgressDetails
   }
 
+  // Clear/hide grading results (for when user closes the results popup)
+  const clearGradingResults = (labId: string, partId: string) => {
+    const state = getSubmissionState(labId, partId)
+    // Reset the submission to idle state while keeping the actual submission data
+    // This allows the user to resubmit if they didn't pass
+    if (state.currentSubmission &&
+        state.currentSubmission.gradingResult?.status === 'completed' &&
+        state.currentSubmission.gradingResult.total_points_earned < state.currentSubmission.gradingResult.total_points_possible) {
+      // Only clear if not passed - if passed, keep showing the results
+      state.currentSubmission = null
+      state.isSubmitting = false
+    }
+  }
+
   // Cancel a running submission
   const cancelSubmission = async (jobId: string): Promise<boolean> => {
     try {
@@ -762,6 +776,7 @@ export const useSubmissions = () => {
     getSubmissionState,
     getGradingStatus,
     toggleProgressDetails,
+    clearGradingResults,  // New: Clear/hide grading results
     cancelSubmission,
     startSSE,      // New: Start SSE connection
     stopSSE,       // New: Stop SSE connection

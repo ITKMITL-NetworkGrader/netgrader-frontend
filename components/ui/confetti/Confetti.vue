@@ -1,11 +1,9 @@
 <template>
-  <div>
-    <canvas
-      ref="canvasRef"
-      :class="$props.class"
-    ></canvas>
-    <slot />
-  </div>
+  <canvas
+    ref="canvasRef"
+    :class="$props.class"
+    :style="{ width: '100%', height: '100%' }"
+  ></canvas>
 </template>
 
 <script setup lang="ts">
@@ -45,14 +43,35 @@ provide("ConfettiContext", api);
 // Initialize confetti when mounted
 onMounted(() => {
   if (canvasRef.value) {
-    instanceRef.value = create(canvasRef.value, {
+    // Set canvas dimensions to match window
+    const canvas = canvasRef.value;
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    instanceRef.value = create(canvas, {
       ...props.globalOptions,
       resize: true,
+      useWorker: true,
     });
 
     if (!props.manualstart) {
       fire();
     }
+
+    // Handle window resize
+    const handleResize = () => {
+      if (canvas) {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+
+    // Cleanup resize listener
+    onUnmounted(() => {
+      window.removeEventListener('resize', handleResize);
+    });
   }
 });
 
