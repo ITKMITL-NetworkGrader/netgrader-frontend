@@ -1699,62 +1699,10 @@ const validateStep = () => {
             errors.push(`${partLabel} • ${questionLabel}: Expected answer is required for custom text questions`)
           }
         } else if (question.questionType === 'ip_table_questionnaire') {
-          // Validate IP Table Questionnaire
+          // IP Table Questionnaire validation is handled by the IpTableBuilderModal
+          // Only check if the table is configured
           if (!question.ipTableQuestionnaire) {
             errors.push(`${partLabel} • ${questionLabel}: IP table questionnaire must be configured`)
-          } else {
-            const table = question.ipTableQuestionnaire
-
-            // Validate table structure
-            if (table.rowCount < 1 || table.rowCount > 10) {
-              errors.push(`${partLabel} • ${questionLabel}: Row count must be between 1 and 10`)
-            }
-            if (table.columnCount < 1 || table.columnCount > 10) {
-              errors.push(`${partLabel} • ${questionLabel}: Column count must be between 1 and 10`)
-            }
-
-            // Validate columns
-            table.columns.forEach((col, colIdx) => {
-              if (!col.columnType) {
-                errors.push(`${partLabel} • ${questionLabel} • Column ${colIdx + 1}: Column type is required`)
-              }
-
-              // Check if VLAN is required for this column type
-              const requiresVlan = ['ipv4', 'ipv6', 'subnet_mask', 'gateway', 'default_gateway', 'broadcast_address', 'network_address', 'prefix_length'].includes(col.columnType)
-              if (requiresVlan && (col.vlanIndex === undefined || col.vlanIndex < 0)) {
-                errors.push(`${partLabel} • ${questionLabel} • Column ${colIdx + 1}: VLAN selection is required for ${col.columnType}`)
-              }
-              if (requiresVlan && col.vlanIndex !== undefined && col.vlanIndex >= props.vlans.length) {
-                errors.push(`${partLabel} • ${questionLabel} • Column ${colIdx + 1}: VLAN index ${col.vlanIndex} exceeds configured VLANs (max: ${props.vlans.length - 1})`)
-              }
-            })
-
-            // Validate rows
-            table.rows.forEach((row, rowIdx) => {
-              if (!row.deviceId) {
-                errors.push(`${partLabel} • ${questionLabel} • Row ${rowIdx + 1}: Device is required`)
-              }
-              if (!row.interfaceName) {
-                errors.push(`${partLabel} • ${questionLabel} • Row ${rowIdx + 1}: Interface is required`)
-              }
-
-              // Check if device exists
-              if (row.deviceId && !props.devices.some(d => d.deviceId === row.deviceId)) {
-                errors.push(`${partLabel} • ${questionLabel} • Row ${rowIdx + 1}: Device '${row.deviceId}' does not exist in configured devices`)
-              }
-            })
-
-            // Validate cells
-            table.cells.forEach((row, rowIdx) => {
-              row.forEach((cell, colIdx) => {
-                if (!cell.expectedAnswer || !cell.expectedAnswer.trim()) {
-                  errors.push(`${partLabel} • ${questionLabel} • Cell [${rowIdx + 1}, ${colIdx + 1}]: Expected answer is required`)
-                }
-                if (!cell.points || cell.points < 1) {
-                  errors.push(`${partLabel} • ${questionLabel} • Cell [${rowIdx + 1}, ${colIdx + 1}]: Points must be at least 1`)
-                }
-              })
-            })
           }
         } else {
           if (!question.schemaMapping) {

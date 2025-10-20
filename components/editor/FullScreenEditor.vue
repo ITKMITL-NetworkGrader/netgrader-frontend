@@ -8,7 +8,7 @@
     :esc-to-close="!hasUnsavedChanges"
     @before-close="handleCloseAttempt"
   >
-    <div class="flex flex-col h-full bg-white dark:bg-gray-900">
+    <div class="flex flex-col h-full bg-white dark:bg-gray-900 pt-16">
       <!-- Header -->
       <header class="flex-shrink-0 flex justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
         <div class="flex items-center gap-3">

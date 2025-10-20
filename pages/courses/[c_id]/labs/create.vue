@@ -656,7 +656,49 @@ const handleCreateLab = async () => {
               inputFormat: question.inputFormat,
               expectedAnswer: question.expectedAnswer,
               caseSensitive: question.caseSensitive,
-              trimWhitespace: question.trimWhitespace
+              trimWhitespace: question.trimWhitespace,
+              // 🆕 ADDED: IP Table Questionnaire data for advanced IP table questions
+              ipTableQuestionnaire: question.ipTableQuestionnaire
+                ? {
+                    tableId: question.ipTableQuestionnaire.tableId,
+                    rowCount: question.ipTableQuestionnaire.rowCount,
+                    columnCount: question.ipTableQuestionnaire.columnCount,
+                    columns: question.ipTableQuestionnaire.columns.map(col => ({
+                      columnId: col.columnId,
+                      label: col.label,
+                      order: col.order
+                    })),
+                    rows: question.ipTableQuestionnaire.rows.map(row => ({
+                      rowId: row.rowId,
+                      deviceId: row.deviceId,
+                      interfaceName: row.interfaceName,
+                      displayName: row.displayName,
+                      order: row.order
+                    })),
+                    cells: question.ipTableQuestionnaire.cells.map(cellRow =>
+                      cellRow.map(cell => ({
+                        cellId: cell.cellId,
+                        rowId: cell.rowId,
+                        columnId: cell.columnId,
+                        answerType: cell.answerType,
+                        staticAnswer: cell.staticAnswer,
+                        calculatedAnswer: cell.calculatedAnswer
+                          ? {
+                              calculationType: cell.calculatedAnswer.calculationType,
+                              vlanIndex: cell.calculatedAnswer.vlanIndex,
+                              lecturerOffset: cell.calculatedAnswer.lecturerOffset,
+                              lecturerRangeStart: cell.calculatedAnswer.lecturerRangeStart,
+                              lecturerRangeEnd: cell.calculatedAnswer.lecturerRangeEnd,
+                              deviceId: cell.calculatedAnswer.deviceId,
+                              interfaceName: cell.calculatedAnswer.interfaceName
+                            }
+                          : undefined,
+                        points: cell.points,
+                        autoCalculated: cell.autoCalculated
+                      }))
+                    )
+                  }
+                : undefined
             }))
           : undefined,
         dhcpConfiguration: part.partType === 'dhcp_config'
@@ -675,6 +717,16 @@ const handleCreateLab = async () => {
       console.group(`🔍 DEBUG: Part ${i + 1} Data`)
       console.log('📦 Part API Payload:', JSON.stringify(partData, null, 2))
       console.log('🔗 API Endpoint:', `${backendURL}/v0/parts`)
+      // 🆕 Log IP Table Questionnaire data if present
+      if (part.partType === 'fill_in_blank' && part.questions) {
+        const ipTableQuestions = part.questions.filter(q => q.ipTableQuestionnaire)
+        if (ipTableQuestions.length > 0) {
+          console.log('📊 IP Table Questionnaire Questions:', ipTableQuestions.length)
+          ipTableQuestions.forEach((q, idx) => {
+            console.log(`  ✓ Question ${idx + 1}: ${q.ipTableQuestionnaire?.rowCount}x${q.ipTableQuestionnaire?.columnCount} table`)
+          })
+        }
+      }
       console.groupEnd()
 
       await $fetch(`${backendURL}/v0/parts`, {

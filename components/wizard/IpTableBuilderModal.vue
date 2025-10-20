@@ -440,8 +440,11 @@ const getDeviceInterfaces = (deviceId: string) => {
   const device = props.devices.find(d => d.deviceId === deviceId)
   if (!device) return []
 
+  // Filter out management interfaces - they are auto-generated and should not be in questionnaires
+  const nonManagementInterfaces = device.ipVariables.filter(v => !v.isManagementInterface)
+
   // Return IP variables as interfaces
-  return device.ipVariables.map(v => ({
+  return nonManagementInterfaces.map(v => ({
     name: v.name,
     fullName: v.interface || v.name
   }))

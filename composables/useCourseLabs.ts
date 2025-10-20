@@ -61,6 +61,9 @@ export interface LabPart {
   description?: string
   instructions: string
   order: number
+  partType?: 'fill_in_blank' | 'network_config' | 'dhcp_config'
+  questions?: any[]
+  dhcpConfiguration?: any
   tasks: LabTask[]
   task_groups: TaskGroup[]
   prerequisites: string[]
@@ -328,18 +331,37 @@ export const useCourseLabs = () => {
     })
   }
 
-  // Utility function to calculate correct part points considering task groups
+  // Utility function to calculate correct part points considering task groups and questions
   const calculatePartTotalPoints = (part: LabPart): number => {
+    // For fill-in-blank parts, use question points
+    if (part.partType === 'fill_in_blank' && part.questions && part.questions.length > 0) {
+      return part.questions.reduce((sum, question) => {
+        // For IP table questionnaires, calculate from cells
+        if (question.questionType === 'ip_table_questionnaire' && question.ipTableQuestionnaire) {
+          let cellPoints = 0;
+          question.ipTableQuestionnaire.cells?.forEach((row: any[]) => {
+            row.forEach((cell: any) => {
+              cellPoints += cell.points || 0;
+            });
+          });
+          return sum + cellPoints;
+        }
+        // For regular questions, use question points
+        return sum + (question.points || 0);
+      }, 0);
+    }
+
+    // For network_config and dhcp_config parts, calculate from tasks
     if (!part.task_groups || part.task_groups.length === 0) {
       // No task groups - use sum of individual task points
       return part.tasks?.reduce((sum, task) => sum + (task.points || 0), 0) || 0
     }
-    
+
     // Calculate points considering task groups
     let totalGroupPoints = 0
     let ungroupedTaskPoints = 0
     const groupsWithTasks = new Set<string>()
-    
+
     // First, identify which groups actually have tasks assigned to them
     if (part.tasks) {
       for (const task of part.tasks) {
@@ -348,14 +370,14 @@ export const useCourseLabs = () => {
         }
       }
     }
-    
+
     // Add up task group points ONLY if the group has tasks assigned
     for (const group of part.task_groups) {
       if (groupsWithTasks.has(group.group_id)) {
         totalGroupPoints += group.points || 0
       }
     }
-    
+
     // Add points for ungrouped tasks (tasks without group_id)
     if (part.tasks) {
       for (const task of part.tasks) {
@@ -364,7 +386,7 @@ export const useCourseLabs = () => {
         }
       }
     }
-    
+
     return totalGroupPoints + ungroupedTaskPoints
   }
 

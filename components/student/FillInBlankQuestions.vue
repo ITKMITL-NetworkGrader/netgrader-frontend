@@ -34,57 +34,70 @@
               </span>
             </label>
             <Badge variant="outline" class="ml-2">
-              {{ question.points }} pts
+              {{ question.questionType === 'ip_table_questionnaire' ? ipTablePoints(question) : question.points }} pts
             </Badge>
           </div>
 
-          <!-- Show previous answer if in update mode -->
-          <div v-if="isUpdateMode && previousAnswers[question.questionId]" class="flex items-center gap-2 text-xs text-muted-foreground bg-accent/50 p-2 rounded">
-            <History class="w-4 h-4 flex-shrink-0" />
-            <span class="font-medium">Previous:</span>
-            <code class="bg-muted px-2 py-1 rounded font-mono">{{ previousAnswers[question.questionId] }}</code>
+          <!-- IP Table Questionnaire Component -->
+          <div v-if="question.questionType === 'ip_table_questionnaire' && question.ipTableQuestionnaire">
+            <IpTableQuestionnaire
+              :ref="el => setIpTableRef(question.questionId, el)"
+              :tableData="question.ipTableQuestionnaire"
+              v-model="ipTableAnswers[question.questionId]"
+              :readonly="hasSubmitted && !isUpdateMode"
+            />
           </div>
 
-          <!-- Input Field -->
-          <div class="space-y-2">
-            <Input
-              v-model="answers[question.questionId]"
-              :type="getInputType(question.inputFormat)"
-              :placeholder="question.placeholder || getPlaceholderForType(question.questionType)"
-              :disabled="hasSubmitted && !isUpdateMode"
-              class="font-mono"
-              :class="{
-                'border-green-500 bg-green-50 dark:bg-green-950': results[question.questionId]?.isCorrect,
-                'border-destructive': hasSubmitted && !results[question.questionId]?.isCorrect,
-                'border-secondary bg-secondary/10': isUpdateMode && hasAnswerChanged(question.questionId)
-              }"
-            />
+          <!-- Regular Question Input -->
+          <template v-else>
+            <!-- Show previous answer if in update mode -->
+            <div v-if="isUpdateMode && previousAnswers[question.questionId]" class="flex items-center gap-2 text-xs text-muted-foreground bg-accent/50 p-2 rounded">
+              <History class="w-4 h-4 flex-shrink-0" />
+              <span class="font-medium">Previous:</span>
+              <code class="bg-muted px-2 py-1 rounded font-mono">{{ previousAnswers[question.questionId] }}</code>
+            </div>
 
-            <!-- Result Feedback -->
-            <div v-if="hasSubmitted && results[question.questionId]" class="flex items-center justify-between text-xs">
-              <div class="flex items-center gap-2">
-                <CheckCircle v-if="results[question.questionId].isCorrect" class="w-4 h-4 text-green-600" />
-                <XCircle v-else class="w-4 h-4 text-destructive" />
-                <span :class="results[question.questionId].isCorrect ? 'text-green-700 font-medium' : 'text-destructive font-medium'">
-                  {{ results[question.questionId].isCorrect ? 'Correct' : 'Incorrect' }}
+            <!-- Input Field -->
+            <div class="space-y-2">
+              <Input
+                v-model="answers[question.questionId]"
+                :type="getInputType(question.inputFormat)"
+                :placeholder="question.placeholder || getPlaceholderForType(question.questionType)"
+                :disabled="hasSubmitted && !isUpdateMode"
+                class="font-mono"
+                :class="{
+                  'border-green-500 bg-green-50 dark:bg-green-950': results[question.questionId]?.isCorrect,
+                  'border-destructive': hasSubmitted && !results[question.questionId]?.isCorrect,
+                  'border-secondary bg-secondary/10': isUpdateMode && hasAnswerChanged(question.questionId)
+                }"
+              />
+
+              <!-- Result Feedback -->
+              <div v-if="hasSubmitted && results[question.questionId]" class="flex items-center justify-between text-xs">
+                <div class="flex items-center gap-2">
+                  <CheckCircle v-if="results[question.questionId].isCorrect" class="w-4 h-4 text-green-600" />
+                  <XCircle v-else class="w-4 h-4 text-destructive" />
+                  <span :class="results[question.questionId].isCorrect ? 'text-green-700 font-medium' : 'text-destructive font-medium'">
+                    {{ results[question.questionId].isCorrect ? 'Correct' : 'Incorrect' }}
+                  </span>
+                </div>
+                <span class="font-medium">
+                  {{ results[question.questionId].pointsEarned }} / {{ question.points }} pts
                 </span>
               </div>
-              <span class="font-medium">
-                {{ results[question.questionId].pointsEarned }} / {{ question.points }} pts
-              </span>
-            </div>
 
-            <!-- Change Indicator -->
-            <div
-              v-if="isUpdateMode && hasAnswerChanged(question.questionId)"
-              class="text-xs text-secondary-foreground flex items-center gap-1"
-            >
-              <AlertCircle class="w-3 h-3" />
-              {{ isNetworkingQuestion(question.questionId)
-                ? 'Answer changed - will update your IP schema'
-                : 'Answer changed - your previous response will be replaced' }}
+              <!-- Change Indicator -->
+              <div
+                v-if="isUpdateMode && hasAnswerChanged(question.questionId)"
+                class="text-xs text-secondary-foreground flex items-center gap-1"
+              >
+                <AlertCircle class="w-3 h-3" />
+                {{ isNetworkingQuestion(question.questionId)
+                  ? 'Answer changed - will update your IP schema'
+                  : 'Answer changed - your previous response will be replaced' }}
+              </div>
             </div>
-          </div>
+          </template>
         </div>
       </div>
 
@@ -153,6 +166,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import IpTableQuestionnaire from '@/components/student/IpTableQuestionnaire.vue'
 import type { Question } from '@/types/wizard'
 
 interface AnswerResult {
@@ -179,9 +193,26 @@ const route = useRoute()
 // State
 const answers = ref<Record<string, string>>({})
 const previousAnswers = ref<Record<string, string>>({})
+const ipTableAnswers = ref<Record<string, string[][]>>({})
+const ipTableRefs = ref<Record<string, any>>({})
 const results = ref<Record<string, AnswerResult>>({})
 const isSubmitting = ref(false)
 const hasSubmitted = ref(false)
+
+// Initialize IP table answers for all IP table questions
+const initializeIpTableAnswers = () => {
+  props.questions.forEach(question => {
+    if (question.questionType === 'ip_table_questionnaire' && question.ipTableQuestionnaire) {
+      if (!ipTableAnswers.value[question.questionId]) {
+        const rowCount = question.ipTableQuestionnaire.rowCount
+        const columnCount = question.ipTableQuestionnaire.columnCount
+        ipTableAnswers.value[question.questionId] = Array(rowCount)
+          .fill(null)
+          .map(() => Array(columnCount).fill(''))
+      }
+    }
+  })
+}
 
 // Check if in update mode
 const isUpdateMode = computed(() => route.query.mode === 'update')
@@ -292,8 +323,32 @@ const getPlaceholderForType = (type: string): string => {
   return placeholders[type] || 'Type your answer here'
 }
 
+// Calculate total points for IP table questionnaire
+const ipTablePoints = (question: Question): number => {
+  if (!question.ipTableQuestionnaire) return question.points
+
+  let totalPoints = 0
+  question.ipTableQuestionnaire.cells.forEach(row => {
+    row.forEach(cell => {
+      totalPoints += cell.points || 0
+    })
+  })
+
+  return totalPoints
+}
+
+// Set IP table component ref
+const setIpTableRef = (questionId: string, el: any) => {
+  if (el) {
+    ipTableRefs.value[questionId] = el
+  }
+}
+
 // Load existing schema if in update mode
 onMounted(async () => {
+  // Initialize IP table answers first
+  initializeIpTableAnswers()
+
   if (isUpdateMode.value) {
     await loadExistingSchema()
   }
@@ -341,31 +396,70 @@ const prefillAnswersFromSchema = (schema: any) => {
 }
 
 const submitAnswers = async () => {
-  // Validate all questions are answered
-  const unanswered = props.questions.filter(q => !answers.value[q.questionId] || !answers.value[q.questionId].trim())
-  if (unanswered.length > 0) {
-    toast.error(`Please answer all questions (${unanswered.length} remaining)`)
+  // Validate all regular questions are answered
+  const unansweredRegular = props.questions.filter(q => {
+    if (q.questionType === 'ip_table_questionnaire') return false
+    return !answers.value[q.questionId] || !answers.value[q.questionId].trim()
+  })
+
+  if (unansweredRegular.length > 0) {
+    toast.error(`Please answer all questions (${unansweredRegular.length} remaining)`)
     return
   }
+
+  // Validate IP table questionnaires
+  let ipTableValidationFailed = false
+  for (const question of props.questions) {
+    if (question.questionType === 'ip_table_questionnaire') {
+      const ipTableRef = ipTableRefs.value[question.questionId]
+      if (ipTableRef && typeof ipTableRef.validate === 'function') {
+        const isValid = ipTableRef.validate()
+        if (!isValid) {
+          ipTableValidationFailed = true
+          toast.error('IP Table Validation Failed', {
+            description: 'Please check all IP addresses in the table and fix any errors.'
+          })
+          break
+        }
+      }
+    }
+  }
+
+  if (ipTableValidationFailed) return
 
   isSubmitting.value = true
 
   try {
     const config = useRuntimeConfig()
+
+    // Build payload with both regular and IP table answers
     const payload = {
-      answers: props.questions.map(q => ({
-        questionId: q.questionId,
-        answer: answers.value[q.questionId]
-      })),
+      answers: props.questions.map(q => {
+        if (q.questionType === 'ip_table_questionnaire') {
+          return {
+            questionId: q.questionId,
+            answer: null,
+            ipTableAnswers: ipTableAnswers.value[q.questionId] || []
+          }
+        }
+        return {
+          questionId: q.questionId,
+          answer: answers.value[q.questionId]
+        }
+      }),
       isUpdate: isUpdateMode.value
     }
 
     const response = await $fetch(
-      `${config.public.backendurl}/v0/labs/${props.labId}/parts/${props.partId}/submit-answers`,
+      `${config.public.backendurl}/v0/parts/submit-answers`,
       {
         method: 'POST',
         credentials: 'include',
-        body: payload
+        body: {
+          ...payload,
+          labId: props.labId,
+          partId: props.partId
+        }
       }
     )
 

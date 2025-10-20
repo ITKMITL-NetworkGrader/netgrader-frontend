@@ -42,6 +42,7 @@ import { useSubmissions } from '@/composables/useSubmissions'
 import GradingProgress from '@/components/GradingProgress.vue'
 import LabResultsModal from '@/components/student/LabResultsModal.vue'
 import LabTimer from '@/components/student/LabTimer.vue'
+import FillInBlankQuestions from '@/components/student/FillInBlankQuestions.vue'
 import type { ISubmission } from '@/types/submission'
 
 // Configure marked for safe HTML rendering
@@ -140,32 +141,142 @@ const totalPointsAvailable = computed(() => {
 
 const courseTitle = computed(() => currentCourse.value?.title || `Course ${courseId.value}`)
 
-// IP Variables and Network Configuration - Using Backend IPs
-const ipVariablesTable = computed(() => {
-  if (!currentLab.value?.network?.devices) return []
+// Check if current part has fill-in-blank questions
+const hasFillInBlankQuestions = computed(() => {
+  if (!currentPart.value) return false
+  return currentPart.value.partType === 'fill_in_blank' &&
+         currentPart.value.questions &&
+         currentPart.value.questions.length > 0
+})
 
-  const variables: Array<{ deviceId: string; variableName: string; ipAddress: string; vlan: number | null | string }> = []
+// Helper function to calculate network address from IP and subnet mask
+const calculateNetworkAddress = (ip: string, subnetMask: number): string => {
+  const ipParts = ip.split('.').map(Number)
+  const maskBits = '1'.repeat(subnetMask) + '0'.repeat(32 - subnetMask)
+  const maskOctets = [
+    parseInt(maskBits.slice(0, 8), 2),
+    parseInt(maskBits.slice(8, 16), 2),
+    parseInt(maskBits.slice(16, 24), 2),
+    parseInt(maskBits.slice(24, 32), 2)
+  ]
 
-  currentLab.value.network.devices.forEach(device => {
-    device.ipVariables.forEach(ipVar => {
-      // Create mapping key: deviceId.variableName
-      const mappingKey = `${device.deviceId}.${ipVar.name}`
+  const networkParts = ipParts.map((octet, i) => octet & maskOctets[i])
+  return `${networkParts.join('.')}/${subnetMask}`
+}
 
-      // Get IP and VLAN from backend mappings, or show loading/placeholder
-      const ipMapping = backendIpMappings.value[mappingKey]
-      const ipAddress = ipMapping?.ip || (isLoadingIPs.value ? 'Loading...' : 'Not assigned')
-      const vlan = ipMapping?.vlan ?? (isLoadingIPs.value ? 'Loading...' : '-')
+// Helper function to calculate DHCP pool IP from offset
+const calculateDhcpPoolIp = (offset: number): string => {
+  if (!currentPart.value?.dhcpConfiguration) return ''
 
-      variables.push({
-        deviceId: device.deviceId,
-        variableName: ipVar.name,
-        ipAddress,
-        vlan
-      })
+  const vlanIndex = currentPart.value.dhcpConfiguration.vlanIndex
+  const vlan = currentLab.value?.network?.vlanConfiguration?.vlans?.[vlanIndex]
+
+  if (!vlan) return ''
+
+  // Find base network from backend IP mappings
+  const sampleIp = Object.entries(backendIpMappings.value).find(([key, mapping]) => {
+    const ipVar = currentLab.value?.network.devices
+      ?.flatMap(d => d.ipVariables)
+      .find(v => key === `${currentLab.value.network.devices.find(dev => dev.ipVariables.includes(v))?.deviceId}.${v.name}`)
+    return mapping.vlan !== null && ipVar?.vlanIndex === vlanIndex
+  })
+
+  if (!sampleIp?.[1]?.ip) return ''
+
+  // Calculate base network
+  const ipParts = sampleIp[1].ip.split('.').map(Number)
+  const maskBits = '1'.repeat(vlan.subnetMask) + '0'.repeat(32 - vlan.subnetMask)
+  const maskOctets = [
+    parseInt(maskBits.slice(0, 8), 2),
+    parseInt(maskBits.slice(8, 16), 2),
+    parseInt(maskBits.slice(16, 24), 2),
+    parseInt(maskBits.slice(24, 32), 2)
+  ]
+
+  const networkParts = ipParts.map((octet, i) => octet & maskOctets[i])
+  networkParts[3] += offset
+
+  return networkParts.join('.')
+}
+
+// Variable Reference Table - Maps VLAN A-J and CIDR Q-Z to actual values
+const variableReferenceTable = computed(() => {
+  if (!currentLab.value?.network?.vlanConfiguration?.vlans) return []
+
+  const variables: Array<{
+    vlanVariable: string  // VLAN A, VLAN B, etc.
+    vlanValue: string     // Actual VLAN ID (e.g., 117)
+    cidrVariable: string  // CIDR Q, CIDR R, etc.
+    cidrValue: string     // Actual network CIDR (e.g., 172.16.23.0/26)
+  }> = []
+
+  const vlanLetters = 'ABCDEFGHIJ'.split('')
+  const cidrLetters = 'QRSTUVWXYZ'.split('')
+
+  currentLab.value.network.vlanConfiguration.vlans.forEach((vlan, index) => {
+    if (index >= 10) return // Only support up to 10 VLANs (A-J)
+
+    // Find a sample IP from backend mappings for this VLAN to calculate CIDR
+    const sampleIp = Object.entries(backendIpMappings.value).find(([key, mapping]) => {
+      const ipVar = currentLab.value?.network.devices
+        ?.flatMap(d => d.ipVariables)
+        .find(v => key === `${currentLab.value.network.devices.find(dev => dev.ipVariables.includes(v))?.deviceId}.${v.name}`)
+      return mapping.vlan !== null && ipVar?.vlanIndex === index
+    })
+
+    const vlanId = sampleIp?.[1]?.vlan ?? (isLoadingIPs.value ? 'Loading...' : '-')
+    const cidrValue = sampleIp?.[1]?.ip
+      ? calculateNetworkAddress(sampleIp[1].ip, vlan.subnetMask)
+      : (isLoadingIPs.value ? 'Loading...' : '-')
+
+    variables.push({
+      vlanVariable: `VLAN ${vlanLetters[index]}`,
+      vlanValue: typeof vlanId === 'number' ? vlanId.toString() : vlanId,
+      cidrVariable: `CIDR ${cidrLetters[index]}`,
+      cidrValue
     })
   })
 
   return variables
+})
+
+// Device Management Table - Only shows Device and Management IP
+const deviceManagementTable = computed(() => {
+  if (!currentLab.value?.network) return []
+
+  const devices: Array<{
+    deviceDisplay: string // Device name + management interface
+    managementIp: string
+  }> = []
+
+  currentLab.value.network.devices?.forEach(device => {
+    let managementIp = isLoadingIPs.value ? 'Loading...' : 'Not assigned'
+    let managementInterface = ''
+
+    device.ipVariables?.forEach(ipVar => {
+      const mappingKey = `${device.deviceId}.${ipVar.name}`
+      const ipMapping = backendIpMappings.value[mappingKey]
+
+      // Only include Management IPs (not interface IPs - those are answers!)
+      if (ipVar.isManagementInterface || ipVar.inputType === 'studentManagement') {
+        managementIp = ipMapping?.ip || (isLoadingIPs.value ? 'Loading...' : 'Not assigned')
+        // Store the interface name for display
+        managementInterface = ipVar.interface || ipVar.name || ''
+      }
+    })
+
+    // Build device display name with management interface
+    const deviceDisplay = managementInterface
+      ? `${device.deviceId} (${managementInterface})`
+      : device.deviceId
+
+    devices.push({
+      deviceDisplay,
+      managementIp
+    })
+  })
+
+  return devices
 })
 
 // Part Access Control - Sequential Unlocking Based on Prerequisites
@@ -846,14 +957,14 @@ watch(() => route.query.part, (newPart) => {
               </CardContent>
             </Card>
 
-            <!-- IP Variables Table -->
-            <Card v-if="ipVariablesTable.length > 0" class="shadow-sm">
+            <!-- Variable Reference Table (VLAN A-J, CIDR Q-Z) -->
+            <Card v-if="variableReferenceTable.length > 0" class="shadow-sm">
               <CardHeader class="pb-4">
                 <CardTitle class="flex items-center space-x-3 text-xl">
-                  <div class="p-2 bg-blue-100 rounded-lg">
-                    <Server class="w-5 h-5 text-blue-600" />
+                  <div class="p-2 bg-purple-100 rounded-lg">
+                    <BookOpen class="w-5 h-5 text-purple-600" />
                   </div>
-                  <span>Network Configuration</span>
+                  <span>Network Variables</span>
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -861,39 +972,75 @@ watch(() => route.query.part, (newPart) => {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead class="font-semibold">Device</TableHead>
-                        <TableHead class="font-semibold">Variable Name</TableHead>
-                        <TableHead class="font-semibold">IP Address</TableHead>
-                        <TableHead class="font-semibold">VLAN</TableHead>
+                        <TableHead class="font-semibold">Variable</TableHead>
+                        <TableHead class="font-semibold">VLAN ID</TableHead>
+                        <TableHead class="font-semibold">Variable</TableHead>
+                        <TableHead class="font-semibold">Network (CIDR)</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       <TableRow
-                        v-for="(variable, index) in ipVariablesTable"
-                        :key="`${variable.deviceId}-${variable.variableName}-${index}`"
+                        v-for="(variable, index) in variableReferenceTable"
+                        :key="`variable-${index}`"
                         class="hover:bg-muted/30"
                       >
-                        <TableCell class="font-medium">{{ variable.deviceId }}</TableCell>
-                        <TableCell class="font-mono text-sm">{{ variable.variableName }}</TableCell>
-                        <TableCell class="font-mono text-sm text-blue-600">{{ variable.ipAddress }}</TableCell>
-                        <TableCell class="font-mono text-sm">
-                          <Badge v-if="typeof variable.vlan === 'number'" variant="outline" class="font-mono">
-                            VLAN {{ variable.vlan }}
-                          </Badge>
-                          <span v-else class="text-muted-foreground">{{ variable.vlan }}</span>
-                        </TableCell>
+                        <TableCell class="font-mono font-semibold text-purple-600">{{ variable.vlanVariable }}</TableCell>
+                        <TableCell class="font-mono text-sm">{{ variable.vlanValue }}</TableCell>
+                        <TableCell class="font-mono font-semibold text-purple-600">{{ variable.cidrVariable }}</TableCell>
+                        <TableCell class="font-mono text-sm">{{ variable.cidrValue }}</TableCell>
                       </TableRow>
                     </TableBody>
                   </Table>
                 </div>
-                <div class="mt-3 text-xs text-muted-foreground">
-                  <div class="flex items-center space-x-1">
-                    <Info class="w-3 h-3" />
-                    <span>Use these IP addresses in your configuration tasks</span>
+              </CardContent>
+            </Card>
+
+            <!-- Device Management Table -->
+            <Card v-if="deviceManagementTable.length > 0" class="shadow-sm">
+              <CardHeader class="pb-4">
+                <CardTitle class="flex items-center space-x-3 text-xl">
+                  <div class="p-2 bg-blue-100 rounded-lg">
+                    <Server class="w-5 h-5 text-blue-600" />
                   </div>
+                  <span>Your Devices</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div class="rounded-lg border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead class="font-semibold">Device (Management Interface)</TableHead>
+                        <TableHead class="font-semibold">Management IP</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      <TableRow
+                        v-for="(device, index) in deviceManagementTable"
+                        :key="`device-${index}`"
+                        class="hover:bg-muted/30"
+                      >
+                        <TableCell class="font-medium">{{ device.deviceDisplay }}</TableCell>
+                        <TableCell class="font-mono text-sm text-blue-600">{{ device.managementIp }}</TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
                 </div>
               </CardContent>
             </Card>
+
+            <!-- Fill-in-Blank Questions -->
+            <div v-if="hasFillInBlankQuestions && currentPart">
+              <FillInBlankQuestions
+                :questions="currentPart.questions"
+                :labId="labId"
+                :partId="currentPart.partId"
+                :dhcpPoolValidation="currentPart.dhcpConfiguration ? {
+                  startIp: calculateDhcpPoolIp(currentPart.dhcpConfiguration.startOffset),
+                  endIp: calculateDhcpPoolIp(currentPart.dhcpConfiguration.endOffset)
+                } : undefined"
+              />
+            </div>
 
           </div>
         </ScrollArea>
