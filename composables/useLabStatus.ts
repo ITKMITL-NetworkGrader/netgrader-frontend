@@ -28,6 +28,7 @@ export interface StudentSubmissionHistory {
     submittedAt: Date
     startedAt: Date | null
     completedAt: Date | null
+    submissionType?: 'auto_grading' | 'fill_in_blank' | 'ip_answers'
   }>
 }
 
@@ -122,14 +123,32 @@ export interface DetailedSubmission {
   studentId: string
   labId: string
   partId: string
+  submissionType: 'auto_grading' | 'fill_in_blank' | 'ip_answers'
   status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
   attempt: number
-  ipMappings: Record<string, string>
+  ipMappings: Record<string, any>
   submittedAt: Date
   startedAt: Date | null
   completedAt: Date | null
   progressHistory: ProgressHistoryEntry[]
   gradingResult?: GradingResult
+  fillInBlankResults?: {
+    totalPointsEarned: number
+    totalPoints: number
+    passed: boolean
+    questions: Array<{
+      questionId: string
+      questionText: string
+      questionType: string
+      pointsEarned: number
+      pointsPossible: number
+      isCorrect: boolean
+      studentAnswer?: string | null
+      ipTableAnswers?: string[][]
+      correctCells?: number
+      totalCells?: number
+    }>
+  }
 }
 
 /**
@@ -261,7 +280,14 @@ export const useLabStatus = () => {
       if (result.status === 'success') {
         return {
           success: true,
-          data: result.data
+          data: (result.data || []).map((part: any) => ({
+            ...part,
+            submissionHistory: part.submissionHistory.map((attempt: any) => ({
+              ...attempt,
+              score: attempt.score ?? 0,
+              totalPoints: attempt.totalPoints ?? 0
+            }))
+          }))
         }
       } else {
         throw new Error(result.message || 'Failed to fetch student history')

@@ -52,31 +52,50 @@
               class="px-4 py-3"
             >
               <div class="relative">
-                <!-- IP Address Input -->
-                <input
-                  v-model="cellValues[rowIndex][colIndex]"
-                  type="text"
-                  :placeholder="getCellPlaceholder(rowIndex, colIndex)"
-                  class="w-full px-3 py-2 text-sm border rounded-md transition-colors"
-                  :class="getCellInputClass(rowIndex, colIndex)"
-                  @blur="validateCell(rowIndex, colIndex)"
-                  @input="onCellInput(rowIndex, colIndex)"
-                />
-
-                <!-- Lecturer Range Hint (for DHCP pool cells) -->
+                <!-- Read-only Cell -->
                 <div
-                  v-if="getLecturerRange(rowIndex, colIndex)"
-                  class="mt-1 text-xs text-blue-600 dark:text-blue-400"
+                  v-if="getCellType(rowIndex, colIndex) === 'readonly'"
+                  class="w-full px-3 py-2 text-sm bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300"
                 >
-                  Valid range: {{ getLecturerRange(rowIndex, colIndex) }}
+                  {{ getReadonlyContent(rowIndex, colIndex) }}
                 </div>
 
-                <!-- Error Message -->
+                <!-- Blank Cell -->
                 <div
-                  v-if="cellErrors[rowIndex]?.[colIndex]"
-                  class="mt-1 text-xs text-red-600 dark:text-red-400"
+                  v-else-if="getCellType(rowIndex, colIndex) === 'blank'"
+                  class="w-full px-3 py-2 text-sm bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-md text-gray-500 dark:text-gray-500 text-center"
                 >
-                  {{ cellErrors[rowIndex][colIndex] }}
+                  {{ getBlankReason(rowIndex, colIndex) || '—' }}
+                </div>
+
+                <!-- Input Cell -->
+                <div v-else>
+                  <input
+                    v-model="cellValues[rowIndex][colIndex]"
+                    type="text"
+                    :placeholder="getCellPlaceholder(rowIndex, colIndex)"
+                    :disabled="props.readonly"
+                    class="w-full px-3 py-2 text-sm border rounded-md transition-colors"
+                    :class="getCellInputClass(rowIndex, colIndex)"
+                    @blur="validateCell(rowIndex, colIndex)"
+                    @input="onCellInput(rowIndex, colIndex)"
+                  />
+
+                  <!-- Lecturer Range Hint (for DHCP pool cells) -->
+                  <div
+                    v-if="getLecturerRange(rowIndex, colIndex)"
+                    class="mt-1 text-xs text-blue-600 dark:text-blue-400"
+                  >
+                    Valid range: {{ getLecturerRange(rowIndex, colIndex) }}
+                  </div>
+
+                  <!-- Error Message -->
+                  <div
+                    v-if="cellErrors[rowIndex]?.[colIndex]"
+                    class="mt-1 text-xs text-red-600 dark:text-red-400"
+                  >
+                    {{ cellErrors[rowIndex][colIndex] }}
+                  </div>
                 </div>
               </div>
             </td>
@@ -128,9 +147,12 @@ interface Cell {
   cellId: string
   rowId: string
   columnId: string
-  answerType: 'static' | 'calculated'
+  cellType: 'input' | 'readonly' | 'blank'
+  answerType?: 'static' | 'calculated'
   staticAnswer?: string
   calculatedAnswer?: CalculatedAnswer
+  readonlyContent?: string
+  blankReason?: string
   points: number
   autoCalculated: boolean
 }
@@ -195,7 +217,10 @@ const totalPoints = computed(() => {
   let total = 0
   props.tableData.cells.forEach(row => {
     row.forEach(cell => {
-      total += cell.points || 0
+      const cellType = cell?.cellType ?? 'input'
+      if (cellType === 'input') {
+        total += cell.points || 0
+      }
     })
   })
   return total
@@ -204,10 +229,14 @@ const totalPoints = computed(() => {
 // Calculate filled cells count
 const filledCellsCount = computed(() => {
   let count = 0
-  cellValues.value.forEach(row => {
-    row.forEach(value => {
-      if (value && value.trim() !== '') {
-        count++
+  props.tableData.cells.forEach((row, rowIndex) => {
+    row.forEach((cell, colIndex) => {
+      const cellType = cell?.cellType ?? 'input'
+      if (cellType === 'input') {
+        const value = cellValues.value[rowIndex]?.[colIndex]
+        if (value && value.trim() !== '') {
+          count++
+        }
       }
     })
   })
@@ -215,22 +244,52 @@ const filledCellsCount = computed(() => {
 })
 
 const totalCellsCount = computed(() => {
-  return props.tableData.rowCount * props.tableData.columnCount
+  let total = 0
+  props.tableData.cells.forEach(row => {
+    row.forEach(cell => {
+      const cellType = cell?.cellType ?? 'input'
+      if (cellType === 'input') {
+        total++
+      }
+    })
+  })
+  return total
 })
+
+// Get cell type
+const getCellType = (rowIndex: number, colIndex: number): string => {
+  const cell = props.tableData.cells[rowIndex]?.[colIndex]
+  return cell?.cellType || 'input'
+}
+
+// Get readonly content
+const getReadonlyContent = (rowIndex: number, colIndex: number): string => {
+  const cell = props.tableData.cells[rowIndex]?.[colIndex]
+  return cell?.readonlyContent || ''
+}
+
+// Get blank reason
+const getBlankReason = (rowIndex: number, colIndex: number): string => {
+  const cell = props.tableData.cells[rowIndex]?.[colIndex]
+  return cell?.blankReason || ''
+}
 
 // Get cell placeholder
 const getCellPlaceholder = (rowIndex: number, colIndex: number): string => {
   const cell = props.tableData.cells[rowIndex]?.[colIndex]
   if (!cell) return 'xxx.xxx.xxx.xxx'
 
-  if (cell.answerType === 'static') {
-    return 'Enter IP address'
-  } else if (cell.calculatedAnswer) {
-    const calcType = cell.calculatedAnswer.calculationType
-    if (calcType === 'vlan_lecturer_range') {
-      return 'DHCP assigned IP'
+  // Only input cells need placeholders
+  if ((cell.cellType ?? 'input') === 'input') {
+    if (cell.answerType === 'static') {
+      return 'Enter IP address'
+    } else if (cell.calculatedAnswer) {
+      const calcType = cell.calculatedAnswer.calculationType
+      if (calcType === 'vlan_lecturer_range') {
+        return 'DHCP assigned IP'
+      }
+      return 'Enter IP address'
     }
-    return 'Enter IP address'
   }
 
   return 'xxx.xxx.xxx.xxx'
@@ -239,7 +298,7 @@ const getCellPlaceholder = (rowIndex: number, colIndex: number): string => {
 // Get lecturer-defined range hint
 const getLecturerRange = (rowIndex: number, colIndex: number): string | null => {
   const cell = props.tableData.cells[rowIndex]?.[colIndex]
-  if (!cell || cell.answerType !== 'calculated' || !cell.calculatedAnswer) {
+  if (!cell || (cell.cellType ?? 'input') !== 'input' || cell.answerType !== 'calculated' || !cell.calculatedAnswer) {
     return null
   }
 
@@ -282,13 +341,28 @@ const isWithinLecturerRange = (ip: string, rangeStart: number, rangeEnd: number,
 
 // Validate a cell
 const validateCell = (rowIndex: number, colIndex: number) => {
-  const value = cellValues.value[rowIndex][colIndex]
+  const cell = props.tableData.cells[rowIndex]?.[colIndex]
+  if (!cell) return
+
+  const cellType = cell.cellType ?? 'input'
 
   // Clear previous error
   if (!cellErrors.value[rowIndex]) {
     cellErrors.value[rowIndex] = {}
   }
   cellErrors.value[rowIndex][colIndex] = ''
+
+  // Skip validation for readonly and blank cells
+  if (cellType === 'readonly' || cellType === 'blank') {
+    return
+  }
+
+  // Only validate input cells
+  if (cellType !== 'input') {
+    return
+  }
+
+  const value = cellValues.value[rowIndex][colIndex]
 
   // Skip validation if empty (will be caught by required validation later)
   if (!value || value.trim() === '') {
@@ -301,12 +375,8 @@ const validateCell = (rowIndex: number, colIndex: number) => {
     return
   }
 
-  // Get cell configuration
-  const cell = props.tableData.cells[rowIndex]?.[colIndex]
-  if (!cell) return
-
-  // Additional validation for lecturer-defined ranges
-  if (cell.answerType === 'calculated' && cell.calculatedAnswer) {
+  // Additional validation for lecturer-defined ranges (only for input cells)
+  if (cell.cellType === 'input' && cell.answerType === 'calculated' && cell.calculatedAnswer) {
     const calc = cell.calculatedAnswer
     if (calc.calculationType === 'vlan_lecturer_range' &&
         calc.lecturerRangeStart !== undefined &&
@@ -360,21 +430,28 @@ defineExpose({
     // Validate all cells
     for (let rowIndex = 0; rowIndex < props.tableData.rowCount; rowIndex++) {
       for (let colIndex = 0; colIndex < props.tableData.columnCount; colIndex++) {
+        const cell = props.tableData.cells[rowIndex]?.[colIndex]
+        if (!cell) continue
+
         validateCell(rowIndex, colIndex)
 
-        const value = cellValues.value[rowIndex][colIndex]
-        const hasError = cellErrors.value[rowIndex]?.[colIndex]
+        // Only validate input cells for required fields
+        if ((cell.cellType ?? 'input') === 'input') {
+          const value = cellValues.value[rowIndex][colIndex]
+          const hasError = cellErrors.value[rowIndex]?.[colIndex]
 
-        // Check if cell is required and empty
-        if (!value || value.trim() === '') {
-          if (!cellErrors.value[rowIndex]) {
-            cellErrors.value[rowIndex] = {}
+          // Check if cell is required and empty (all input cells are required by default)
+          if (!value || value.trim() === '') {
+            if (!cellErrors.value[rowIndex]) {
+              cellErrors.value[rowIndex] = {}
+            }
+            cellErrors.value[rowIndex][colIndex] = 'This field is required'
+            isValid = false
+          } else if (hasError) {
+            isValid = false
           }
-          cellErrors.value[rowIndex][colIndex] = 'This field is required'
-          isValid = false
-        } else if (hasError) {
-          isValid = false
         }
+        // Readonly and blank cells don't need validation
       }
     }
 

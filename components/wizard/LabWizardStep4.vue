@@ -1296,7 +1296,12 @@ const previewIpTable = (partIndex: number, questionIndex: number) => {
 
 const calculateTablePoints = (table: IpTableQuestionnaire): number => {
   return table.cells.reduce((total, row) => {
-    return total + row.reduce((rowTotal, cell) => rowTotal + (cell.points || 0), 0)
+    return total + row.reduce((rowTotal, cell) => {
+      if (cell.cellType === 'input') {
+        return rowTotal + (cell.points || 0)
+      }
+      return rowTotal
+    }, 0)
   }, 0)
 }
 

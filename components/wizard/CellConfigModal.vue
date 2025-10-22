@@ -14,10 +14,61 @@
 
       <!-- Content -->
       <div class="flex-1 overflow-y-auto space-y-6 py-4">
-        <!-- Answer Type Selection -->
+        <!-- Cell Type Selection -->
         <div class="space-y-2">
+          <Label>Cell Type</Label>
+          <RadioGroup v-model="localCell.cellType" @update:modelValue="(value: string) => handleCellTypeChange(value as CellType)">
+            <div class="flex items-center space-x-2">
+              <RadioGroupItem value="input" id="input" />
+              <Label for="input" class="font-normal cursor-pointer">
+                Input Field (Student can type)
+              </Label>
+            </div>
+            <div class="flex items-center space-x-2">
+              <RadioGroupItem value="readonly" id="readonly" />
+              <Label for="readonly" class="font-normal cursor-pointer">
+                Read-Only (Lecturer pre-filled)
+              </Label>
+            </div>
+            <div class="flex items-center space-x-2">
+              <RadioGroupItem value="blank" id="blank" />
+              <Label for="blank" class="font-normal cursor-pointer">
+                Blank (No interaction)
+              </Label>
+            </div>
+          </RadioGroup>
+        </div>
+
+
+        <!-- Read-only Content (only for readonly cells) -->
+        <div v-if="localCell.cellType === 'readonly'" class="space-y-2">
+          <Label>Pre-filled Content</Label>
+          <Input
+            v-model="localCell.readonlyContent"
+            placeholder="Enter content to display (e.g., 'N/A', 'Auto-assigned', '192.168.1.1')"
+            class="font-mono"
+          />
+          <p class="text-sm text-muted-foreground">
+            This content will be displayed to students and cannot be edited
+          </p>
+        </div>
+
+        <!-- Blank Reason (only for blank cells) -->
+        <div v-if="localCell.cellType === 'blank'" class="space-y-2">
+          <Label>Blank Reason (Optional)</Label>
+          <Input
+            v-model="localCell.blankReason"
+            placeholder="Enter reason why cell is blank (e.g., 'Not applicable', 'Reserved')"
+          />
+          <p class="text-sm text-muted-foreground">
+            Optional explanation for why this cell is not interactive
+          </p>
+        </div>
+
+        <!-- Answer Type Selection (only for input cells) -->
+        <div v-if="localCell.cellType === 'input'" class="space-y-2">
           <Label>Answer Type</Label>
-          <RadioGroup v-model="localCell.answerType" @update:modelValue="handleAnswerTypeChange">
+          <RadioGroup v-model="localCell.answerType" @update:modelValue="(value: string) => handleAnswerTypeChange(value as CellAnswerType)">
             <div class="flex items-center space-x-2">
               <RadioGroupItem value="static" id="static" />
               <Label for="static" class="font-normal cursor-pointer">
@@ -47,13 +98,13 @@
         </div>
 
         <!-- Calculated Answer Configuration -->
-        <div v-if="localCell.answerType === 'calculated'">
+        <div v-if="localCell.answerType === 'calculated' && localCell.calculatedAnswer">
           <!-- Calculation Type -->
           <div class="space-y-2">
             <Label>Calculation Type</Label>
             <Select
-              v-model="localCell.calculatedAnswer!.calculationType"
-              @update:modelValue="handleCalculationTypeChange"
+              v-model="localCell.calculatedAnswer.calculationType"
+              @update:modelValue="(value: any) => handleCalculationTypeChange((value || 'vlan_lecturer_offset') as CalculationType)"
             >
               <SelectTrigger>
                 <SelectValue placeholder="Select calculation type..." />
@@ -78,11 +129,11 @@
 
           <!-- VLAN Selector (for VLAN-based calculations) -->
           <div
-            v-if="requiresVlanSelection(localCell.calculatedAnswer?.calculationType)"
+            v-if="localCell.calculatedAnswer && requiresVlanSelection(localCell.calculatedAnswer.calculationType)"
             class="space-y-2"
           >
             <Label class="mt-4">Select VLAN</Label>
-            <Select v-model="localCell.calculatedAnswer!.vlanIndex">
+            <Select v-model="localCell.calculatedAnswer.vlanIndex">
               <SelectTrigger>
                 <SelectValue placeholder="Select VLAN..." />
               </SelectTrigger>
@@ -92,7 +143,7 @@
                   :key="vlanIdx"
                   :value="vlanIdx"
                 >
-                  VLAN {{ vlanIdx }} - Subnet Block {{ vlan.subnetIndex }} ({{ vlan.baseNetwork }}/{{ vlan.subnetMask }})
+                  VLAN {{ vlanIdx }} - Subnet Block {{ (vlan as any).subnetIndex || vlanIdx }} ({{ vlan.baseNetwork }}/{{ vlan.subnetMask }})
                 </SelectItem>
               </SelectContent>
             </Select>
@@ -103,7 +154,7 @@
               <AlertDescription class="text-sm space-y-1">
                 <div><strong>Subnet Block {{ getValidOffsetRange.subnetIndex }}:</strong></div>
                 <div class="font-mono text-xs">
-                  Network: {{ getValidOffsetRange.networkAddress }}/{{ vlans[localCell.calculatedAnswer!.vlanIndex!].subnetMask }}
+                  Network: {{ getValidOffsetRange.networkAddress }}/{{ vlans[localCell.calculatedAnswer?.vlanIndex || 0]?.subnetMask || 24 }}
                 </div>
                 <div class="font-mono text-xs">
                   Usable Range: {{ getValidOffsetRange.firstUsableIp }} - {{ getValidOffsetRange.lastUsableIp }}
@@ -124,7 +175,7 @@
               </span>
             </Label>
             <Input
-              v-model.number="localCell.calculatedAnswer!.lecturerOffset"
+              v-model.number="localCell.calculatedAnswer.lecturerOffset"
               type="number"
               :min="getValidOffsetRange?.min || 1"
               :max="getValidOffsetRange?.max || 254"
@@ -165,7 +216,7 @@
                   </span>
                 </Label>
                 <Input
-                  v-model.number="localCell.calculatedAnswer!.lecturerRangeStart"
+                  v-model.number="localCell.calculatedAnswer.lecturerRangeStart"
                   type="number"
                   :min="getValidOffsetRange?.min || 1"
                   :max="getValidOffsetRange?.max || 254"
@@ -181,7 +232,7 @@
                   </span>
                 </Label>
                 <Input
-                  v-model.number="localCell.calculatedAnswer!.lecturerRangeEnd"
+                  v-model.number="localCell.calculatedAnswer.lecturerRangeEnd"
                   type="number"
                   :min="getValidOffsetRange?.min || 1"
                   :max="getValidOffsetRange?.max || 254"
@@ -222,7 +273,7 @@
             <div class="space-y-2">
               <Label>Select Device</Label>
               <Select
-                v-model="localCell.calculatedAnswer!.deviceId"
+                v-model="localCell.calculatedAnswer.deviceId"
                 @update:modelValue="handleDeviceChange"
               >
                 <SelectTrigger>
@@ -243,15 +294,15 @@
             <div class="space-y-2">
               <Label>Select Interface</Label>
               <Select
-                v-model="localCell.calculatedAnswer!.interfaceName"
-                :disabled="!localCell.calculatedAnswer!.deviceId"
+                v-model="localCell.calculatedAnswer.interfaceName"
+                :disabled="!localCell.calculatedAnswer.deviceId"
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select interface..." />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem
-                    v-for="iface in getDeviceInterfaces(localCell.calculatedAnswer!.deviceId)"
+                    v-for="iface in getDeviceInterfaces(localCell.calculatedAnswer?.deviceId)"
                     :key="iface.name"
                     :value="iface.name"
                   >
@@ -269,7 +320,8 @@
           <Input
             v-model.number="localCell.points"
             type="number"
-            min="1"
+            :min="localCell.cellType === 'input' ? 1 : 0"
+            :disabled="localCell.cellType !== 'input'"
             placeholder="1"
           />
         </div>
@@ -316,6 +368,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import type {
   IpTableCell,
   CellAnswerType,
+  CellType,
   CalculationType,
   Device
 } from '@/types/wizard'
@@ -458,7 +511,7 @@ const getValidOffsetRange = computed((): ValidOffsetRange | null => {
 
   // Calculate network address for this specific subnet block
   const baseNum = ipToNumber(vlan.baseNetwork)
-  const networkNum = baseNum + (vlan.subnetIndex * subnetSize)
+  const networkNum = baseNum + ((vlan as any).subnetIndex || 0) * subnetSize
 
   const networkAddress = numberToIp(networkNum)
   const firstUsableIp = numberToIp(networkNum + 1)
@@ -475,7 +528,7 @@ const getValidOffsetRange = computed((): ValidOffsetRange | null => {
     firstUsableIp,
     lastUsableIp,
     broadcastAddress,
-    subnetIndex: vlan.subnetIndex
+    subnetIndex: (vlan as any).subnetIndex || 0
   }
 })
 
@@ -525,17 +578,69 @@ const rangeValidationError = computed((): string | null => {
 })
 
 // Handlers
-const handleAnswerTypeChange = (newType: CellAnswerType) => {
-  localCell.value.answerType = newType
+const handleCellTypeChange = (newType: CellType) => {
+  localCell.value.cellType = newType
 
-  // Initialize calculatedAnswer if switching to calculated type
-  if (newType === 'calculated') {
-    if (!localCell.value.calculatedAnswer) {
+  // Set default configuration based on cell type
+  if (newType === 'input') {
+    // Restore scoring defaults for input cells
+    if (!localCell.value.points || localCell.value.points < 1) {
+      localCell.value.points = 1
+    }
+    localCell.value.autoCalculated = Boolean(localCell.value.autoCalculated)
+
+    // Initialize answer type for input cells
+    if (!localCell.value.answerType) {
+      localCell.value.answerType = 'calculated'
+    }
+    // Ensure calculatedAnswer is initialized for input cells if answerType is calculated
+    if (localCell.value.answerType === 'calculated' && !localCell.value.calculatedAnswer) {
       localCell.value.calculatedAnswer = {
         calculationType: 'vlan_lecturer_offset',
         vlanIndex: 0,
         lecturerOffset: 1
       }
+    }
+  } else if (newType === 'readonly') {
+    // Clear answer configuration for readonly cells
+    localCell.value.points = 0
+    localCell.value.autoCalculated = false
+    localCell.value.answerType = undefined
+    localCell.value.staticAnswer = undefined
+    localCell.value.calculatedAnswer = undefined
+    if (!localCell.value.readonlyContent) {
+      localCell.value.readonlyContent = ''
+    }
+    localCell.value.blankReason = undefined
+  } else if (newType === 'blank') {
+    // Clear all answer configuration for blank cells
+    localCell.value.points = 0
+    localCell.value.autoCalculated = false
+    localCell.value.answerType = undefined
+    localCell.value.staticAnswer = undefined
+    localCell.value.calculatedAnswer = undefined
+    localCell.value.readonlyContent = undefined
+    if (!localCell.value.blankReason) {
+      localCell.value.blankReason = ''
+    }
+    localCell.value.readonlyContent = undefined
+  }
+}
+
+const handleAnswerTypeChange = (newType: CellAnswerType) => {
+  localCell.value.answerType = newType
+
+  // Initialize calculatedAnswer if switching to calculated type
+  if (newType === 'calculated') {
+    // Always ensure calculatedAnswer is defined for calculated type
+    localCell.value.calculatedAnswer = {
+      calculationType: localCell.value.calculatedAnswer?.calculationType || 'vlan_lecturer_offset',
+      vlanIndex: localCell.value.calculatedAnswer?.vlanIndex || 0,
+      lecturerOffset: localCell.value.calculatedAnswer?.lecturerOffset || 1,
+      lecturerRangeStart: localCell.value.calculatedAnswer?.lecturerRangeStart,
+      lecturerRangeEnd: localCell.value.calculatedAnswer?.lecturerRangeEnd,
+      deviceId: localCell.value.calculatedAnswer?.deviceId,
+      interfaceName: localCell.value.calculatedAnswer?.interfaceName
     }
     localCell.value.staticAnswer = undefined
   } else {
@@ -597,38 +702,58 @@ const handleOpenChange = (value: boolean) => {
 
 // Validation
 const isValid = computed(() => {
-  if (localCell.value.answerType === 'static') {
-    return localCell.value.staticAnswer && localCell.value.staticAnswer.trim() !== ''
+  // For blank cells, only need cellType
+  if (localCell.value.cellType === 'blank') {
+    return true
   }
 
-  if (!localCell.value.calculatedAnswer) return false
-
-  const calc = localCell.value.calculatedAnswer
-
-  // Check VLAN selection
-  if (requiresVlanSelection(calc.calculationType)) {
-    if (calc.vlanIndex === undefined) return false
+  // For readonly cells, need cellType and readonlyContent
+  if (localCell.value.cellType === 'readonly') {
+    return localCell.value.readonlyContent && 
+           localCell.value.readonlyContent.trim() !== ''
   }
 
-  // Check offset (with subnet-aware validation)
-  if (calc.calculationType === 'vlan_lecturer_offset') {
-    if (!calc.lecturerOffset) return false
-    // Use subnet-aware validation
-    if (offsetValidationError.value) return false
+  // For input cells, need to validate answer configuration
+  if (localCell.value.cellType === 'input') {
+    if (localCell.value.answerType === 'static') {
+      return localCell.value.staticAnswer && localCell.value.staticAnswer.trim() !== ''
+    }
+
+    if (localCell.value.answerType === 'calculated') {
+      if (!localCell.value.calculatedAnswer) return false
+
+      const calc = localCell.value.calculatedAnswer
+
+      // Check VLAN selection
+      if (requiresVlanSelection(calc.calculationType)) {
+        if (calc.vlanIndex === undefined) return false
+      }
+
+      // Check offset (with subnet-aware validation)
+      if (calc.calculationType === 'vlan_lecturer_offset') {
+        if (!calc.lecturerOffset) return false
+        // Use subnet-aware validation
+        if (offsetValidationError.value) return false
+      }
+
+      // Check range (with subnet-aware validation)
+      if (calc.calculationType === 'vlan_lecturer_range') {
+        if (!calc.lecturerRangeStart || !calc.lecturerRangeEnd) return false
+        // Use subnet-aware validation
+        if (rangeValidationError.value) return false
+      }
+
+      // Check device interface
+      if (calc.calculationType === 'device_interface_ip') {
+        if (!calc.deviceId || !calc.interfaceName) return false
+      }
+
+      return true
+    }
+
+    return false
   }
 
-  // Check range (with subnet-aware validation)
-  if (calc.calculationType === 'vlan_lecturer_range') {
-    if (!calc.lecturerRangeStart || !calc.lecturerRangeEnd) return false
-    // Use subnet-aware validation
-    if (rangeValidationError.value) return false
-  }
-
-  // Check device interface
-  if (calc.calculationType === 'device_interface_ip') {
-    if (!calc.deviceId || !calc.interfaceName) return false
-  }
-
-  return true
+  return false
 })
 </script>

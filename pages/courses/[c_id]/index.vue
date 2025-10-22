@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ChevronRight, Home, Edit, Settings, X, Plus, Trash2, Play, BookOpen, Clock, Calendar, Loader2 } from 'lucide-vue-next'
+import { ChevronRight, Home, Edit, Settings, X, Plus, Trash2, Play, BookOpen, Clock, Calendar, Loader2, BarChart3, RotateCcw } from 'lucide-vue-next'
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Button } from '@/components/ui/button'
@@ -11,6 +11,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogCancel,
+  AlertDialogAction
+} from '@/components/ui/alert-dialog'
 import { Switch } from '@/components/ui/switch'
 import { toast } from 'vue-sonner'
 
@@ -30,6 +40,14 @@ interface EnrollResponse {
         u_role: string,
         enrollmentDate: null
     }>
+}
+
+type CourseRoleOption = 'STUDENT' | 'TA' | 'INSTRUCTOR'
+
+interface EnrollmentDraftItem extends Enrollment {
+  originalRole: CourseRoleOption
+  newRole: CourseRoleOption
+  markedForRemoval: boolean
 }
 
 const route = useRoute()
@@ -67,6 +85,8 @@ const userRole = computed(() => {
 })
 
 const canManageCourse = canManageCurrentCourse
+const isCourseInstructor = computed(() => currentCourseEnrollment.value?.role === 'INSTRUCTOR')
+const isCourseTA = computed(() => currentCourseEnrollment.value?.role === 'TA')
 
 const DEFAULT_BANNER_PLACEHOLDER = 'https://i.pinimg.com/736x/18/e3/ad/18e3ad7a432d41a6e2a57d1523e81c73.jpg'
 const ACCEPTED_BANNER_TYPES = ['image/jpeg', 'image/png', 'image/webp']
@@ -92,6 +112,10 @@ const enrollmentForm = ref({
   selectedRole: 'STUDENT' as 'STUDENT' | 'INSTRUCTOR' | 'TA'
 })
 
+const enrollmentDraft = ref<EnrollmentDraftItem[]>([])
+const showEnrollmentConfirm = ref(false)
+const isSavingChanges = ref(false)
+
 // Form data for editing course
 const editForm = ref({
   title: '',
@@ -115,12 +139,23 @@ const fetchEnrollmentData = async () => {
     })
     
     enrolledStudents.value = enrolledStudentsData?.enrollments || []
+    resetEnrollmentDraft()
   } catch (error) {
     console.error('Failed to fetch enrolled students:', error)
     enrolledStudents.value = []
+    resetEnrollmentDraft()
   } finally {
     isLoadingEnrollments.value = false
   }
+}
+
+const resetEnrollmentDraft = () => {
+  enrollmentDraft.value = (enrolledStudents.value || []).map(student => ({
+    ...student,
+    originalRole: student.u_role,
+    newRole: student.u_role,
+    markedForRemoval: false
+  }))
 }
 
 // Initialize form data function
@@ -132,6 +167,7 @@ const initializeForm = () => {
     editForm.value.password = currentCourse.value.password || ''
     editForm.value.isPrivate = currentCourse.value.visibility === 'private'
     editForm.value.enrolledStudents = enrolledStudents.value || []
+    resetEnrollmentDraft()
   }
 }
 
@@ -167,6 +203,9 @@ watch(enrolledStudents, () => {
 watch(isEditModalOpen, (isOpen) => {
   if (isOpen && canManageCourse.value) {
     fetchEnrollmentData()
+  } else if (!isOpen) {
+    showEnrollmentConfirm.value = false
+    resetEnrollmentDraft()
   }
 })
 
@@ -175,42 +214,192 @@ const courseTitle = computed(() => {
   return currentCourse.value?.title || `Course ${courseId}`
 })
 
-// Methods
-const saveEditChanges = async () => {
-  try {
-    const updateData = {
-      title: editForm.value.title,
-      description: editForm.value.description,
-      password: editForm.value.password,
-      visibility: editForm.value.isPrivate ? 'private' : 'public'
-    }
+const roleChanges = computed(() =>
+  enrollmentDraft.value.filter(item => !item.markedForRemoval && item.newRole !== item.originalRole)
+)
 
-    await $fetch(`${backendURL}/v0/courses/${courseId}`, {
-      method: 'PUT',
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: updateData
-    })
+const removalList = computed(() =>
+  enrollmentDraft.value.filter(item => item.markedForRemoval)
+)
+
+const hasEnrollmentChanges = computed(() =>
+  roleChanges.value.length > 0 || removalList.value.length > 0
+)
+
+const courseDetailsChanged = computed(() => {
+  if (!currentCourse.value) return false
+
+  const currentVisibilityPrivate = currentCourse.value.visibility === 'private'
+  const currentPassword = currentCourse.value.password || ''
+
+  return (
+    editForm.value.title !== (currentCourse.value.title || '') ||
+    editForm.value.description !== (currentCourse.value.description || '') ||
+    editForm.value.password !== currentPassword ||
+    editForm.value.isPrivate !== currentVisibilityPrivate
+  )
+})
+
+// Methods
+const ROLE_SELECT_OPTIONS: Array<{ label: string; value: CourseRoleOption }> = [
+  { label: 'Student', value: 'STUDENT' },
+  { label: 'Teaching Assistant', value: 'TA' }
+]
+
+const formatRoleLabel = (role: CourseRoleOption) => {
+  switch (role) {
+    case 'TA':
+      return 'Teaching Assistant'
+    case 'INSTRUCTOR':
+      return 'Instructor'
+    default:
+      return 'Student'
+  }
+}
+
+const roleBadgeClass = (role: CourseRoleOption) => {
+  switch (role) {
+    case 'INSTRUCTOR':
+      return 'bg-green-100 text-green-800'
+    case 'TA':
+      return 'bg-yellow-100 text-yellow-800'
+    default:
+      return 'bg-blue-100 text-blue-800'
+  }
+}
+
+const canModifyRoleForUser = (student: EnrollmentDraftItem) => {
+  if (student.markedForRemoval) return false
+  if (isCourseInstructor.value) {
+    return student.originalRole !== 'INSTRUCTOR'
+  }
+  if (isCourseTA.value) {
+    return student.originalRole === 'STUDENT'
+  }
+  return false
+}
+
+const canRemoveEnrollment = (student: EnrollmentDraftItem) => {
+  if (isCourseInstructor.value) {
+    return true
+  }
+  if (isCourseTA.value) {
+    return student.originalRole === 'STUDENT'
+  }
+  return false
+}
+
+const handleRoleChange = (userId: string, newRole: CourseRoleOption) => {
+  const student = enrollmentDraft.value.find(item => item.u_id === userId)
+  if (!student) return
+  if (!canModifyRoleForUser(student)) return
+  if (newRole === 'INSTRUCTOR') return
+  student.newRole = newRole
+}
+
+const toggleRemoval = (userId: string) => {
+  const student = enrollmentDraft.value.find(item => item.u_id === userId)
+  if (!student) return
+  if (!canRemoveEnrollment(student)) return
+  student.markedForRemoval = !student.markedForRemoval
+  if (student.markedForRemoval) {
+    student.newRole = student.originalRole
+  }
+}
+
+const updateCourseDetails = async () => {
+  if (!courseDetailsChanged.value) return
+
+  const updateData = {
+    title: editForm.value.title,
+    description: editForm.value.description,
+    password: editForm.value.password,
+    visibility: editForm.value.isPrivate ? 'private' : 'public'
+  }
+
+  await $fetch(`${backendURL}/v0/courses/${courseId}`, {
+    method: 'PUT',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: updateData
+  })
+}
+
+const applyEnrollmentChanges = async () => {
+  if (!hasEnrollmentChanges.value) return
+
+  const roleChangePayload = roleChanges.value
+    .filter(item => item.newRole !== 'INSTRUCTOR')
+    .map(item => ({ u_id: item.u_id, newRole: item.newRole as 'STUDENT' | 'TA' }))
+
+  const removalPayload = removalList.value.map(item => item.u_id)
+
+  if (roleChangePayload.length === 0 && removalPayload.length === 0) {
+    return
+  }
+
+  await $fetch(`${backendURL}/v0/enrollments/course/${courseId}/manage`, {
+    method: 'PUT',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: {
+      roleChanges: roleChangePayload,
+      removals: removalPayload
+    }
+  })
+}
+
+const applyChanges = async () => {
+  if (isSavingChanges.value) return
+
+  if (!courseDetailsChanged.value && !hasEnrollmentChanges.value) {
+    toast.info('No changes to save.')
+    isEditModalOpen.value = false
+    showEnrollmentConfirm.value = false
+    return
+  }
+
+  isSavingChanges.value = true
+  try {
+    await updateCourseDetails()
+    if (hasEnrollmentChanges.value) {
+      await applyEnrollmentChanges()
+    }
 
     toast.success('Course updated successfully!', {
       description: 'Your changes have been saved.'
     })
 
-    // Refresh course data
-    await fetchCourse(courseId)
+    await Promise.all([
+      fetchCourse(courseId),
+      fetchEnrollmentData()
+    ])
+
+    initializeForm()
+    showEnrollmentConfirm.value = false
     isEditModalOpen.value = false
   } catch (error) {
     console.error('Failed to update course:', error)
+    const message = (error as any)?.data?.message || (error as Error).message || 'Please try again later.'
     toast.error('Failed to update course', {
-      description: 'Please try again later.'
+      description: message
     })
+  } finally {
+    isSavingChanges.value = false
   }
 }
 
-const removeStudent = (studentId: string) => {
-  editForm.value.enrolledStudents = editForm.value.enrolledStudents.filter(s => s.u_id !== studentId)
+const handleSaveClick = () => {
+  if (isSavingChanges.value) return
+  if (hasEnrollmentChanges.value) {
+    showEnrollmentConfirm.value = true
+  } else {
+    applyChanges()
+  }
 }
 
 const handleFileChange = async (event: Event) => {
@@ -589,51 +778,103 @@ class="space-y-4 overflow-y-auto max-h-[70vh] pr-2"
                                         <div v-if="isLoadingEnrollments" class="flex items-center justify-center py-8">
                                             <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
                                         </div>
-                                        <div
-v-else-if="editForm.enrolledStudents && editForm.enrolledStudents.length > 0" 
-                                             class="rounded-lg overflow-hidden">
+                                        <div v-else-if="enrollmentDraft.length > 0" class="rounded-lg overflow-hidden">
                                             <div
-class="overflow-x-auto max-h-96"
-                                                 style="scrollbar-width: thin; scrollbar-color: hsl(var(--muted-foreground)) transparent;"
+                                              class="overflow-x-auto max-h-96"
+                                              style="scrollbar-width: thin; scrollbar-color: hsl(var(--muted-foreground)) transparent;"
                                             >
                                                 <Table>
                                                     <TableHeader class="sticky top-0 z-10">
                                                         <TableRow>
                                                             <TableHead class="min-w-[150px]">Name</TableHead>
                                                             <TableHead class="min-w-[120px]">Student ID</TableHead>
-                                                            <TableHead class="min-w-[100px]">Role</TableHead>
-                                                            <TableHead class="min-w-[120px]">Enrolled Date</TableHead>
-                                                            <TableHead class="w-[100px]">Action</TableHead>
+                                                            <TableHead class="min-w-[140px]">Role</TableHead>
+                                                            <TableHead class="min-w-[140px]">Enrolled Date</TableHead>
+                                                            <TableHead class="w-[160px]">Action</TableHead>
                                                         </TableRow>
                                                     </TableHeader>
                                                     <TableBody>
-                                                        <TableRow v-for="student in editForm.enrolledStudents" :key="student.u_id">
-                                                            <TableCell class="font-medium">{{ student.fullName || 'N/A' }}</TableCell>
+                                                        <TableRow
+                                                          v-for="student in enrollmentDraft"
+                                                          :key="student.u_id"
+                                                          :class="[
+                                                            student.markedForRemoval
+                                                              ? 'bg-red-50'
+                                                              : student.newRole !== student.originalRole
+                                                                ? 'bg-amber-50'
+                                                                : ''
+                                                          ]"
+                                                        >
+                                                            <TableCell class="font-medium">
+                                                                {{ student.fullName || 'N/A' }}
+                                                                <div class="text-xs text-muted-foreground">
+                                                                  {{ student.originalRole === 'INSTRUCTOR' ? 'Instructor' : student.originalRole === 'TA' ? 'Teaching Assistant' : 'Student' }}
+                                                                </div>
+                                                            </TableCell>
                                                             <TableCell>{{ student.u_id }}</TableCell>
                                                             <TableCell>
-                                                                <span 
-                                                                    class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
-                                                                    :class="{
-                                                                        'bg-blue-100 text-blue-800': student.u_role === 'STUDENT',
-                                                                        'bg-green-100 text-green-800': student.u_role === 'INSTRUCTOR',
-                                                                        'bg-yellow-100 text-yellow-800': student.u_role === 'TA'
-                                                                    }"
-                                                                >
-                                                                    {{ student.u_role }}
-                                                                </span>
+                                                                <div class="flex items-center gap-2">
+                                                                    <Select
+                                                                      v-if="canModifyRoleForUser(student)"
+                                                                      :modelValue="student.newRole"
+                                                                      :disabled="student.markedForRemoval || isSavingChanges"
+                                                                      @update:modelValue="value => handleRoleChange(student.u_id, value as CourseRoleOption)"
+                                                                    >
+                                                                        <SelectTrigger class="w-[220px]">
+                                                                            <SelectValue :placeholder="formatRoleLabel(student.newRole)" />
+                                                                        </SelectTrigger>
+                                                                        <SelectContent>
+                                                                            <SelectItem
+                                                                              v-for="option in ROLE_SELECT_OPTIONS"
+                                                                              :key="option.value"
+                                                                              :value="option.value"
+                                                                              :disabled="option.value === 'INSTRUCTOR'"
+                                                                            >
+                                                                                {{ option.label }}
+                                                                            </SelectItem>
+                                                                        </SelectContent>
+                                                                    </Select>
+                                                                    <span
+                                                                      v-else
+                                                                      class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                                                                      :class="roleBadgeClass(student.newRole)"
+                                                                    >
+                                                                        {{ formatRoleLabel(student.newRole) }}
+                                                                    </span>
+                                                                    <Badge
+                                                                      v-if="!student.markedForRemoval && student.newRole !== student.originalRole"
+                                                                      variant="secondary"
+                                                                      class="text-xs"
+                                                                    >
+                                                                      Updated
+                                                                    </Badge>
+                                                                </div>
                                                             </TableCell>
                                                             <TableCell>
                                                                 {{ new Date(student.enrollmentDate).toLocaleDateString() }}
                                                             </TableCell>
                                                             <TableCell>
-                                                                <Button 
-                                                                    variant="destructive" 
-                                                                    size="sm" 
-                                                                    :disabled="student.u_role === 'INSTRUCTOR'"
-                                                                    @click="removeStudent(student.u_id)"
-                                                                >
-                                                                    <Trash2 class="h-4 w-4" />
-                                                                </Button>
+                                                                <div class="flex items-center gap-2">
+                                                                    <Button
+                                                                      v-if="canRemoveEnrollment(student)"
+                                                                      :variant="student.markedForRemoval ? 'outline' : 'destructive'"
+                                                                      size="sm"
+                                                                      :disabled="isSavingChanges"
+                                                                      @click="toggleRemoval(student.u_id)"
+                                                                    >
+                                                                        <template v-if="student.markedForRemoval">
+                                                                            <RotateCcw class="h-4 w-4 mr-1" />
+                                                                            Undo
+                                                                        </template>
+                                                                        <template v-else>
+                                                                            <Trash2 class="h-4 w-4 mr-1" />
+                                                                            Remove
+                                                                        </template>
+                                                                    </Button>
+                                                                    <Badge v-if="student.markedForRemoval" variant="destructive" class="text-xs">
+                                                                        Pending Removal
+                                                                    </Badge>
+                                                                </div>
                                                             </TableCell>
                                                         </TableRow>
                                                     </TableBody>
@@ -647,8 +888,60 @@ class="overflow-x-auto max-h-96"
                                 </div>
                                 <div class="flex justify-end space-x-2 pt-4 border-t border-gray-200">
                                     <Button variant="outline" @click="isEditModalOpen = false">Cancel</Button>
-                                    <Button @click="saveEditChanges">Save Changes</Button>
+                                    <Button @click="handleSaveClick" :disabled="isSavingChanges">
+                                      <template v-if="isSavingChanges">
+                                        <Loader2 class="h-4 w-4 mr-2 animate-spin" />
+                                        Saving...
+                                      </template>
+                                      <template v-else>
+                                        Save Changes
+                                      </template>
+                                    </Button>
                                 </div>
+                                <AlertDialog v-model:open="showEnrollmentConfirm">
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Confirm Enrollment Changes</AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        Review the changes below before applying them.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <div class="space-y-4">
+                                      <div v-if="courseDetailsChanged" class="text-sm text-muted-foreground">
+                                        Course details (name, description, or visibility) will also be updated.
+                                      </div>
+                                      <div v-if="roleChanges.length">
+                                        <h4 class="text-sm font-semibold">Role Updates</h4>
+                                        <ul class="list-disc list-inside text-sm text-muted-foreground">
+                                          <li v-for="change in roleChanges" :key="`role-${change.u_id}`">
+                                            <span class="font-medium text-foreground">{{ change.fullName || change.u_id }}</span>
+                                            : {{ formatRoleLabel(change.originalRole) }} → {{ formatRoleLabel(change.newRole) }}
+                                          </li>
+                                        </ul>
+                                      </div>
+                                      <div v-if="removalList.length">
+                                        <h4 class="text-sm font-semibold text-destructive">Pending Removals</h4>
+                                        <ul class="list-disc list-inside text-sm text-destructive">
+                                          <li v-for="removal in removalList" :key="`remove-${removal.u_id}`">
+                                            {{ removal.fullName || removal.u_id }}
+                                          </li>
+                                        </ul>
+                                      </div>
+                                      <div v-if="!roleChanges.length && !removalList.length" class="text-sm text-muted-foreground">
+                                        No enrollment changes detected.
+                                      </div>
+                                    </div>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel :disabled="isSavingChanges">Cancel</AlertDialogCancel>
+                                      <AlertDialogAction as-child>
+                                        <Button @click="applyChanges" :disabled="isSavingChanges">
+                                          <Loader2 v-if="isSavingChanges" class="h-4 w-4 mr-2 animate-spin" />
+                                          <span v-else>Confirm Changes</span>
+                                        </Button>
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
                             </DialogContent>
                         </Dialog>
 
@@ -922,7 +1215,7 @@ class="overflow-x-auto max-h-96"
                                           isLabAvailable(lab) ? 'border-l-primary/50' : 'border-l-gray-300 opacity-60'
                                         ]"
                                     >
-                                        <CardContent class="p-6">
+                                        <CardContent class="p-2">
                                             <div class="flex items-start justify-between">
                                                 <div class="flex-1 min-w-0">
                                                     <div class="flex items-start space-x-3">
@@ -972,11 +1265,11 @@ class="overflow-x-auto max-h-96"
                                                 <div class="flex-shrink-0 ml-4">
                                                     <NuxtLink
                                                       v-if="isLabAvailable(lab)"
-                                                      :to="`/courses/${courseId}/labs/${lab.id}`"
+                                                      :to="canManageCourse ? `/courses/${courseId}/labs/${lab.id}/status` : `/courses/${courseId}/labs/${lab.id}`"
                                                     >
                                                         <Button class="bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-white shadow-sm">
-                                                            <Play class="w-4 h-4 mr-2" />
-                                                            Start Lab
+                                                            <component :is="canManageCourse ? BarChart3 : Play" class="w-4 h-4 mr-2" />
+                                                            {{ canManageCourse ? 'Lab Status' : 'Start Lab' }}
                                                         </Button>
                                                     </NuxtLink>
                                                     <Button
@@ -1045,7 +1338,7 @@ class="overflow-x-auto max-h-96"
                                           isLabAvailable(exam) ? 'border-l-orange-500/50' : 'border-l-gray-300 opacity-60'
                                         ]"
                                     >
-                                        <CardContent class="p-6">
+                                        <CardContent class="p-2">
                                             <div class="flex items-start justify-between">
                                                 <div class="flex-1 min-w-0">
                                                     <div class="flex items-start space-x-3">

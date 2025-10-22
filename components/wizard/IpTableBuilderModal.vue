@@ -188,7 +188,7 @@
                           </div>
                           <div class="text-xs text-muted-foreground mt-1">
                             <Badge variant="secondary" class="text-xs">
-                              {{ tableData.cells[rowIndex][colIndex].answerType }}
+                              {{ getCellBadgeText(tableData.cells[rowIndex][colIndex]) }}
                             </Badge>
                           </div>
                         </div>
@@ -378,7 +378,7 @@ const generateId = (prefix: string): string => {
 // Initialize table with empty data
 function initializeTable(): IpTableQuestionnaire {
   if (props.initialData) {
-    return JSON.parse(JSON.stringify(props.initialData))
+    return normalizeTableData(JSON.parse(JSON.stringify(props.initialData)))
   }
 
   const columns: IpTableColumn[] = Array.from({ length: props.columnCount }, (_, i) => ({
@@ -400,6 +400,7 @@ function initializeTable(): IpTableQuestionnaire {
       cellId: generateId('cell'),
       rowId: rows[rowIdx].rowId,
       columnId: columns[colIdx].columnId,
+      cellType: 'input',  // Default to input field
       answerType: 'calculated',  // Default to calculated
       calculatedAnswer: {
         calculationType: 'vlan_lecturer_offset',
@@ -419,6 +420,47 @@ function initializeTable(): IpTableQuestionnaire {
     rows,
     cells
   }
+}
+
+function normalizeTableData(data: IpTableQuestionnaire): IpTableQuestionnaire {
+  const normalized = { ...data }
+  normalized.cells = (data.cells || []).map(row =>
+    row.map(cell => {
+      const cellType = cell.cellType || 'input'
+      const normalizedCell = { ...cell, cellType } as IpTableCell
+
+      if (cellType === 'input') {
+        normalizedCell.answerType = normalizedCell.answerType || 'calculated'
+        normalizedCell.points =
+          typeof normalizedCell.points === 'number' && normalizedCell.points >= 1
+            ? normalizedCell.points
+            : 1
+        normalizedCell.autoCalculated = Boolean(normalizedCell.autoCalculated)
+        normalizedCell.readonlyContent = undefined
+        normalizedCell.blankReason = undefined
+      } else if (cellType === 'readonly') {
+        normalizedCell.answerType = undefined
+        normalizedCell.staticAnswer = undefined
+        normalizedCell.calculatedAnswer = undefined
+        normalizedCell.points = 0
+        normalizedCell.autoCalculated = false
+        normalizedCell.readonlyContent = (normalizedCell.readonlyContent ?? '').toString().trim()
+        normalizedCell.blankReason = undefined
+      } else {
+        // Blank
+        normalizedCell.answerType = undefined
+        normalizedCell.staticAnswer = undefined
+        normalizedCell.calculatedAnswer = undefined
+        normalizedCell.points = 0
+        normalizedCell.autoCalculated = false
+        normalizedCell.readonlyContent = undefined
+        normalizedCell.blankReason = (normalizedCell.blankReason ?? '').toString().trim()
+      }
+
+      return normalizedCell
+    })
+  )
+  return normalized
 }
 
 // Local state (initialized after initializeTable is defined)
@@ -477,10 +519,20 @@ const handleRowInterfaceChange = (rowIndex: number) => {
 const handleClearAll = () => {
   tableData.value.cells.forEach(row => {
     row.forEach(cell => {
-      cell.answerType = 'static'
-      cell.staticAnswer = ''
-      cell.calculatedAnswer = undefined
-      cell.autoCalculated = false
+      const cellType = cell.cellType || 'input'
+      cell.cellType = cellType
+
+      if (cellType === 'input') {
+        cell.answerType = 'static'
+        cell.staticAnswer = ''
+        cell.calculatedAnswer = undefined
+        cell.autoCalculated = false
+        cell.points = 1
+      } else if (cellType === 'readonly') {
+        cell.readonlyContent = ''
+      } else if (cellType === 'blank') {
+        cell.blankReason = ''
+      }
     })
   })
   toast.success('All cells cleared')
@@ -546,27 +598,58 @@ const handleSaveCellConfig = (cell: IpTableCell) => {
   currentCellConfig.value = null
 }
 
+const getCellBadgeText = (cell: IpTableCell): string => {
+  if (cell.cellType === 'blank') {
+    return 'blank'
+  }
+  if (cell.cellType === 'readonly') {
+    return 'pre-filled'
+  }
+  if (cell.cellType === 'input') {
+    if (cell.answerType === 'static') {
+      return 'static'
+    }
+    if (cell.answerType === 'calculated') {
+      return 'calculated'
+    }
+    return 'input'
+  }
+  return 'input'
+}
+
 // Helper to get cell display text
 const getCellDisplayText = (cell: IpTableCell): string => {
-  if (cell.answerType === 'static') {
-    return cell.staticAnswer || 'Not configured'
-  } else if (cell.answerType === 'calculated') {
-    const calcType = cell.calculatedAnswer?.calculationType || 'Not configured'
-    // Add friendlier display for range type
-    if (calcType === 'vlan_lecturer_range') {
-      return `Range: ${calcType}`
+  if (cell.cellType === 'readonly') {
+    return cell.readonlyContent || 'Read-only (not configured)'
+  } else if (cell.cellType === 'blank') {
+    return cell.blankReason || 'Blank cell'
+  } else if (cell.cellType === 'input') {
+    if (cell.answerType === 'static') {
+      return cell.staticAnswer || 'Not configured'
+    } else if (cell.answerType === 'calculated') {
+      const calcType = cell.calculatedAnswer?.calculationType || 'Not configured'
+      // Add friendlier display for range type
+      if (calcType === 'vlan_lecturer_range') {
+        return `Range: ${calcType}`
+      }
+      return `Calculated: ${calcType}`
     }
-    return `Calculated: ${calcType}`
   }
   return 'Not configured'
 }
 
 // Helper to check if cell is configured
 const isCellConfigured = (cell: IpTableCell): boolean => {
-  if (cell.answerType === 'static') {
-    return !!(cell.staticAnswer && cell.staticAnswer.trim())
-  } else if (cell.calculatedAnswer) {
-    return !!cell.calculatedAnswer.calculationType
+  if (cell.cellType === 'readonly') {
+    return !!(cell.readonlyContent && cell.readonlyContent.trim())
+  } else if (cell.cellType === 'blank') {
+    return true // Blank cells are always "configured"
+  } else if (cell.cellType === 'input') {
+    if (cell.answerType === 'static') {
+      return !!(cell.staticAnswer && cell.staticAnswer.trim())
+    } else if (cell.calculatedAnswer) {
+      return !!cell.calculatedAnswer.calculationType
+    }
   }
   return false
 }
@@ -574,7 +657,12 @@ const isCellConfigured = (cell: IpTableCell): boolean => {
 // Computed
 const totalPoints = computed(() => {
   return tableData.value.cells.reduce((total, row) => {
-    return total + row.reduce((rowTotal, cell) => rowTotal + (cell.points || 0), 0)
+    return total + row.reduce((rowTotal, cell) => {
+      if (cell.cellType === 'input') {
+        return rowTotal + (cell.points || 0)
+      }
+      return rowTotal
+    }, 0)
   }, 0)
 })
 
@@ -604,26 +692,30 @@ const validate = (options: { includeCellErrors?: boolean } = {}) => {
   if (includeCellErrors) {
     tableData.value.cells.forEach((row, rowIdx) => {
       row.forEach((cell, colIdx) => {
+        const cellType = cell.cellType || 'input'
+
         // Check if cell is configured
         if (!isCellConfigured(cell)) {
           errors.push(`Cell [${rowIdx + 1}, ${colIdx + 1}]: Cell configuration is required`)
         }
 
-        // Validate based on answer type
-        if (cell.answerType === 'static') {
-          if (!cell.staticAnswer || !cell.staticAnswer.trim()) {
-            errors.push(`Cell [${rowIdx + 1}, ${colIdx + 1}]: Static answer is required`)
+        if (cellType === 'input') {
+          // Validate based on answer type
+          if (cell.answerType === 'static') {
+            if (!cell.staticAnswer || !cell.staticAnswer.trim()) {
+              errors.push(`Cell [${rowIdx + 1}, ${colIdx + 1}]: Static answer is required`)
+            }
+          } else if (cell.answerType === 'calculated') {
+            if (!cell.calculatedAnswer) {
+              errors.push(`Cell [${rowIdx + 1}, ${colIdx + 1}]: Calculation configuration is required`)
+            } else if (!cell.calculatedAnswer.calculationType) {
+              errors.push(`Cell [${rowIdx + 1}, ${colIdx + 1}]: Calculation type is required`)
+            }
           }
-        } else if (cell.answerType === 'calculated') {
-          if (!cell.calculatedAnswer) {
-            errors.push(`Cell [${rowIdx + 1}, ${colIdx + 1}]: Calculation configuration is required`)
-          } else if (!cell.calculatedAnswer.calculationType) {
-            errors.push(`Cell [${rowIdx + 1}, ${colIdx + 1}]: Calculation type is required`)
-          }
-        }
 
-        if (!cell.points || cell.points < 1) {
-          errors.push(`Cell [${rowIdx + 1}, ${colIdx + 1}]: Points must be at least 1`)
+          if (!cell.points || cell.points < 1) {
+            errors.push(`Cell [${rowIdx + 1}, ${colIdx + 1}]: Points must be at least 1`)
+          }
         }
       })
     })

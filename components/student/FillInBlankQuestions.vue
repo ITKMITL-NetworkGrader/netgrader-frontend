@@ -114,7 +114,10 @@
       </Alert>
 
       <!-- Submit Button -->
-      <div class="flex items-center justify-between pt-4 border-t">
+      <div
+        class="flex items-center pt-4 border-t"
+        :class="showSubmitButton ? 'justify-between' : 'justify-start'"
+      >
         <div v-if="hasSubmitted" class="text-sm">
           <div class="font-semibold flex items-center gap-2">
             <Trophy class="w-5 h-5 text-secondary-foreground" />
@@ -132,6 +135,7 @@
         </div>
 
         <Button
+          v-if="showSubmitButton"
           @click="submitAnswers"
           :disabled="isSubmitting || (hasSubmitted && isPassed && !isUpdateMode)"
           class="min-w-[150px]"
@@ -175,6 +179,19 @@ interface AnswerResult {
   pointsEarned: number
 }
 
+interface FillInBlankSubmissionResult {
+  results: AnswerResult[]
+  totalPointsEarned: number
+  totalPoints: number
+  passed: boolean
+  submission?: {
+    id?: string
+    attempt?: number
+    status?: string
+    submittedAt?: string
+  }
+}
+
 interface DhcpPoolValidation {
   startIp: string
   endIp: string
@@ -185,10 +202,16 @@ interface Props {
   labId: string
   partId: string
   dhcpPoolValidation?: DhcpPoolValidation
+  showSubmitButton?: boolean
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  showSubmitButton: true
+})
 const route = useRoute()
+const emit = defineEmits<{
+  submitted: [FillInBlankSubmissionResult]
+}>()
 
 // State
 const answers = ref<Record<string, string>>({})
@@ -330,7 +353,10 @@ const ipTablePoints = (question: Question): number => {
   let totalPoints = 0
   question.ipTableQuestionnaire.cells.forEach(row => {
     row.forEach(cell => {
-      totalPoints += cell.points || 0
+      const cellType = cell.cellType ?? 'input'
+      if (cellType === 'input') {
+        totalPoints += cell.points || 0
+      }
     })
   })
 
@@ -395,7 +421,7 @@ const prefillAnswersFromSchema = (schema: any) => {
   })
 }
 
-const submitAnswers = async () => {
+const submitAnswers = async (): Promise<FillInBlankSubmissionResult | null> => {
   // Validate all regular questions are answered
   const unansweredRegular = props.questions.filter(q => {
     if (q.questionType === 'ip_table_questionnaire') return false
@@ -404,7 +430,7 @@ const submitAnswers = async () => {
 
   if (unansweredRegular.length > 0) {
     toast.error(`Please answer all questions (${unansweredRegular.length} remaining)`)
-    return
+    return null
   }
 
   // Validate IP table questionnaires
@@ -425,7 +451,7 @@ const submitAnswers = async () => {
     }
   }
 
-  if (ipTableValidationFailed) return
+  if (ipTableValidationFailed) return null
 
   isSubmitting.value = true
 
@@ -473,6 +499,23 @@ const submitAnswers = async () => {
         })
       }
 
+      const submissionInfo = response.submission
+        ? {
+            id: response.submission.id,
+            attempt: response.submission.attempt,
+            status: response.submission.status,
+            submittedAt: response.submission.submittedAt
+          }
+        : undefined
+
+      const submissionResult: FillInBlankSubmissionResult = {
+        results: response.data.results || [],
+        totalPointsEarned: response.data.totalPointsEarned,
+        totalPoints: response.data.totalPoints,
+        passed: response.data.passed,
+        submission: submissionInfo
+      }
+
       // Show success message
       if (response.data.passed) {
         toast.success(successToastTitle.value, {
@@ -483,6 +526,13 @@ const submitAnswers = async () => {
           description: response.data.message || 'Some answers were incorrect or validation failed'
         })
       }
+
+      emit('submitted', submissionResult)
+      return submissionResult
+    } else {
+      toast.error('Submission Failed', {
+        description: response.message || 'Failed to submit your answers. Please try again.'
+      })
     }
   } catch (error: any) {
     console.error('Failed to submit answers:', error)
@@ -492,7 +542,18 @@ const submitAnswers = async () => {
   } finally {
     isSubmitting.value = false
   }
+
+  return null
 }
+
+defineExpose({
+  submitAnswers,
+  isSubmitting,
+  hasSubmitted,
+  isPassed,
+  totalPoints,
+  totalPointsEarned
+})
 </script>
 
 <style scoped>

@@ -104,6 +104,7 @@ export const useSubmissions = () => {
           studentId: '', // Will be populated from API
           labId: labId,
           partId: partId,
+          submissionType: 'auto_grading',
           status: 'pending',
           submittedAt: new Date(),
           progressHistory: [{

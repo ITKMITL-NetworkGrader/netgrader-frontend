@@ -84,6 +84,9 @@ export interface IpTableRow {
 // Answer Types for IP Table Cells (simplified to static vs calculated)
 export type CellAnswerType = 'static' | 'calculated';
 
+// Cell Types for IP Table Cells (new advanced cell types)
+export type CellType = 'input' | 'readonly' | 'blank';
+
 export type CalculationType =
   | 'vlan_network_address'
   | 'vlan_first_usable'
@@ -110,14 +113,23 @@ export interface IpTableCell {
   rowId: string;                      // Reference to row
   columnId: string;                   // Reference to column
 
-  // Answer configuration (simplified: static or calculated)
-  answerType: CellAnswerType;         // 'static' or 'calculated'
+  // Cell type configuration
+  cellType: CellType;                 // 'input', 'readonly', or 'blank'
 
-  // For static answers
+  // Answer configuration (only for input cells)
+  answerType?: CellAnswerType;        // 'static' or 'calculated' (only for input cells)
+
+  // For static answers (only for input cells)
   staticAnswer?: string;              // Direct text answer (e.g., "8.8.8.8")
 
-  // For calculated answers
+  // For calculated answers (only for input cells)
   calculatedAnswer?: CalculatedAnswer;
+
+  // For read-only cells - pre-filled content
+  readonlyContent?: string;           // Pre-filled content for readonly cells
+
+  // For blank cells - no interaction allowed
+  blankReason?: string;               // Optional reason why cell is blank (for display)
 
   // Legacy field (keep for backward compatibility during migration)
   expectedAnswer?: string;            // @deprecated Use staticAnswer or calculatedAnswer instead

@@ -54,11 +54,21 @@ const labTitle = computed(() => currentLab.value?.title || 'Lab')
 
 // Computed
 const totalPoints = computed(() => {
-  if (!submissionData.value?.gradingResult) return { earned: 0, possible: 0 }
-  return {
-    earned: submissionData.value.gradingResult.total_points_earned,
-    possible: submissionData.value.gradingResult.total_points_possible
+  if (submissionData.value?.gradingResult) {
+    return {
+      earned: submissionData.value.gradingResult.total_points_earned,
+      possible: submissionData.value.gradingResult.total_points_possible
+    }
   }
+
+  if (submissionData.value?.fillInBlankResults) {
+    return {
+      earned: submissionData.value.fillInBlankResults.totalPointsEarned,
+      possible: submissionData.value.fillInBlankResults.totalPoints
+    }
+  }
+
+  return { earned: 0, possible: 0 }
 })
 
 const scorePercentage = computed(() => {
@@ -67,8 +77,39 @@ const scorePercentage = computed(() => {
 })
 
 const isPassed = computed(() => {
+  if (submissionData.value?.fillInBlankResults) {
+    return submissionData.value.fillInBlankResults.passed
+  }
   return scorePercentage.value === 100
 })
+
+const fillInBlankQuestions = computed(() => {
+  return submissionData.value?.fillInBlankResults?.questions || []
+})
+
+const submissionTypeLabel = computed(() => {
+  const type = submissionData.value?.submissionType || 'auto_grading'
+  return type.replace(/_/g, ' ')
+})
+
+const getCellClass = (question: any, rowIndex: number, cellIndex: number) => {
+  const baseClasses = 'px-3 py-2 border-r border-border last:border-r-0 font-mono text-center'
+  const answerRow = question.cellResults?.[rowIndex]?.[cellIndex]
+
+  if (!answerRow) {
+    return baseClasses
+  }
+
+  if (answerRow.isCorrect) {
+    return `${baseClasses} bg-green-50`
+  }
+
+  if (answerRow.isCorrect === false) {
+    return `${baseClasses} bg-red-50`
+  }
+
+  return baseClasses
+}
 
 // Toggle test details
 const toggleTest = (testName: string) => {
@@ -275,7 +316,7 @@ onMounted(() => {
           <Separator class="my-4" />
 
           <!-- Metadata -->
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+          <div class="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
             <div>
               <div class="text-muted-foreground mb-1">Student ID</div>
               <div class="font-mono font-medium">{{ submissionData.studentId }}</div>
@@ -287,19 +328,98 @@ onMounted(() => {
             <div>
               <div class="text-muted-foreground mb-1">Execution Time</div>
               <div class="font-medium">
-                {{ formatExecutionTime(submissionData.gradingResult?.total_execution_time || 0) }}
+                <template v-if="submissionData.submissionType === 'fill_in_blank'">
+                  Instant
+                </template>
+                <template v-else>
+                  {{ formatExecutionTime(submissionData.gradingResult?.total_execution_time || 0) }}
+                </template>
               </div>
             </div>
             <div>
               <div class="text-muted-foreground mb-1">Status</div>
               <Badge>{{ submissionData.status }}</Badge>
             </div>
+            <div>
+              <div class="text-muted-foreground mb-1">Submission Type</div>
+              <Badge variant="outline" class="capitalize">
+                {{ submissionTypeLabel }}
+              </Badge>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <!-- Fill-in-Blank Question Breakdown -->
+      <Card v-if="submissionData.fillInBlankResults" class="mb-8">
+        <CardHeader>
+          <CardTitle class="flex items-center space-x-2">
+            <FileText class="w-5 h-5" />
+            <span>Question Breakdown</span>
+          </CardTitle>
+          <CardDescription>
+            Detailed results for each fill-in-blank question
+          </CardDescription>
+        </CardHeader>
+        <CardContent class="space-y-4">
+          <div
+            v-for="question in fillInBlankQuestions"
+            :key="question.questionId"
+            class="border rounded-lg p-4 space-y-3 transition-colors"
+            :class="question.isCorrect ? 'border-green-300' : 'border-red-300'"
+          >
+            <div class="flex items-start justify-between gap-4">
+              <div>
+                <div class="text-sm text-muted-foreground">Question</div>
+                <div class="font-semibold text-base">{{ question.questionText }}</div>
+                <div class="text-xs text-muted-foreground mt-1">Type: {{ question.questionType.split('_').join(' ') }}</div>
+              </div>
+              <div class="text-right space-y-1">
+                <Badge
+                  :variant="question.isCorrect ? 'default' : 'destructive'"
+                  :class="question.isCorrect ? 'bg-green-500 text-white' : ''"
+                >
+                  {{ question.isCorrect ? 'Correct' : 'Incorrect' }}
+                </Badge>
+                <div class="text-sm font-mono">
+                  {{ question.pointsEarned }}/{{ question.pointsPossible }} pts
+                </div>
+                <div v-if="typeof question.correctCells === 'number' && typeof question.totalCells === 'number'" class="text-xs text-muted-foreground">
+                  {{ question.correctCells }}/{{ question.totalCells }} cells correct
+                </div>
+              </div>
+            </div>
+
+            <div v-if="question.studentAnswer" class="text-sm">
+              <span class="text-muted-foreground">Answer:</span>
+              <code class="px-2 py-1 bg-muted rounded ml-2">{{ question.studentAnswer }}</code>
+            </div>
+
+            <div v-if="question.ipTableAnswers && question.ipTableAnswers.length" class="overflow-x-auto">
+              <table class="min-w-full text-sm border border-border rounded">
+                <tbody>
+                  <tr
+                    v-for="(row, rowIndex) in question.ipTableAnswers"
+                    :key="`fib-row-${question.questionId}-${rowIndex}`"
+                    class="border-b border-border last:border-b-0"
+                  >
+                    <td
+                      v-for="(cell, cellIndex) in row"
+                      :key="`fib-cell-${question.questionId}-${rowIndex}-${cellIndex}`"
+                      :class="getCellClass(question, rowIndex, cellIndex)"
+                    >
+                      {{ cell || '—' }}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </CardContent>
       </Card>
 
       <!-- Test Results -->
-      <Card class="mb-8">
+      <Card v-if="submissionData.submissionType !== 'fill_in_blank'" class="mb-8">
         <CardHeader>
           <CardTitle class="flex items-center space-x-2">
             <FileText class="w-5 h-5" />

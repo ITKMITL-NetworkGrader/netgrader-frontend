@@ -676,26 +676,35 @@ const handleCreateLab = async () => {
                       order: row.order
                     })),
                     cells: question.ipTableQuestionnaire.cells.map(cellRow =>
-                      cellRow.map(cell => ({
-                        cellId: cell.cellId,
-                        rowId: cell.rowId,
-                        columnId: cell.columnId,
-                        answerType: cell.answerType,
-                        staticAnswer: cell.staticAnswer,
-                        calculatedAnswer: cell.calculatedAnswer
-                          ? {
-                              calculationType: cell.calculatedAnswer.calculationType,
-                              vlanIndex: cell.calculatedAnswer.vlanIndex,
-                              lecturerOffset: cell.calculatedAnswer.lecturerOffset,
-                              lecturerRangeStart: cell.calculatedAnswer.lecturerRangeStart,
-                              lecturerRangeEnd: cell.calculatedAnswer.lecturerRangeEnd,
-                              deviceId: cell.calculatedAnswer.deviceId,
-                              interfaceName: cell.calculatedAnswer.interfaceName
-                            }
-                          : undefined,
-                        points: cell.points,
-                        autoCalculated: cell.autoCalculated
-                      }))
+                      cellRow.map(cell => {
+                        const cellType = cell.cellType ?? 'input'
+                        const isInputCell = cellType === 'input'
+                        const isCalculated = cell.answerType === 'calculated'
+
+                        return {
+                          cellId: cell.cellId,
+                          rowId: cell.rowId,
+                          columnId: cell.columnId,
+                          cellType,
+                          answerType: isInputCell ? (cell.answerType ?? 'calculated') : undefined,
+                          staticAnswer: isInputCell && cell.answerType === 'static' ? cell.staticAnswer : undefined,
+                          calculatedAnswer: isInputCell && isCalculated && cell.calculatedAnswer
+                            ? {
+                                calculationType: cell.calculatedAnswer.calculationType,
+                                vlanIndex: cell.calculatedAnswer.vlanIndex,
+                                lecturerOffset: cell.calculatedAnswer.lecturerOffset,
+                                lecturerRangeStart: cell.calculatedAnswer.lecturerRangeStart,
+                                lecturerRangeEnd: cell.calculatedAnswer.lecturerRangeEnd,
+                                deviceId: cell.calculatedAnswer.deviceId,
+                                interfaceName: cell.calculatedAnswer.interfaceName
+                              }
+                            : undefined,
+                          readonlyContent: cellType === 'readonly' ? (cell.readonlyContent ?? '') : undefined,
+                          blankReason: cellType === 'blank' ? (cell.blankReason ?? '') : undefined,
+                          points: isInputCell ? cell.points : 0,
+                          autoCalculated: isInputCell ? !!cell.autoCalculated : false
+                        }
+                      })
                     )
                   }
                 : undefined

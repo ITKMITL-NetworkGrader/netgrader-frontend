@@ -24,7 +24,9 @@ import {
   Server,
   TestTube,
   RotateCcw,
-  Info
+  Info,
+  Loader2,
+  Send
 } from 'lucide-vue-next'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -45,6 +47,19 @@ import LabTimer from '@/components/student/LabTimer.vue'
 import FillInBlankQuestions from '@/components/student/FillInBlankQuestions.vue'
 import type { ISubmission } from '@/types/submission'
 
+type FillInBlankSubmissionPayload = {
+  results: any[]
+  totalPointsEarned: number
+  totalPoints: number
+  passed: boolean
+  submission?: {
+    id?: string
+    attempt?: number
+    status?: string
+    submittedAt?: string
+  }
+}
+
 // Configure marked for safe HTML rendering
 marked.setOptions({
   gfm: true,
@@ -57,6 +72,7 @@ const router = useRouter()
 // Route params
 const courseId = computed(() => route.params.c_id as string)
 const labId = computed(() => route.params.l_id as string)
+const isUpdateModeRoute = computed(() => route.query.mode === 'update')
 
 // Composables
 const { currentCourse, fetchCourse } = useCourse()
@@ -92,6 +108,8 @@ const completedParts = ref<Set<string>>(new Set())
 const completedTasks = ref<Record<string, Set<string>>>(new Map()) // partId -> Set of taskIds
 const isSubmittingPart = ref(false)
 const progress = ref<Record<string, number>>({}) // partId -> percentage
+const fillInBlankQuestionsRef = ref<InstanceType<typeof FillInBlankQuestions> | null>(null)
+const fillInBlankSubmission = ref<FillInBlankSubmissionPayload | null>(null)
 
 // IP Loading and Completion State
 const isLoadingIPs = ref(true)
@@ -117,6 +135,8 @@ const currentPart = computed(() => {
   return parts[currentPartIndex.value] || null
 })
 
+const isFillInBlankPart = computed(() => currentPart.value?.partType === 'fill_in_blank')
+
 const totalParts = computed(() => currentLabParts.value?.length || 0)
 const completedPartsCount = computed(() => completedParts.value.size)
 
@@ -140,6 +160,7 @@ const totalPointsAvailable = computed(() => {
 })
 
 const courseTitle = computed(() => currentCourse.value?.title || `Course ${courseId.value}`)
+const shouldHideStudentContent = computed(() => showResultsModal.value || timerExpiredModalMode.value === 'timer_expired')
 
 // Check if current part has fill-in-blank questions
 const hasFillInBlankQuestions = computed(() => {
@@ -432,6 +453,38 @@ const submitPartForGrading = async () => {
   }
 }
 
+const handleFillInBlankSubmissionResult = (result: FillInBlankSubmissionPayload) => {
+  fillInBlankSubmission.value = result
+
+  if (!currentPart.value) return
+
+  const partId = currentPart.value.id
+
+  if (result.passed) {
+    completedParts.value.add(partId)
+
+    if (!completedTasks.value[partId]) {
+      completedTasks.value[partId] = new Set()
+    }
+
+    // There may be no discrete tasks for fill-in-the-blank parts, but ensure the set exists
+    setTimeout(async () => {
+      await checkLabCompletion()
+    }, 2000)
+  } else {
+    completedParts.value.delete(partId)
+  }
+}
+
+const handleFillInBlankSubmit = async () => {
+  if (!fillInBlankQuestionsRef.value) return
+
+  const result = await fillInBlankQuestionsRef.value.submitAnswers()
+  if (result && !fillInBlankSubmission.value) {
+    handleFillInBlankSubmissionResult(result)
+  }
+}
+
 // Get current grading status for display
 const currentGradingStatus = computed(() => {
   if (!currentPart.value) return { status: 'idle', message: 'Ready to submit' }
@@ -442,6 +495,9 @@ const currentGradingStatus = computed(() => {
 
 // Watch for completed submissions to update part completion status
 watch(() => currentGradingStatus.value, async (newStatus) => {
+  if (currentPart.value?.partType === 'fill_in_blank') {
+    return
+  }
   if (newStatus.status === 'completed' && newStatus.results && currentPart.value) {
     // Mark part as completed if grading was successful and got full points
     if (newStatus.results.total_points_earned === newStatus.results.total_points_possible) {
@@ -465,6 +521,10 @@ watch(() => currentGradingStatus.value, async (newStatus) => {
       }, 2000)
     }
   }
+})
+
+watch(() => currentPart.value?.id, () => {
+  fillInBlankSubmission.value = null
 })
 
 // Get user state
@@ -761,7 +821,7 @@ watch(() => route.query.part, (newPart) => {
     <!-- Main Lab Interface -->
     <div v-else-if="currentLab && currentLabParts && currentLabParts.length > 0" class="flex min-h-[calc(100vh-80px)]">
       <!-- Right Sidebar - Part Navigation (30%) -->
-      <div class="w-[30%] min-w-[380px] max-w-[420px] border-r bg-card/30 backdrop-blur-sm flex flex-col">
+      <div v-if="!shouldHideStudentContent" class="w-[30%] min-w-[380px] max-w-[420px] border-r bg-card/30 backdrop-blur-sm flex flex-col">
         <!-- Lab Header -->
         <div class="p-6 border-b bg-card/80 backdrop-blur-sm">
           <div class="flex items-start space-x-4">
@@ -890,7 +950,7 @@ watch(() => route.query.part, (newPart) => {
       </div>
 
       <!-- Main Content Area (70%) -->
-      <div class="flex-1 flex flex-col bg-background">
+      <div class="flex-1 flex flex-col bg-background" v-if="!shouldHideStudentContent">
         <!-- Current Part Header -->
         <div v-if="currentPart" class="border-b bg-card/50 backdrop-blur-sm p-6">
           <div class="flex items-center justify-between mb-4">
@@ -1032,6 +1092,7 @@ watch(() => route.query.part, (newPart) => {
             <!-- Fill-in-Blank Questions -->
             <div v-if="hasFillInBlankQuestions && currentPart">
               <FillInBlankQuestions
+                ref="fillInBlankQuestionsRef"
                 :questions="currentPart.questions"
                 :labId="labId"
                 :partId="currentPart.partId"
@@ -1039,6 +1100,8 @@ watch(() => route.query.part, (newPart) => {
                   startIp: calculateDhcpPoolIp(currentPart.dhcpConfiguration.startOffset),
                   endIp: calculateDhcpPoolIp(currentPart.dhcpConfiguration.endOffset)
                 } : undefined"
+                :show-submit-button="!isFillInBlankPart"
+                @submitted="handleFillInBlankSubmissionResult"
               />
             </div>
 
@@ -1049,8 +1112,35 @@ watch(() => route.query.part, (newPart) => {
         <div class="border-t bg-card/80 backdrop-blur-sm">
           <!-- Part Submission Area -->
           <div v-if="currentPart" class="p-6">
-            <div class="max-w-5xl mx-auto flex items-center justify-between">
-              <div class="flex-1">
+          <div class="max-w-5xl mx-auto flex items-center justify-between gap-4">
+            <div class="flex-1">
+              <template v-if="isFillInBlankPart">
+                <h3 class="font-semibold text-lg mb-1">
+                  <span v-if="fillInBlankSubmission?.passed">
+                    Part {{ currentPartIndex + 1 }} Completed!
+                  </span>
+                  <span v-else-if="fillInBlankSubmission">
+                    Keep Going — Review Your Results
+                  </span>
+                  <span v-else>
+                    Ready to Submit Part {{ currentPartIndex + 1 }}?
+                  </span>
+                </h3>
+                <p class="text-sm text-muted-foreground">
+                  <span v-if="fillInBlankSubmission">
+                    You earned {{ fillInBlankSubmission.totalPointsEarned }}/{{ fillInBlankSubmission.totalPoints }} points.
+                    <span v-if="fillInBlankSubmission.passed" class="font-medium text-primary ml-1">Great work!</span>
+                  </span>
+                  <span v-else>
+                    Submit your answers to auto-grade this part.
+                    <span class="font-medium text-primary ml-1">{{ currentPart.totalPoints }} points available</span>
+                  </span>
+                </p>
+                <p v-if="fillInBlankSubmission?.submission?.attempt" class="text-xs text-muted-foreground">
+                  Attempt #{{ fillInBlankSubmission?.submission?.attempt }}
+                </p>
+              </template>
+              <template v-else>
                 <h3 class="font-semibold text-lg mb-1">
                   {{ currentGradingStatus.status === 'completed' && currentGradingStatus.results?.total_points_earned > 0 
                      ? `Part ${currentPartIndex + 1} Completed!` 
@@ -1065,8 +1155,22 @@ watch(() => route.query.part, (newPart) => {
                     <span class="font-medium text-primary ml-1">{{ currentPart.totalPoints }} points available</span>
                   </span>
                 </p>
-              </div>
-              <div class="flex items-center space-x-3">
+              </template>
+            </div>
+            <div class="flex items-center space-x-3">
+              <template v-if="isFillInBlankPart">
+                <Button
+                  size="lg"
+                  class="min-w-[180px]"
+                  :disabled="(fillInBlankQuestionsRef?.isSubmitting?.value ?? false) || (fillInBlankSubmission?.passed === true && !isUpdateModeRoute)"
+                  @click="handleFillInBlankSubmit"
+                >
+                  <Loader2 v-if="fillInBlankQuestionsRef?.isSubmitting?.value" class="w-4 h-4 mr-2 animate-spin" />
+                  <Send v-else class="w-4 h-4 mr-2" />
+                  Submit for Grading
+                </Button>
+              </template>
+              <template v-else>
                 <!-- Grading Progress Component -->
                 <GradingProgress
                   :status="currentGradingStatus.status"
@@ -1078,8 +1182,9 @@ watch(() => route.query.part, (newPart) => {
                   @toggle-details="toggleProgressDetails(labId, currentPart.partId)"
                   @close-results="clearGradingResults(labId, currentPart.partId)"
                 />
-              </div>
+              </template>
             </div>
+          </div>
           </div>
 
         </div>

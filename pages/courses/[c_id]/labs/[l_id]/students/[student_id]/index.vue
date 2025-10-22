@@ -336,13 +336,18 @@ onMounted(() => {
                                 </div>
                                 <span class="font-mono font-semibold">{{ attempt.score }}/{{ attempt.totalPoints }}</span>
                                 <span class="text-sm text-muted-foreground">
-                                  ({{ Math.round((attempt.score / attempt.totalPoints) * 100) }}%)
+                                  ({{ attempt.totalPoints > 0 ? Math.round((attempt.score / attempt.totalPoints) * 100) : 0 }}%)
                                 </span>
                               </div>
                               <div class="flex items-center space-x-4 text-xs text-muted-foreground">
                                 <div class="flex items-center space-x-1">
                                   <Calendar class="w-3 h-3" />
                                   <span>Submitted: {{ formatDateTime(attempt.submittedAt) }}</span>
+                                </div>
+                                <div class="flex items-center">
+                                  <Badge variant="outline" class="text-[10px] capitalize">
+                                    {{ (attempt.submissionType || 'auto_grading').replace(/_/g, ' ') }}
+                                  </Badge>
                                 </div>
                                 <div v-if="attempt.completedAt" class="flex items-center space-x-1">
                                   <CheckCircle2 class="w-3 h-3" />

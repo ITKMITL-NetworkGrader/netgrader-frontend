@@ -72,11 +72,32 @@ export interface IProgressUpdate {
   timestamp: Date;
 }
 
+export interface IFillInBlankQuestionResult {
+  questionId: string;
+  questionText: string;
+  questionType: string;
+  pointsEarned: number;
+  pointsPossible: number;
+  isCorrect: boolean;
+  studentAnswer?: string | null;
+  ipTableAnswers?: string[][];
+  correctCells?: number;
+  totalCells?: number;
+}
+
+export interface IFillInBlankResults {
+  totalPointsEarned: number;
+  totalPoints: number;
+  passed: boolean;
+  questions: IFillInBlankQuestionResult[];
+}
+
 export interface ISubmission {
   jobId: string;
   studentId: string;
   labId: string;
   partId: string;
+  submissionType: 'auto_grading' | 'fill_in_blank' | 'ip_answers';
   
   // Submission Status
   status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
@@ -86,13 +107,16 @@ export interface ISubmission {
   
   // Grading Results
   gradingResult?: IGradingResult;
+
+  // Fill-in-blank summary
+  fillInBlankResults?: IFillInBlankResults;
   
   // Progress Tracking
   progressHistory: IProgressUpdate[];
   
   // Additional metadata
   attempt: number;
-  ipMappings: Record<string, { ip: string; vlan: number | null }>;
+  ipMappings: Record<string, any>;
   callbackUrl: string;
   
   // Timestamps

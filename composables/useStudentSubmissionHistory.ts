@@ -9,6 +9,7 @@ export interface SubmissionAttempt {
   submittedAt: Date | string
   startedAt: Date | string | null
   completedAt: Date | string | null
+  submissionType?: 'auto_grading' | 'fill_in_blank' | 'ip_answers'
 }
 
 export interface PartSubmissionHistory {
@@ -47,7 +48,14 @@ export const useStudentSubmissionHistory = () => {
       )
 
       if (response.status === 'success') {
-        submissionHistory.value = response.data || []
+        submissionHistory.value = (response.data || []).map(part => ({
+          ...part,
+          submissionHistory: part.submissionHistory.map(attempt => ({
+            ...attempt,
+            score: attempt.score ?? 0,
+            totalPoints: attempt.totalPoints ?? 0
+          }))
+        }))
       } else {
         error.value = 'Failed to fetch submission history'
       }
