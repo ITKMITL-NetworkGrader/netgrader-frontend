@@ -196,8 +196,9 @@ export function useImageUpload(options: ImageUploadOptions = {}) {
 
   // Clipboard paste setup
   const setupClipboardPaste = (editor: any) => {
-    const handlePaste = async (view: any, event: ClipboardEvent) => {
-      const items = event.clipboardData?.items
+    const handlePaste = async (_view: any, event: ClipboardEvent | ClipboardEvent & { clipboardData?: DataTransfer }) => {
+      const clipboard = event.clipboardData || (window as any).clipboardData
+      const items = clipboard?.items
       if (!items) return false
 
       for (const item of Array.from(items)) {

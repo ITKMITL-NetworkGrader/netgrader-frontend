@@ -39,7 +39,10 @@ export const useLabCreationWizard = () => {
     courseId: '',
     name: '',
     description: '',
-    instructions: '',
+    instructions: {
+      html: '',
+      json: { type: 'doc', content: [] }
+    },
     dueDate: null as Date | null,
     availableFrom: null as Date | null,
     availableUntil: null as Date | null

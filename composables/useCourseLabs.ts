@@ -19,6 +19,11 @@ export interface Lab {
   createdBy: string
   createdAt: string
   updatedAt: string
+  instructions?: {
+    html: string
+    json: any
+  }
+  instructionsAcknowledged?: boolean
 
   // Timer fields for lab availability and deadlines
   availableFrom?: string | Date
@@ -59,7 +64,12 @@ export interface LabPart {
   partId: string
   title: string
   description?: string
-  instructions: string
+  instructions: string | {
+    html: string
+    json: any
+    plainText?: string
+    metadata?: Record<string, any>
+  }
   order: number
   partType?: 'fill_in_blank' | 'network_config' | 'dhcp_config'
   questions?: any[]
@@ -68,6 +78,8 @@ export interface LabPart {
   task_groups: TaskGroup[]
   prerequisites: string[]
   totalPoints: number
+  isVirtual?: boolean
+  isPartZero?: boolean
 }
 
 export interface LabTask {
@@ -134,6 +146,7 @@ export const useCourseLabs = () => {
   const labs = ref<Lab[]>([])
   const currentLab = ref<Lab | null>(null)
   const currentLabParts = ref<LabPart[]>([])
+  const allLabParts = ref<LabPart[]>([])
   const isLoading = ref(false)
   const isLoadingParts = ref(false)
   const error = ref<string | null>(null)
@@ -242,6 +255,7 @@ export const useCourseLabs = () => {
         console.log('🔍 [DEBUG] Unexpected response format')
         error.value = 'Unexpected API response format'
         currentLabParts.value = []
+        allLabParts.value = []
         return []
       }
 
@@ -257,7 +271,8 @@ export const useCourseLabs = () => {
       console.log('🔍 [DEBUG] Sorted parts with corrected points:', partsWithCorrectPoints)
       console.log('🔍 [DEBUG] Parts count:', partsWithCorrectPoints.length)
       
-      currentLabParts.value = partsWithCorrectPoints
+      allLabParts.value = partsWithCorrectPoints
+      currentLabParts.value = partsWithCorrectPoints.filter(part => !part.isVirtual)
       return partsWithCorrectPoints
     } catch (err: any) {
       console.error('🔍 [DEBUG] API request failed:', err)
@@ -270,6 +285,7 @@ export const useCourseLabs = () => {
       
       error.value = err.message || 'Failed to fetch lab parts'
       currentLabParts.value = []
+      allLabParts.value = []
       return []
     } finally {
       console.log('🔍 [DEBUG] fetchLabParts completed, isLoadingParts set to false')
@@ -333,6 +349,10 @@ export const useCourseLabs = () => {
 
   // Utility function to calculate correct part points considering task groups and questions
   const calculatePartTotalPoints = (part: LabPart): number => {
+    if (part.isVirtual || part.isPartZero) {
+      return 0
+    }
+
     // For fill-in-blank parts, use question points
     if (part.partType === 'fill_in_blank' && part.questions && part.questions.length > 0) {
       return part.questions.reduce((sum, question) => {
@@ -395,6 +415,7 @@ export const useCourseLabs = () => {
     labs: readonly(labs),
     currentLab: readonly(currentLab),
     currentLabParts: readonly(currentLabParts),
+    allLabParts: readonly(allLabParts),
     isLoading: readonly(isLoading),
     isLoadingParts: readonly(isLoadingParts),
     error: readonly(error),

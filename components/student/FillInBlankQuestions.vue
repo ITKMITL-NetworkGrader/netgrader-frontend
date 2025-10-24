@@ -151,9 +151,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { toast } from 'vue-sonner'
+import { useLocalStorage } from '@vueuse/core'
+import type { UseStorageOptions } from '@vueuse/core'
 import {
   FileQuestion,
   CheckCircle,
@@ -172,6 +174,10 @@ import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import IpTableQuestionnaire from '@/components/student/IpTableQuestionnaire.vue'
 import type { Question } from '@/types/wizard'
+import { useUserState } from '~/composables/states'
+
+const LOCAL_STORAGE_PREFIX = 'fillin:'
+const SESSION_MARKER_KEY = `${LOCAL_STORAGE_PREFIX}session-active`
 
 interface AnswerResult {
   questionId: string
@@ -197,6 +203,12 @@ interface DhcpPoolValidation {
   endIp: string
 }
 
+interface FillInBlankStoragePayload {
+  answers: Record<string, string>
+  ipTableAnswers: Record<string, string[][]>
+  timestamp: number
+}
+
 interface Props {
   questions: Question[]
   labId: string
@@ -209,6 +221,7 @@ const props = withDefaults(defineProps<Props>(), {
   showSubmitButton: true
 })
 const route = useRoute()
+const userState = useUserState()
 const emit = defineEmits<{
   submitted: [FillInBlankSubmissionResult]
 }>()
@@ -221,6 +234,38 @@ const ipTableRefs = ref<Record<string, any>>({})
 const results = ref<Record<string, AnswerResult>>({})
 const isSubmitting = ref(false)
 const hasSubmitted = ref(false)
+const isRestoringFromStorage = ref(false)
+
+const resolvedUserId = computed(() => userState.value?.u_id || null)
+
+const buildStorageKey = (identifier: string) =>
+  `${LOCAL_STORAGE_PREFIX}${identifier}:${props.labId}:${props.partId}`
+
+const primaryStorageKey = computed(() =>
+  resolvedUserId.value ? buildStorageKey(resolvedUserId.value) : null
+)
+
+const fallbackStorageKey = computed(() => buildStorageKey('anonymous'))
+const storageKey = computed(() => primaryStorageKey.value ?? fallbackStorageKey.value)
+
+const storageOptions: UseStorageOptions<FillInBlankStoragePayload | null> = {
+  listenToStorageChanges: true,
+  writeDefaults: false,
+  serializer: {
+    read: (value: string) => {
+      if (!value) return null
+      try {
+        return JSON.parse(value) as FillInBlankStoragePayload
+      } catch (error) {
+        console.warn('Failed to parse saved answers from local storage:', error)
+        return null
+      }
+    },
+    write: (value: FillInBlankStoragePayload | null) => (value ? JSON.stringify(value) : '')
+  }
+}
+
+const storedPayload = useLocalStorage<FillInBlankStoragePayload | null>(storageKey, null, storageOptions)
 
 // Initialize IP table answers for all IP table questions
 const initializeIpTableAnswers = () => {
@@ -235,6 +280,145 @@ const initializeIpTableAnswers = () => {
       }
     }
   })
+}
+
+const restoreAnswersFromStorage = (payload: FillInBlankStoragePayload | null = storedPayload.value) => {
+  if (typeof window === 'undefined') return
+  if (!payload) return
+
+  isRestoringFromStorage.value = true
+
+  const nextAnswers: Record<string, string> = {}
+
+  if (payload.answers && typeof payload.answers === 'object') {
+    Object.entries(payload.answers).forEach(([questionId, value]) => {
+      if (typeof value === 'string') {
+        nextAnswers[questionId] = value
+      }
+    })
+  }
+
+  answers.value = nextAnswers
+
+  if (payload.ipTableAnswers && typeof payload.ipTableAnswers === 'object') {
+    const nextIpTableAnswers: Record<string, string[][]> = {}
+
+    Object.entries(payload.ipTableAnswers).forEach(([questionId, value]) => {
+      if (Array.isArray(value)) {
+        nextIpTableAnswers[questionId] = JSON.parse(JSON.stringify(value)) as string[][]
+      }
+    })
+
+    ipTableAnswers.value = nextIpTableAnswers
+  } else {
+    ipTableAnswers.value = {}
+  }
+
+  requestAnimationFrame(() => {
+    isRestoringFromStorage.value = false
+
+    initializeIpTableAnswers()
+
+    if (primaryStorageKey.value && primaryStorageKey.value !== fallbackStorageKey.value) {
+      try {
+        window.localStorage.removeItem(fallbackStorageKey.value)
+      } catch {
+        /* no-op */
+      }
+    }
+  })
+}
+
+watch(storedPayload, payload => {
+  if (typeof window === 'undefined') return
+
+  if (payload) {
+    restoreAnswersFromStorage(payload)
+  } else {
+    isRestoringFromStorage.value = true
+    answers.value = {}
+    ipTableAnswers.value = {}
+    requestAnimationFrame(() => {
+      initializeIpTableAnswers()
+      isRestoringFromStorage.value = false
+    })
+  }
+}, { immediate: true })
+
+const persistAnswersToStorage = () => {
+  if (typeof window === 'undefined') return
+  if (isRestoringFromStorage.value) return
+
+  if (hasSubmitted.value && isPassed.value) {
+    clearStoredAnswers()
+    return
+  }
+
+  const payload = {
+    answers: JSON.parse(JSON.stringify(answers.value)),
+    ipTableAnswers: JSON.parse(JSON.stringify(ipTableAnswers.value)),
+    timestamp: Date.now()
+  }
+
+  try {
+    storedPayload.value = payload
+  } catch (error) {
+    console.warn('Failed to persist answers to local storage:', error)
+  }
+
+  if (primaryStorageKey.value && primaryStorageKey.value !== fallbackStorageKey.value) {
+    try {
+      window.localStorage.removeItem(fallbackStorageKey.value)
+    } catch {
+      /* no-op */
+    }
+  }
+}
+
+const clearStoredAnswers = () => {
+  if (typeof window === 'undefined') return
+
+  storedPayload.value = null
+  if (typeof storedPayload.remove === 'function') {
+    storedPayload.remove()
+  }
+
+  const keysToClear = [primaryStorageKey.value, fallbackStorageKey.value].filter(Boolean) as string[]
+  keysToClear.forEach(key => {
+    try {
+      window.localStorage.removeItem(key)
+    } catch {
+      /* no-op */
+    }
+  })
+}
+
+const ensureSessionMarker = () => {
+  if (typeof window === 'undefined') return
+
+  const markerExists = window.sessionStorage.getItem(SESSION_MARKER_KEY)
+
+  if (!markerExists) {
+    const keysToRemove: string[] = []
+    for (let index = 0; index < window.localStorage.length; index += 1) {
+      const key = window.localStorage.key(index)
+      if (key && key.startsWith(LOCAL_STORAGE_PREFIX)) {
+        keysToRemove.push(key)
+      }
+    }
+
+    keysToRemove.forEach(key => {
+      try {
+        window.localStorage.removeItem(key)
+      } catch {
+        /* no-op */
+      }
+    })
+
+    clearStoredAnswers()
+  }
+
+  window.sessionStorage.setItem(SESSION_MARKER_KEY, 'active')
 }
 
 // Check if in update mode
@@ -372,11 +556,44 @@ const setIpTableRef = (questionId: string, el: any) => {
 
 // Load existing schema if in update mode
 onMounted(async () => {
+  ensureSessionMarker()
+
   // Initialize IP table answers first
   initializeIpTableAnswers()
 
+  // Restore any saved answers from local storage before fetching backend data
+  restoreAnswersFromStorage()
+
   if (isUpdateMode.value) {
     await loadExistingSchema()
+
+    // Ensure locally saved answers take precedence after schema load
+    restoreAnswersFromStorage()
+  }
+})
+
+watch(resolvedUserId, (newId, oldId) => {
+  if (typeof window === 'undefined') return
+
+  if (newId && newId !== oldId) {
+    if (storedPayload.value) {
+      persistAnswersToStorage()
+    }
+    if (primaryStorageKey.value && primaryStorageKey.value !== fallbackStorageKey.value) {
+      try {
+        window.localStorage.removeItem(fallbackStorageKey.value)
+      } catch {
+        /* no-op */
+      }
+    }
+  } else if (!newId && oldId) {
+    const previousKey = buildStorageKey(oldId)
+    try {
+      window.localStorage.removeItem(previousKey)
+    } catch {
+      /* no-op */
+    }
+    clearStoredAnswers()
   }
 })
 
@@ -521,6 +738,7 @@ const submitAnswers = async (): Promise<FillInBlankSubmissionResult | null> => {
         toast.success(successToastTitle.value, {
           description: `You earned ${response.data.totalPointsEarned} out of ${response.data.totalPoints} points`
         })
+        clearStoredAnswers()
       } else {
         toast.error('Submission Failed', {
           description: response.data.message || 'Some answers were incorrect or validation failed'
@@ -545,6 +763,9 @@ const submitAnswers = async (): Promise<FillInBlankSubmissionResult | null> => {
 
   return null
 }
+
+watch(answers, persistAnswersToStorage, { deep: true })
+watch(ipTableAnswers, persistAnswersToStorage, { deep: true })
 
 defineExpose({
   submitAnswers,

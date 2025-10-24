@@ -1,5 +1,11 @@
 // Lab Creation Wizard TypeScript Interfaces
 // Based on CLAUDE.md specifications
+import type { PartSubmissionSummary } from './submission'
+
+export interface RichTextContent {
+  html: string
+  json: any
+}
 
 // Core Lab Structure
 export interface Lab {
@@ -291,7 +297,7 @@ export interface LabWizardData {
   basicInfo: {
     name: string;
     description: string;
-    instructions: string;
+    instructions: RichTextContent;
   };
 
   // Step 2: Network Configuration
@@ -377,9 +383,12 @@ export interface StudentIpSchema {
 export interface WizardLabPart extends Omit<LabPart, 'labId'> {
   tempId: string;            // Temporary ID for wizard use
   isExpanded: boolean;       // UI state for accordion
+  showInstructionsPreview?: boolean;
   tasks: WizardTask[];       // Extended tasks with UI state
   questions?: Question[];    // Questions for fill_in_blank parts
   dhcpConfiguration?: DhcpConfiguration; // DHCP config for dhcp_config parts
+  hasSubmissions?: boolean;  // Whether students have submissions for this part
+  submissionSummary?: PartSubmissionSummary;
 }
 
 // Wizard-specific Task (extended with UI state)

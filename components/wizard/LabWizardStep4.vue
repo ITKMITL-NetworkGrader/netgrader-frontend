@@ -46,9 +46,10 @@
           <Card
             v-for="(part, partIndex) in localData"
             :key="part.tempId"
-            :class="{
+          :class="{
               'border-destructive': hasPartErrors(partIndex),
-              'border-blue-500': !hasPartErrors(partIndex) && isPartValid(part)
+              'border-amber-400 bg-amber-50/20': part.hasSubmissions && !hasPartErrors(partIndex),
+              'border-blue-500': !part.hasSubmissions && !hasPartErrors(partIndex) && isPartValid(part)
             }"
           >
             <CardHeader class="pb-4">
@@ -61,6 +62,14 @@
                   </Badge>
                   <Badge v-if="part.totalPoints > 0" variant="outline" class="ml-2">
                     {{ part.totalPoints }} pts
+                  </Badge>
+                  <Badge
+                    v-if="part.hasSubmissions"
+                    variant="outline"
+                    class="ml-2 flex items-center gap-1 border-amber-500 text-amber-700"
+                  >
+                    <ShieldAlert class="h-3 w-3" />
+                    {{ part.submissionSummary?.submissionCount ?? 0 }} submissions
                   </Badge>
                 </CardTitle>
                 <div class="flex items-center space-x-2">
@@ -104,7 +113,20 @@
 
             <Collapsible v-model:open="part.isExpanded">
               <CollapsibleContent>
-                <CardContent class="space-y-6">
+                <div class="relative">
+                  <CardContent class="space-y-6 transition-opacity duration-200">
+                  <Alert
+                    v-if="part.hasSubmissions"
+                    class="border-amber-200 bg-amber-50"
+                  >
+                    <ShieldAlert class="h-4 w-4 text-amber-600" />
+                    <AlertTitle>Student submissions detected</AlertTitle>
+                    <AlertDescription class="text-xs text-amber-700">
+                      Editing will impact {{ part.submissionSummary?.submissionCount ?? 0 }} existing submission{{ (part.submissionSummary?.submissionCount ?? 0) === 1 ? '' : 's' }} across
+                      {{ part.submissionSummary?.studentCount ?? 0 }} student{{ (part.submissionSummary?.studentCount ?? 0) === 1 ? '' : 's' }}.
+                    </AlertDescription>
+                  </Alert>
+
                   <!-- Part Basic Information -->
                   <div class="space-y-4">
                     <!-- Part Title -->
@@ -136,7 +158,7 @@
                       <Label class="text-sm font-medium">
                         Part Type <span class="text-destructive">*</span>
                       </Label>
-                      <RadioGroup v-model="part.partType" @update:modelValue="onPartTypeChange(partIndex)">
+                      <RadioGroup v-model="part.partType" @update:model-value="onPartTypeChange(partIndex)">
                         <!-- Fill-in-the-Blank -->
                         <div class="flex items-center space-x-2 p-3 border rounded-lg hover:bg-accent/50 cursor-pointer transition-colors">
                           <RadioGroupItem value="fill_in_blank" :id="`fill-blank-${partIndex}`" />
@@ -268,7 +290,7 @@
                                 <Label class="text-sm font-medium">
                                   Question Type <span class="text-destructive">*</span>
                                 </Label>
-                                <Select v-model="question.questionType" @update:modelValue="onQuestionTypeChange(partIndex, qIndex)">
+                                <Select v-model="question.questionType" @update:model-value="onQuestionTypeChange(partIndex, qIndex)">
                                   <SelectTrigger>
                                     <SelectValue placeholder="Select type..." />
                                   </SelectTrigger>
@@ -309,7 +331,7 @@
                               <div class="flex items-center gap-2">
                                 <Select
                                   v-model="question.schemaMapping.vlanIndex"
-                                  @update:modelValue="value => onVlanIndexChange(partIndex, qIndex, value)"
+                                  @update:model-value="value => onVlanIndexChange(partIndex, qIndex, value)"
                                 >
                                   <SelectTrigger class="flex-1">
                                     <SelectValue placeholder="Select VLAN..." />
@@ -591,7 +613,7 @@
                           <Label class="text-sm font-medium">
                             DHCP Server Device <span class="text-destructive">*</span>
                           </Label>
-                          <Select v-model="part.dhcpConfiguration.dhcpServerDevice" @update:modelValue="() => requestValidation()">
+                          <Select v-model="part.dhcpConfiguration.dhcpServerDevice" @update:model-value="() => requestValidation()">
                             <SelectTrigger>
                               <SelectValue placeholder="Select device..." />
                             </SelectTrigger>
@@ -624,7 +646,7 @@
                       v-model="part.description"
                       placeholder="Optional description for this part..."
                       rows="2"
-                      @input="validatePart(partIndex, 'description')"
+                      @input="() => { warnAboutPartEdit(partIndex); validatePart(partIndex, 'description') }"
                     />
                   </div>
 
@@ -695,7 +717,7 @@
                     <Label class="text-sm font-medium">
                       Prerequisites <span class="text-muted-foreground">(Optional)</span>
                     </Label>
-                    <Select v-model="part.prerequisites" multiple>
+                    <Select v-model="part.prerequisites" multiple @update:model-value="() => warnAboutPartEdit(partIndex)">
                       <SelectTrigger>
                         <SelectValue>
                           <template v-if="part.prerequisites.length > 0">
@@ -725,16 +747,21 @@
                       v-model="part.tasks"
                       :task-templates="taskTemplates"
                       :devices="devices"
+                      :vlans="vlans"
                       :part-index="partIndex"
                       :task-groups="part.task_groups"
                       :enable-task-groups="true"
+                      :has-submissions="part.hasSubmissions"
+                      :on-edit-warning="() => warnAboutPartEdit(partIndex)"
                       @update-total-points="updatePartTotalPoints(partIndex, $event)"
                       @update:task-groups="updatePartTaskGroups(partIndex, $event)"
                       @validate="handleTasksValidation(partIndex, $event)"
                     />
                   </div>
                 </CardContent>
-              </CollapsibleContent>
+
+              </div>
+            </CollapsibleContent>
             </Collapsible>
           </Card>
         </TransitionGroup>
@@ -784,6 +811,53 @@
       :vlans="vlans"
       @save="handleIpTableSave"
     />
+
+    <AlertDialog v-model:open="showDeleteDialog">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>
+            Delete "{{ deleteTargetPart?.title || deleteTargetPart?.partId || 'this part' }}"?
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            This action permanently removes the part and cascades delete all related student submissions.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <div v-if="deleteTargetPart" class="space-y-2 text-sm text-muted-foreground">
+          <div class="flex items-center gap-2">
+            <Trash2 class="h-4 w-4 text-destructive" />
+            <span>
+              {{ deleteTargetPart.submissionSummary?.submissionCount ?? 0 }}
+              submission{{ (deleteTargetPart.submissionSummary?.submissionCount ?? 0) === 1 ? '' : 's' }}
+              will be deleted
+            </span>
+          </div>
+          <div class="flex items-center gap-2">
+            <Users class="h-4 w-4 text-destructive" />
+            <span>
+              {{ deleteTargetPart.submissionSummary?.studentCount ?? 0 }}
+              student{{ (deleteTargetPart.submissionSummary?.studentCount ?? 0) === 1 ? '' : 's' }}
+              affected
+            </span>
+          </div>
+          <div
+            v-if="deleteTargetPart.submissionSummary?.lastSubmittedAt"
+            class="flex items-center gap-2"
+          >
+            <Clock class="h-4 w-4 text-destructive" />
+            <span>Last submission: {{ formatSubmissionDate(deleteTargetPart.submissionSummary?.lastSubmittedAt) }}</span>
+          </div>
+        </div>
+        <AlertDialogFooter>
+          <AlertDialogCancel @click="cancelRemovePart">Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            class="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            @click="confirmRemovePart"
+          >
+            Delete part
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   </div>
 </template>
 
@@ -808,7 +882,10 @@ import {
   Info,
   Table2,
   Check,
-  Edit
+  Edit,
+  ShieldAlert,
+  Users,
+  Clock
 } from 'lucide-vue-next'
 
 // UI Components
@@ -823,6 +900,16 @@ import { Badge } from '@/components/ui/badge'
 import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Switch } from '@/components/ui/switch'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from '@/components/ui/alert-dialog'
 
 // Local Components
 import TasksManager from './TasksManager.vue'
@@ -831,7 +918,7 @@ import IpTableDimensionModal from './IpTableDimensionModal.vue'
 import IpTableBuilderModal from './IpTableBuilderModal.vue'
 
 // Types
-import type { WizardLabPart, WizardTaskGroup, Device, TaskTemplate, ValidationResult, PartType, Question, IpTableQuestionnaire } from '@/types/wizard'
+import type { WizardLabPart, WizardTaskGroup, Device, TaskTemplate, ValidationResult, Question, IpTableQuestionnaire } from '@/types/wizard'
 
 // Props
 interface Props {
@@ -856,8 +943,17 @@ interface Emits {
   (e: 'validate', result: ValidationResult): void
 }
 
+/* eslint-disable @typescript-eslint/no-dynamic-delete */
+
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
+
+const vlans = computed(() => props.vlans ?? [])
+
+interface RichTextPayload {
+  html: string
+  json: Record<string, unknown>
+}
 
 // Local state
 const localData = ref<WizardLabPart[]>([])
@@ -883,12 +979,45 @@ const currentEditingQuestionIndexForTable = ref<number | null>(null)
 const currentEditingIpTable = ref<IpTableQuestionnaire | undefined>(undefined)
 const currentTableDimensions = ref({ rowCount: 3, columnCount: 4 })
 
+const pendingDeletePartIndex = ref<number | null>(null)
+const showDeleteDialog = ref(false)
+
+const deleteTargetPart = computed(() => {
+  if (pendingDeletePartIndex.value === null) return null
+  return localData.value[pendingDeletePartIndex.value] || null
+})
+
+const warnedPartEdits = ref(new Set<string>())
+
 // Methods
 const generateTempId = (): string => {
   return 'temp_' + Math.random().toString(36).substr(2, 9)
 }
 
+const warnAboutPartEdit = (partIndex: number, customMessage?: string) => {
+  const part = localData.value[partIndex]
+  if (!part?.hasSubmissions) {
+    return
+  }
+
+  const key = part._id || part.tempId || `part-${partIndex}`
+  if (key && warnedPartEdits.value.has(key)) {
+    return
+  }
+
+  if (key) {
+    warnedPartEdits.value.add(key)
+  }
+
+  const submissionCount = part.submissionSummary?.submissionCount ?? 0
+  const partLabel = part.title || part.partId || 'this part'
+  const message = customMessage || `${partLabel} already has ${submissionCount} submission${submissionCount === 1 ? '' : 's'}. Editing may require manual review or regrading.`
+  toast.warning(message)
+}
+
 const handlePartTitleChange = (partIndex: number, title: string) => {
+  warnAboutPartEdit(partIndex)
+
   // Update the title
   localData.value[partIndex].title = title
   
@@ -924,13 +1053,15 @@ const addPart = () => {
     description: '',
     instructions: '',
     order: localData.value.length + 1,
-    partType: 'network_config',  // NEW: Default to network_config
+    partType: 'network_config', // Default to network_config
     tasks: [],
     task_groups: [],
     prerequisites: [],
     totalPoints: 0,
     isExpanded: true,
-    showInstructionsPreview: false
+    showInstructionsPreview: false,
+    hasSubmissions: false,
+    submissionSummary: undefined
   }
   localData.value.push(newPart)
   validateStep()
@@ -943,6 +1074,7 @@ const requestValidation = () => {
 }
 
 const onPartTypeChange = (partIndex: number) => {
+  warnAboutPartEdit(partIndex, 'Changing the part type may invalidate existing student submissions.')
   // Set flag to prevent expensive validation during type change
   isChangingPartType.value = true
 
@@ -996,6 +1128,7 @@ const generateQuestionId = (): string => {
 }
 
 const addQuestion = (partIndex: number) => {
+  warnAboutPartEdit(partIndex)
   const part = localData.value[partIndex]
   if (!part.questions) {
     part.questions = []
@@ -1027,6 +1160,7 @@ const addQuestion = (partIndex: number) => {
 }
 
 const removeQuestion = (partIndex: number, questionIndex: number) => {
+  warnAboutPartEdit(partIndex)
   const part = localData.value[partIndex]
   if (part.questions) {
     part.questions.splice(questionIndex, 1)
@@ -1041,6 +1175,7 @@ const removeQuestion = (partIndex: number, questionIndex: number) => {
 }
 
 const moveQuestion = (partIndex: number, questionIndex: number, direction: number) => {
+  warnAboutPartEdit(partIndex)
   const part = localData.value[partIndex]
   if (!part.questions) return
 
@@ -1058,6 +1193,7 @@ const moveQuestion = (partIndex: number, questionIndex: number, direction: numbe
 
 // Auto-detect VLAN from question text
 const onQuestionTextChange = (partIndex: number, questionIndex: number) => {
+  warnAboutPartEdit(partIndex)
   const question = localData.value[partIndex].questions?.[questionIndex]
   if (!question) return
 
@@ -1087,6 +1223,7 @@ const onQuestionTextChange = (partIndex: number, questionIndex: number) => {
 }
 
 const onQuestionTypeChange = (partIndex: number, questionIndex: number) => {
+  warnAboutPartEdit(partIndex)
   const question = localData.value[partIndex].questions?.[questionIndex]
   if (!question) return
 
@@ -1181,11 +1318,13 @@ const updatePartTotalPointsFromQuestions = (partIndex: number) => {
 }
 
 const onQuestionPointsChange = (partIndex: number) => {
+  warnAboutPartEdit(partIndex)
   updatePartTotalPointsFromQuestions(partIndex)
   requestValidation()
 }
 
 const onExpectedAnswerChange = (partIndex: number, questionIndex: number) => {
+  warnAboutPartEdit(partIndex)
   const question = localData.value[partIndex].questions?.[questionIndex]
   if (!question) return
   if (typeof question.trimWhitespace === 'undefined') {
@@ -1198,6 +1337,7 @@ const onExpectedAnswerChange = (partIndex: number, questionIndex: number) => {
 }
 
 const onCaseSensitiveToggle = (partIndex: number, questionIndex: number, value: boolean) => {
+  warnAboutPartEdit(partIndex)
   const question = localData.value[partIndex].questions?.[questionIndex]
   if (!question) return
   question.caseSensitive = value
@@ -1205,6 +1345,7 @@ const onCaseSensitiveToggle = (partIndex: number, questionIndex: number, value: 
 }
 
 const onTrimWhitespaceToggle = (partIndex: number, questionIndex: number, value: boolean) => {
+  warnAboutPartEdit(partIndex)
   const question = localData.value[partIndex].questions?.[questionIndex]
   if (!question) return
   question.trimWhitespace = value
@@ -1212,6 +1353,7 @@ const onTrimWhitespaceToggle = (partIndex: number, questionIndex: number, value:
 }
 
 const onVlanIndexChange = (partIndex: number, questionIndex: number, value: number | string) => {
+  warnAboutPartEdit(partIndex)
   const question = localData.value[partIndex].questions?.[questionIndex]
   if (!question || !question.schemaMapping) return
   question.schemaMapping.autoDetected = false
@@ -1221,6 +1363,7 @@ const onVlanIndexChange = (partIndex: number, questionIndex: number, value: numb
 
 // IP Table Questionnaire Management Functions
 const openIpTableDimensionModal = (partIndex: number, questionIndex: number) => {
+  warnAboutPartEdit(partIndex)
   currentEditingPartIndexForTable.value = partIndex
   currentEditingQuestionIndexForTable.value = questionIndex
   showIpTableDimensionModal.value = true
@@ -1233,6 +1376,7 @@ const handleIpTableDimensionCreate = (dimensions: { rowCount: number; columnCoun
 }
 
 const editIpTable = (partIndex: number, questionIndex: number) => {
+  warnAboutPartEdit(partIndex)
   const question = localData.value[partIndex].questions?.[questionIndex]
   if (!question || !question.ipTableQuestionnaire) return
 
@@ -1278,6 +1422,7 @@ const handleIpTableSave = (tableData: IpTableQuestionnaire) => {
 }
 
 const deleteIpTable = (partIndex: number, questionIndex: number) => {
+  warnAboutPartEdit(partIndex)
   const question = localData.value[partIndex].questions?.[questionIndex]
   if (!question) return
 
@@ -1289,7 +1434,7 @@ const deleteIpTable = (partIndex: number, questionIndex: number) => {
   requestValidation()
 }
 
-const previewIpTable = (partIndex: number, questionIndex: number) => {
+const previewIpTable = (_partIndex: number, _questionIndex: number) => {
   toast.info('Preview feature coming soon!')
   // TODO: Implement preview modal
 }
@@ -1369,6 +1514,7 @@ const formatDhcpOffsetRange = (vlanIndex: number | undefined | null): string => 
 }
 
 const handleDhcpVlanChange = (partIndex: number, vlanIndex: number) => {
+  warnAboutPartEdit(partIndex)
   const part = localData.value[partIndex]
   if (!part?.dhcpConfiguration) return
 
@@ -1414,16 +1560,38 @@ const calculateDhcpPoolSizeFromOffsets = (startOffset: number, endOffset: number
   return Math.max(0, endOffset - startOffset + 1)
 }
 
-const removePart = (partIndex: number) => {
+const performPartRemoval = (partIndex: number) => {
   localData.value.splice(partIndex, 1)
-  // Update order for remaining parts
   localData.value.forEach((part, index) => {
     part.order = index + 1
   })
-  // Clean up errors
   delete partFieldErrors.value[partIndex]
   delete taskValidationErrors.value[partIndex]
   validateStep()
+}
+
+const removePart = (partIndex: number) => {
+  const part = localData.value[partIndex]
+
+  if (part?.hasSubmissions) {
+    pendingDeletePartIndex.value = partIndex
+    showDeleteDialog.value = true
+    return
+  }
+
+  performPartRemoval(partIndex)
+}
+
+const confirmRemovePart = () => {
+  if (pendingDeletePartIndex.value === null) return
+  performPartRemoval(pendingDeletePartIndex.value)
+  pendingDeletePartIndex.value = null
+  showDeleteDialog.value = false
+}
+
+const cancelRemovePart = () => {
+  pendingDeletePartIndex.value = null
+  showDeleteDialog.value = false
 }
 
 const movePart = (partIndex: number, direction: number) => {
@@ -1460,6 +1628,13 @@ const renderMarkdown = (content: string): string => {
   }
 }
 
+const formatSubmissionDate = (value?: string) => {
+  if (!value) return 'Not available'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'Not available'
+  return date.toLocaleString()
+}
+
 const getPrerequisitesDisplayText = (prerequisites: string[]): string => {
   if (!prerequisites || prerequisites.length === 0) return ''
   
@@ -1486,6 +1661,7 @@ const handleTasksValidation = (partIndex: number, errors: string[]) => {
 }
 
 const updatePartTaskGroups = (partIndex: number, taskGroups: WizardTaskGroup[]) => {
+  warnAboutPartEdit(partIndex)
   if (localData.value[partIndex]) {
     localData.value[partIndex].task_groups = taskGroups
   }
@@ -1493,21 +1669,22 @@ const updatePartTaskGroups = (partIndex: number, taskGroups: WizardTaskGroup[]) 
 
 // Rich Text Editor methods
 const openInstructionsEditor = (partIndex: number) => {
+  warnAboutPartEdit(partIndex)
   currentEditingPartIndex.value = partIndex
   currentInstructionsContent.value = localData.value[partIndex].instructions
   showInstructionsEditor.value = true
 }
 
-const handleInstructionsSave = (content: string) => {
+const handleInstructionsSave = (payload: RichTextPayload) => {
   if (currentEditingPartIndex.value !== null) {
-    localData.value[currentEditingPartIndex.value].instructions = content
+    localData.value[currentEditingPartIndex.value].instructions = payload.html
     validatePart(currentEditingPartIndex.value, 'instructions')
   }
 }
 
-const handleInstructionsClose = (content: string) => {
+const handleInstructionsClose = (payload: RichTextPayload) => {
   if (currentEditingPartIndex.value !== null) {
-    localData.value[currentEditingPartIndex.value].instructions = content
+    localData.value[currentEditingPartIndex.value].instructions = payload.html
     validatePart(currentEditingPartIndex.value, 'instructions')
   }
 
@@ -1615,12 +1792,18 @@ const validatePart = (partIndex: number, field: string) => {
       break
 
     case 'instructions':
-      if (!part.instructions.trim()) {
-        partFieldErrors.value[partIndex].instructions = 'Student instructions are required'
-      } else if (part.instructions.length > 10000) {
-        partFieldErrors.value[partIndex].instructions = 'Instructions must be 10000 characters or less'
-      } else {
-        delete partFieldErrors.value[partIndex].instructions
+      {
+        const instructionsContent = typeof part.instructions === 'string'
+          ? part.instructions
+          : (part.instructions?.html || '')
+
+        if (!instructionsContent.trim()) {
+          partFieldErrors.value[partIndex].instructions = 'Student instructions are required'
+        } else if (instructionsContent.length > 10000) {
+          partFieldErrors.value[partIndex].instructions = 'Instructions must be 10000 characters or less'
+        } else {
+          delete partFieldErrors.value[partIndex].instructions
+        }
       }
       break
 
@@ -1849,10 +2032,12 @@ watch(
     if (isUpdatingFromProps.value) return // Prevent recursive updates
     
     isUpdatingFromProps.value = true
+    warnedPartEdits.value.clear()
     
     // Add UI-specific props to parts without accessing current localData to avoid recursion
     localData.value = newValue.map((part) => ({
       ...part,
+      instructions: typeof part.instructions === 'string' ? part.instructions : (part.instructions?.html || ''),
       showInstructionsPreview: false, // Reset to default to avoid recursion
       tempId: part.tempId || generateTempId()
     }))
@@ -1896,6 +2081,12 @@ watch(
   }
   // No deep watching needed for length - it's just a number
 )
+
+watch(showDeleteDialog, (open) => {
+  if (!open) {
+    pendingDeletePartIndex.value = null
+  }
+})
 
 // Lifecycle
 onMounted(async () => {

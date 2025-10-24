@@ -2,7 +2,7 @@
   <div class="min-h-screen bg-background">
     <!-- Header -->
     <div class="border-b bg-background sticky top-0 z-40">
-      <div class="max-w-6xl mx-auto px-4 py-4">
+      <div class="w-full max-w-screen-2xl mx-auto px-6 py-4 lg:px-12">
         <!-- Breadcrumb Navigation -->
         <Breadcrumb class="mb-4">
           <BreadcrumbList>
@@ -85,7 +85,7 @@
     </div>
 
     <!-- Main Content -->
-    <div class="max-w-6xl mx-auto px-4 py-6">
+    <div class="w-full max-w-screen-2xl mx-auto px-6 py-6 lg:px-12">
       <Card class="min-h-[600px]">
         <CardContent class="p-0">
           <!-- Step Content -->
@@ -334,7 +334,10 @@ const wizardData = reactive<LabWizardData>({
   basicInfo: {
     name: '',
     description: '',
-    instructions: ''
+    instructions: {
+      html: '',
+      json: { type: 'doc', content: [] }
+    }
   },
   networkConfig: {
     baseNetwork: '192.168.1.0',
@@ -395,30 +398,10 @@ const convertStringToBoolean = (value: any): any => {
 }
 
 // Helper function to check if a value is an IP address
-const isIpAddress = (value: string): boolean => {
-  const ipv4Pattern = /^(\d{1,3}\.){3}\d{1,3}$/
-  const ipv6Pattern = /^([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}$/
-  return ipv4Pattern.test(value) || ipv6Pattern.test(value)
-}
-
 // Helper function to format parameter values for backend submission
 const formatParameterValue = (value: any): any => {
   if (typeof value !== 'string') return value
-
-  const trimmedValue = value.trim()
-
-  // If it's an IP address, return as-is
-  if (isIpAddress(trimmedValue)) {
-    return trimmedValue
-  }
-
-  // If it's already wrapped with {{}}, return as-is
-  if (trimmedValue.startsWith('{{') && trimmedValue.endsWith('}}')) {
-    return trimmedValue
-  }
-
-  // Otherwise, wrap it with {{}}
-  return `{{${trimmedValue}}}`
+  return value.trim()
 }
 
 // Methods
@@ -488,7 +471,7 @@ const handleCreateLab = async () => {
       type: labType.value, // "lab" or "exam" based on query parameter
       title: wizardData.basicInfo.name, // Frontend uses "name" but backend expects "title"
       description: wizardData.basicInfo.description,
-      // Note: instructions field removed as it's not in backend schema
+      instructions: wizardData.basicInfo.instructions,
       network: {
         name: wizardData.basicInfo.name, // Use lab name as network name
         topology: {

@@ -33,11 +33,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Label } from '@/components/ui/label'
 import { useCourseLabs, type Lab, type LabPart, type LabTask, type TaskGroup } from '@/composables/useCourseLabs'
 import { useCourse } from '@/composables/useCourse'
 import { useSubmissions } from '@/composables/useSubmissions'
@@ -46,6 +48,7 @@ import LabResultsModal from '@/components/student/LabResultsModal.vue'
 import LabTimer from '@/components/student/LabTimer.vue'
 import FillInBlankQuestions from '@/components/student/FillInBlankQuestions.vue'
 import type { ISubmission } from '@/types/submission'
+import { toast } from 'vue-sonner'
 
 type FillInBlankSubmissionPayload = {
   results: any[]
@@ -78,7 +81,7 @@ const isUpdateModeRoute = computed(() => route.query.mode === 'update')
 const { currentCourse, fetchCourse } = useCourse()
 const {
   currentLab,
-  currentLabParts,
+  allLabParts,
   isLoading,
   isLoadingParts,
   error,
@@ -102,6 +105,9 @@ const {
   canManageCurrentCourse
 } = useRoleGuard()
 
+const PART_ZERO_ID = '__instructions_ack__'
+const SESSION_STORAGE_PREFIX = 'fillin:'
+
 // State Management
 const currentPartIndex = ref(0)
 const completedParts = ref<Set<string>>(new Set())
@@ -110,6 +116,28 @@ const isSubmittingPart = ref(false)
 const progress = ref<Record<string, number>>({}) // partId -> percentage
 const fillInBlankQuestionsRef = ref<InstanceType<typeof FillInBlankQuestions> | null>(null)
 const fillInBlankSubmission = ref<FillInBlankSubmissionPayload | null>(null)
+
+// Part 0 Instructions acknowledgement state
+const instructionsAcknowledged = ref(false)
+const instructionsAcknowledgedAt = ref<Date | null>(null)
+const instructionsAckChecked = ref(false)
+const instructionsAckLoading = ref(false)
+const instructionsAckError = ref('')
+const lastAutoNavigatedIndex = ref<number | null>(null)
+
+const clearSessionStoredAnswers = () => {
+  if (typeof window === 'undefined') return
+
+ const keysToRemove: string[] = []
+  for (let i = 0; i < sessionStorage.length; i++) {
+    const key = sessionStorage.key(i)
+    if (key && key.startsWith(SESSION_STORAGE_PREFIX)) {
+      keysToRemove.push(key)
+    }
+  }
+
+  keysToRemove.forEach((key) => sessionStorage.removeItem(key))
+}
 
 // IP Loading and Completion State
 const isLoadingIPs = ref(true)
@@ -129,6 +157,74 @@ const completionStatus = ref({
   allPartsPassedWithFullPoints: false
 })
 
+const currentLabParts = computed<LabPart[]>(() => {
+  const lab = currentLab.value
+  const parts = allLabParts.value || []
+
+  const normalizedParts = parts.map((part) => {
+    if (part.partId === PART_ZERO_ID || part.id === PART_ZERO_ID) {
+      return {
+        ...part,
+        id: PART_ZERO_ID,
+        partId: PART_ZERO_ID,
+        isPartZero: true,
+        isVirtual: true,
+        order: 0
+      }
+    }
+    return part
+  })
+
+  if (normalizedParts.some(part => part.partId === PART_ZERO_ID)) {
+    return normalizedParts
+  }
+
+  if (!lab) {
+    return normalizedParts
+  }
+
+  const instructions = lab.instructions ?? { html: '', json: { type: 'doc', content: [] } }
+  const instructionsHtml = typeof instructions === 'string'
+    ? instructions
+    : (instructions.html || '')
+
+  const fallbackInstructions = typeof instructions === 'string'
+    ? (instructions.trim()
+        ? instructions
+        : '<p class="text-muted-foreground">No instructions provided.</p>')
+    : {
+        ...instructions,
+        html: instructionsHtml.trim()
+          ? instructionsHtml
+          : '<p class="text-muted-foreground">No instructions provided.</p>'
+      }
+
+  const virtualInstructionsPart: LabPart = {
+    id: PART_ZERO_ID,
+    labId: labId.value,
+    partId: PART_ZERO_ID,
+    title: lab.type === 'exam' ? 'Exam Instructions' : 'Student Instructions',
+    description: lab.type === 'exam'
+      ? 'Review and acknowledge these rules before starting the exam.'
+      : 'Review and acknowledge these instructions before starting the lab.',
+    instructions: fallbackInstructions,
+    order: 0,
+    partType: 'network_config',
+    questions: [],
+    dhcpConfiguration: undefined,
+    tasks: [],
+    task_groups: [],
+    prerequisites: [],
+    totalPoints: 0,
+    isPartZero: true,
+    isVirtual: true
+  }
+
+  return [virtualInstructionsPart, ...normalizedParts]
+})
+
+const actualLabParts = computed(() => currentLabParts.value.filter(part => !part.isPartZero))
+
 // Computed Properties
 const currentPart = computed(() => {
   const parts = currentLabParts.value || []
@@ -147,7 +243,7 @@ const overallProgress = computed(() => {
 
 const totalPointsEarned = computed(() => {
   let earned = 0
-  currentLabParts.value?.forEach(part => {
+  actualLabParts.value?.forEach(part => {
     if (completedParts.value.has(part.id)) {
       earned += part.totalPoints || 0
     }
@@ -156,7 +252,20 @@ const totalPointsEarned = computed(() => {
 })
 
 const totalPointsAvailable = computed(() => {
-  return currentLabParts.value?.reduce((sum, part) => sum + (part.totalPoints || 0), 0) || 0
+  return actualLabParts.value?.reduce((sum, part) => sum + (part.totalPoints || 0), 0) || 0
+})
+
+const instructionsAcknowledgedLabel = computed(() => {
+  if (!instructionsAcknowledgedAt.value) return ''
+  return new Intl.DateTimeFormat('en-US', {
+    dateStyle: 'medium',
+    timeStyle: 'short'
+  }).format(instructionsAcknowledgedAt.value)
+})
+
+const currentPartDisplayNumber = computed(() => {
+  if (!currentPart.value) return currentPartIndex.value
+  return currentPart.value.isPartZero ? 0 : currentPartIndex.value
 })
 
 const courseTitle = computed(() => currentCourse.value?.title || `Course ${courseId.value}`)
@@ -302,13 +411,25 @@ const deviceManagementTable = computed(() => {
 
 // Part Access Control - Sequential Unlocking Based on Prerequisites
 const isPartUnlocked = (part: LabPart): boolean => {
+  if (part.isPartZero) {
+    return true
+  }
+
+  if (!instructionsAcknowledged.value) {
+    return false
+  }
+
   if (!part.prerequisites || part.prerequisites.length === 0) {
-    return true // No prerequisites means unlocked
+    return true
   }
   
   // Check if all prerequisite parts are completed
   return part.prerequisites.every(prereqPartId => {
-    const prereqPart = currentLabParts.value?.find(p => p.partId === prereqPartId)
+    if (prereqPartId === PART_ZERO_ID) {
+      return instructionsAcknowledged.value
+    }
+
+    const prereqPart = currentLabParts.value.find(p => p.partId === prereqPartId)
     return prereqPart ? completedParts.value.has(prereqPart.id) : false
   })
 }
@@ -321,7 +442,7 @@ const getPartStatus = (part: LabPart, index: number) => {
 }
 
 const canAccessPart = (index: number): boolean => {
-  const part = currentLabParts.value?.[index]
+  const part = currentLabParts.value[index]
   return part ? isPartUnlocked(part) : false
 }
 
@@ -435,6 +556,54 @@ const currentPartTotalTestCases = computed(() => {
   }, 0)
 })
 
+const acknowledgeInstructions = async () => {
+  if (instructionsAcknowledged.value || !instructionsAckChecked.value || instructionsAckLoading.value) return
+
+  instructionsAckLoading.value = true
+  instructionsAckError.value = ''
+
+  try {
+    const config = useRuntimeConfig()
+    const response = await fetch(
+      `${config.public.backendurl}/v0/labs/${labId.value}/instructions/acknowledge`,
+      {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      }
+    )
+
+    const result = await response.json()
+
+    if (!response.ok || !result.success) {
+      throw new Error(result.message || `HTTP ${response.status}: ${response.statusText}`)
+    }
+
+    instructionsAcknowledged.value = true
+    instructionsAckChecked.value = true
+    instructionsAcknowledgedAt.value = result.data?.acknowledgedAt
+      ? new Date(result.data.acknowledgedAt)
+      : new Date()
+    instructionsAckError.value = ''
+    toast.success('Instructions acknowledged. You can continue to Part 1.')
+
+    // Automatically move to the next part if available
+    if (currentPartIndex.value === 0 && totalParts.value > 1) {
+      goToNextPart()
+    }
+
+    await checkLabCompletion()
+  } catch (error: any) {
+    const message = error?.message || 'Failed to acknowledge instructions'
+    instructionsAckError.value = message
+    toast.error(message)
+  } finally {
+    instructionsAckLoading.value = false
+  }
+}
+
 // Grading Submission
 const submitPartForGrading = async () => {
   if (!currentPart.value) return
@@ -527,8 +696,115 @@ watch(() => currentPart.value?.id, () => {
   fillInBlankSubmission.value = null
 })
 
+watch(instructionsAcknowledged, (acknowledged) => {
+  if (acknowledged) {
+    completedParts.value.add(PART_ZERO_ID)
+    attemptResumeNavigation(studentSubmissions.value)
+  } else {
+    completedParts.value.delete(PART_ZERO_ID)
+  }
+})
+
+watch(instructionsAckChecked, () => {
+  if (instructionsAckError.value) {
+    instructionsAckError.value = ''
+  }
+})
+
 // Get user state
 const userState = useUserState()
+
+watch(() => userState.value?.u_id, (newValue, oldValue) => {
+  if (!newValue && oldValue) {
+    clearSessionStoredAnswers()
+  }
+})
+
+const buildLatestSubmissionsMap = (submissions: ISubmission[]) => {
+  const latest: Record<string, ISubmission> = {}
+
+  submissions.forEach((submission) => {
+    const existing = latest[submission.partId]
+    if (!existing || submission.attempt > existing.attempt) {
+      latest[submission.partId] = submission
+    }
+  })
+
+  return latest
+}
+
+const determineResumePartIndex = (submissions: ISubmission[]): number | null => {
+  if (!currentLabParts.value.length) return null
+
+  if (!instructionsAcknowledged.value) {
+    return 0
+  }
+
+  const latestByPart = buildLatestSubmissionsMap(submissions)
+
+  for (let index = 0; index < currentLabParts.value.length; index++) {
+    const part = currentLabParts.value[index]
+    if (part.isPartZero) continue
+
+    const submission = latestByPart[part.partId]
+
+    if (!submission) {
+      return index
+    }
+
+    const grading = submission.gradingResult
+    const passed =
+      submission.status === 'completed' &&
+      grading &&
+      grading.total_points_earned === grading.total_points_possible
+
+    if (!passed) {
+      return index
+    }
+  }
+
+  return null
+}
+
+const attemptResumeNavigation = (submissions: ISubmission[]) => {
+  if (!Array.isArray(submissions)) {
+    return
+  }
+
+  const targetIndex = determineResumePartIndex(submissions)
+
+  if (targetIndex === null) {
+    return
+  }
+
+  if (!instructionsAcknowledged.value && targetIndex === 0) {
+    return
+  }
+
+  if (targetIndex === currentPartIndex.value) {
+    lastAutoNavigatedIndex.value = targetIndex
+    return
+  }
+
+  const previousAutoIndex = lastAutoNavigatedIndex.value ?? -1
+
+  if (targetIndex > previousAutoIndex && canAccessPart(targetIndex)) {
+    currentPartIndex.value = targetIndex
+    lastAutoNavigatedIndex.value = targetIndex
+  }
+}
+
+const initializeInstructionsState = () => {
+  const acknowledged = Boolean(currentLab.value?.instructionsAcknowledged)
+  instructionsAcknowledged.value = acknowledged
+  instructionsAckChecked.value = acknowledged
+
+  if (acknowledged) {
+    completedParts.value.add(PART_ZERO_ID)
+  } else {
+    completedParts.value.delete(PART_ZERO_ID)
+  }
+}
 
 // Check lab completion status
 const checkLabCompletion = async () => {
@@ -550,18 +826,35 @@ const checkLabCompletion = async () => {
       studentSubmissions.value = result.submissions
 
       // Check completion status
-      const labParts = currentLabParts.value?.map(part => ({
+      const labParts = actualLabParts.value?.map(part => ({
         partId: part.partId,
         totalPoints: part.totalPoints || 0
       })) || []
 
-      completionStatus.value = checkLabCompletionStatus(
+      const status = checkLabCompletionStatus(
         result.submissions,
         labParts
       )
 
+      const completedPartIds = new Set(status.completedParts)
+      if (instructionsAcknowledged.value) {
+        completedPartIds.add(PART_ZERO_ID)
+      }
+
+      completionStatus.value = {
+        ...status,
+        isFullyCompleted: status.isFullyCompleted && instructionsAcknowledged.value,
+        completedParts: Array.from(completedPartIds),
+        totalParts: status.totalParts + 1,
+        totalPartsCompleted: status.totalPartsCompleted + (instructionsAcknowledged.value ? 1 : 0)
+      }
+
+      if (!completionStatus.value.isFullyCompleted) {
+        attemptResumeNavigation(result.submissions)
+      }
+
       // Show completion modal if lab is fully completed
-      if (completionStatus.value.isFullyCompleted) {
+      if (completionStatus.value.isFullyCompleted && instructionsAcknowledged.value) {
         // Show LabResultsModal directly in collapsed state
         showResultsModal.value = true
         timerExpiredModalMode.value = 'results'
@@ -608,6 +901,18 @@ const loadPersonalizedIPs = async () => {
         ipMappings: backendIpMappings.value,
         vlanMappings: backendVlanMappings.value
       })
+
+      if (result.data.session) {
+        const sessionInfo = result.data.session
+        const acknowledged = Boolean(sessionInfo.instructionsAcknowledged)
+        instructionsAcknowledged.value = acknowledged
+        instructionsAckChecked.value = acknowledged
+        instructionsAcknowledgedAt.value = sessionInfo.instructionsAcknowledgedAt
+          ? new Date(sessionInfo.instructionsAcknowledgedAt)
+          : instructionsAcknowledgedAt.value
+      }
+
+      attemptResumeNavigation(studentSubmissions.value)
     }
 
     // Finish loading
@@ -635,6 +940,9 @@ const handleRestartLabFromResults = () => {
     totalParts: 0,
     allPartsPassedWithFullPoints: false
   }
+  lastAutoNavigatedIndex.value = null
+  // Clear any locally cached answers for a fresh attempt
+  clearSessionStoredAnswers()
   // Reload IPs
   isLoadingIPs.value = true
   loadPersonalizedIPs()
@@ -663,15 +971,17 @@ const loadLabData = async () => {
   console.log('🚀 [DEBUG] labId:', labId.value)
 
   try {
-    // Load course and lab data in parallel
-    console.log('🚀 [DEBUG] Loading course and lab data...')
+    // Load course and lab in parallel
+    console.log('🚀 [DEBUG] Loading course and lab...')
     await Promise.all([
       fetchCourse(courseId.value),
-      fetchLabById(labId.value),
+      fetchLabById(labId.value)
     ])
 
     console.log('🚀 [DEBUG] Course and lab data loaded')
     console.log('🚀 [DEBUG] currentLab.value:', currentLab.value)
+
+    initializeInstructionsState()
 
     // Then load parts data
     if (currentLab.value) {
@@ -705,7 +1015,12 @@ onMounted(async () => {
 // Watch for URL changes to update current part
 watch(() => route.query.part, (newPart) => {
   if (newPart && typeof newPart === 'string') {
-    const partIndex = parseInt(newPart) - 1
+    const parsed = parseInt(newPart, 10)
+    if (Number.isNaN(parsed)) {
+      return
+    }
+
+    const partIndex = parsed <= 0 ? 0 : parsed
     if (partIndex >= 0 && partIndex < totalParts.value && canAccessPart(partIndex)) {
       currentPartIndex.value = partIndex
     }
@@ -721,7 +1036,7 @@ watch(() => route.query.part, (newPart) => {
       :course-id="courseId"
       :lab-name="currentLab?.title || 'Lab'"
       :submissions="studentSubmissions"
-      :lab-parts="currentLabParts || []"
+      :lab-parts="actualLabParts || []"
       :mode="timerExpiredModalMode"
       :available-until="currentLab?.availableUntil"
       :is-fresh-completion="isFreshCompletion"
@@ -911,10 +1226,17 @@ watch(() => route.query.part, (newPart) => {
                   <div class="flex-1 min-w-0">
                     <div class="flex items-start justify-between mb-2">
                       <h3 class="font-semibold text-sm leading-tight">
-                        Part {{ index + 1 }}: {{ part.title }}
+                        Part {{ part.isPartZero ? 0 : index }}: {{ part.title }}
                       </h3>
                       <Badge
-                        v-if="completedParts.has(part.id)"
+                        v-if="part.isPartZero && completedParts.has(part.id)"
+                        variant="secondary"
+                        class="text-xs bg-emerald-100 text-emerald-700 border-emerald-200 ml-2"
+                      >
+                        Acknowledged
+                      </Badge>
+                      <Badge
+                        v-else-if="completedParts.has(part.id)"
                         variant="secondary"
                         class="text-xs bg-green-100 text-green-800 border-green-200 ml-2"
                       >
@@ -929,17 +1251,30 @@ watch(() => route.query.part, (newPart) => {
                       </Badge>
                     </div>
                     
-                    <div class="flex items-center space-x-3 text-xs text-muted-foreground mb-2">
-                      <div class="flex items-center space-x-1">
-                        <Award class="w-3 h-3" />
-                        <span>{{ part.totalPoints || 0 }} pts</span>
+                      <div
+                        v-if="!part.isPartZero"
+                        class="flex items-center space-x-3 text-xs text-muted-foreground mb-2"
+                      >
+                        <div class="flex items-center space-x-1">
+                          <Award class="w-3 h-3" />
+                          <span>{{ part.totalPoints || 0 }} pts</span>
+                        </div>
                       </div>
-                    </div>
                     
                     <!-- Prerequisites -->
-                    <div v-if="part.prerequisites?.length" class="flex items-center space-x-1 text-xs text-amber-600">
+                    <div
+                      v-if="!part.isPartZero && part.prerequisites?.length"
+                      class="flex items-center space-x-1 text-xs text-amber-600"
+                    >
                       <Lock class="w-3 h-3" />
                       <span>Requires: {{ part.prerequisites.join(', ') }}</span>
+                    </div>
+                    <div
+                      v-else-if="!part.isPartZero && !instructionsAcknowledged"
+                      class="flex items-center space-x-1 text-xs text-amber-600"
+                    >
+                      <Lock class="w-3 h-3" />
+                      <span>Requires: Student Instructions</span>
                     </div>
                   </div>
                 </div>
@@ -956,7 +1291,7 @@ watch(() => route.query.part, (newPart) => {
           <div class="flex items-center justify-between mb-4">
             <div class="flex-1">
               <h1 class="text-3xl font-bold text-foreground">
-                Part {{ currentPartIndex + 1 }}: {{ currentPart.title }}
+                Part {{ currentPartDisplayNumber }}: {{ currentPart.title }}
               </h1>
               <p v-if="currentPart.description" class="text-muted-foreground mt-2 text-lg">
                 {{ currentPart.description }}
@@ -987,7 +1322,10 @@ watch(() => route.query.part, (newPart) => {
           </div>
 
           <!-- Part Metadata -->
-          <div class="flex items-center space-x-6 text-sm text-muted-foreground">
+          <div
+            v-if="!currentPart.isPartZero"
+            class="flex items-center space-x-6 text-sm text-muted-foreground"
+          >
             <div class="flex items-center space-x-2">
               <Award class="w-4 h-4" />
               <span>{{ currentPart.totalPoints || 0 }} points available</span>
@@ -1017,93 +1355,135 @@ watch(() => route.query.part, (newPart) => {
               </CardContent>
             </Card>
 
-            <!-- Variable Reference Table (VLAN A-J, CIDR Q-Z) -->
-            <Card v-if="variableReferenceTable.length > 0" class="shadow-sm">
-              <CardHeader class="pb-4">
-                <CardTitle class="flex items-center space-x-3 text-xl">
-                  <div class="p-2 bg-purple-100 rounded-lg">
-                    <BookOpen class="w-5 h-5 text-purple-600" />
+            <Card
+              v-if="currentPart.isPartZero"
+              class="shadow-sm border-emerald-200 bg-emerald-50/60"
+            >
+              <CardHeader class="pb-3">
+                <CardTitle class="flex items-center space-x-3 text-lg text-emerald-800">
+                  <div class="p-2 bg-emerald-100 rounded-lg">
+                    <CheckCircle class="w-5 h-5 text-emerald-700" />
                   </div>
-                  <span>Network Variables</span>
+                  <span>Confirm you understand the instructions</span>
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div class="rounded-lg border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead class="font-semibold">Variable</TableHead>
-                        <TableHead class="font-semibold">VLAN ID</TableHead>
-                        <TableHead class="font-semibold">Variable</TableHead>
-                        <TableHead class="font-semibold">Network (CIDR)</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      <TableRow
-                        v-for="(variable, index) in variableReferenceTable"
-                        :key="`variable-${index}`"
-                        class="hover:bg-muted/30"
-                      >
-                        <TableCell class="font-mono font-semibold text-purple-600">{{ variable.vlanVariable }}</TableCell>
-                        <TableCell class="font-mono text-sm">{{ variable.vlanValue }}</TableCell>
-                        <TableCell class="font-mono font-semibold text-purple-600">{{ variable.cidrVariable }}</TableCell>
-                        <TableCell class="font-mono text-sm">{{ variable.cidrValue }}</TableCell>
-                      </TableRow>
-                    </TableBody>
-                  </Table>
-                </div>
-              </CardContent>
-            </Card>
-
-            <!-- Device Management Table -->
-            <Card v-if="deviceManagementTable.length > 0" class="shadow-sm">
-              <CardHeader class="pb-4">
-                <CardTitle class="flex items-center space-x-3 text-xl">
-                  <div class="p-2 bg-blue-100 rounded-lg">
-                    <Server class="w-5 h-5 text-blue-600" />
+                <div class="space-y-4">
+                  <div class="flex items-start gap-3">
+                    <Checkbox
+                      id="ack-instructions"
+                      v-model="instructionsAckChecked"
+                      :disabled="instructionsAcknowledged"
+                    />
+                    <Label for="ack-instructions" class="text-sm text-muted-foreground leading-snug">
+                      I have read and understand the instructions above. I agree to follow these rules while working on this lab.
+                    </Label>
                   </div>
-                  <span>Your Devices</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div class="rounded-lg border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead class="font-semibold">Device (Management Interface)</TableHead>
-                        <TableHead class="font-semibold">Management IP</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      <TableRow
-                        v-for="(device, index) in deviceManagementTable"
-                        :key="`device-${index}`"
-                        class="hover:bg-muted/30"
-                      >
-                        <TableCell class="font-medium">{{ device.deviceDisplay }}</TableCell>
-                        <TableCell class="font-mono text-sm text-blue-600">{{ device.managementIp }}</TableCell>
-                      </TableRow>
-                    </TableBody>
-                  </Table>
-                </div>
-              </CardContent>
-            </Card>
 
-            <!-- Fill-in-Blank Questions -->
-            <div v-if="hasFillInBlankQuestions && currentPart">
-              <FillInBlankQuestions
-                ref="fillInBlankQuestionsRef"
-                :questions="currentPart.questions"
-                :labId="labId"
-                :partId="currentPart.partId"
-                :dhcpPoolValidation="currentPart.dhcpConfiguration ? {
-                  startIp: calculateDhcpPoolIp(currentPart.dhcpConfiguration.startOffset),
-                  endIp: calculateDhcpPoolIp(currentPart.dhcpConfiguration.endOffset)
-                } : undefined"
-                :show-submit-button="!isFillInBlankPart"
-                @submitted="handleFillInBlankSubmissionResult"
-              />
-            </div>
+                  <p v-if="instructionsAckError" class="text-sm text-destructive">
+                    {{ instructionsAckError }}
+                  </p>
+
+                  <div
+                    v-if="instructionsAcknowledged"
+                    class="flex items-center gap-2 text-xs text-emerald-700"
+                  >
+                    <CheckCircle class="w-4 h-4" />
+                    <span>Acknowledged {{ instructionsAcknowledgedLabel }}</span>
+                  </div>
+                </div>
+            </CardContent>
+          </Card>
+
+            <template v-else>
+              <!-- Variable Reference Table (VLAN A-J, CIDR Q-Z) -->
+              <Card v-if="variableReferenceTable.length > 0" class="shadow-sm">
+                <CardHeader class="pb-4">
+                  <CardTitle class="flex items-center space-x-3 text-xl">
+                    <div class="p-2 bg-purple-100 rounded-lg">
+                      <BookOpen class="w-5 h-5 text-purple-600" />
+                    </div>
+                    <span>Network Variables</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div class="rounded-lg border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead class="font-semibold">Variable</TableHead>
+                          <TableHead class="font-semibold">VLAN ID</TableHead>
+                          <TableHead class="font-semibold">Variable</TableHead>
+                          <TableHead class="font-semibold">Network (CIDR)</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        <TableRow
+                          v-for="(variable, index) in variableReferenceTable"
+                          :key="`variable-${index}`"
+                          class="hover:bg-muted/30"
+                        >
+                          <TableCell class="font-mono font-semibold text-purple-600">{{ variable.vlanVariable }}</TableCell>
+                          <TableCell class="font-mono text-sm">{{ variable.vlanValue }}</TableCell>
+                          <TableCell class="font-mono font-semibold text-purple-600">{{ variable.cidrVariable }}</TableCell>
+                          <TableCell class="font-mono text-sm">{{ variable.cidrValue }}</TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <!-- Device Management Table -->
+              <Card v-if="deviceManagementTable.length > 0" class="shadow-sm">
+                <CardHeader class="pb-4">
+                  <CardTitle class="flex items-center space-x-3 text-xl">
+                    <div class="p-2 bg-blue-100 rounded-lg">
+                      <Server class="w-5 h-5 text-blue-600" />
+                    </div>
+                    <span>Your Devices</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div class="rounded-lg border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead class="font-semibold">Device (Management Interface)</TableHead>
+                          <TableHead class="font-semibold">Management IP</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        <TableRow
+                          v-for="(device, index) in deviceManagementTable"
+                          :key="`device-${index}`"
+                          class="hover:bg-muted/30"
+                        >
+                          <TableCell class="font-medium">{{ device.deviceDisplay }}</TableCell>
+                          <TableCell class="font-mono text-sm text-blue-600">{{ device.managementIp }}</TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <!-- Fill-in-Blank Questions -->
+              <div v-if="hasFillInBlankQuestions && currentPart">
+                <FillInBlankQuestions
+                  ref="fillInBlankQuestionsRef"
+                  :questions="currentPart.questions"
+                  :labId="labId"
+                  :partId="currentPart.partId"
+                  :dhcpPoolValidation="currentPart.dhcpConfiguration ? {
+                    startIp: calculateDhcpPoolIp(currentPart.dhcpConfiguration.startOffset),
+                    endIp: calculateDhcpPoolIp(currentPart.dhcpConfiguration.endOffset)
+                  } : undefined"
+                  :show-submit-button="!isFillInBlankPart"
+                  @submitted="handleFillInBlankSubmissionResult"
+                />
+              </div>
+            </template>
 
           </div>
         </ScrollArea>
@@ -1114,16 +1494,27 @@ watch(() => route.query.part, (newPart) => {
           <div v-if="currentPart" class="p-6">
           <div class="max-w-5xl mx-auto flex items-center justify-between gap-4">
             <div class="flex-1">
-              <template v-if="isFillInBlankPart">
+              <template v-if="currentPart.isPartZero">
+                <h3 class="font-semibold text-lg mb-1">
+                  {{ instructionsAcknowledged ? 'Instructions acknowledged' : 'Acknowledge the instructions to continue' }}
+                </h3>
+                <p class="text-sm text-muted-foreground">
+                  These terms must be accepted before you can access the rest of the lab parts.
+                  <span v-if="instructionsAcknowledged" class="font-medium text-emerald-700 ml-1">
+                    Acknowledged {{ instructionsAcknowledgedLabel }}
+                  </span>
+                </p>
+              </template>
+              <template v-else-if="isFillInBlankPart">
                 <h3 class="font-semibold text-lg mb-1">
                   <span v-if="fillInBlankSubmission?.passed">
-                    Part {{ currentPartIndex + 1 }} Completed!
+                    Part {{ currentPartDisplayNumber }} Completed!
                   </span>
                   <span v-else-if="fillInBlankSubmission">
                     Keep Going — Review Your Results
                   </span>
                   <span v-else>
-                    Ready to Submit Part {{ currentPartIndex + 1 }}?
+                    Ready to Submit Part {{ currentPartDisplayNumber }}?
                   </span>
                 </h3>
                 <p class="text-sm text-muted-foreground">
@@ -1143,8 +1534,8 @@ watch(() => route.query.part, (newPart) => {
               <template v-else>
                 <h3 class="font-semibold text-lg mb-1">
                   {{ currentGradingStatus.status === 'completed' && currentGradingStatus.results?.total_points_earned > 0 
-                     ? `Part ${currentPartIndex + 1} Completed!` 
-                     : `Ready to Submit Part ${currentPartIndex + 1}?` }}
+                     ? `Part ${currentPartDisplayNumber} Completed!` 
+                     : `Ready to Submit Part ${currentPartDisplayNumber}?` }}
                 </h3>
                 <p class="text-sm text-muted-foreground">
                   <span v-if="currentGradingStatus.status === 'completed' && currentGradingStatus.results?.total_points_earned > 0">
@@ -1158,7 +1549,24 @@ watch(() => route.query.part, (newPart) => {
               </template>
             </div>
             <div class="flex items-center space-x-3">
-              <template v-if="isFillInBlankPart">
+              <template v-if="currentPart.isPartZero">
+                <Button
+                  variant="success"
+                  size="lg"
+                  class="min-w-[180px]"
+                  :disabled="instructionsAcknowledged || !instructionsAckChecked || instructionsAckLoading"
+                  @click="acknowledgeInstructions"
+                >
+                  <Loader2 v-if="instructionsAckLoading" class="w-4 h-4 mr-2 animate-spin" />
+                  <CheckCircle2 v-else-if="instructionsAcknowledged" class="w-4 h-4 mr-2" />
+                  <Send v-else class="w-4 h-4 mr-2" />
+                  <span>{{ instructionsAcknowledged ? 'Acknowledged' : 'Submit' }}</span>
+                </Button>
+                <p v-if="instructionsAckError" class="text-sm text-destructive">
+                  {{ instructionsAckError }}
+                </p>
+              </template>
+              <template v-else-if="isFillInBlankPart">
                 <Button
                   size="lg"
                   class="min-w-[180px]"
@@ -1192,7 +1600,7 @@ watch(() => route.query.part, (newPart) => {
     </div>
 
     <!-- No Parts Available -->
-    <div v-else-if="currentLab && (!currentLabParts || currentLabParts.length === 0)" class="p-12 text-center">
+    <div v-else-if="currentLab && (!actualLabParts || actualLabParts.length === 0)" class="p-12 text-center">
       <div class="max-w-md mx-auto">
         <BookOpen class="w-20 h-20 mx-auto text-muted-foreground/50 mb-6" />
         <h3 class="text-2xl font-semibold mb-3">No Parts Available</h3>

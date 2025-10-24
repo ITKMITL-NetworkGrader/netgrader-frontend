@@ -266,6 +266,11 @@ interface Props {
   autoSaveEnabled?: boolean
 }
 
+interface RichTextPayload {
+  html: string
+  json: any
+}
+
 const props = withDefaults(defineProps<Props>(), {
   content: '',
   title: 'Document Editor',
@@ -277,8 +282,8 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<{
   'update:modelValue': [value: boolean]
   'update:content': [content: string]
-  'save': [content: string]
-  'close': [content: string]
+  'save': [payload: RichTextPayload]
+  'close': [payload: RichTextPayload]
 }>()
 
 // Reactive state
@@ -343,17 +348,35 @@ const handleBlur = () => {
   }
 }
 
-const saveDocument = async () => {
+const getEditorJson = () => {
+  const editorComponent = editorRef.value
+  const json = editorComponent?.getJSON?.()
+    ?? editorComponent?.editor?.value?.getJSON?.()
+    ?? { type: 'doc', content: [] }
+  try {
+    return JSON.parse(JSON.stringify(json))
+  } catch (error) {
+    return json
+  }
+}
+
+const buildPayload = (): RichTextPayload => ({
+  html: content.value,
+  json: getEditorJson()
+})
+
+const saveDocument = async (): Promise<RichTextPayload | void> => {
   if (isSaving.value || !hasUnsavedChanges.value) return
 
   isSaving.value = true
   try {
-    emit('save', content.value)
-    originalContent.value = content.value
+    const payload = buildPayload()
+    emit('save', payload)
+    originalContent.value = payload.html
     lastSaved.value = new Date()
+    return payload
   } catch (error) {
     console.error('Failed to save document:', error)
-    // Handle save error (show toast, etc.)
   } finally {
     isSaving.value = false
   }
@@ -370,7 +393,8 @@ const handleCloseAttempt = () => {
 }
 
 const closeEditor = () => {
-  emit('close', content.value)
+  const payload = buildPayload()
+  emit('close', payload)
   emit('update:modelValue', false)
   isOpen.value = false
 }
@@ -511,4 +535,3 @@ watch(isOpen, (open) => {
   }
 })
 </script>
-

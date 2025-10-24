@@ -171,3 +171,12 @@ export interface GradingStatusDisplay {
   results?: IGradingResult;
   error?: string;
 }
+
+export interface PartSubmissionSummary {
+  partId: string;
+  submissionCount: number;
+  studentCount: number;
+  completedCount: number;
+  perfectScoreCount: number;
+  lastSubmittedAt?: string;
+}

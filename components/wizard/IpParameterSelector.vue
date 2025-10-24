@@ -4,7 +4,6 @@
     <div class="inline-flex rounded-md border border-input bg-background p-1" role="radiogroup">
       <button
         type="button"
-        @click="setMode('variable')"
         :class="[
           'relative inline-flex items-center px-3 py-2 text-sm font-medium transition-all focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 rounded-l-sm',
           mode === 'variable'
@@ -13,13 +12,13 @@
         ]"
         role="radio"
         :aria-checked="mode === 'variable'"
+        @click="setMode('variable')"
       >
         <Network class="w-4 h-4 mr-2" />
         Use IP Variable
       </button>
       <button
         type="button"
-        @click="setMode('custom')"
         :class="[
           'relative inline-flex items-center px-3 py-2 text-sm font-medium transition-all focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 rounded-r-sm',
           mode === 'custom'
@@ -28,6 +27,7 @@
         ]"
         role="radio"
         :aria-checked="mode === 'custom'"
+        @click="setMode('custom')"
       >
         <Globe class="w-4 h-4 mr-2" />
         Custom IP Address
@@ -41,7 +41,7 @@
       </Label>
       <Select
         v-model="selectedVariable"
-        @update:modelValue="handleVariableChange"
+        @update:model-value="handleVariableChange"
       >
         <SelectTrigger
           :class="{
@@ -63,7 +63,7 @@
             v-for="option in ipVariableOptions"
             :key="option.value"
             :value="option.value"
-            :textValue="option.label"
+            :text-value="option.label"
           >
             <div class="flex flex-col">
               <div class="font-medium">{{ option.label }}</div>
@@ -85,11 +85,11 @@
       <Input
         v-model="customIp"
         placeholder="192.168.1.1, 8.8.8.8, google.com, example.org"
-        @input="handleCustomIpChange($event)"
         :class="{
           'border-destructive': hasError && mode === 'custom' && (!customIp || !isIpOrDomain(customIp)),
           'border-green-500': !hasError && customIp && isIpOrDomain(customIp)
         }"
+        @input="handleCustomIpChange($event)"
       />
       <p class="text-xs text-muted-foreground">
         Enter a custom IP address or domain name (supports external destinations like Internet)
@@ -211,8 +211,11 @@ const handleVariableChange = (value: string) => {
   isUserTyping.value = true
   lastUserAction.value = 'variable'
   selectedVariable.value = value
-  updateModelValue(value)
-  
+
+  // Wrap the IP variable with {{}} for backend
+  const wrappedValue = value ? `{{${value}}}` : ''
+  updateModelValue(wrappedValue)
+
   // Reset typing state after a short delay
   setTimeout(() => {
     isUserTyping.value = false
@@ -273,7 +276,7 @@ const parseCurrentValue = (value: string) => {
     lastUserAction: lastUserAction.value,
     currentMode: mode.value
   })
-  
+
   if (!value) {
     // Clear values but don't change mode
     selectedVariable.value = ''
@@ -291,8 +294,26 @@ const parseCurrentValue = (value: string) => {
     return
   }
 
+  // Check if value is wrapped with {{}} - indicating it's an IP variable
+  const wrappedPattern = /^\{\{(.+)\}\}$/
+  const wrappedMatch = value.match(wrappedPattern)
+
+  if (wrappedMatch) {
+    // It's a wrapped IP variable - extract the inner value
+    const innerValue = wrappedMatch[1]
+
+    // Check if it's a valid variable option
+    if (ipVariableOptions.value.some(opt => opt.value === innerValue)) {
+      mode.value = 'variable'
+      selectedVariable.value = innerValue
+      customIp.value = ''
+      lastUserAction.value = 'variable'
+      return
+    }
+  }
+
   // Only auto-detect mode on initial load, not during typing
-  // Check if it's a complete variable reference (deviceId.variableName format)
+  // Check if it's a complete variable reference (deviceId.variableName format) without {{}}
   if (value.includes('.') && ipVariableOptions.value.some(opt => opt.value === value)) {
     mode.value = 'variable'
     selectedVariable.value = value

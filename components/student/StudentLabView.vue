@@ -1,4 +1,5 @@
 <template>
+  <!-- eslint-disable vue/no-v-html -->
   <div class="student-lab-view">
     <!-- Lab Completion Prompt -->
     <LabCompletionPrompt
@@ -41,7 +42,7 @@
           <h2 class="text-4xl md:text-5xl font-bold text-foreground mb-2 tracking-tight">
             <span class="inline-block relative ip-calc-text">
               Gathering your IP addresses
-              <span class="absolute inset-0 shine-effect"></span>
+              <span class="absolute inset-0 shine-effect" />
             </span>
           </h2>
           <p class="text-lg text-muted-foreground">
@@ -51,15 +52,15 @@
 
         <!-- Loading Animation -->
         <div class="flex justify-center space-x-2 mt-8">
-          <div class="w-3 h-3 bg-primary rounded-full animate-bounce" style="animation-delay: 0ms"></div>
-          <div class="w-3 h-3 bg-primary rounded-full animate-bounce" style="animation-delay: 150ms"></div>
-          <div class="w-3 h-3 bg-primary rounded-full animate-bounce" style="animation-delay: 300ms"></div>
+          <div class="w-3 h-3 bg-primary rounded-full animate-bounce" style="animation-delay: 0ms" />
+          <div class="w-3 h-3 bg-primary rounded-full animate-bounce" style="animation-delay: 150ms" />
+          <div class="w-3 h-3 bg-primary rounded-full animate-bounce" style="animation-delay: 300ms" />
         </div>
 
         <!-- Progress Info -->
         <div class="mt-6 text-sm text-muted-foreground space-y-2">
           <div class="flex items-center justify-center space-x-2">
-            <div class="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
+            <div class="w-2 h-2 bg-primary rounded-full animate-pulse" />
             <span>{{ calculationStatus }}</span>
           </div>
         </div>
@@ -118,47 +119,97 @@
       </div>
     </div>
 
-    <!-- Lab Instructions -->
-    <div class="lab-instructions mb-6">
-      <div class="bg-white border rounded-lg p-6">
-        <h3 class="text-lg font-semibold mb-4">Lab Instructions</h3>
-        <div class="prose max-w-none" v-html="renderedInstructions"></div>
+    <!-- Part 0 · Student Instructions -->
+    <div class="instructions-part mb-6">
+      <div class="bg-card border border-border rounded-lg p-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <h3 class="text-lg font-semibold text-card-foreground">Part 0 · Student Instructions</h3>
+            <p class="text-sm text-muted-foreground">Read and acknowledge before starting the lab.</p>
+            <div v-if="instructionsAcknowledged" class="flex items-center gap-2 text-xs text-green-600 mt-2">
+              <CheckCircle class="w-4 h-4" />
+              <span>
+                Acknowledged {{ acknowledgedAtLabel }}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-4 prose max-w-none" v-html="renderedInstructions"></div>
+
+        <div v-if="!instructionsAcknowledged" class="mt-6 space-y-4">
+          <div class="flex items-start gap-2">
+            <Checkbox
+              id="instructions-ack"
+              v-model="instructionsAckChecked"
+            />
+            <Label for="instructions-ack" class="text-sm text-muted-foreground leading-snug">
+              I have read and understand the instructions above. I agree to follow these rules while working on this lab.
+            </Label>
+          </div>
+
+          <div class="flex items-center gap-3">
+            <Button
+              :disabled="!instructionsAckChecked || instructionsAckLoading"
+              @click="acknowledgeInstructions"
+            >
+              <span v-if="instructionsAckLoading">Submitting...</span>
+              <span v-else>Submit</span>
+            </Button>
+            <p v-if="instructionsAckError" class="text-sm text-destructive">
+              {{ instructionsAckError }}
+            </p>
+          </div>
+        </div>
       </div>
     </div>
 
-    <!-- Device Configuration Reference -->
-    <div class="device-config mb-6">
-      <div class="bg-muted/50 border border-border rounded-lg p-6">
-        <h3 class="text-lg font-semibold mb-4 text-foreground">Your Device Configuration Reference</h3>
+    <div
+      v-if="!instructionsAcknowledged"
+      class="mb-8 border-2 border-dashed border-border/60 rounded-lg p-4 bg-muted/40 text-sm text-muted-foreground flex items-start gap-3"
+    >
+      <Info class="w-5 h-5 mt-0.5" />
+      <div>
+        <p class="font-medium text-foreground">Instructions acknowledgement required</p>
+        <p class="mt-1">Please complete Part 0 before proceeding to the lab tasks.</p>
+      </div>
+    </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <!-- Router Configuration -->
-          <div v-for="device in personalizedDevices" :key="device.deviceId" class="device-card">
-            <div class="bg-card border border-border rounded-lg p-4">
-              <div class="flex items-center mb-3">
-                <component :is="getDeviceIcon(device.type)" class="w-5 h-5 text-primary mr-2" />
-                <h4 class="font-semibold text-card-foreground">{{ device.deviceId }}</h4>
-                <Badge variant="outline" class="ml-2">{{ device.type }}</Badge>
-              </div>
+    <div v-if="instructionsAcknowledged">
+      <!-- Device Configuration Reference -->
+      <div class="device-config mb-6">
+        <div class="bg-muted/50 border border-border rounded-lg p-6">
+          <h3 class="text-lg font-semibold mb-4 text-foreground">Your Device Configuration Reference</h3>
 
-              <div class="space-y-3">
-                <div v-for="variable in device.ipVariables" :key="variable.name" class="variable-config">
-                  <div class="flex items-center justify-between">
-                    <span class="text-sm font-medium text-card-foreground">{{ variable.displayName }}</span>
-                    <div class="flex items-center space-x-2">
-                      <code class="bg-primary/10 text-primary px-2 py-1 rounded text-sm border border-primary/20">
-                        {{ variable.resolvedIP }}
-                      </code>
-                      <Badge
-                        :variant="variable.type === 'student_generated' ? 'secondary' : 'outline'"
-                        class="text-xs"
-                      >
-                        {{ variable.type === 'student_generated' ? 'Auto-generated' : 'Static' }}
-                      </Badge>
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Router Configuration -->
+            <div v-for="device in personalizedDevices" :key="device.deviceId" class="device-card">
+              <div class="bg-card border border-border rounded-lg p-4">
+                <div class="flex items-center mb-3">
+                  <component :is="getDeviceIcon(device.type)" class="w-5 h-5 text-primary mr-2" />
+                  <h4 class="font-semibold text-card-foreground">{{ device.deviceId }}</h4>
+                  <Badge variant="outline" class="ml-2">{{ device.type }}</Badge>
+                </div>
+
+                <div class="space-y-3">
+                  <div v-for="variable in device.ipVariables" :key="variable.name" class="variable-config">
+                    <div class="flex items-center justify-between">
+                      <span class="text-sm font-medium text-card-foreground">{{ variable.displayName }}</span>
+                      <div class="flex items-center space-x-2">
+                        <code class="bg-primary/10 text-primary px-2 py-1 rounded text-sm border border-primary/20">
+                          {{ variable.resolvedIP }}
+                        </code>
+                        <Badge
+                          :variant="variable.type === 'student_generated' ? 'secondary' : 'outline'"
+                          class="text-xs"
+                        >
+                          {{ variable.type === 'student_generated' ? 'Auto-generated' : 'Static' }}
+                        </Badge>
+                      </div>
                     </div>
-                  </div>
-                  <div v-if="variable.description" class="text-xs text-muted-foreground">
-                    {{ variable.description }}
+                    <div v-if="variable.description" class="text-xs text-muted-foreground">
+                      {{ variable.description }}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -166,41 +217,47 @@
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- Lab Tasks -->
-    <div class="lab-tasks">
-      <div class="bg-card border border-border rounded-lg p-6">
-        <h3 class="text-lg font-semibold mb-4 text-card-foreground">Lab Tasks</h3>
+      <!-- Lab Tasks -->
+      <div class="lab-tasks">
+        <div class="bg-card border border-border rounded-lg p-6">
+          <h3 class="text-lg font-semibold mb-4 text-card-foreground">Lab Tasks</h3>
 
-        <div class="space-y-4">
-          <div v-for="part in labData.parts" :key="part.partId" class="part-section">
-            <div class="border border-border rounded-lg p-4">
-              <h4 class="font-semibold text-card-foreground mb-2">{{ part.title }}</h4>
+          <div class="space-y-4">
+            <div v-for="part in personalizedTasks" :key="part.partId" class="part-section">
+              <div class="border border-border rounded-lg p-4">
+                <h4 class="font-semibold text-card-foreground mb-2">{{ part.title }}</h4>
               <p class="text-muted-foreground text-sm mb-3">{{ part.description }}</p>
+              <div class="p-3 bg-muted/20 rounded mb-4" v-if="renderPartInstructions(part)">
+                <Label class="text-xs font-medium text-muted-foreground mb-2 block">
+                  Part Instructions
+                </Label>
+                <div class="prose prose-sm max-w-none" v-html="renderPartInstructions(part)"></div>
+              </div>
 
               <div class="space-y-2">
                 <div v-for="task in part.tasks" :key="task.taskId" class="task-item">
-                  <div class="flex items-start space-x-3 p-3 bg-muted/50 rounded border border-border">
-                    <div class="w-6 h-6 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 border border-primary/20">
-                      <span class="text-primary text-xs font-medium">{{ task.order }}</span>
-                    </div>
-                    <div class="flex-1">
-                      <div class="font-medium text-card-foreground">{{ task.name }}</div>
-                      <div v-if="task.description" class="text-sm text-muted-foreground mt-1">{{ task.description }}</div>
+                    <div class="flex items-start space-x-3 p-3 bg-muted/50 rounded border border-border">
+                      <div class="w-6 h-6 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 border border-primary/20">
+                        <span class="text-primary text-xs font-medium">{{ task.order }}</span>
+                      </div>
+                      <div class="flex-1">
+                        <div class="font-medium text-card-foreground">{{ task.name }}</div>
+                        <div v-if="task.description" class="text-sm text-muted-foreground mt-1">{{ task.description }}</div>
 
-                      <!-- Show personalized parameters -->
-                      <div v-if="task.personalizedParameters" class="mt-2">
-                        <div class="text-xs font-medium text-card-foreground mb-1">Your Parameters:</div>
-                        <div class="space-y-1">
-                          <div v-for="(value, param) in task.personalizedParameters" :key="param" class="text-xs">
-                            <span class="text-muted-foreground">{{ param }}:</span>
-                            <code class="bg-accent text-accent-foreground px-1 rounded ml-1 border border-border">{{ value }}</code>
+                        <!-- Show personalized parameters -->
+                        <div v-if="task.personalizedParameters" class="mt-2">
+                          <div class="text-xs font-medium text-card-foreground mb-1">Your Parameters:</div>
+                          <div class="space-y-1">
+                            <div v-for="(value, param) in task.personalizedParameters" :key="param" class="text-xs">
+                              <span class="text-muted-foreground">{{ param }}:</span>
+                              <code class="bg-accent text-accent-foreground px-1 rounded ml-1 border border-border">{{ value }}</code>
+                            </div>
                           </div>
                         </div>
                       </div>
+                      <div class="text-sm text-muted-foreground">{{ task.points }} pts</div>
                     </div>
-                    <div class="text-sm text-muted-foreground">{{ task.points }} pts</div>
                   </div>
                 </div>
               </div>
@@ -226,8 +283,14 @@
 
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue'
-import { Router, Monitor, HardDrive } from 'lucide-vue-next'
+import DOMPurify from 'dompurify'
+import { marked } from 'marked'
+import { Router, Monitor, HardDrive, CheckCircle, Info } from 'lucide-vue-next'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Label } from '@/components/ui/label'
+import { Checkbox } from '@/components/ui/checkbox'
+import { toast } from 'vue-sonner'
 import LabCompletionPrompt from '@/components/student/LabCompletionPrompt.vue'
 import LabResultsModal from '@/components/student/LabResultsModal.vue'
 import LabTimer from '@/components/student/LabTimer.vue'
@@ -257,45 +320,76 @@ const timerExpiredModalMode = ref<'results' | 'timer_expired' | 'unavailable'>('
 const backendIpMappings = ref<Record<string, { ip: string; vlan: number | null }>>({})
 const backendVlanMappings = ref<Record<string, number>>({})
 
-interface Props {
-  labData: {
-    id: string
-    name: string
-    description: string
-    courseCode: string
-    instructions: string
-    // Timer fields
-    availableFrom?: Date | string | null
-    dueDate?: Date | string | null
-    availableUntil?: Date | string | null
-    network: {
-      devices: Array<{
-        deviceId: string
-        templateId: string
-        deviceType: string
-        ipVariables: Array<{
-          name: string
-          inputType: 'hostOffset' | 'fullIP' | 'studentGenerated'
-          hostOffset?: number
-          fullIP?: string
-          isStudentGenerated?: boolean
-        }>
-      }>
+type TaskParameterValue = string | number | boolean | null | undefined
+
+type PartInstructions =
+  | string
+  | {
+      html?: string
+      instructions?: string
     }
-    parts: Array<{
-      partId: string
-      title: string
-      description: string
-      tasks: Array<{
-        taskId: string
-        name: string
-        description: string
-        order: number
-        points: number
-        parameters: Record<string, any>
-      }>
-    }>
+
+interface LabInstructions {
+  html: string
+  json: Record<string, unknown>
+}
+
+interface LabTask {
+  taskId: string
+  name: string
+  description: string
+  order: number
+  points: number
+  parameters: Record<string, TaskParameterValue>
+}
+
+interface LabPart {
+  partId: string
+  title: string
+  description: string
+  instructions?: PartInstructions
+  tasks: LabTask[]
+}
+
+interface PersonalizedLabTask extends LabTask {
+  personalizedParameters: Record<string, string> | null
+}
+
+interface PersonalizedLabPart extends LabPart {
+  tasks: PersonalizedLabTask[]
+}
+
+interface LabDevice {
+  deviceId: string
+  templateId: string
+  deviceType: string
+  ipVariables: Array<{
+    name: string
+    inputType: 'hostOffset' | 'fullIP' | 'studentGenerated'
+    hostOffset?: number
+    fullIP?: string
+    isStudentGenerated?: boolean
+  }>
+}
+
+interface LabData {
+  id: string
+  name: string
+  description: string
+  courseCode: string
+  instructions: LabInstructions
+  instructionsAcknowledged?: boolean
+  availableFrom?: Date | string | null
+  dueDate?: Date | string | null
+  availableUntil?: Date | string | null
+  network: {
+    devices: LabDevice[]
   }
+  parts: LabPart[]
+}
+
+interface Props {
+  labData: LabData
   currentUser: {
     studentId: string
     name: string
@@ -306,6 +400,20 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   showDebugInfo: false
+})
+
+const instructionsAcknowledged = ref(props.labData.instructionsAcknowledged ?? false)
+const instructionsAcknowledgedAt = ref<Date | null>(null)
+const instructionsAckChecked = ref(instructionsAcknowledged.value)
+const instructionsAckLoading = ref(false)
+const instructionsAckError = ref('')
+
+const acknowledgedAtLabel = computed(() => {
+  if (!instructionsAcknowledgedAt.value) return ''
+  return new Intl.DateTimeFormat('en-US', {
+    dateStyle: 'medium',
+    timeStyle: 'short'
+  }).format(instructionsAcknowledgedAt.value)
 })
 
 // Generate personalized networks for this student (from backend VLAN mappings)
@@ -326,8 +434,8 @@ const personalizedNetworks = computed(() => {
 
 // Generate personalized device configurations using backend IP mappings
 const personalizedDevices = computed(() => {
-  return props.labData.network.devices.map(device => {
-    const resolvedVariables = device.ipVariables.map(variable => {
+  return props.labData.network.devices.map((device) => {
+    const resolvedVariables = device.ipVariables.map((variable) => {
       // Create the mapping key: deviceId.variableName
       const mappingKey = `${device.deviceId}.${variable.name}`
 
@@ -355,8 +463,50 @@ const personalizedDevices = computed(() => {
 })
 
 // Process lab instructions and replace variables with personalized values
+const decodeHtmlEntities = (value: string): string => {
+  if (!value || value.indexOf('&') === -1) return value
+
+  if (typeof window !== 'undefined') {
+    const textarea = document.createElement('textarea')
+    textarea.innerHTML = value
+    return textarea.value
+  }
+
+  return value
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+}
+
+const convertContentToHtml = (content: string): string => {
+  const trimmed = content.trim()
+  if (!trimmed) return ''
+
+  const decoded = decodeHtmlEntities(trimmed)
+  const looksLikeHtml = /<\/?[a-z][\s\S]*>/i.test(decoded)
+
+  if (looksLikeHtml) {
+    return decoded
+  }
+
+  try {
+    return marked(decoded, { breaks: true }) as string
+  } catch (error) {
+    console.warn('Failed to convert markdown:', error)
+    return decoded
+  }
+}
+
 const renderedInstructions = computed(() => {
-  let instructions = props.labData.instructions
+  const rawInstructions = props.labData.instructions?.html || ''
+
+  if (!rawInstructions) {
+    return '<p class="text-muted-foreground">No instructions provided.</p>'
+  }
+
+  let instructions = rawInstructions
 
   // Replace common variables in instructions
   instructions = instructions.replace(/\{student\.id\}/g, props.currentUser.studentId)
@@ -375,36 +525,99 @@ const renderedInstructions = computed(() => {
   instructions = instructions.replace(/\{network\.vlan1\}/g, personalizedNetworks.value.vlan1.toString())
   instructions = instructions.replace(/\{network\.vlan2\}/g, personalizedNetworks.value.vlan2.toString())
 
-  return instructions
+  const html = convertContentToHtml(instructions)
+  return DOMPurify.sanitize(html)
 })
 
+const renderPartInstructions = (part: LabPart): string => {
+  const value = part.instructions
+  if (!value) return ''
+
+  let html = ''
+  if (typeof value === 'string') {
+    html = value
+  } else if (typeof value === 'object') {
+    html = value.html || value.instructions || ''
+  }
+
+  if (!html.trim()) return ''
+
+  try {
+    const rendered = convertContentToHtml(html)
+    return DOMPurify.sanitize(rendered)
+  } catch (error) {
+    console.warn('Failed to render part instructions:', error)
+    return html
+  }
+}
+
+async function acknowledgeInstructions() {
+  if (!instructionsAckChecked.value || instructionsAckLoading.value) return
+
+  instructionsAckLoading.value = true
+  instructionsAckError.value = ''
+
+  try {
+    const config = useRuntimeConfig()
+    const response = await fetch(
+      `${config.public.backendurl}/v0/labs/${props.labData.id}/instructions/acknowledge`,
+      {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      }
+    )
+
+    const result = await response.json()
+
+    if (!response.ok || !result.success) {
+      throw new Error(result.message || `HTTP ${response.status}: ${response.statusText}`)
+    }
+
+    instructionsAcknowledged.value = true
+    instructionsAckChecked.value = true
+    instructionsAcknowledgedAt.value = result.data?.acknowledgedAt
+      ? new Date(result.data.acknowledgedAt)
+      : new Date()
+    instructionsAckError.value = ''
+    toast.success('Instructions acknowledged. You can start Part 1 now.')
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to acknowledge instructions'
+    instructionsAckError.value = message
+    toast.error(message)
+  } finally {
+    instructionsAckLoading.value = false
+  }
+}
+
 // Generate personalized task parameters
-const personalizedTasks = computed(() => {
-  return props.labData.parts.map(part => ({
-    ...part,
-    tasks: part.tasks.map(task => {
+const formatTaskParameter = (value: TaskParameterValue): string => {
+  if (value === undefined || value === null) return ''
+  return String(value)
+}
+
+const resolveDeviceVariable = (value: string): string | null => {
+  const deviceVarMatch = value.match(/^(\w+)\.(\w+)$/)
+  if (!deviceVarMatch) return null
+  const [, deviceId, variableName] = deviceVarMatch
+  const device = personalizedDevices.value.find(d => d.deviceId === deviceId)
+  const variable = device?.ipVariables.find(v => v.name === variableName)
+  return variable?.resolvedIP ?? null
+}
+
+const personalizedTasks = computed<PersonalizedLabPart[]>(() => {
+  return props.labData.parts.map((part) => {
+    const personalizedPartTasks = part.tasks.map<PersonalizedLabTask>((task) => {
       const personalizedParameters: Record<string, string> = {}
 
-      // Process task parameters and resolve IP variables
       Object.entries(task.parameters).forEach(([key, value]) => {
-        if (typeof value === 'string') {
-          // Check if this parameter references an IP variable
-          const deviceVarMatch = value.match(/^(\w+)\.(\w+)$/)
-          if (deviceVarMatch) {
-            const [, deviceId, variableName] = deviceVarMatch
-            const device = personalizedDevices.value.find(d => d.deviceId === deviceId)
-            const variable = device?.ipVariables.find(v => v.name === variableName)
-            if (variable) {
-              personalizedParameters[key] = variable.resolvedIP
-            } else {
-              personalizedParameters[key] = value
-            }
-          } else {
-            personalizedParameters[key] = value
-          }
-        } else {
-          personalizedParameters[key] = String(value)
-        }
+        const formattedValue = formatTaskParameter(value)
+        if (!formattedValue) return
+
+        const resolved = resolveDeviceVariable(formattedValue)
+        personalizedParameters[key] = resolved ?? formattedValue
       })
 
       return {
@@ -412,7 +625,12 @@ const personalizedTasks = computed(() => {
         personalizedParameters: Object.keys(personalizedParameters).length > 0 ? personalizedParameters : null
       }
     })
-  }))
+
+    return {
+      ...part,
+      tasks: personalizedPartTasks
+    }
+  })
 })
 
 // Debug information
@@ -553,6 +771,16 @@ async function loadPersonalizedIPs() {
       backendIpMappings.value = result.data.networkConfiguration.ipMappings || {}
       backendVlanMappings.value = result.data.networkConfiguration.vlanMappings || {}
 
+      if (result.data.session) {
+        const sessionInfo = result.data.session
+        const acknowledged = Boolean(sessionInfo.instructionsAcknowledged)
+        instructionsAcknowledged.value = acknowledged
+        instructionsAckChecked.value = acknowledged
+        instructionsAcknowledgedAt.value = sessionInfo.instructionsAcknowledgedAt
+          ? new Date(sessionInfo.instructionsAcknowledgedAt)
+          : instructionsAcknowledgedAt.value
+      }
+
       console.log('✅ [DEBUG] Loaded personalized IPs:', {
         ipMappings: backendIpMappings.value,
         vlanMappings: backendVlanMappings.value
@@ -620,20 +848,22 @@ onMounted(async () => {
   margin-bottom: 0.5rem;
 }
 
-.prose {
+:deep(.prose) {
   line-height: 1.6;
 }
 
-.prose h1, .prose h2, .prose h3 {
+:deep(.prose h1),
+:deep(.prose h2),
+:deep(.prose h3) {
   margin-top: 1.5em;
   margin-bottom: 0.5em;
 }
 
-.prose p {
+:deep(.prose p) {
   margin-bottom: 1em;
 }
 
-.prose code {
+:deep(.prose code) {
   background-color: var(--color-muted);
   padding: 0.125rem 0.25rem;
   border-radius: 0.25rem;

@@ -495,6 +495,7 @@ defineExpose({
   editor,
   save,
   getHTML: () => editor.value?.getHTML(),
+  getJSON: () => editor.value?.getJSON(),
   getText: () => editor.value?.getText(),
   focus: () => editor.value?.commands.focus(),
   blur: () => editor.value?.commands.blur()

@@ -2,9 +2,15 @@
   <div class="space-y-6">
     <!-- Step Header -->
     <div class="border-b pb-4">
-      <h2 class="text-xl font-semibold">Review & Create</h2>
+      <h2 class="text-xl font-semibold">
+        {{ props.isEditMode ? 'Review & Update' : 'Review & Create' }}
+      </h2>
       <p class="text-muted-foreground mt-1">
-        Review your lab configuration before creating. Make sure everything looks correct.
+        {{
+          props.isEditMode
+            ? 'Double-check your lab configuration before saving updates.'
+            : 'Review your lab configuration before creating. Make sure everything looks correct.'
+        }}
       </p>
     </div>
 
@@ -44,7 +50,8 @@
           <div class="space-y-2">
             <Label class="text-sm font-medium text-muted-foreground">Student Instructions</Label>
             <div class="p-3 bg-muted/30 rounded border max-h-32 overflow-y-auto prose prose-sm">
-              <div v-html="renderMarkdown(wizardData.basicInfo.instructions)"></div>
+              <!-- eslint-disable-next-line vue/no-v-html -->
+              <div v-html="renderRichText(wizardData.basicInfo.instructions?.html)"></div>
             </div>
           </div>
         </CardContent>
@@ -227,14 +234,30 @@
           <div class="space-y-4">
             <div
               v-for="(part, partIndex) in wizardData.parts"
-              :key="part.tempId"
+              :key="part.tempId || part._id || part.partId || partIndex"
               class="border rounded-lg p-4"
             >
               <div class="flex items-center justify-between mb-3">
-                <div class="flex items-center space-x-2">
+                <div class="flex flex-wrap items-center gap-2">
                   <Badge variant="outline">Part {{ partIndex + 1 }}</Badge>
-                  <span class="font-medium">{{ part.title }}</span>
-                  <Badge variant="secondary">{{ part.totalPoints }} pts</Badge>
+                  <span class="font-medium">{{ part.title || 'Untitled Part' }}</span>
+                  <Badge variant="secondary" class="text-xs">
+                    {{ formatPartType(part.partType) }}
+                  </Badge>
+                  <Badge
+                    v-if="Number(part.totalPoints) > 0"
+                    variant="outline"
+                    class="text-xs"
+                  >
+                    {{ part.totalPoints }} pts
+                  </Badge>
+                  <Badge
+                    v-if="getPartTaskCount(part) > 0"
+                    variant="outline"
+                    class="text-xs"
+                  >
+                    {{ getPartTaskCount(part) }} task{{ getPartTaskCount(part) === 1 ? '' : 's' }}
+                  </Badge>
                 </div>
                 <Button
                   variant="ghost"
@@ -249,8 +272,7 @@
               </div>
 
               <div class="text-sm text-muted-foreground mb-2">
-                {{ part.tasks.length }} task{{ part.tasks.length !== 1 ? 's' : '' }}
-                {{ part.prerequisites.length > 0 ? `• Prerequisites: ${part.prerequisites.join(', ')}` : '' }}
+                {{ getPartSummary(part) }}
               </div>
 
               <Collapsible :open="expandedParts.has(partIndex)">
@@ -260,12 +282,13 @@
                     <div class="p-3 bg-muted/20 rounded">
                       <Label class="text-xs font-medium text-muted-foreground">Instructions Preview</Label>
                       <div class="mt-1 prose prose-sm max-h-24 overflow-y-auto">
+                        <!-- eslint-disable-next-line vue/no-v-html -->
                         <div v-html="renderMarkdown(part.instructions)"></div>
                       </div>
                     </div>
 
                     <!-- Tasks List -->
-                    <div class="space-y-2">
+                    <div v-if="part.partType === 'network_config'" class="space-y-2">
                       <Label class="text-xs font-medium text-muted-foreground">Tasks</Label>
                       <div class="space-y-2">
                         <div
@@ -281,6 +304,110 @@
                           <div class="text-xs text-muted-foreground">
                             {{ task.executionDevice }} • {{ task.testCases.length }} test{{ task.testCases.length !== 1 ? 's' : '' }}
                           </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Fill-in-the-Blank Questions -->
+                    <div v-else-if="part.partType === 'fill_in_blank'" class="space-y-2">
+                      <Label class="text-xs font-medium text-muted-foreground">
+                        Questions ({{ Array.isArray(part.questions) ? part.questions.length : 0 }})
+                      </Label>
+                      <div v-if="Array.isArray(part.questions) && part.questions.length" class="space-y-2">
+                        <div
+                          v-for="(question, questionIndex) in part.questions"
+                          :key="question.questionId || questionIndex"
+                          class="border rounded p-3 space-y-2 bg-muted/10"
+                        >
+                          <div class="flex flex-wrap items-start justify-between gap-2">
+                            <div class="flex items-center gap-2">
+                              <Badge variant="outline" class="text-xs">{{ questionIndex + 1 }}</Badge>
+                              <span class="font-medium text-sm">{{ question.questionText || 'Untitled question' }}</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                              <Badge variant="secondary" class="text-xs">
+                                {{ formatQuestionType(question.questionType) }}
+                              </Badge>
+                              <Badge variant="outline" class="text-xs">
+                                {{ question.points || 0 }} pts
+                              </Badge>
+                            </div>
+                          </div>
+
+                          <div
+                            v-if="question.questionType === 'ip_table_questionnaire' && question.ipTableQuestionnaire"
+                            class="mt-2 p-3 bg-background border rounded space-y-2 text-xs"
+                          >
+                            <div class="font-semibold text-sm">Advanced IP Table</div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              <div>
+                                <span class="text-muted-foreground">Rows:</span>
+                                <span class="ml-1 font-medium">{{ getIpTableStats(question).rows }}</span>
+                              </div>
+                              <div>
+                                <span class="text-muted-foreground">Columns:</span>
+                                <span class="ml-1 font-medium">{{ getIpTableStats(question).columns }}</span>
+                              </div>
+                              <div>
+                                <span class="text-muted-foreground">Input cells:</span>
+                                <span class="ml-1 font-medium">{{ getIpTableStats(question).inputCells }}</span>
+                              </div>
+                              <div>
+                                <span class="text-muted-foreground">Readonly cells:</span>
+                                <span class="ml-1 font-medium">{{ getIpTableStats(question).readonlyCells }}</span>
+                              </div>
+                              <div>
+                                <span class="text-muted-foreground">Blank cells:</span>
+                                <span class="ml-1 font-medium">{{ getIpTableStats(question).blankCells }}</span>
+                              </div>
+                            </div>
+                            <div v-if="question.ipTableQuestionnaire.columns?.length" class="text-muted-foreground">
+                              <span class="font-medium">Columns:</span>
+                              <span class="ml-1 font-mono">
+                                {{
+                                  question.ipTableQuestionnaire.columns
+                                    .map((col: any) => col.label || col.columnId)
+                                    .join(', ')
+                                }}
+                              </span>
+                            </div>
+                            <div v-if="question.ipTableQuestionnaire.rows?.length" class="text-muted-foreground">
+                              <span class="font-medium">Rows:</span>
+                              <span class="ml-1 font-mono">
+                                {{
+                                  question.ipTableQuestionnaire.rows
+                                    .map((row: any) => row.displayName || row.deviceId || row.rowId)
+                                    .join(', ')
+                                }}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <div v-else class="text-xs text-muted-foreground">
+                        No questions configured for this part.
+                      </div>
+                    </div>
+
+                    <!-- DHCP Configuration -->
+                    <div v-else-if="part.partType === 'dhcp_config' && part.dhcpConfiguration" class="space-y-2">
+                      <Label class="text-xs font-medium text-muted-foreground">DHCP Configuration</Label>
+                      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs bg-muted/10 p-3 rounded border">
+                        <div>
+                          <span class="text-muted-foreground">VLAN:</span>
+                          <span class="ml-1 font-medium">{{ part.dhcpConfiguration.vlanIndex }}</span>
+                        </div>
+                        <div>
+                          <span class="text-muted-foreground">Server Device:</span>
+                          <span class="ml-1 font-medium">{{ part.dhcpConfiguration.dhcpServerDevice || 'Not set' }}</span>
+                        </div>
+                        <div>
+                          <span class="text-muted-foreground">Range Start Offset:</span>
+                          <span class="ml-1 font-medium">{{ part.dhcpConfiguration.startOffset }}</span>
+                        </div>
+                        <div>
+                          <span class="text-muted-foreground">Range End Offset:</span>
+                          <span class="ml-1 font-medium">{{ part.dhcpConfiguration.endOffset }}</span>
                         </div>
                       </div>
                     </div>
@@ -365,19 +492,26 @@
         <CardHeader>
           <CardTitle class="flex items-center">
             <Rocket class="w-5 h-5 mr-2 text-primary" />
-            Ready to Create
+            {{ props.isEditMode ? 'Ready to Update' : 'Ready to Create' }}
           </CardTitle>
         </CardHeader>
         <CardContent class="space-y-4">
           <p class="text-muted-foreground">
-            Please review all information above carefully. Once created, some lab settings cannot be easily modified 
-            if students have already started working on the lab.
+            {{
+              props.isEditMode
+                ? 'Review the summary above carefully. Updates take effect immediately for students with access to this lab.'
+                : 'Please review all information above carefully. Once created, some lab settings cannot be easily modified if students have already started working on the lab.'
+            }}
           </p>
           
           <div class="flex items-center space-x-2 p-3 bg-muted/30 rounded">
             <Info class="w-4 h-4 text-blue-600" />
             <span class="text-sm">
-              The lab will be created with all parts and tasks. Students will be able to access it according to your schedule settings.
+              {{
+                props.isEditMode
+                  ? 'Existing submissions stay intact. Removing parts will cascade delete their related submissions.'
+                  : 'The lab will be created with all parts and tasks. Students will be able to access it according to your schedule settings.'
+              }}
             </span>
           </div>
 
@@ -389,7 +523,15 @@
           >
             <Loader2 v-if="isSubmitting" class="w-4 h-4 mr-2 animate-spin" />
             <Rocket v-else class="w-4 h-4 mr-2" />
-            {{ isSubmitting ? 'Creating Lab...' : 'Create Lab' }}
+            {{
+              isSubmitting
+                ? props.isEditMode
+                  ? 'Updating Lab...'
+                  : 'Creating Lab...'
+                : props.isEditMode
+                  ? 'Update Lab'
+                  : 'Create Lab'
+            }}
           </Button>
         </CardContent>
       </Card>
@@ -399,6 +541,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import DOMPurify from 'dompurify'
 import { marked } from 'marked'
 import {
   BookOpen,
@@ -421,13 +564,31 @@ import { Badge } from '@/components/ui/badge'
 import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible'
 
 // Types
-import type { LabWizardData, CourseContext } from '@/types/wizard'
+import type {
+  LabWizardData,
+  CourseContext,
+  WizardLabPart,
+  Question
+} from '@/types/wizard'
+
+type WizardPart = WizardLabPart
+type WizardQuestion = Question
+type WizardDeviceIpVariable = LabWizardData['devices'][number]['ipVariables'][number]
+
+interface IpTableStats {
+  rows: number
+  columns: number
+  inputCells: number
+  readonlyCells: number
+  blankCells: number
+}
 
 // Props
 interface Props {
   wizardData: LabWizardData
   courseContext: CourseContext
   isSubmitting: boolean
+  isEditMode?: boolean
 }
 
 // Emits
@@ -435,32 +596,92 @@ interface Emits {
   (e: 'createLab'): void
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  isEditMode: false
+})
 const emit = defineEmits<Emits>()
 
 // Local state
 const expandedParts = ref(new Set<number>())
 
+// Helpers
+const countIpTableInputCells = (question: WizardQuestion): number => {
+  const table = question?.ipTableQuestionnaire
+  if (!table || !Array.isArray(table.cells)) return 0
+  let total = 0
+  for (const row of table.cells) {
+    if (!Array.isArray(row)) continue
+    for (const cell of row) {
+      if (cell?.cellType === 'input') {
+        total += 1
+      }
+    }
+  }
+  return total
+}
+
+const getFillInBlankTaskCount = (part: WizardPart): number => {
+  if (!Array.isArray(part.questions)) return 0
+  return part.questions.reduce((total, question) => {
+    if (!question) return total
+    let questionTasks = 1
+    if (question.questionType === 'ip_table_questionnaire') {
+      const requiredCells = countIpTableInputCells(question)
+      questionTasks = requiredCells === 0 ? 1 : requiredCells
+    }
+    return total + questionTasks
+  }, 0)
+}
+
+const getPartTaskCount = (part: WizardPart): number => {
+  if (!part) return 0
+  if (part.partType === 'network_config') {
+    return Array.isArray(part.tasks) ? part.tasks.length : 0
+  }
+  if (part.partType === 'fill_in_blank') {
+    return getFillInBlankTaskCount(part)
+  }
+  if (part.partType === 'dhcp_config') {
+    return 1
+  }
+  return 0
+}
+
 // Computed
 const totalTasks = computed(() => {
-  return props.wizardData.parts.reduce((sum, part) => sum + part.tasks.length, 0)
+  return props.wizardData.parts.reduce((sum, part) => sum + getPartTaskCount(part), 0)
 })
 
 const totalPoints = computed(() => {
-  return props.wizardData.parts.reduce((sum, part) => sum + part.totalPoints, 0)
+  return props.wizardData.parts.reduce((sum, part) => {
+    const points = Number(part.totalPoints)
+    return sum + (Number.isFinite(points) ? points : 0)
+  }, 0)
 })
 
 // Methods
-const renderMarkdown = (content: string): string => {
-  if (!content) return '<p class="text-muted-foreground">No content provided</p>'
+const renderRichText = (content?: string): string => {
+  if (!content || !content.trim()) {
+    return '<p class="text-muted-foreground">No content provided</p>'
+  }
 
   try {
-    return marked(content, {
-      breaks: true,
-      gfm: true
-    })
+    return DOMPurify.sanitize(content)
   } catch (error) {
     return `<p class="text-destructive">Error rendering content: ${error}</p>`
+  }
+}
+
+const renderMarkdown = (content?: string): string => {
+  if (!content || !content.trim()) {
+    return '<p class="text-muted-foreground">No instructions provided</p>'
+  }
+
+  try {
+    const html = marked(content, { breaks: true })
+    return DOMPurify.sanitize(html as string)
+  } catch (error) {
+    return `<p class="text-destructive">Error rendering instructions: ${error}</p>`
   }
 }
 
@@ -503,9 +724,10 @@ const formatInputType = (inputType: string): string => {
   return inputType || 'Unknown'
 }
 
-const formatIPConfig = (ipVar: any): string => {
+const formatIPConfig = (ipVar: WizardDeviceIpVariable): string => {
   if (ipVar.inputType === 'fullIP') {
-    return ipVar.fullIP || 'Not Set'
+    const fullValue = ipVar.fullIP ?? (ipVar as { fullIp?: string }).fullIp
+    return fullValue || 'Not Set'
   }
   if (ipVar.inputType === 'studentManagement') {
     return 'Auto-generated (Management)'
@@ -522,6 +744,126 @@ const getDeviceTemplateName = (templateId: string): string => {
   // This would normally fetch from the templates data
   // For now, return a placeholder
   return templateId ? 'Device Template' : 'Unknown Template'
+}
+
+const formatPartType = (partType: WizardPart['partType'] | undefined): string => {
+  if (!partType) return 'Unknown type'
+  const typeMap: Record<string, string> = {
+    network_config: 'Network Configuration',
+    fill_in_blank: 'Fill-in-the-Blank',
+    dhcp_config: 'DHCP Configuration'
+  }
+  return typeMap[partType] || partType
+}
+
+const getPartSummary = (part: WizardPart): string => {
+  const details: string[] = []
+
+  const totalTaskCount = getPartTaskCount(part)
+  if (totalTaskCount > 0) {
+    details.push(`${totalTaskCount} task${totalTaskCount === 1 ? '' : 's'}`)
+  }
+
+  if (part?.partType === 'network_config') {
+    const groupCount = Array.isArray(part.task_groups) ? part.task_groups.length : 0
+    if (groupCount > 0) {
+      details.push(`${groupCount} task group${groupCount === 1 ? '' : 's'}`)
+    }
+  } else if (part?.partType === 'fill_in_blank') {
+    const questionCount = Array.isArray(part.questions) ? part.questions.length : 0
+    details.push(`${questionCount} question${questionCount === 1 ? '' : 's'}`)
+    let ipTableCount = 0
+    let ipTableInputCells = 0
+    if (Array.isArray(part.questions)) {
+      part.questions.forEach((question) => {
+        if (!question) return
+        if (question.questionType === 'ip_table_questionnaire') {
+          ipTableCount += 1
+          ipTableInputCells += countIpTableInputCells(question)
+        }
+      })
+    }
+    if (ipTableCount > 0) {
+      details.push(`${ipTableCount} advanced IP table${ipTableCount === 1 ? '' : 's'}`)
+      if (ipTableInputCells > 0) {
+        details.push(`${ipTableInputCells} required answer cell${ipTableInputCells === 1 ? '' : 's'}`)
+      }
+    }
+  } else if (part?.partType === 'dhcp_config' && part.dhcpConfiguration) {
+    const { vlanIndex, startOffset, endOffset } = part.dhcpConfiguration
+    details.push(`VLAN ${vlanIndex ?? 0}`)
+    details.push(`Pool ${startOffset ?? 0} – ${endOffset ?? 0}`)
+  }
+
+  if (Array.isArray(part.prerequisites) && part.prerequisites.length > 0) {
+    details.push(`Prerequisites: ${part.prerequisites.join(', ')}`)
+  }
+
+  if (Number(part.totalPoints) > 0) {
+    details.push(`${Number(part.totalPoints)} pts`)
+  }
+
+  return details.length > 0 ? details.join(' • ') : 'No configuration details provided'
+}
+
+const formatQuestionType = (type: string | undefined): string => {
+  if (!type) return 'Unknown type'
+  const typeMap: Record<string, string> = {
+    network_address: 'Network Address',
+    first_usable_ip: 'First Usable IP',
+    last_usable_ip: 'Last Usable IP',
+    broadcast_address: 'Broadcast Address',
+    subnet_mask: 'Subnet Mask',
+    ip_address: 'IP Address',
+    number: 'Numeric',
+    custom_text: 'Custom Text',
+    ip_table_questionnaire: 'Advanced IP Table'
+  }
+  return typeMap[type] || type
+}
+
+const getIpTableStats = (question: WizardQuestion): IpTableStats => {
+  const table = question?.ipTableQuestionnaire
+  if (!table) {
+    return {
+      rows: 0,
+      columns: 0,
+      inputCells: 0,
+      readonlyCells: 0,
+      blankCells: 0
+    }
+  }
+
+  const rows = table.rowCount ?? (Array.isArray(table.rows) ? table.rows.length : 0)
+  const columns = table.columnCount ?? (Array.isArray(table.columns) ? table.columns.length : 0)
+
+  let inputCells = 0
+  let readonlyCells = 0
+  let blankCells = 0
+
+  if (Array.isArray(table.cells)) {
+    for (const row of table.cells) {
+      if (!Array.isArray(row)) continue
+      for (const cell of row) {
+        if (!cell) continue
+        if (cell.cellType === 'input') {
+          inputCells += 1
+        } else if (cell.cellType === 'readonly') {
+          readonlyCells += 1
+        } else if (cell.cellType === 'blank') {
+          blankCells += 1
+        }
+      }
+    }
+  }
+
+  return {
+    rows,
+    columns,
+    inputCells,
+    readonlyCells,
+    blankCells
+  }
 }
 
 const togglePartDetails = (partIndex: number) => {

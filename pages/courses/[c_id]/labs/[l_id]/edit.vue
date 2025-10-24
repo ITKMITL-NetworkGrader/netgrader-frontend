@@ -25,7 +25,7 @@
     <template v-else>
       <!-- Header -->
       <div class="border-b bg-background sticky top-0 z-40">
-        <div class="max-w-6xl mx-auto px-4 py-4">
+        <div class="w-full max-w-screen-2xl mx-auto px-6 py-4 lg:px-12">
           <!-- Breadcrumb Navigation -->
           <Breadcrumb class="mb-4">
             <BreadcrumbList>
@@ -80,31 +80,40 @@
 
           <!-- Progress Indicator -->
           <div class="mt-4 mb-2">
-            <div class="flex items-center justify-center space-x-4">
+            <div class="flex flex-wrap items-center justify-center gap-3">
               <div v-for="(step, index) in steps" :key="step.id" class="flex items-center">
-                <div
-                  class="flex items-center justify-center w-8 h-8 rounded-full border-2 transition-all duration-200"
-                  :class="{
-                    'bg-primary text-primary-foreground border-primary': currentStep >= index + 1,
-                    'border-muted-foreground text-muted-foreground bg-background': currentStep < index + 1,
-                    'bg-green-500 border-green-500 text-white': currentStep > index + 1
-                  }"
+                <button
+                  type="button"
+                  class="group flex items-center rounded-md px-2 py-1 transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                  :class="currentStep === index + 1 ? 'cursor-default' : 'cursor-pointer hover:bg-accent/40'"
+                  :aria-current="currentStep === index + 1 ? 'step' : undefined"
+                  :aria-label="`Go to ${step.title}`"
+                  @click="goToStep(index + 1)"
                 >
-                  <Check v-if="currentStep > index + 1" class="w-4 h-4" />
-                  <span v-else class="font-semibold text-xs">{{ index + 1 }}</span>
-                </div>
-                <div class="ml-2 min-w-0">
                   <div
-                    class="font-medium text-xs transition-colors duration-200"
+                    class="flex items-center justify-center w-8 h-8 rounded-full border-2 transition-all duration-200 group-hover:border-primary group-hover:text-primary"
                     :class="{
-                      'text-foreground': currentStep >= index + 1,
-                      'text-muted-foreground': currentStep < index + 1,
-                      'text-green-600': currentStep > index + 1
+                      'bg-primary text-primary-foreground border-primary': currentStep >= index + 1,
+                      'border-muted-foreground text-muted-foreground bg-background': currentStep < index + 1,
+                      'bg-green-500 border-green-500 text-white': currentStep > index + 1
                     }"
                   >
-                    {{ step.title }}
+                    <Check v-if="currentStep > index + 1" class="w-4 h-4" />
+                    <span v-else class="font-semibold text-xs">{{ index + 1 }}</span>
                   </div>
-                </div>
+                  <div class="ml-2 min-w-0 text-left">
+                    <div
+                      class="font-medium text-xs transition-colors duration-200"
+                      :class="{
+                        'text-foreground': currentStep >= index + 1,
+                        'text-muted-foreground': currentStep < index + 1,
+                        'text-green-600': currentStep > index + 1
+                      }"
+                    >
+                      {{ step.title }}
+                    </div>
+                  </div>
+                </button>
                 <ChevronRight
                   v-if="index < steps.length - 1"
                   class="w-4 h-4 mx-3 text-muted-foreground/40"
@@ -116,7 +125,7 @@
       </div>
 
       <!-- Main Content -->
-      <div class="max-w-6xl mx-auto px-4 py-6">
+      <div class="w-full max-w-screen-2xl mx-auto px-6 py-6 lg:px-12">
         <Card class="min-h-[600px]">
           <CardContent class="p-0">
             <!-- Step Content -->
@@ -215,8 +224,8 @@
               <ChevronRight class="w-4 h-4 ml-2" />
             </Button>
             <Button
-              v-else
               size="lg"
+              class="shadow-sm"
               :disabled="isSubmitting || !canUpdateLab"
               @click="handleUpdateLab"
             >
@@ -247,12 +256,165 @@
           </AlertDescription>
         </Alert>
       </div>
+
+      <AlertDialog v-model:open="saveConfirmation.open">
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {{
+                saveConfirmation.summary?.hasDestructiveChanges
+                  ? 'Confirm Potentially Destructive Changes'
+                  : 'Review Changes Before Saving'
+              }}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {{
+                saveConfirmation.summary?.hasDestructiveChanges
+                  ? 'Some of these changes affect parts that already have student submissions. Proceed only if you are sure.'
+                  : 'Here is a quick summary of the updates you are about to apply.'
+              }}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <div class="space-y-4 text-sm">
+            <div
+              v-if="saveConfirmation.summary?.hasDestructiveChanges"
+              class="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-destructive"
+            >
+              Deleting a part permanently removes all related student submissions (cascade delete). Editing a submitted part may invalidate existing grades.
+            </div>
+
+            <div v-if="saveConfirmation.summary?.deletedParts.length">
+              <h4 class="font-medium text-destructive flex items-center gap-2">
+                <Trash2 class="h-4 w-4" />
+                Parts to be deleted
+              </h4>
+              <ul class="mt-2 list-disc space-y-1 pl-5 text-muted-foreground">
+                <li
+                  v-for="part in saveConfirmation.summary?.deletedParts"
+                  :key="`deleted-${part.partId}`"
+                >
+                  {{ part.title }}
+                </li>
+              </ul>
+            </div>
+
+            <div v-if="saveConfirmation.summary?.modifiedParts.length">
+              <h4 class="font-medium flex items-center gap-2">
+                <Edit class="h-4 w-4" />
+                Parts to be updated
+              </h4>
+              <ul class="mt-2 space-y-2 pl-0">
+                <li
+                  v-for="part in saveConfirmation.summary?.modifiedParts"
+                  :key="`modified-${part.partId}`"
+                  class="rounded-md border border-border/60 p-3"
+                  :class="part.hasSubmissions ? 'border-amber-400 bg-amber-50/50' : ''"
+                >
+                  <div class="flex items-center justify-between">
+                    <span class="font-medium">{{ part.title }}</span>
+                    <span
+                      v-if="part.hasSubmissions"
+                      class="text-xs font-semibold uppercase tracking-wide text-amber-600"
+                    >
+                      student submissions
+                    </span>
+                  </div>
+                  <div class="mt-1 text-xs text-muted-foreground">
+                    Changes: {{ part.changes.join(', ') }}
+                  </div>
+                </li>
+              </ul>
+            </div>
+
+            <div v-if="saveConfirmation.summary?.createdParts.length">
+              <h4 class="font-medium flex items-center gap-2">
+                <Plus class="h-4 w-4" />
+                New parts
+              </h4>
+              <ul class="mt-2 list-disc space-y-1 pl-5 text-muted-foreground">
+                <li
+                  v-for="part in saveConfirmation.summary?.createdParts"
+                  :key="`created-${part.partId || part.title}`"
+                >
+                  {{ part.title }}
+                </li>
+              </ul>
+            </div>
+
+            <div v-if="saveConfirmation.summary?.basicInfoChanges.length">
+              <h4 class="font-medium">Lab information</h4>
+              <ul class="mt-2 list-disc space-y-1 pl-5 text-muted-foreground">
+                <li
+                  v-for="item in saveConfirmation.summary?.basicInfoChanges"
+                  :key="`info-${item}`"
+                >
+                  {{ item }}
+                </li>
+              </ul>
+            </div>
+
+            <div v-if="saveConfirmation.summary?.networkChanges.length">
+              <h4 class="font-medium">Network configuration</h4>
+              <ul class="mt-2 list-disc space-y-1 pl-5 text-muted-foreground">
+                <li
+                  v-for="item in saveConfirmation.summary?.networkChanges"
+                  :key="`network-${item}`"
+                >
+                  {{ item }}
+                </li>
+              </ul>
+            </div>
+
+            <div v-if="saveConfirmation.summary?.scheduleChanges.length">
+              <h4 class="font-medium">Schedule</h4>
+              <ul class="mt-2 list-disc space-y-1 pl-5 text-muted-foreground">
+                <li
+                  v-for="item in saveConfirmation.summary?.scheduleChanges"
+                  :key="`schedule-${item}`"
+                >
+                  {{ item }}
+                </li>
+              </ul>
+            </div>
+
+            <div
+              v-if="
+                saveConfirmation.summary &&
+                !saveConfirmation.summary.deletedParts.length &&
+                !saveConfirmation.summary.modifiedParts.length &&
+                !saveConfirmation.summary.createdParts.length &&
+                !saveConfirmation.summary.basicInfoChanges.length &&
+                !saveConfirmation.summary.networkChanges.length &&
+                !saveConfirmation.summary.scheduleChanges.length
+              "
+              class="rounded-md border border-border/60 bg-muted/30 p-3 text-muted-foreground"
+            >
+              No significant changes detected. Saving will keep your lab unchanged.
+            </div>
+          </div>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel :disabled="isSubmitting">Cancel</AlertDialogCancel>
+            <AlertDialogAction :disabled="isSubmitting" @click="confirmSaveChanges">
+              <span class="inline-flex items-center">
+                <Loader2 v-if="isSubmitting" class="mr-2 h-4 w-4 animate-spin" />
+                {{
+                  saveConfirmation.summary?.hasDestructiveChanges
+                    ? 'Proceed with changes'
+                    : 'Save changes'
+                }}
+              </span>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, computed, onMounted, nextTick } from 'vue'
+import { reactive, ref, computed, onMounted, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { toast } from 'vue-sonner'
 import {
@@ -264,7 +426,10 @@ import {
   Loader2,
   AlertCircle,
   CheckCircle2,
-  ArrowLeft
+  ArrowLeft,
+  Trash2,
+  Edit,
+  Plus
 } from 'lucide-vue-next'
 
 // UI Components
@@ -272,6 +437,16 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Breadcrumb, BreadcrumbItem, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from '@/components/ui/alert-dialog'
 
 // Wizard Step Components
 import LabWizardStep1 from '@/components/wizard/LabWizardStep1.vue'
@@ -289,12 +464,32 @@ import type {
   ValidationResult,
   WizardStep
 } from '@/types/wizard'
+import type { PartSubmissionSummary } from '@/types/submission'
+
+interface ChangePartSummary {
+  partId?: string
+  title: string
+}
+
+interface ChangeSummary {
+  deletedParts: ChangePartSummary[]
+  createdParts: ChangePartSummary[]
+  modifiedParts: Array<ChangePartSummary & {
+    hasSubmissions: boolean
+    changes: string[]
+  }>
+  basicInfoChanges: string[]
+  networkChanges: string[]
+  scheduleChanges: string[]
+  hasDestructiveChanges: boolean
+}
 
 // Page setup
 const route = useRoute()
 const router = useRouter()
 const config = useRuntimeConfig()
 const backendURL = config.public.backendurl
+const INSTRUCTIONS_PART_ID = '__instructions_ack__'
 const courseId = route.params.c_id as string
 const labId = route.params.l_id as string
 
@@ -373,7 +568,10 @@ const wizardData = reactive<LabWizardData>({
   basicInfo: {
     name: '',
     description: '',
-    instructions: ''
+    instructions: {
+      html: '',
+      json: { type: 'doc', content: [] }
+    }
   },
   networkConfig: {
     baseNetwork: '192.168.1.0',
@@ -410,6 +608,12 @@ const globalMessage = reactive({
   message: ''
 })
 
+const partSubmissionSummary = ref<Record<string, PartSubmissionSummary>>({})
+const saveConfirmation = reactive({
+  open: false,
+  summary: null as ChangeSummary | null
+})
+
 // Computed properties
 const canProceedToNextStep = computed(() => {
   return validation.value[`step${currentStep.value}` as keyof StepValidation]?.isValid || false
@@ -434,30 +638,604 @@ const convertStringToBoolean = (value: any): any => {
 }
 
 // Helper function to check if a value is an IP address
-const isIpAddress = (value: string): boolean => {
-  const ipv4Pattern = /^(\d{1,3}\.){3}\d{1,3}$/
-  const ipv6Pattern = /^([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}$/
-  return ipv4Pattern.test(value) || ipv6Pattern.test(value)
-}
-
 // Helper function to format parameter values for backend submission
 const formatParameterValue = (value: any): any => {
   if (typeof value !== 'string') return value
+  return value.trim()
+}
 
-  const trimmedValue = value.trim()
-
-  // If it's an IP address, return as-is
-  if (isIpAddress(trimmedValue)) {
-    return trimmedValue
+const normalizeRichText = (value: any) => {
+  if (!value) {
+    return {
+      html: '',
+      json: { type: 'doc', content: [] }
+    }
   }
 
-  // If it's already wrapped with {{}}, return as-is
-  if (trimmedValue.startsWith('{{') && trimmedValue.endsWith('}}')) {
-    return trimmedValue
+  if (typeof value === 'string') {
+    return {
+      html: value,
+      json: { type: 'doc', content: [] }
+    }
   }
 
-  // Otherwise, wrap it with {{}}
-  return `{{${trimmedValue}}}`
+  if (typeof value === 'object') {
+    const html = typeof value.html === 'string'
+      ? value.html
+      : (typeof value.instructions === 'string' ? value.instructions : '')
+    const json = value.json ?? { type: 'doc', content: [] }
+    return {
+      html,
+      json
+    }
+  }
+
+  return {
+    html: '',
+    json: { type: 'doc', content: [] }
+  }
+}
+
+const extractInstructionsHtml = (value: any): string => normalizeRichText(value).html
+
+const fetchPartSubmissionSummary = async () => {
+  try {
+    const response = await $fetch<{
+      status: string
+      data?: PartSubmissionSummary[]
+      message?: string
+    }>(`${backendURL}/v0/submissions/lab/${labId}/part-summary`, {
+      method: 'GET',
+      credentials: 'include'
+    })
+
+    if (response.status === 'success' && Array.isArray(response.data)) {
+      const summaryMap: Record<string, PartSubmissionSummary> = {}
+      for (const item of response.data) {
+        if (item?.partId) {
+          summaryMap[item.partId] = {
+            ...item,
+            lastSubmittedAt: item.lastSubmittedAt
+          }
+        }
+      }
+      partSubmissionSummary.value = summaryMap
+    } else {
+      throw new Error(response.message || 'Failed to fetch part submission summary')
+    }
+  } catch (error) {
+    console.error('Failed to fetch part submission summary:', error)
+    partSubmissionSummary.value = {}
+  }
+}
+
+const applySubmissionSummaryToParts = () => {
+  wizardData.parts.forEach((part) => {
+    const originalPart = part._id
+      ? originalPartsData.value.find((existing: any) => existing._id === part._id)
+      : null
+    const summaryKey = originalPart?.partId || part.partId
+    const summary = summaryKey ? partSubmissionSummary.value[summaryKey] : undefined
+    if (summary && summary.submissionCount > 0) {
+      part.hasSubmissions = true
+      part.submissionSummary = summary
+    } else {
+      part.hasSubmissions = false
+      part.submissionSummary = undefined
+    }
+  })
+}
+
+watch(partSubmissionSummary, () => {
+  applySubmissionSummaryToParts()
+})
+
+watch(
+  () => saveConfirmation.open,
+  (isOpen) => {
+    if (!isOpen && !isSubmitting.value) {
+      saveConfirmation.summary = null
+    }
+  }
+)
+
+const sortObjectKeys = (obj: Record<string, any> = {}) => {
+  return Object.keys(obj)
+    .sort()
+    .reduce<Record<string, any>>((acc, key) => {
+      const value = obj[key]
+      acc[key] = typeof value === 'object' && value !== null && !Array.isArray(value)
+        ? sortObjectKeys(value)
+        : value
+      return acc
+    }, {})
+}
+
+const normalizeTasks = (tasks: any[] = []) => {
+  return [...tasks]
+    .map((task) => ({
+      taskId: task.taskId || '',
+      name: task.name || '',
+      description: task.description || '',
+      templateId: task.templateId || '',
+      executionDevice: task.executionDevice || '',
+      targetDevices: Array.isArray(task.targetDevices) ? [...task.targetDevices].sort() : [],
+      parameters: sortObjectKeys(task.parameters || {}),
+      testCases: Array.isArray(task.testCases) ? task.testCases.map((testCase: any) => ({
+        comparison_type: testCase.comparison_type,
+        expected_result: convertStringToBoolean(testCase.expected_result)
+      })) : [],
+      order: typeof task.order === 'number' ? task.order : 0,
+      points: typeof task.points === 'number' ? task.points : 0,
+      groupId: task.groupId || task.group_id || ''
+    }))
+    .sort((a, b) => {
+      if (a.order !== b.order) return a.order - b.order
+      return a.taskId.localeCompare(b.taskId)
+    })
+}
+
+const normalizeTaskGroups = (groups: any[] = []) => {
+  return [...groups]
+    .map((group) => ({
+      group_id: group.group_id,
+      title: group.title,
+      description: group.description,
+      group_type: group.group_type,
+      points: group.points,
+      continue_on_failure: group.continue_on_failure,
+      timeout_seconds: group.timeout_seconds
+    }))
+    .sort((a, b) => a.group_id.localeCompare(b.group_id))
+}
+
+const normalizeQuestions = (questions: any[] = []) => {
+  return [...questions]
+    .map((question) => ({
+      ...question,
+      schemaMapping: question.schemaMapping ? { ...question.schemaMapping } : undefined
+    }))
+    .sort((a, b) => {
+      if (typeof a.order === 'number' && typeof b.order === 'number') {
+        return a.order - b.order
+      }
+      return (a.questionId || '').localeCompare(b.questionId || '')
+    })
+}
+
+const normalizeInstructions = (value: any) => {
+  const { html } = normalizeRichText(value)
+  return html.trim()
+}
+
+const detectPartChanges = (originalPart: any, updatedPart: any): string[] => {
+  if (!originalPart || !updatedPart) return []
+
+  const changes: string[] = []
+
+  if ((originalPart.title || '') !== (updatedPart.title || '')) {
+    changes.push('Title')
+  }
+
+  if ((originalPart.partType || 'network_config') !== (updatedPart.partType || 'network_config')) {
+    changes.push('Part type')
+  }
+
+  if ((originalPart.description || '') !== (updatedPart.description || '')) {
+    changes.push('Description')
+  }
+
+  if (normalizeInstructions(originalPart.instructions) !== normalizeInstructions(updatedPart.instructions)) {
+    changes.push('Instructions')
+  }
+
+  const originalTasks = normalizeTasks(originalPart.tasks || [])
+  const updatedTasks = normalizeTasks(updatedPart.tasks || [])
+  if (JSON.stringify(originalTasks) !== JSON.stringify(updatedTasks)) {
+    changes.push('Tasks')
+  }
+
+  const originalGroups = normalizeTaskGroups(originalPart.task_groups || [])
+  const updatedGroups = normalizeTaskGroups(updatedPart.task_groups || [])
+  if (JSON.stringify(originalGroups) !== JSON.stringify(updatedGroups)) {
+    changes.push('Task groups')
+  }
+
+  const originalQuestions = normalizeQuestions(originalPart.questions || [])
+  const updatedQuestions = normalizeQuestions(updatedPart.questions || [])
+  if (JSON.stringify(originalQuestions) !== JSON.stringify(updatedQuestions)) {
+    changes.push('Questions')
+  }
+
+  const originalDhcp = originalPart.dhcpConfiguration || null
+  const updatedDhcp = updatedPart.dhcpConfiguration || null
+  if (JSON.stringify(originalDhcp) !== JSON.stringify(updatedDhcp)) {
+    changes.push('DHCP configuration')
+  }
+
+  const originalPrereqs = Array.isArray(originalPart.prerequisites) ? [...originalPart.prerequisites].sort() : []
+  const updatedPrereqs = Array.isArray(updatedPart.prerequisites) ? [...updatedPart.prerequisites].sort() : []
+  if (JSON.stringify(originalPrereqs) !== JSON.stringify(updatedPrereqs)) {
+    changes.push('Prerequisites')
+  }
+
+  return changes
+}
+
+const collectBasicInfoChanges = (): string[] => {
+  const changes: string[] = []
+  const originalTitle = (originalLabData.value?.title || '').trim()
+  const originalDescription = (originalLabData.value?.description || '').trim()
+  const originalInstructions = normalizeInstructions(originalLabData.value?.instructions)
+  const currentTitle = (wizardData.basicInfo.name || '').trim()
+  const currentDescription = (wizardData.basicInfo.description || '').trim()
+  const currentInstructions = normalizeInstructions(wizardData.basicInfo.instructions)
+
+  if (currentTitle !== originalTitle) {
+    changes.push('Lab title updated')
+  }
+
+  if (currentDescription !== originalDescription) {
+    changes.push('Lab description updated')
+  }
+
+  if (currentInstructions !== originalInstructions) {
+    changes.push('Student instructions updated')
+  }
+
+  return changes
+}
+
+const normalizeExemptRanges = (ranges: any[] = []) => {
+  return ranges
+    .map((range) => {
+      const start = range.start || ''
+      const end = range.end || ''
+      return end ? `${start}-${end}` : start
+    })
+    .sort()
+}
+
+const toNumberOrUndefined = (value: any): number | undefined => {
+  if (value === null || value === undefined || value === '') return undefined
+  const numeric = Number(value)
+  return Number.isFinite(numeric) ? numeric : undefined
+}
+
+const normalizeVlanEntry = (vlan: any = {}) => {
+  const normalized: Record<string, any> = {}
+  const vlanId = toNumberOrUndefined(vlan.vlanId)
+  if (vlanId !== undefined) normalized.vlanId = vlanId
+  if (typeof vlan.baseNetwork === 'string' && vlan.baseNetwork.trim()) {
+    normalized.baseNetwork = vlan.baseNetwork.trim()
+  }
+  const subnetMask = toNumberOrUndefined(vlan.subnetMask)
+  if (subnetMask !== undefined) normalized.subnetMask = subnetMask
+  const subnetIndex = toNumberOrUndefined(vlan.subnetIndex)
+  if (subnetIndex !== undefined) normalized.subnetIndex = subnetIndex
+  const groupModifier = toNumberOrUndefined(vlan.groupModifier)
+  if (groupModifier !== undefined) normalized.groupModifier = groupModifier
+  const calculationMultiplier = toNumberOrUndefined(vlan.calculationMultiplier)
+  if (calculationMultiplier !== undefined) normalized.calculationMultiplier = calculationMultiplier
+  if (typeof vlan.isStudentGenerated === 'boolean') {
+    normalized.isStudentGenerated = vlan.isStudentGenerated
+  } else if (vlan.isStudentGenerated !== undefined) {
+    normalized.isStudentGenerated = Boolean(vlan.isStudentGenerated)
+  }
+  return normalized
+}
+
+const normalizeVlanConfiguration = (config: any) => {
+  if (!config || typeof config !== 'object') {
+    return {
+      mode: '',
+      vlanCount: 0,
+      vlans: []
+    }
+  }
+
+  const normalizedVlans = Array.isArray(config.vlans)
+    ? config.vlans
+      .map((vlan: any) => normalizeVlanEntry(vlan))
+      .sort((a, b) => {
+        if (a.vlanId !== undefined && b.vlanId !== undefined && a.vlanId !== b.vlanId) {
+          return a.vlanId - b.vlanId
+        }
+        if (a.subnetIndex !== undefined && b.subnetIndex !== undefined && a.subnetIndex !== b.subnetIndex) {
+          return a.subnetIndex - b.subnetIndex
+        }
+        return (a.baseNetwork || '').localeCompare(b.baseNetwork || '')
+      })
+    : []
+
+  const normalizedMode = typeof config.mode === 'string' ? config.mode.trim() : config.mode || ''
+  const normalizedCount = toNumberOrUndefined(config.vlanCount)
+
+  return {
+    mode: normalizedMode,
+    vlanCount: normalizedCount ?? normalizedVlans.length,
+    vlans: normalizedVlans
+  }
+}
+
+const collectNetworkChanges = (): string[] => {
+  const changes: string[] = []
+  const originalTopology = originalLabData.value?.network?.topology
+  const originalVlanConfig = originalLabData.value?.network?.vlanConfiguration
+
+  if (!originalTopology && !originalVlanConfig) {
+    if (wizardData.networkConfig.managementNetwork || wizardData.networkConfig.vlans.length > 0) {
+      changes.push('Network configuration initialized')
+    }
+    return changes
+  }
+
+  if (originalTopology) {
+    if ((wizardData.networkConfig.managementNetwork || '') !== (originalTopology.baseNetwork || '')) {
+      changes.push('Management network updated')
+    }
+
+    if ((wizardData.networkConfig.managementSubnetMask || 0) !== (originalTopology.subnetMask || 0)) {
+      changes.push('Subnet mask updated')
+    }
+
+    if ((wizardData.networkConfig.allocationStrategy || 'group_based') !== (originalTopology.allocationStrategy || 'group_based')) {
+      changes.push('Allocation strategy updated')
+    }
+
+    const newExempt = normalizeExemptRanges(wizardData.networkConfig.exemptIpRanges || [])
+    const oldExempt = normalizeExemptRanges(originalTopology.exemptIpRanges || [])
+    if (JSON.stringify(newExempt) !== JSON.stringify(oldExempt)) {
+      changes.push('Exempt IP ranges updated')
+    }
+  }
+
+  const currentVlanConfig = normalizeVlanConfiguration({
+    mode: wizardData.networkConfig.mode,
+    vlanCount: wizardData.networkConfig.vlanCount,
+    vlans: wizardData.networkConfig.vlans
+  })
+  const previousVlanConfig = normalizeVlanConfiguration(originalVlanConfig)
+
+  if (JSON.stringify(currentVlanConfig) !== JSON.stringify(previousVlanConfig)) {
+    changes.push('VLAN configuration updated')
+  }
+
+  return changes
+}
+
+const datesEqual = (a?: Date, b?: Date) => {
+  if (!a && !b) return true
+  if (!a || !b) return false
+  return a.getTime() === b.getTime()
+}
+
+const collectScheduleChanges = (): string[] => {
+  const changes: string[] = []
+  const originalAvailableFrom = originalLabData.value?.availableFrom ? new Date(originalLabData.value.availableFrom) : undefined
+  const originalAvailableUntil = originalLabData.value?.availableUntil ? new Date(originalLabData.value.availableUntil) : undefined
+  const originalDueDate = originalLabData.value?.dueDate ? new Date(originalLabData.value.dueDate) : undefined
+
+  if (!datesEqual(wizardData.schedule.availableFrom, originalAvailableFrom)) {
+    changes.push(originalAvailableFrom ? 'Availability start updated' : 'Availability start set')
+  }
+
+  if (!datesEqual(wizardData.schedule.availableUntil, originalAvailableUntil)) {
+    changes.push(originalAvailableUntil ? 'Availability end updated' : 'Availability end set')
+  }
+
+  if (!datesEqual(wizardData.schedule.dueDate, originalDueDate)) {
+    changes.push(originalDueDate ? 'Due date updated' : 'Due date set')
+  }
+
+  return changes
+}
+
+const buildChangeSummary = (): ChangeSummary => {
+  const originalPartsById = new Map(
+    originalPartsData.value
+      .filter((part: any) => Boolean(part?._id))
+      .map((part: any) => [part._id, part])
+  )
+  const originalPartsByPartId = new Map(
+    originalPartsData.value
+      .filter((part: any) => Boolean(part?.partId))
+      .map((part: any) => [part.partId, part])
+  )
+
+  const findOriginalPart = (part: any) => {
+    if (!part) return null
+    if (part._id && originalPartsById.has(part._id)) {
+      return originalPartsById.get(part._id)
+    }
+    if (part.partId && originalPartsByPartId.has(part.partId)) {
+      return originalPartsByPartId.get(part.partId)
+    }
+    return null
+  }
+
+  const deletedParts: ChangePartSummary[] = originalPartsData.value
+    .filter((part: any) => {
+      const matchesById = part._id ? wizardData.parts.some((updated) => updated._id === part._id) : false
+      const matchesByPartId = part.partId ? wizardData.parts.some((updated) => updated.partId === part.partId) : false
+      return !matchesById && !matchesByPartId
+    })
+    .map((part: any) => ({
+      partId: part.partId,
+      title: part.title || part.partId || 'Untitled Part'
+    }))
+
+  const createdParts: ChangePartSummary[] = wizardData.parts
+    .filter((part) => !findOriginalPart(part))
+    .map((part) => ({
+      partId: part.partId,
+      title: part.title || part.partId || 'Untitled Part'
+    }))
+
+  const modifiedParts = wizardData.parts
+    .map((part) => {
+      const original = findOriginalPart(part)
+      if (!original) return null
+      const changes = detectPartChanges(original, part)
+      if (changes.length === 0) return null
+      const submissionSourcePartId = part.partId || original.partId
+      const submissionSummary = submissionSourcePartId ? partSubmissionSummary.value[submissionSourcePartId] : undefined
+      const hasSubmissions = Boolean(
+        part.hasSubmissions ??
+        (submissionSummary && submissionSummary.submissionCount > 0)
+      )
+
+      return {
+        partId: submissionSourcePartId,
+        title: part.title || original.title || submissionSourcePartId || 'Untitled Part',
+        hasSubmissions,
+        changes
+      }
+    })
+    .filter(Boolean) as Array<ChangePartSummary & { hasSubmissions: boolean; changes: string[] }>
+
+  const basicInfoChanges = collectBasicInfoChanges()
+  const networkChanges = collectNetworkChanges()
+  const scheduleChanges = collectScheduleChanges()
+
+  const hasDestructiveChanges = deletedParts.length > 0 ||
+    modifiedParts.some((part) => part.hasSubmissions)
+
+  return {
+    deletedParts,
+    createdParts,
+    modifiedParts,
+    basicInfoChanges,
+    networkChanges,
+    scheduleChanges,
+    hasDestructiveChanges
+  }
+}
+
+const sanitizeOptionalString = (value: unknown): string | undefined => {
+  if (typeof value !== 'string') return undefined
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : undefined
+}
+
+const prepareRichTextForApi = (value: any) => {
+  const normalized = normalizeRichText(value)
+  return {
+    html: (normalized.html || '').trim(),
+    json: JSON.parse(JSON.stringify(normalized.json ?? { type: 'doc', content: [] }))
+  }
+}
+
+const toOptionalDate = (value?: Date | string | null) => {
+  if (!value) return undefined
+  const dateValue = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(dateValue.getTime())) return undefined
+  return dateValue
+}
+
+const prepareExemptRangesForApi = (ranges: any[] = []) => {
+  return ranges
+    .map((range) => {
+      const start = typeof range.start === 'string' ? range.start.trim() : ''
+      const end = typeof range.end === 'string' ? range.end.trim() : ''
+      if (!start) return null
+      return end ? { start, end } : { start }
+    })
+    .filter(Boolean)
+}
+
+const prepareVlanForApi = (vlan: any) => {
+  const formatted: Record<string, any> = {}
+  const id = vlan?.id || vlan?._id
+  if (id) {
+    formatted.id = id
+  }
+
+  const vlanId = toNumberOrUndefined(vlan?.vlanId)
+  if (vlanId !== undefined) {
+    formatted.vlanId = vlanId
+  }
+
+  if (typeof vlan?.baseNetwork === 'string' && vlan.baseNetwork.trim()) {
+    formatted.baseNetwork = vlan.baseNetwork.trim()
+  }
+
+  const subnetMask = toNumberOrUndefined(vlan?.subnetMask)
+  if (subnetMask !== undefined) {
+    formatted.subnetMask = subnetMask
+  }
+
+  const subnetIndex = toNumberOrUndefined(vlan?.subnetIndex)
+  if (subnetIndex !== undefined) {
+    formatted.subnetIndex = subnetIndex
+  }
+
+  const groupModifier = toNumberOrUndefined(vlan?.groupModifier)
+  if (groupModifier !== undefined) {
+    formatted.groupModifier = groupModifier
+  }
+
+  const calculationMultiplier = toNumberOrUndefined(vlan?.calculationMultiplier)
+  if (calculationMultiplier !== undefined) {
+    formatted.calculationMultiplier = calculationMultiplier
+  }
+
+  if (typeof vlan?.isStudentGenerated === 'boolean') {
+    formatted.isStudentGenerated = vlan.isStudentGenerated
+  } else if (vlan?.isStudentGenerated !== undefined) {
+    formatted.isStudentGenerated = Boolean(vlan.isStudentGenerated)
+  }
+
+  return formatted
+}
+
+const prepareDeviceForApi = (device: any) => {
+  return {
+    deviceId: device.deviceId,
+    templateId: device.templateId,
+    displayName: (device.displayName || device.deviceId || '').trim(),
+    ipVariables: (device.ipVariables || []).map((ipVar: any) => {
+      const baseVar: Record<string, any> = {
+        name: ipVar.name,
+        interface: ipVar.interface || '',
+        isManagementInterface: Boolean(ipVar.isManagementInterface),
+        isVlanInterface: Boolean(ipVar.inputType?.startsWith('studentVlan') || ipVar.isVlanInterface),
+        inputType: ipVar.inputType,
+        vlanIndex: typeof ipVar.vlanIndex === 'number' ? ipVar.vlanIndex : toNumberOrUndefined(ipVar.vlanIndex),
+        interfaceOffset: toNumberOrUndefined(ipVar.interfaceOffset)
+      }
+
+      if (ipVar.inputType === 'fullIP' && ipVar.fullIP) {
+        return {
+          ...baseVar,
+          fullIp: ipVar.fullIP
+        }
+      }
+
+      if (ipVar.inputType === 'hostOffset') {
+        const hostOffset = toNumberOrUndefined(ipVar.hostOffset)
+        return {
+          ...baseVar,
+          hostOffset: hostOffset ?? ipVar.hostOffset
+        }
+      }
+
+      if (ipVar.inputType === 'studentManagement') {
+        return baseVar
+      }
+
+      if (ipVar.inputType?.startsWith('studentVlan')) {
+        return baseVar
+      }
+
+      return baseVar
+    }),
+    credentials: device.credentials || {
+      usernameTemplate: device.connectionParams?.username || '',
+      passwordTemplate: device.connectionParams?.password || '',
+      enablePassword: device.credentials?.enablePassword || ''
+    }
+  }
 }
 
 // Load lab data from backend
@@ -484,16 +1262,41 @@ const loadLabData = async () => {
       credentials: 'include'
     })
 
-    if (!partsResponse.success) {
-      throw new Error(partsResponse.message || 'Failed to load lab parts')
+    let fetchedParts: any[] = []
+
+    if ('success' in partsResponse) {
+      if (!partsResponse.success) {
+        throw new Error(partsResponse.message || 'Failed to load lab parts')
+      }
+      fetchedParts = Array.isArray(partsResponse.data?.parts)
+        ? partsResponse.data.parts
+        : Array.isArray(partsResponse.data)
+          ? partsResponse.data
+          : []
+    } else if ('parts' in partsResponse) {
+      fetchedParts = Array.isArray((partsResponse as any).parts) ? (partsResponse as any).parts : []
+    } else {
+      throw new Error('Failed to load lab parts')
     }
 
-    originalPartsData.value = partsResponse.data || []
+    const filteredParts = fetchedParts.filter((part: any) => {
+      if (!part) return false
+      if (part.partId === INSTRUCTIONS_PART_ID) return false
+      if (part.partType === 'instructions_ack') return false
+      return true
+    })
+
+    originalPartsData.value = filteredParts
+
+    await fetchPartSubmissionSummary()
 
     // Transform backend data to wizard format
     transformBackendDataToWizard()
+    applySubmissionSummaryToParts()
 
     console.log('✅ Lab data loaded successfully')
+
+    initializeValidationState()
 
   } catch (error: any) {
     console.error('Failed to load lab data:', error)
@@ -512,7 +1315,7 @@ const transformBackendDataToWizard = () => {
   wizardData.basicInfo = {
     name: lab.title || '',
     description: lab.description || '',
-    instructions: lab.instructions || ''
+    instructions: normalizeRichText(lab.instructions)
   }
 
   // Map network config
@@ -558,33 +1361,40 @@ const transformBackendDataToWizard = () => {
   }
 
   // Map parts
-  wizardData.parts = parts.map((part: any) => ({
-    _id: part._id, // Keep original ID for updates
-    partId: part.partId,
-    title: part.title,
-    description: part.description || '',
-    instructions: part.instructions || '',
-    order: part.order,
-    partType: part.partType || 'network_config',
-    tasks: part.tasks?.map((task: any) => ({
-      taskId: task.taskId,
-      name: task.name,
-      description: task.description || '',
-      templateId: task.templateId,
-      executionDevice: task.executionDevice,
-      targetDevices: task.targetDevices || [],
-      parameters: task.parameters || {},
-      testCases: task.testCases || [],
-      order: task.order,
-      points: task.points,
-      groupId: task.group_id
-    })) || [],
-    task_groups: part.task_groups || [],
-    questions: part.questions || [],
-    dhcpConfiguration: part.dhcpConfiguration,
-    prerequisites: part.prerequisites || [],
-    totalPoints: part.totalPoints
-  }))
+  wizardData.parts = parts.map((part: any) => {
+    const summary = partSubmissionSummary.value[part.partId]
+    const hasSubmissions = Boolean(summary && summary.submissionCount > 0)
+
+    return {
+      _id: part._id, // Keep original ID for updates
+      partId: part.partId || '',
+      title: part.title || '',
+      description: part.description || '',
+      instructions: extractInstructionsHtml(part.instructions),
+      order: part.order,
+      partType: part.partType || 'network_config',
+      tasks: part.tasks?.map((task: any) => ({
+        taskId: task.taskId,
+        name: task.name,
+        description: task.description || '',
+        templateId: task.templateId,
+        executionDevice: task.executionDevice,
+        targetDevices: task.targetDevices || [],
+        parameters: task.parameters || {},
+        testCases: task.testCases || [],
+        order: task.order,
+        points: task.points,
+        groupId: task.group_id
+      })) || [],
+      task_groups: part.task_groups || [],
+      questions: part.questions || [],
+      dhcpConfiguration: part.dhcpConfiguration,
+      prerequisites: part.prerequisites || [],
+      totalPoints: part.totalPoints,
+      hasSubmissions,
+      submissionSummary: summary
+    }
+  })
 
   // Map schedule
   wizardData.schedule = {
@@ -596,7 +1406,37 @@ const transformBackendDataToWizard = () => {
   console.log('✅ Data transformed to wizard format')
 }
 
+const initializeValidationState = () => {
+  validation.value.step1 = { isValid: true, errors: [] }
+  validation.value.step2 = { isValid: true, errors: [] }
+  validation.value.step3 = { isValid: true, errors: [] }
+  validation.value.step4 = { isValid: true, errors: [] }
+  validation.value.step5 = { isValid: true, errors: [] }
+  validation.value.step6 = { isValid: true, errors: [] }
+}
+
 // Methods
+const goToStep = (stepNumber: number) => {
+  if (stepNumber < 1 || stepNumber > steps.length) {
+    return
+  }
+
+  if (currentStep.value === stepNumber) {
+    return
+  }
+
+  steps.forEach((step, index) => {
+    if (index < stepNumber - 1) {
+      step.isComplete = true
+      step.isAccessible = true
+    } else if (index === stepNumber - 1) {
+      step.isAccessible = true
+    }
+  })
+
+  currentStep.value = stepNumber
+}
+
 const nextStep = () => {
   if (canProceedToNextStep.value && currentStep.value < steps.length) {
     steps[currentStep.value - 1].isComplete = true
@@ -639,6 +1479,12 @@ const loadDraft = () => {
     if (draftData) {
       const parsed = JSON.parse(draftData)
       Object.assign(wizardData, parsed)
+      wizardData.basicInfo.instructions = normalizeRichText(wizardData.basicInfo.instructions)
+      wizardData.parts = (wizardData.parts || []).map((part: any) => ({
+        ...part,
+        instructions: extractInstructionsHtml(part.instructions)
+      }))
+      applySubmissionSummaryToParts()
 
       // Show message about loaded draft
       toast.info('Draft loaded from previous session')
@@ -648,87 +1494,50 @@ const loadDraft = () => {
   }
 }
 
-const handleUpdateLab = async () => {
-  if (!canUpdateLab.value) {
-    showGlobalMessage('error', 'Please complete all required steps before updating the lab')
-    return
-  }
-
+const executeLabUpdate = async () => {
   isSubmitting.value = true
 
   try {
     console.group('🔄 Lab Update Process')
 
-    // Step 1: Update the lab
-    const labData = {
+    const sanitizedTitle = (wizardData.basicInfo.name || '').trim()
+    const sanitizedDescription = sanitizeOptionalString(wizardData.basicInfo.description)
+    const labInstructions = prepareRichTextForApi(wizardData.basicInfo.instructions)
+    const dueDate = toOptionalDate(wizardData.schedule.dueDate)
+    const availableFrom = toOptionalDate(wizardData.schedule.availableFrom)
+    const availableUntil = toOptionalDate(wizardData.schedule.availableUntil)
+
+    const labData: Record<string, any> = {
       courseId: wizardData.courseId,
       type: originalLabData.value.type || 'lab',
-      title: wizardData.basicInfo.name,
-      description: wizardData.basicInfo.description,
+      title: sanitizedTitle,
+      ...(sanitizedDescription !== undefined ? { description: sanitizedDescription } : {}),
+      instructions: labInstructions,
       network: {
-        name: wizardData.basicInfo.name,
+        name: sanitizedTitle,
         topology: {
-          baseNetwork: wizardData.networkConfig.managementNetwork,
+          baseNetwork: (wizardData.networkConfig.managementNetwork || '').trim(),
           subnetMask: wizardData.networkConfig.managementSubnetMask,
           allocationStrategy: wizardData.networkConfig.allocationStrategy || 'group_based',
-          exemptIpRanges: (wizardData.networkConfig.exemptIpRanges || []).map(range => ({
-            start: range.start,
-            ...(range.end ? { end: range.end } : {})
-          }))
+          exemptIpRanges: prepareExemptRangesForApi(wizardData.networkConfig.exemptIpRanges)
         },
         vlanConfiguration: {
           mode: wizardData.networkConfig.mode,
           vlanCount: wizardData.networkConfig.vlanCount,
-          vlans: wizardData.networkConfig.vlans.map(vlan => ({
-            id: vlan.id,
-            vlanId: vlan.vlanId,
-            calculationMultiplier: vlan.calculationMultiplier,
-            baseNetwork: vlan.baseNetwork,
-            subnetMask: vlan.subnetMask,
-            subnetIndex: vlan.subnetIndex,
-            groupModifier: vlan.groupModifier,
-            isStudentGenerated: vlan.isStudentGenerated
-          }))
+          vlans: wizardData.networkConfig.vlans.map(prepareVlanForApi)
         },
-        devices: wizardData.devices.map(device => ({
-          deviceId: device.deviceId,
-          templateId: device.templateId,
-          displayName: device.displayName || device.deviceId,
-          ipVariables: device.ipVariables.map(ipVar => {
-            const baseVar = {
-              name: ipVar.name,
-              interface: ipVar.interface || '',
-              isManagementInterface: ipVar.isManagementInterface || false,
-              isVlanInterface: ipVar.inputType?.startsWith('studentVlan') || false,
-              inputType: ipVar.inputType,
-              vlanIndex: ipVar.vlanIndex,
-              interfaceOffset: ipVar.interfaceOffset
-            }
+        devices: wizardData.devices.map(prepareDeviceForApi)
+      }
+    }
 
-            if (ipVar.inputType === 'fullIP') {
-              return {
-                ...baseVar,
-                fullIp: ipVar.fullIP
-              }
-            } else if (ipVar.inputType === 'hostOffset') {
-              return {
-                ...baseVar,
-                hostOffset: ipVar.hostOffset
-              }
-            } else {
-              return baseVar
-            }
-          }),
-          credentials: device.credentials || {
-            usernameTemplate: device.connectionParams?.username || '',
-            passwordTemplate: device.connectionParams?.password || '',
-            enablePassword: ''
-          }
-        }))
-      },
-      dueDate: wizardData.schedule.dueDate,
-      availableFrom: wizardData.schedule.availableFrom,
-      availableUntil: wizardData.schedule.availableUntil
+    if (dueDate) {
+      labData.dueDate = dueDate
+    }
+    if (availableFrom) {
+      labData.availableFrom = availableFrom
+    }
+    if (availableUntil) {
+      labData.availableUntil = availableUntil
     }
 
     console.log('📝 Updating lab...', labData)
@@ -748,18 +1557,10 @@ const handleUpdateLab = async () => {
 
     console.log('✅ Lab updated successfully')
 
-    // Step 2: Handle parts updates (create, update, delete)
-    // Track which parts to create, update, or delete
     const originalPartIds = new Set(originalPartsData.value.map(p => p._id))
-    const currentPartIds = new Set(wizardData.parts.filter(p => p._id).map(p => p._id))
 
-    // Parts to delete (in original but not in current)
     const partsToDelete = originalPartsData.value.filter(p => !wizardData.parts.some(wp => wp._id === p._id))
-
-    // Parts to create (no _id)
     const partsToCreate = wizardData.parts.filter(p => !p._id)
-
-    // Parts to update (have _id and exist in original)
     const partsToUpdate = wizardData.parts.filter(p => p._id && originalPartIds.has(p._id))
 
     console.log('📊 Parts summary:', {
@@ -768,7 +1569,6 @@ const handleUpdateLab = async () => {
       toUpdate: partsToUpdate.length
     })
 
-    // Delete parts
     for (const part of partsToDelete) {
       console.log(`🗑️  Deleting part: ${part.partId}`)
       await $fetch(`${backendURL}/v0/parts/${part._id}`, {
@@ -777,7 +1577,6 @@ const handleUpdateLab = async () => {
       })
     }
 
-    // Create new parts
     for (const part of partsToCreate) {
       console.log(`➕ Creating new part: ${part.partId}`)
       const partData = buildPartData(labId, part)
@@ -791,7 +1590,6 @@ const handleUpdateLab = async () => {
       })
     }
 
-    // Update existing parts
     for (const part of partsToUpdate) {
       console.log(`🔄 Updating part: ${part.partId}`)
       const partData = buildPartData(labId, part)
@@ -807,10 +1605,8 @@ const handleUpdateLab = async () => {
 
     console.groupEnd()
 
-    // Clear draft from localStorage
     localStorage.removeItem(`lab-edit-draft-${labId}`)
 
-    // Success - redirect to lab view page
     showGlobalMessage('success', 'Lab updated successfully!')
 
     setTimeout(() => {
@@ -818,11 +1614,45 @@ const handleUpdateLab = async () => {
     }, 1500)
 
   } catch (error: any) {
+    const errorDetails = error?.data || error?.response?._data || error?.response?.data
+    if (errorDetails) {
+      console.error('Failed to update lab (details):', errorDetails)
+    }
     console.error('Failed to update lab:', error)
-    showGlobalMessage('error', error.message || 'Failed to update lab. Please try again.')
+    const errorMessage =
+      errorDetails?.error?.message ||
+      errorDetails?.message ||
+      error.message ||
+      'Failed to update lab. Please try again.'
+    showGlobalMessage('error', errorMessage)
   } finally {
     isSubmitting.value = false
+    saveConfirmation.summary = null
   }
+}
+
+const handleUpdateLab = () => {
+  if (isSubmitting.value) {
+    return
+  }
+
+  if (!canUpdateLab.value) {
+    showGlobalMessage('error', 'Please complete all required steps before updating the lab')
+    return
+  }
+
+  const summary = buildChangeSummary()
+  saveConfirmation.summary = summary
+  saveConfirmation.open = true
+}
+
+const confirmSaveChanges = async () => {
+  if (isSubmitting.value) return
+  if (!saveConfirmation.summary) {
+    saveConfirmation.summary = buildChangeSummary()
+  }
+  saveConfirmation.open = false
+  await executeLabUpdate()
 }
 
 // Helper function to build part data for API

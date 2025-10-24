@@ -76,66 +76,36 @@
       </div>
 
       <!-- Student Instructions -->
-      <div class="space-y-2">
+      <div class="space-y-3">
         <div class="flex items-center justify-between">
-          <Label for="lab-instructions" class="text-sm font-medium">
+          <Label class="text-sm font-medium">
             Student Instructions <span class="text-destructive">*</span>
           </Label>
-          <div class="flex items-center space-x-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              @click="togglePreviewMode"
-              :class="{ 'bg-muted': isPreviewMode }"
-            >
-              <Eye v-if="!isPreviewMode" class="w-4 h-4 mr-1" />
-              <Edit3 v-else class="w-4 h-4 mr-1" />
-              {{ isPreviewMode ? 'Edit' : 'Preview' }}
-            </Button>
-          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            class="flex items-center gap-2"
+            @click="openInstructionsEditor"
+          >
+            <BookOpen class="w-4 h-4" />
+            Edit Instructions
+          </Button>
         </div>
 
-        <!-- Markdown Editor -->
-        <div v-if="!isPreviewMode" class="space-y-2">
-          <Textarea
-            id="lab-instructions"
-            v-model="localData.instructions"
-            placeholder="# Lab Objectives&#10;&#10;Students will:&#10;- Configure network devices&#10;- Test connectivity&#10;- Verify configurations&#10;&#10;## Prerequisites&#10;&#10;Basic networking knowledge required..."
-            :class="{
-              'border-destructive': hasError('instructions'),
-              'border-green-500': !hasError('instructions') && localData.instructions.length > 0
-            }"
-            rows="12"
-            class="font-mono text-sm"
-            @input="validateField('instructions')"
-            @blur="validateField('instructions')"
-          />
-          <div class="flex items-center justify-between">
-            <div class="flex items-center space-x-2 text-xs text-muted-foreground">
-              <Info class="w-3 h-3" />
-              <span>Supports Markdown formatting</span>
-            </div>
-            <p class="text-xs text-muted-foreground">
-              {{ localData.instructions.length }} characters
-            </p>
-          </div>
-        </div>
-
-        <!-- Markdown Preview -->
-        <div v-else class="space-y-2">
+        <div class="rounded-md border border-dashed border-border/60 bg-muted/20 p-4">
           <div
-            class="min-h-[200px] p-4 border rounded-md bg-background prose prose-sm max-w-none"
-            v-html="renderedMarkdown"
+            class="min-h-[160px] prose prose-sm max-w-none text-foreground"
+            v-html="renderedInstructions"
           ></div>
-          <div class="flex items-center justify-between">
-            <div class="flex items-center space-x-2 text-xs text-muted-foreground">
-              <Eye class="w-3 h-3" />
-              <span>Preview of student instructions</span>
-            </div>
-            <Button variant="ghost" size="sm" @click="togglePreviewMode">
-              <Edit3 class="w-4 h-4 mr-1" />
-              Continue Editing
-            </Button>
+        </div>
+
+        <div class="flex items-center justify-between text-xs text-muted-foreground">
+          <div class="flex items-center gap-2">
+            <Info class="w-3 h-3" />
+            <span>Use the rich text editor to craft announcements, rules, or lab guidelines.</span>
+          </div>
+          <div>
+            {{ localData.instructions.html.length }} characters
           </div>
         </div>
 
@@ -158,15 +128,26 @@
       </Alert>
     </div>
   </div>
+
+  <ClientOnly>
+    <FullScreenEditor
+      v-model="showInstructionsEditor"
+      :content="localData.instructions.html"
+      title="Student Instructions"
+      :subtitle="courseContext.courseName"
+      :auto-save-enabled="false"
+      placeholder="Add the information students must read before starting the lab..."
+      @save="handleInstructionsSave"
+      @close="handleInstructionsClose"
+    />
+  </ClientOnly>
 </template>
 
 <script setup lang="ts">
 import { computed, watch, ref, onMounted, nextTick } from 'vue'
-import { marked } from 'marked'
+import DOMPurify from 'dompurify'
 import {
   BookOpen,
-  Eye,
-  Edit3,
   Info,
   AlertCircle
 } from 'lucide-vue-next'
@@ -178,16 +159,17 @@ import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import FullScreenEditor from '@/components/editor/FullScreenEditor.vue'
 
 // Types
-import type { CourseContext, ValidationResult } from '@/types/wizard'
+import type { CourseContext, ValidationResult, RichTextContent } from '@/types/wizard'
 
 // Props
 interface Props {
   modelValue: {
     name: string
     description: string
-    instructions: string
+    instructions: RichTextContent
   }
   courseContext: CourseContext
   validation?: ValidationResult
@@ -203,23 +185,27 @@ const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
 // Local state
-const localData = ref({ ...props.modelValue })
-const isPreviewMode = ref(false)
+const cloneInstructions = (content?: RichTextContent): RichTextContent => ({
+  html: content?.html || '',
+  json: content?.json ? JSON.parse(JSON.stringify(content.json)) : { type: 'doc', content: [] }
+})
+
+const localData = ref({
+  name: props.modelValue.name,
+  description: props.modelValue.description,
+  instructions: cloneInstructions(props.modelValue.instructions)
+})
+const showInstructionsEditor = ref(false)
 const fieldErrors = ref<Record<string, string>>({})
 const isUpdatingFromProps = ref(false)
 
 // Computed
-const renderedMarkdown = computed(() => {
-  if (!localData.value.instructions) return '<p class="text-muted-foreground">No instructions provided</p>'
-  
-  try {
-    return marked(localData.value.instructions, {
-      breaks: true,
-      gfm: true
-    })
-  } catch (error) {
-    return `<p class="text-destructive">Error rendering markdown: ${error}</p>`
+const renderedInstructions = computed(() => {
+  const html = localData.value.instructions?.html?.trim()
+  if (!html) {
+    return '<p class="text-muted-foreground">No instructions provided</p>'
   }
+  return DOMPurify.sanitize(html)
 })
 
 // Methods
@@ -252,7 +238,7 @@ const validateField = (field: string) => {
       break
 
     case 'instructions':
-      if (!localData.value.instructions.trim()) {
+      if (!localData.value.instructions.html.trim()) {
         fieldErrors.value.instructions = 'Student instructions are required'
       } else {
         delete fieldErrors.value.instructions
@@ -282,7 +268,7 @@ const validateAllFields = () => {
     delete fieldErrors.value.description
   }
 
-  if (!localData.value.instructions.trim()) {
+  if (!localData.value.instructions.html.trim()) {
     fieldErrors.value.instructions = 'Student instructions are required'
   } else {
     delete fieldErrors.value.instructions
@@ -309,8 +295,20 @@ const validateStep = () => {
   }
 }
 
-const togglePreviewMode = () => {
-  isPreviewMode.value = !isPreviewMode.value
+const openInstructionsEditor = () => {
+  showInstructionsEditor.value = true
+}
+
+const handleInstructionsSave = (payload: { html: string; json: any }) => {
+  localData.value.instructions = cloneInstructions(payload)
+  showInstructionsEditor.value = false
+  validateField('instructions')
+}
+
+const handleInstructionsClose = (payload: { html: string; json: any }) => {
+  localData.value.instructions = cloneInstructions(payload)
+  showInstructionsEditor.value = false
+  validateField('instructions')
 }
 
 // Watchers
@@ -318,7 +316,11 @@ watch(
   localData,
   (newValue) => {
     if (!isUpdatingFromProps.value) {
-      emit('update:modelValue', newValue)
+      emit('update:modelValue', {
+        name: newValue.name,
+        description: newValue.description,
+        instructions: cloneInstructions(newValue.instructions)
+      })
       // Use nextTick to avoid recursive validation loops
       nextTick(() => {
         emitValidation()
@@ -332,7 +334,11 @@ watch(
   () => props.modelValue,
   (newValue) => {
     isUpdatingFromProps.value = true
-    localData.value = { ...newValue }
+    localData.value = {
+      name: newValue.name,
+      description: newValue.description,
+      instructions: cloneInstructions(newValue.instructions)
+    }
     nextTick(() => {
       isUpdatingFromProps.value = false
       // Trigger validation after props update

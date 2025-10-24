@@ -1,7 +1,8 @@
-import { useUserState, type User } from "~/composables/states";
+import { useUserState, useCourseRoleState, type User } from "~/composables/states";
 
 export default defineNuxtRouteMiddleware(async (to, _from) => {
     const userState = useUserState();
+    const courseRoleState = useCourseRoleState();
     const config = useRuntimeConfig()
     const backendURL = config.public.backendurl;
     const excludedRoutes = [ "/login", "/", "/demo", "/oat"];
@@ -59,6 +60,90 @@ export default defineNuxtRouteMiddleware(async (to, _from) => {
     }
 
     if (to.path === "/manage" && (!isAuthenticated || !["INSTRUCTOR", "ADMIN"].includes(userState.value?.role || ""))) {
-        return navigateTo("/courses", { replace: true });
+        return navigateTo("/", { replace: true });
+    }
+
+    const matchCoursePath = (path: string): string | null => {
+        const patterns = [
+            /^\/courses\/([^/]+)\/labs\/[^/]+\/status$/,
+            /^\/courses\/([^/]+)\/labs\/[^/]+\/edit$/,
+            /^\/courses\/([^/]+)\/labs\/create$/,
+            /^\/courses\/([^/]+)(?:\/.+)?$/
+        ];
+
+        for (const pattern of patterns) {
+            const match = path.match(pattern);
+            if (match) {
+                return match[1];
+            }
+        }
+        return null;
+    };
+
+    const isCourseInfoPage = (path: string): boolean => {
+        return /^\/courses\/[^/]+\/?$/.test(path);
+    };
+
+    const ensureCourseRole = async (courseId: string) => {
+        if (!isAuthenticated) return null;
+
+        if (courseRoleState.value?.courseId === courseId && courseRoleState.value.role) {
+            return courseRoleState.value;
+        }
+
+        try {
+            const response = await $fetch<{
+                success: boolean;
+                enrollment: {
+                    isEnrolled: boolean;
+                    role: "STUDENT" | "INSTRUCTOR" | "TA";
+                    enrollmentDate: string;
+                };
+            }>(`${backendURL}/v0/enrollments/status/${courseId}`, {
+                method: "GET",
+                credentials: "include"
+            });
+
+            if (response?.success && response.enrollment) {
+                courseRoleState.value = {
+                    courseId,
+                    isEnrolled: response.enrollment.isEnrolled,
+                    role: response.enrollment.role,
+                    enrollmentDate: response.enrollment.enrollmentDate
+                };
+                return courseRoleState.value;
+            }
+        } catch (error) {
+            console.error("Failed to ensure course role:", error);
+        }
+
+        courseRoleState.value = null;
+        return null;
+    };
+
+    const courseIdFromPath = matchCoursePath(to.path);
+
+    if (courseIdFromPath) {
+        if (isCourseInfoPage(to.path)) {
+            await ensureCourseRole(courseIdFromPath);
+            return;
+        }
+        const courseRole = await ensureCourseRole(courseIdFromPath);
+
+        if (!courseRole || !courseRole.isEnrolled) {
+            return navigateTo("/", { replace: true });
+        }
+
+        const restrictedLabRoles = [
+            /^\/courses\/[^/]+\/labs\/[^/]+\/status$/,
+            /^\/courses\/[^/]+\/labs\/[^/]+\/edit$/,
+            /^\/courses\/[^/]+\/labs\/create$/
+        ];
+
+        const isRestrictedLabRoute = restrictedLabRoles.some((pattern) => pattern.test(to.path));
+
+        if (isRestrictedLabRoute && !["INSTRUCTOR", "TA"].includes(courseRole.role)) {
+            return navigateTo("/", { replace: true });
+        }
     }
 });
