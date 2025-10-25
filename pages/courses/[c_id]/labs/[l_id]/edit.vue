@@ -1286,7 +1286,18 @@ const loadLabData = async () => {
       return true
     })
 
-    originalPartsData.value = filteredParts
+    const deduplicatedParts: any[] = []
+    const seenPartKeys = new Set<string>()
+
+    for (const part of filteredParts) {
+      const key = part._id?.toString() || part.partId || `${part.title}-${part.order}`
+      if (!seenPartKeys.has(key)) {
+        seenPartKeys.add(key)
+        deduplicatedParts.push(part)
+      }
+    }
+
+    originalPartsData.value = deduplicatedParts
 
     await fetchPartSubmissionSummary()
 
@@ -1557,11 +1568,81 @@ const executeLabUpdate = async () => {
 
     console.log('✅ Lab updated successfully')
 
-    const originalPartIds = new Set(originalPartsData.value.map(p => p._id))
+    const normalizeId = (value: any): string | null => {
+      if (!value) return null
+      if (typeof value === 'string') return value
+      if (typeof value === 'number') return value.toString()
+      if (typeof value === 'object' && typeof value.toString === 'function') {
+        const stringValue = value.toString()
+        return typeof stringValue === 'string' ? stringValue : null
+      }
+      return null
+    }
 
-    const partsToDelete = originalPartsData.value.filter(p => !wizardData.parts.some(wp => wp._id === p._id))
-    const partsToCreate = wizardData.parts.filter(p => !p._id)
-    const partsToUpdate = wizardData.parts.filter(p => p._id && originalPartIds.has(p._id))
+    const originalPartsById = new Map<string, any>()
+    const originalPartsByPartId = new Map<string, any>()
+
+    for (const originalPart of originalPartsData.value) {
+      const id = normalizeId(originalPart?._id)
+      if (id) {
+        originalPartsById.set(id, originalPart)
+      }
+      if (originalPart?.partId) {
+        originalPartsByPartId.set(originalPart.partId, originalPart)
+      }
+    }
+
+    const findOriginalPart = (part: any) => {
+      if (!part) return null
+
+      const id = normalizeId(part._id)
+      if (id && originalPartsById.has(id)) {
+        return originalPartsById.get(id)
+      }
+
+      if (part.partId && originalPartsByPartId.has(part.partId)) {
+        return originalPartsByPartId.get(part.partId)
+      }
+
+      return null
+    }
+
+    const matchedOriginalIds = new Set<string>()
+    const partsToCreate: any[] = []
+    const partsToUpdate: Array<{ part: any; targetId: string }> = []
+
+    for (const part of wizardData.parts) {
+      const originalPart = findOriginalPart(part)
+
+      if (!originalPart) {
+        partsToCreate.push(part)
+        continue
+      }
+
+      const targetId = normalizeId(originalPart._id)
+      if (!targetId) {
+        console.warn('Skipping part update - unable to resolve original ID', originalPart)
+        continue
+      }
+
+      matchedOriginalIds.add(targetId)
+
+      // Ensure the working copy retains the original _id for future comparisons
+      if (!normalizeId(part._id)) {
+        part._id = originalPart._id
+      }
+
+      partsToUpdate.push({ part, targetId })
+    }
+
+    const partsToDelete = originalPartsData.value.filter((originalPart: any) => {
+      const originalId = normalizeId(originalPart?._id)
+      if (!originalId) {
+        console.warn('Skipping part deletion - unable to resolve original ID', originalPart)
+        return false
+      }
+      return !matchedOriginalIds.has(originalId)
+    })
 
     console.log('📊 Parts summary:', {
       toDelete: partsToDelete.length,
@@ -1590,10 +1671,10 @@ const executeLabUpdate = async () => {
       })
     }
 
-    for (const part of partsToUpdate) {
+    for (const { part, targetId } of partsToUpdate) {
       console.log(`🔄 Updating part: ${part.partId}`)
       const partData = buildPartData(labId, part)
-      await $fetch(`${backendURL}/v0/parts/${part._id}`, {
+      await $fetch(`${backendURL}/v0/parts/${targetId}`, {
         method: 'PUT',
         credentials: 'include',
         headers: {

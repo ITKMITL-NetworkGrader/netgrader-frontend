@@ -118,6 +118,8 @@ export interface ISubmission {
   attempt: number;
   ipMappings: Record<string, any>;
   callbackUrl: string;
+  labSessionId?: string;
+  labAttemptNumber?: number;
   
   // Timestamps
   createdAt: Date;
@@ -128,6 +130,7 @@ export interface ISubmission {
 export interface CreateSubmissionRequest {
   lab_id: string;
   part_id: string;
+  lab_session_id?: string;
 }
 
 export interface CreateSubmissionResponse {

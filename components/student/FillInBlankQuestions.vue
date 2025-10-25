@@ -213,6 +213,7 @@ interface Props {
   questions: Question[]
   labId: string
   partId: string
+  labSessionId?: string | null
   dhcpPoolValidation?: DhcpPoolValidation
   showSubmitButton?: boolean
 }
@@ -701,7 +702,8 @@ const submitAnswers = async (): Promise<FillInBlankSubmissionResult | null> => {
         body: {
           ...payload,
           labId: props.labId,
-          partId: props.partId
+          partId: props.partId,
+          labSessionId: props.labSessionId ?? undefined
         }
       }
     )

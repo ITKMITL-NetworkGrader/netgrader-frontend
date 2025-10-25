@@ -46,7 +46,10 @@ export const useSubmissions = () => {
   // Create a new submission
   const createSubmission = async (
     labId: string,
-    partId: string
+    partId: string,
+    options?: {
+      labSessionId?: string | null;
+    }
   ): Promise<{ success: boolean; jobId?: string; error?: string }> => {
     try {
       const state = getSubmissionState(labId, partId)
@@ -61,6 +64,10 @@ export const useSubmissions = () => {
       const requestData: CreateSubmissionRequest = {
         lab_id: labId,
         part_id: partId
+      }
+
+      if (options?.labSessionId) {
+        requestData.lab_session_id = options.labSessionId
       }
 
       console.log('🔄 [DEBUG] Creating submission:', requestData)
@@ -118,6 +125,7 @@ export const useSubmissions = () => {
           attempt: 1,
           ipMappings: {},
           callbackUrl: '',
+          labSessionId: options?.labSessionId ?? undefined,
           createdAt: new Date(),
           updatedAt: new Date()
         }
@@ -661,13 +669,22 @@ export const useSubmissions = () => {
   // Fetch all submissions for a student and specific lab
   const fetchStudentSubmissions = async (
     studentId: string,
-    labId: string
+    labId: string,
+    options?: {
+      labSessionId?: string | null;
+    }
   ): Promise<{ success: boolean; submissions?: ISubmission[]; error?: string }> => {
     try {
-      console.log('🔍 [DEBUG] Fetching student submissions:', { studentId, labId })
+      console.log('🔍 [DEBUG] Fetching student submissions:', { studentId, labId, options })
+
+      const params = new URLSearchParams()
+      params.append('labId', labId)
+      if (options?.labSessionId) {
+        params.append('labSessionId', options.labSessionId)
+      }
 
       const response = await fetch(
-        `${backendUrl}/v0/submissions/student/${studentId}?labId=${labId}`,
+        `${backendUrl}/v0/submissions/student/${studentId}?${params.toString()}`,
         {
           method: 'GET',
           credentials: 'include',
@@ -703,10 +720,61 @@ export const useSubmissions = () => {
     }
   }
 
+  const fetchStudentSubmissionHistoryByAttempt = async (
+    studentId: string,
+    labId: string,
+    options?: {
+      labSessionId?: string | null;
+    }
+  ): Promise<{ success: boolean; attempts?: any[]; error?: string }> => {
+    try {
+      const params = new URLSearchParams()
+      params.append('groupBy', 'labSession')
+      if (options?.labSessionId) {
+        params.append('labSessionId', options.labSessionId)
+      }
+
+      const response = await fetch(
+        `${backendUrl}/v0/submissions/history/lab/${labId}/student/${studentId}?${params.toString()}`,
+        {
+          method: 'GET',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      )
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+
+      const result = await response.json()
+
+      if (result.status !== 'success' || !result.data) {
+        throw new Error(result.message || 'Failed to fetch submission history')
+      }
+
+      return {
+        success: true,
+        attempts: result.data
+      }
+    } catch (error: any) {
+      console.error('❌ [ERROR] Failed to fetch submission history by attempt:', error)
+      return {
+        success: false,
+        error: error.message || 'Failed to fetch submission history'
+      }
+    }
+  }
+
   // Check lab completion status based on submissions
   const checkLabCompletionStatus = (
     submissions: ISubmission[],
-    labParts: Array<{ partId: string; totalPoints: number }>
+    labParts: Array<{ partId: string; totalPoints: number }>,
+    options?: {
+      labSessionId?: string | null;
+    }
   ): {
     isFullyCompleted: boolean
     completedParts: string[]
@@ -714,10 +782,20 @@ export const useSubmissions = () => {
     totalParts: number
     allPartsPassedWithFullPoints: boolean
   } => {
+    const targetSessionId = options?.labSessionId ?? null
+    const normalizedTarget = targetSessionId ? targetSessionId.toString() : null
+
+    const filteredSubmissions = normalizedTarget
+      ? submissions.filter(submission => {
+          if (!submission.labSessionId) return false
+          return submission.labSessionId === normalizedTarget
+        })
+      : submissions
+
     // Group submissions by partId and get the latest (highest attempt)
     const latestSubmissionsByPart: Record<string, ISubmission> = {}
 
-    submissions.forEach(submission => {
+    filteredSubmissions.forEach(submission => {
       const partId = submission.partId
       const existing = latestSubmissionsByPart[partId]
 
@@ -773,6 +851,7 @@ export const useSubmissions = () => {
     createSubmission,
     fetchSubmission,
     fetchStudentSubmissions,
+    fetchStudentSubmissionHistoryByAttempt,
     checkLabCompletionStatus,
     getSubmissionState,
     getGradingStatus,

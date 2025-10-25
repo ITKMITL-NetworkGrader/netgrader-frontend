@@ -18,6 +18,7 @@
       :course-id="labData.courseCode"
       :lab-name="labData.name"
       :submissions="studentSubmissions"
+      :active-lab-session-id="activeLabSessionId"
       :lab-parts="labData.parts"
       :mode="timerExpiredModalMode"
       :available-until="labData.availableUntil"
@@ -31,7 +32,11 @@
       :available-from="labData.availableFrom"
       :due-date="labData.dueDate"
       :available-until="labData.availableUntil"
+      :created-at="labData.createdAt"
+      :lab-id="labData.id"
+      :poll-interval-ms="45000"
       @timer-expired="handleTimerExpired"
+      @deadline-extended="handleDeadlineExtended"
     />
 
     <!-- IP Calculation Loading Screen -->
@@ -304,6 +309,7 @@ const calculationStatus = ref('Gathering your IP addresses...')
 // Submission State
 const showCompletionPrompt = ref(false)
 const studentSubmissions = ref<ISubmission[]>([])
+const activeLabSessionId = ref<string | null>(null)
 const completionStatus = ref({
   isFullyCompleted: false,
   completedParts: [] as string[],
@@ -640,7 +646,8 @@ const debugInfo = computed(() => {
     backendIpMappings: backendIpMappings.value,
     backendVlanMappings: backendVlanMappings.value,
     deviceConfigurations: personalizedDevices.value,
-    completionStatus: completionStatus.value
+    completionStatus: completionStatus.value,
+    activeLabSessionId: activeLabSessionId.value
   }
 })
 
@@ -680,9 +687,12 @@ async function checkLabCompletion() {
     calculationStatus.value = 'Checking lab status...'
 
     // Fetch student submissions
+    const sessionId = activeLabSessionId.value ?? undefined
+
     const result = await fetchStudentSubmissions(
       props.currentUser.studentId,
-      props.labData.id
+      props.labData.id,
+      sessionId ? { labSessionId: sessionId } : undefined
     )
 
     if (result.success && result.submissions) {
@@ -696,7 +706,8 @@ async function checkLabCompletion() {
 
       completionStatus.value = checkLabCompletionStatus(
         result.submissions,
-        labParts
+        labParts,
+        { labSessionId: sessionId ?? null }
       )
 
       // Show completion prompt if lab is fully completed
@@ -727,6 +738,8 @@ function handleRestartLab() {
     totalParts: 0,
     allPartsPassedWithFullPoints: false
   }
+  activeLabSessionId.value = null
+  studentSubmissions.value = []
   loadPersonalizedIPs()
 }
 
@@ -735,6 +748,14 @@ function handleTimerExpired() {
   console.log('⏰ Timer expired!')
   timerExpiredModalMode.value = 'timer_expired'
   showTimerExpiredModal.value = true
+}
+
+function handleDeadlineExtended(payload: {
+  labId: string
+  labTitle?: string
+  fields: Array<{ type: 'dueDate' | 'availableUntil'; diffMs: number }>
+}) {
+  console.log('⏳ [INFO] Deadline extended for lab timer:', payload)
 }
 
 // Handle timer expired modal close
@@ -748,6 +769,7 @@ async function loadPersonalizedIPs() {
     const config = useRuntimeConfig()
 
     calculationStatus.value = 'Fetching personalized network configuration...'
+    const previousSessionId = activeLabSessionId.value
 
     const response = await fetch(
       `${config.public.backendurl}/v0/labs/${props.labData.id}/start`,
@@ -779,12 +801,33 @@ async function loadPersonalizedIPs() {
         instructionsAcknowledgedAt.value = sessionInfo.instructionsAcknowledgedAt
           ? new Date(sessionInfo.instructionsAcknowledgedAt)
           : instructionsAcknowledgedAt.value
+
+        const newSessionId = sessionInfo.sessionId || null
+        const sessionChanged = newSessionId !== previousSessionId
+        activeLabSessionId.value = newSessionId
+
+        if (sessionChanged) {
+          studentSubmissions.value = []
+          completionStatus.value = {
+            isFullyCompleted: false,
+            completedParts: [],
+            totalPartsCompleted: 0,
+            totalParts: 0,
+            allPartsPassedWithFullPoints: false
+          }
+        }
+      } else {
+        activeLabSessionId.value = null
       }
 
       console.log('✅ [DEBUG] Loaded personalized IPs:', {
         ipMappings: backendIpMappings.value,
         vlanMappings: backendVlanMappings.value
       })
+    }
+
+    if (activeLabSessionId.value !== previousSessionId) {
+      await checkLabCompletion()
     }
 
     // Finish loading
@@ -801,14 +844,11 @@ async function loadPersonalizedIPs() {
 
 // Lifecycle
 onMounted(async () => {
-  // Step 1: Check if lab is completed
-  await checkLabCompletion()
+  await loadPersonalizedIPs()
 
-  // Step 2: If not showing completion prompt, load IPs
   if (!showCompletionPrompt.value) {
-    await loadPersonalizedIPs()
+    await checkLabCompletion()
   }
-  // If showing completion prompt, IPs will be loaded when user makes a choice
 })
 </script>
 

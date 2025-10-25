@@ -416,6 +416,7 @@ interface Props {
   labName: string
   submissions: ISubmission[]
   labParts: LabPart[]
+  activeLabSessionId?: string | null
   mode?: ModalMode // NEW: Modal display mode
   availableUntil?: Date | string | null // NEW: For checking if lab is unavailable
   isFreshCompletion?: boolean // NEW: Whether this is a fresh completion (for confetti)
@@ -431,7 +432,8 @@ const props = withDefaults(defineProps<Props>(), {
   mode: 'results',
   availableUntil: null,
   isFreshCompletion: false,
-  initiallyCollapsed: false
+  initiallyCollapsed: false,
+  activeLabSessionId: null
 })
 const emit = defineEmits<Emits>()
 const router = useRouter()
@@ -495,8 +497,12 @@ const partResults = computed<PartResult[]>(() => {
   props.labParts.forEach(part => {
     // Get all submissions for this part
     const partSubmissions = props.submissions.filter(s => s.partId === part.partId)
+    const targetSessionId = props.activeLabSessionId ? props.activeLabSessionId.toString() : null
+    const relevantSubmissions = targetSessionId
+      ? partSubmissions.filter(s => s.labSessionId && s.labSessionId === targetSessionId)
+      : partSubmissions
 
-    if (partSubmissions.length === 0) {
+    if (relevantSubmissions.length === 0) {
       // No submissions for this part
       results.push({
         partId: part.partId,
@@ -514,7 +520,7 @@ const partResults = computed<PartResult[]>(() => {
     }
 
     // Get the latest submission (highest attempt number)
-    const latestSubmission = partSubmissions.reduce((latest, current) =>
+    const latestSubmission = relevantSubmissions.reduce((latest, current) =>
       current.attempt > latest.attempt ? current : latest
     )
 
@@ -523,7 +529,7 @@ const partResults = computed<PartResult[]>(() => {
     results.push({
       partId: part.partId,
       title: part.title,
-      attempts: partSubmissions.length,
+      attempts: relevantSubmissions.length,
       pointsEarned: gradingResult?.total_points_earned || 0,
       pointsPossible: gradingResult?.total_points_possible || part.totalPoints || 0,
       isPassed: gradingResult?.total_points_earned === gradingResult?.total_points_possible,

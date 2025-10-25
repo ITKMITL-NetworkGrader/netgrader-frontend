@@ -144,6 +144,7 @@ const isLoadingIPs = ref(true)
 const ipLoadingStatus = ref('Gathering your IP addresses...')
 const backendIpMappings = ref<Record<string, { ip: string; vlan: number | null }>>({})
 const backendVlanMappings = ref<Record<string, number>>({})
+const activeLabSessionId = ref<string | null>(null)
 const showResultsModal = ref(false)
 const timerExpiredModalMode = ref<'results' | 'timer_expired' | 'unavailable'>('results')
 const isFreshCompletion = ref(false) // Track if this is a fresh completion for confetti
@@ -609,7 +610,11 @@ const submitPartForGrading = async () => {
   if (!currentPart.value) return
 
   try {
-    const result = await createSubmission(labId.value, currentPart.value.partId)
+    const result = await createSubmission(
+      labId.value,
+      currentPart.value.partId,
+      { labSessionId: activeLabSessionId.value ?? undefined }
+    )
 
     if (result.success) {
       console.log('✅ Submission created successfully:', result.jobId)
@@ -771,7 +776,11 @@ const attemptResumeNavigation = (submissions: ISubmission[]) => {
     return
   }
 
-  const targetIndex = determineResumePartIndex(submissions)
+  const relevantSubmissions = activeLabSessionId.value
+    ? submissions.filter(sub => sub.labSessionId && sub.labSessionId === activeLabSessionId.value)
+    : submissions
+
+  const targetIndex = determineResumePartIndex(relevantSubmissions)
 
   if (targetIndex === null) {
     return
@@ -817,10 +826,19 @@ const checkLabCompletion = async () => {
       return
     }
 
+    if (!activeLabSessionId.value) {
+      console.log('⏳ [DEBUG] Active lab session not available yet, skipping completion check')
+      return
+    }
+
     ipLoadingStatus.value = 'Checking lab status...'
 
-    // Fetch student submissions
-    const result = await fetchStudentSubmissions(studentId, labId.value)
+    // Fetch student submissions for the active attempt
+    const result = await fetchStudentSubmissions(
+      studentId,
+      labId.value,
+      { labSessionId: activeLabSessionId.value }
+    )
 
     if (result.success && result.submissions) {
       studentSubmissions.value = result.submissions
@@ -833,7 +851,8 @@ const checkLabCompletion = async () => {
 
       const status = checkLabCompletionStatus(
         result.submissions,
-        labParts
+        labParts,
+        { labSessionId: activeLabSessionId.value }
       )
 
       const completedPartIds = new Set(status.completedParts)
@@ -869,14 +888,18 @@ const checkLabCompletion = async () => {
 }
 
 // Load personalized IPs from backend
-const loadPersonalizedIPs = async () => {
+const loadPersonalizedIPs = async (options: { restart?: boolean } = {}) => {
   try {
     const config = useRuntimeConfig()
 
-    ipLoadingStatus.value = 'Fetching your personalized network configuration...'
+    const previousSessionId = activeLabSessionId.value
+    ipLoadingStatus.value = options.restart
+      ? 'Resetting your lab environment...'
+      : 'Fetching your personalized network configuration...'
 
+    const endpoint = options.restart ? 'restart' : 'start'
     const response = await fetch(
-      `${config.public.backendurl}/v0/labs/${labId.value}/start`,
+      `${config.public.backendurl}/v0/labs/${labId.value}/${endpoint}`,
       {
         method: 'POST',
         credentials: 'include',
@@ -910,9 +933,30 @@ const loadPersonalizedIPs = async () => {
         instructionsAcknowledgedAt.value = sessionInfo.instructionsAcknowledgedAt
           ? new Date(sessionInfo.instructionsAcknowledgedAt)
           : instructionsAcknowledgedAt.value
+
+        const newSessionId = sessionInfo.sessionId || null
+        const sessionChanged = newSessionId !== previousSessionId
+        activeLabSessionId.value = newSessionId
+
+        if (sessionChanged) {
+          studentSubmissions.value = []
+          completionStatus.value = {
+            isFullyCompleted: false,
+            completedParts: [],
+            totalPartsCompleted: 0,
+            totalParts: 0,
+            allPartsPassedWithFullPoints: false
+          }
+        }
+      } else {
+        activeLabSessionId.value = null
       }
 
       attemptResumeNavigation(studentSubmissions.value)
+
+      if (activeLabSessionId.value !== previousSessionId) {
+        await checkLabCompletion()
+      }
     }
 
     // Finish loading
@@ -929,7 +973,7 @@ const loadPersonalizedIPs = async () => {
 
 
 // Handle restart lab from results modal
-const handleRestartLabFromResults = () => {
+const handleRestartLabFromResults = async () => {
   showResultsModal.value = false
   showCollapsedSummary.value = false
   // Reset completion status
@@ -943,9 +987,13 @@ const handleRestartLabFromResults = () => {
   lastAutoNavigatedIndex.value = null
   // Clear any locally cached answers for a fresh attempt
   clearSessionStoredAnswers()
+  activeLabSessionId.value = null
   // Reload IPs
   isLoadingIPs.value = true
-  loadPersonalizedIPs()
+  await loadPersonalizedIPs({ restart: true })
+  if (!showResultsModal.value) {
+    await checkLabCompletion()
+  }
 }
 
 // Handle modal close
@@ -962,6 +1010,14 @@ const handleTimerExpired = () => {
   isFreshCompletion.value = false // Timer expiration is NOT a fresh completion
   showCollapsedSummary.value = false // Show full details for timer expiration
   showResultsModal.value = true
+}
+
+const handleDeadlineExtended = (payload: {
+  labId: string
+  labTitle?: string
+  fields: Array<{ type: 'dueDate' | 'availableUntil'; diffMs: number }>
+}) => {
+  console.log('⏳ [INFO] Lab timer extended:', payload)
 }
 
 // Data Loading
@@ -989,14 +1045,13 @@ const loadLabData = async () => {
       const parts = await fetchLabParts(labId.value) // Use labId directly as specified in API
       console.log('🚀 [DEBUG] Parts fetched:', parts)
 
-      // After loading lab data, check completion and load IPs
-      await checkLabCompletion()
+      // Load personalized IPs first so we know the active session before checking completion
+      await loadPersonalizedIPs()
 
-      // If not showing results modal, load IPs immediately
+      // If not showing results modal, perform a completion check for the active attempt
       if (!showResultsModal.value) {
-        await loadPersonalizedIPs()
+        await checkLabCompletion()
       }
-      // If showing results modal, don't load IPs (lab is completed)
     } else {
       console.log('🚀 [DEBUG] No currentLab found, skipping parts fetch')
       isLoadingIPs.value = false
@@ -1036,6 +1091,7 @@ watch(() => route.query.part, (newPart) => {
       :course-id="courseId"
       :lab-name="currentLab?.title || 'Lab'"
       :submissions="studentSubmissions"
+      :active-lab-session-id="activeLabSessionId"
       :lab-parts="actualLabParts || []"
       :mode="timerExpiredModalMode"
       :available-until="currentLab?.availableUntil"
@@ -1051,7 +1107,11 @@ watch(() => route.query.part, (newPart) => {
       :available-from="currentLab?.availableFrom"
       :due-date="currentLab?.dueDate"
       :available-until="currentLab?.availableUntil"
+      :created-at="currentLab?.createdAt"
+      :lab-id="labId"
+      :poll-interval-ms="45000"
       @timer-expired="handleTimerExpired"
+      @deadline-extended="handleDeadlineExtended"
     />
 
     <!-- Navigation Breadcrumb -->
@@ -1475,6 +1535,7 @@ watch(() => route.query.part, (newPart) => {
                   :questions="currentPart.questions"
                   :labId="labId"
                   :partId="currentPart.partId"
+                  :lab-session-id="activeLabSessionId"
                   :dhcpPoolValidation="currentPart.dhcpConfiguration ? {
                     startIp: calculateDhcpPoolIp(currentPart.dhcpConfiguration.startOffset),
                     endIp: calculateDhcpPoolIp(currentPart.dhcpConfiguration.endOffset)
