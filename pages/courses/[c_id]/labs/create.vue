@@ -693,14 +693,6 @@ const handleCreateLab = async () => {
                 : undefined
             }))
           : undefined,
-        dhcpConfiguration: part.partType === 'dhcp_config'
-          ? {
-              vlanIndex: part.dhcpConfiguration?.vlanIndex ?? 0,
-              startOffset: part.dhcpConfiguration?.startOffset ?? 0,
-              endOffset: part.dhcpConfiguration?.endOffset ?? 0,
-              dhcpServerDevice: part.dhcpConfiguration?.dhcpServerDevice || ''
-            }
-          : undefined,
         prerequisites: part.prerequisites,
         totalPoints: part.totalPoints
       }

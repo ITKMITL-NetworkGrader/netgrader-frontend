@@ -46,11 +46,6 @@
           <Card
             v-for="(part, partIndex) in localData"
             :key="part.tempId"
-          :class="{
-              'border-destructive': hasPartErrors(partIndex),
-              'border-amber-400 bg-amber-50/20': part.hasSubmissions && !hasPartErrors(partIndex),
-              'border-blue-500': !part.hasSubmissions && !hasPartErrors(partIndex) && isPartValid(part)
-            }"
           >
             <CardHeader class="pb-4">
               <div class="flex items-center justify-between">
@@ -167,18 +162,6 @@
                             <div>
                               <div class="font-medium">Fill-in-the-Blank Questions</div>
                               <div class="text-xs text-muted-foreground">IP calculation, subnetting questions with auto schema mapping</div>
-                            </div>
-                          </Label>
-                        </div>
-
-                        <!-- DHCP Configuration -->
-                        <div class="flex items-center space-x-2 p-3 border rounded-lg hover:bg-accent/50 cursor-pointer transition-colors">
-                          <RadioGroupItem value="dhcp_config" :id="`dhcp-config-${partIndex}`" />
-                          <Label :for="`dhcp-config-${partIndex}`" class="flex items-center gap-3 cursor-pointer flex-1">
-                            <Server class="w-5 h-5 text-secondary" />
-                            <div>
-                              <div class="font-medium">DHCP Configuration</div>
-                              <div class="text-xs text-muted-foreground">Configure DHCP with lecturer-defined pool ranges</div>
                             </div>
                           </Label>
                         </div>
@@ -514,126 +497,6 @@
                         </AlertDescription>
                       </Alert>
                     </div>
-
-                    <!-- DHCP Configuration Editor (DHCP Config Type) -->
-                    <div v-if="part.partType === 'dhcp_config'" class="border-t pt-6 mt-6 space-y-4">
-                      <div>
-                        <h4 class="text-sm font-semibold flex items-center gap-2">
-                          <Server class="w-4 h-4 text-secondary" />
-                          DHCP Configuration
-                        </h4>
-                        <p class="text-xs text-muted-foreground mt-1">
-                          Define the dynamic IP range and device responsible for serving DHCP.
-                        </p>
-                      </div>
-
-                      <Alert class="bg-amber-50 border-amber-200">
-                        <Info class="w-4 h-4 text-amber-600" />
-                        <AlertDescription class="text-xs text-amber-800">
-                          <strong>Important:</strong> Devices will be validated against this IP range. Any IP outside this range will fail grading.
-                        </AlertDescription>
-                      </Alert>
-
-                      <div v-if="part.dhcpConfiguration" class="space-y-4">
-                        <div class="space-y-2">
-                          <Label class="text-sm font-medium">
-                            VLAN Index <span class="text-destructive">*</span>
-                          </Label>
-                          <Select
-                            :model-value="String(part.dhcpConfiguration.vlanIndex)"
-                            @update:model-value="value => handleDhcpVlanChange(partIndex, Number(value))"
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select VLAN..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem v-for="(vlan, vlanIdx) in vlans" :key="vlanIdx" :value="String(vlanIdx)">
-                                VLAN {{ vlanIdx + 1 }} ({{ vlan.baseNetwork }}/{{ vlan.subnetMask }})
-                              </SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div class="space-y-2">
-                            <Label class="text-sm font-medium">
-                              Start Offset (Last Octet) <span class="text-destructive">*</span>
-                            </Label>
-                            <Input
-                              v-model.number="part.dhcpConfiguration.startOffset"
-                              type="number"
-                              :min="getDhcpOffsetBounds(part.dhcpConfiguration.vlanIndex).min"
-                              :max="getDhcpOffsetBounds(part.dhcpConfiguration.vlanIndex).max"
-                              :placeholder="`Within ${formatDhcpOffsetRange(part.dhcpConfiguration.vlanIndex)}`"
-                              @input="requestValidation()"
-                              @blur="validateDhcpOffsetRange(partIndex)"
-                            />
-                            <p class="text-xs text-muted-foreground">
-                              Offset value for the last octet ({{ formatDhcpOffsetRange(part.dhcpConfiguration.vlanIndex) }})
-                            </p>
-                          </div>
-
-                          <div class="space-y-2">
-                            <Label class="text-sm font-medium">
-                              End Offset (Last Octet) <span class="text-destructive">*</span>
-                            </Label>
-                            <Input
-                              v-model.number="part.dhcpConfiguration.endOffset"
-                              type="number"
-                              :min="getDhcpOffsetBounds(part.dhcpConfiguration.vlanIndex).min"
-                              :max="getDhcpOffsetBounds(part.dhcpConfiguration.vlanIndex).max"
-                              :placeholder="`Within ${formatDhcpOffsetRange(part.dhcpConfiguration.vlanIndex)}`"
-                              @input="requestValidation()"
-                              @blur="validateDhcpOffsetRange(partIndex)"
-                            />
-                            <p class="text-xs text-muted-foreground">
-                              Offset value for the last octet ({{ formatDhcpOffsetRange(part.dhcpConfiguration.vlanIndex) }})
-                            </p>
-                          </div>
-                        </div>
-
-                        <!-- IP Range Calculation Helper -->
-                        <div v-if="part.dhcpConfiguration.vlanIndex !== undefined && part.dhcpConfiguration.startOffset && part.dhcpConfiguration.endOffset" class="mt-2">
-                          <Alert class="bg-blue-50 border-blue-200">
-                            <Info class="w-4 h-4 text-blue-600" />
-                            <AlertTitle class="text-blue-800">IP Range Preview</AlertTitle>
-                            <AlertDescription class="text-xs text-blue-700">
-                              <div class="space-y-1 mt-2">
-                                <div><strong>Base Network:</strong> {{ getVlanBaseNetwork(part.dhcpConfiguration.vlanIndex) }}</div>
-                                <div><strong>Start IP:</strong> {{ calculateIpFromOffset(part.dhcpConfiguration.vlanIndex, part.dhcpConfiguration.startOffset) }}</div>
-                                <div><strong>End IP:</strong> {{ calculateIpFromOffset(part.dhcpConfiguration.vlanIndex, part.dhcpConfiguration.endOffset) }}</div>
-                                <div><strong>Available IPs:</strong> {{ calculateDhcpPoolSizeFromOffsets(part.dhcpConfiguration.startOffset, part.dhcpConfiguration.endOffset) }}</div>
-                              </div>
-                            </AlertDescription>
-                          </Alert>
-                        </div>
-
-                        <!-- DHCP Server Device -->
-                        <div class="space-y-2">
-                          <Label class="text-sm font-medium">
-                            DHCP Server Device <span class="text-destructive">*</span>
-                          </Label>
-                          <Select v-model="part.dhcpConfiguration.dhcpServerDevice" @update:model-value="() => requestValidation()">
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select device..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem
-                                v-for="device in devices"
-                                :key="device.deviceId"
-                                :value="device.deviceId"
-                              >
-                                {{ device.deviceId }}
-                              </SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <p class="text-xs text-muted-foreground">
-                            Select the device students must configure as the DHCP server.
-                          </p>
-                        </div>
-
-                      </div>
-                    </div>
                   </div>
 
                   <!-- Description -->
@@ -877,7 +740,6 @@ import {
   AlertCircle,
   Loader2,
   FileQuestion,
-  Server,
   Network,
   Info,
   Table2,
@@ -1074,11 +936,11 @@ const requestValidation = () => {
 }
 
 const onPartTypeChange = (partIndex: number) => {
+  const part = localData.value[partIndex]
+
   warnAboutPartEdit(partIndex, 'Changing the part type may invalidate existing student submissions.')
   // Set flag to prevent expensive validation during type change
   isChangingPartType.value = true
-
-  const part = localData.value[partIndex]
 
   // Reset type-specific fields when changing part type
   if (part.partType === 'fill_in_blank') {
@@ -1086,28 +948,11 @@ const onPartTypeChange = (partIndex: number) => {
     if (!part.questions) {
       part.questions = []
     }
-    // Clear DHCP config if exists
-    part.dhcpConfiguration = undefined
     // Clear task validation errors (fill-in-blank doesn't use tasks)
     delete taskValidationErrors.value[partIndex]
-  } else if (part.partType === 'dhcp_config') {
-    // Clear questions if exists
-    part.questions = undefined
-    // Initialize DHCP configuration with defaults
-    if (!part.dhcpConfiguration) {
-      part.dhcpConfiguration = {
-        vlanIndex: 0,
-        startOffset: 100,
-        endOffset: 150,
-        dhcpServerDevice: ''
-      }
-    }
-    // Clear task validation errors (dhcp_config doesn't use tasks)
-    delete taskValidationErrors.value[partIndex]
   } else if (part.partType === 'network_config') {
-    // Clear questions and DHCP config
+    // Clear questions
     part.questions = undefined
-    part.dhcpConfiguration = undefined
     // Task validation errors will be handled by TasksManager component
   }
 
@@ -1115,6 +960,11 @@ const onPartTypeChange = (partIndex: number) => {
   nextTick(() => {
     // Clear flag first
     isChangingPartType.value = false
+
+    // 🔧 FIX: Manually emit to parent after type change
+    // The localData watcher was blocked during type change, so parent never got the update
+    const cleanParts = localData.value.map(({ showInstructionsPreview, ...part }) => part)
+    emit('update:modelValue', cleanParts)
 
     // Then validate - this will trigger the watcher which calls debouncedValidateStep
     // No need to call debouncedValidateStep explicitly
@@ -1313,7 +1163,20 @@ const updatePartTotalPointsFromQuestions = (partIndex: number) => {
   const part = localData.value[partIndex]
   if (part.questions) {
     const total = part.questions.reduce((sum, q) => sum + (q.points || 0), 0)
-    part.totalPoints = total
+
+    // Update the totalPoints
+    localData.value[partIndex] = {
+      ...part,
+      totalPoints: total
+    }
+
+    const shouldDelayEmit = isUpdatingFromProps.value || isChangingPartType.value
+
+    if (!shouldDelayEmit) {
+      emitPartsToParent('updatePartTotalPointsFromQuestions')
+    } else {
+      emitPartsWhenReady('updatePartTotalPointsFromQuestions')
+    }
   }
 }
 
@@ -1450,116 +1313,6 @@ const calculateTablePoints = (table: IpTableQuestionnaire): number => {
   }, 0)
 }
 
-// DHCP Configuration Functions
-const getVlanBaseNetwork = (vlanIndex: number): string => {
-  if (vlanIndex < 0 || vlanIndex >= props.vlans.length) {
-    return 'N/A'
-  }
-  const vlan = props.vlans[vlanIndex]
-  return `${vlan.baseNetwork}/${vlan.subnetMask}`
-}
-
-const calculateIpFromOffset = (vlanIndex: number, offset: number): string => {
-  if (vlanIndex < 0 || vlanIndex >= props.vlans.length) {
-    return 'Invalid VLAN'
-  }
-
-  const vlan = props.vlans[vlanIndex]
-  const baseIp = vlan.baseNetwork
-  const parts = baseIp.split('.')
-
-  if (parts.length !== 4) {
-    return 'Invalid IP'
-  }
-
-  // Show format: {1st octet}.x.x.{offset}
-  return `${parts[0]}.x.x.${offset}`
-}
-
-interface DhcpOffsetBounds {
-  min: number
-  max: number
-}
-
-const DEFAULT_DHCP_OFFSET_BOUNDS: DhcpOffsetBounds = { min: 1, max: 254 }
-
-const getDhcpOffsetBounds = (vlanIndex: number | undefined | null): DhcpOffsetBounds => {
-  if (vlanIndex === undefined || vlanIndex === null) {
-    return DEFAULT_DHCP_OFFSET_BOUNDS
-  }
-
-  if (vlanIndex < 0 || vlanIndex >= props.vlans.length) {
-    return DEFAULT_DHCP_OFFSET_BOUNDS
-  }
-
-  const vlan = props.vlans[vlanIndex]
-  const subnetMask = vlan.subnetMask ?? 24
-  const blockSize = Math.pow(2, 32 - subnetMask)
-  const subnetIndexZeroBased = Math.max(0, (vlan.subnetIndex ?? 1) - 1)
-  const networkStart = subnetIndexZeroBased * blockSize
-
-  const firstHost = networkStart + 1
-  const lastHost = networkStart + Math.max(0, blockSize - 2)
-
-  const min = Math.min(254, Math.max(1, firstHost))
-  const boundedLastHost = Math.min(254, Math.max(1, lastHost))
-  const max = Math.max(min, boundedLastHost)
-
-  return { min, max }
-}
-
-const formatDhcpOffsetRange = (vlanIndex: number | undefined | null): string => {
-  const { min, max } = getDhcpOffsetBounds(vlanIndex)
-  return `${min}-${max}`
-}
-
-const handleDhcpVlanChange = (partIndex: number, vlanIndex: number) => {
-  warnAboutPartEdit(partIndex)
-  const part = localData.value[partIndex]
-  if (!part?.dhcpConfiguration) return
-
-  part.dhcpConfiguration.vlanIndex = vlanIndex
-
-  requestValidation()
-
-  if (part.dhcpConfiguration.startOffset && part.dhcpConfiguration.endOffset) {
-    validateDhcpOffsetRange(partIndex)
-  }
-}
-
-const validateDhcpOffsetRange = (partIndex: number) => {
-  const part = localData.value[partIndex]
-  if (!part.dhcpConfiguration) return
-
-  const { startOffset, endOffset, vlanIndex } = part.dhcpConfiguration
-  const { min, max } = getDhcpOffsetBounds(vlanIndex)
-
-  if (!startOffset || !endOffset) return
-
-  if (startOffset < min || startOffset > max) {
-    toast.error(`Start offset must be between ${min} and ${max} for the selected VLAN`)
-    requestValidation()
-    return
-  }
-
-  if (endOffset < min || endOffset > max) {
-    toast.error(`End offset must be between ${min} and ${max} for the selected VLAN`)
-    requestValidation()
-    return
-  }
-
-  if (startOffset >= endOffset) {
-    toast.error('Start offset must be less than End offset')
-  }
-
-  requestValidation()
-}
-
-const calculateDhcpPoolSizeFromOffsets = (startOffset: number, endOffset: number): number => {
-  if (!startOffset || !endOffset) return 0
-  return Math.max(0, endOffset - startOffset + 1)
-}
-
 const performPartRemoval = (partIndex: number) => {
   localData.value.splice(partIndex, 1)
   localData.value.forEach((part, index) => {
@@ -1650,8 +1403,17 @@ const getPrerequisitesDisplayText = (prerequisites: string[]): string => {
 }
 
 const updatePartTotalPoints = (partIndex: number, totalPoints: number) => {
-  if (localData.value[partIndex]) {
-    localData.value[partIndex].totalPoints = totalPoints
+  const part = localData.value[partIndex]
+  if (!part) return
+
+  part.totalPoints = totalPoints
+
+  const shouldDelayEmit = isUpdatingFromProps.value || isChangingPartType.value
+
+  if (!shouldDelayEmit) {
+    emitPartsToParent('updatePartTotalPoints')
+  } else {
+    emitPartsWhenReady('updatePartTotalPoints')
   }
 }
 
@@ -1744,8 +1506,6 @@ const isPartValid = (part: WizardLabPart): boolean => {
     return basicValid && part.tasks.length > 0
   } else if (part.partType === 'fill_in_blank') {
     return basicValid && (part.questions?.length || 0) > 0
-  } else if (part.partType === 'dhcp_config') {
-    return basicValid && !!part.dhcpConfiguration
   }
 
   return basicValid
@@ -1762,7 +1522,7 @@ const validatePart = (partIndex: number, field: string) => {
     case 'partType':
       if (!part.partType) {
         partFieldErrors.value[partIndex].partType = 'Part type is required'
-      } else if (!['fill_in_blank', 'network_config', 'dhcp_config'].includes(part.partType)) {
+      } else if (!['fill_in_blank', 'network_config'].includes(part.partType)) {
         partFieldErrors.value[partIndex].partType = 'Invalid part type'
       } else {
         delete partFieldErrors.value[partIndex].partType
@@ -1904,61 +1664,6 @@ const validateStep = () => {
       })
     })
 
-    localData.value.forEach((part, partIndex) => {
-      if (part.partType !== 'dhcp_config') return
-
-      const partLabel = part.title || part.partId || `Part ${partIndex + 1}`
-      const config = part.dhcpConfiguration
-
-      // Check if VLANs are configured
-      if (props.vlans.length === 0) {
-        errors.push(`${partLabel}: Cannot create DHCP Configuration part without configuring VLANs in Step 2`)
-        return
-      }
-
-      if (!config) {
-        errors.push(`${partLabel}: DHCP configuration is required`)
-        return
-      }
-
-      if (config.vlanIndex === undefined || config.vlanIndex < 0) {
-        errors.push(`${partLabel}: VLAN index is required`)
-      } else if (config.vlanIndex >= props.vlans.length) {
-        errors.push(`${partLabel}: VLAN index ${config.vlanIndex} exceeds configured VLANs (max: ${props.vlans.length - 1})`)
-      }
-
-      const bounds = getDhcpOffsetBounds(config.vlanIndex)
-      const rangeText = `${bounds.min}-${bounds.max}`
-
-      if (config.startOffset === undefined || config.startOffset === null) {
-        errors.push(`${partLabel}: Start offset is required`)
-      } else if (config.startOffset < bounds.min || config.startOffset > bounds.max) {
-        errors.push(`${partLabel}: Start offset must be between ${rangeText} for the selected VLAN`)
-      }
-
-      if (config.endOffset === undefined || config.endOffset === null) {
-        errors.push(`${partLabel}: End offset is required`)
-      } else if (config.endOffset < bounds.min || config.endOffset > bounds.max) {
-        errors.push(`${partLabel}: End offset must be between ${rangeText} for the selected VLAN`)
-      }
-
-      if (
-        config.startOffset !== undefined &&
-        config.startOffset !== null &&
-        config.endOffset !== undefined &&
-        config.endOffset !== null &&
-        config.startOffset >= config.endOffset
-      ) {
-        errors.push(`${partLabel}: Start offset must be lower than End offset`)
-      }
-
-      if (!config.dhcpServerDevice || !config.dhcpServerDevice.trim()) {
-        errors.push(`${partLabel}: DHCP server device is required`)
-      } else if (!props.devices.some(d => d.deviceId === config.dhcpServerDevice)) {
-        errors.push(`${partLabel}: Selected DHCP server device '${config.dhcpServerDevice}' does not exist in configured devices`)
-      }
-    })
-
     // Collect task validation errors ONLY for network_config parts
     localData.value.forEach((part, index) => {
       if (part.partType === 'network_config' && taskValidationErrors.value[index]) {
@@ -2009,18 +1714,46 @@ const loadTaskTemplates = async () => {
   }
 }
 
+const emitPartsToParent = (sourceLabel: string) => {
+  const cleanParts = localData.value.map(({ showInstructionsPreview, ...part }) => part)
+
+  emit('update:modelValue', cleanParts)
+
+  if (!isValidating.value) {
+    debouncedValidateStep()
+  }
+}
+
+const emitPartsWhenReady = (sourceLabel: string, attempt = 0) => {
+  const maxAttempts = 5
+
+  if (!isUpdatingFromProps.value && !isChangingPartType.value) {
+    const contextLabel = attempt > 0 ? `${sourceLabel} (attempt ${attempt})` : sourceLabel
+    emitPartsToParent(contextLabel)
+    return
+  }
+
+  if (attempt >= maxAttempts) {
+    console.warn('⚠️ [LabWizardStep4] Giving up on delayed emit after multiple attempts:', {
+      source: sourceLabel,
+      isUpdatingFromProps: isUpdatingFromProps.value,
+      isChangingPartType: isChangingPartType.value
+    })
+    return
+  }
+
+  nextTick(() => {
+    emitPartsWhenReady(sourceLabel, attempt + 1)
+  })
+}
+
 // Watchers
 watch(
   localData,
   (newValue) => {
     if (!isUpdatingFromProps.value && !isChangingPartType.value) {
       // Convert to regular WizardLabPart array (remove UI-specific props for parent)
-      const cleanParts = newValue.map(({ showInstructionsPreview, ...part }) => part)
-      emit('update:modelValue', cleanParts)
-
-      if (!isValidating.value) {
-        debouncedValidateStep()
-      }
+      emitPartsToParent('watch(localData)')
     }
   },
   { deep: true }
@@ -2030,18 +1763,26 @@ watch(
   () => props.modelValue,
   (newValue) => {
     if (isUpdatingFromProps.value) return // Prevent recursive updates
-    
+
     isUpdatingFromProps.value = true
     warnedPartEdits.value.clear()
-    
+
+    // Preserve existing part types when updating from parent
+    // This prevents partType from being lost during reactive updates
+    const existingPartTypes = new Map(
+      localData.value.map((part, index) => [index, part.partType])
+    )
+
     // Add UI-specific props to parts without accessing current localData to avoid recursion
-    localData.value = newValue.map((part) => ({
+    localData.value = newValue.map((part, index) => ({
       ...part,
+      // Preserve partType if it exists in the incoming data, otherwise use existing
+      partType: part.partType || existingPartTypes.get(index) || 'network_config',
       instructions: typeof part.instructions === 'string' ? part.instructions : (part.instructions?.html || ''),
       showInstructionsPreview: false, // Reset to default to avoid recursion
       tempId: part.tempId || generateTempId()
     }))
-    
+
     nextTick(() => {
       isUpdatingFromProps.value = false
     })

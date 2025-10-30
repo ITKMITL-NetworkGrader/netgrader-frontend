@@ -15,6 +15,7 @@ export interface VlanNetworkConfig {
   calculationMultiplier?: number;
   baseNetwork: string;
   subnetMask: number;
+  subnetIndex?: number;
   groupModifier?: number;
   isStudentGenerated: boolean;
 }
@@ -55,21 +56,14 @@ class StudentIpGenerator {
     const student_id = Number(this.config.student_id);
 
     // Your original algorithm
-    let dec2_1: number = (student_id / 1000000 - 61) * 10;
-    let dec2_2: number = (student_id % 1000) / 250;
-    let dec2: number = dec2_1 + dec2_2;
-    dec2 = Math.floor(dec2);
+    const dec2_1: number = (student_id / 1000000 - 61) * 10;
+    const dec2_2: number = (student_id % 1000) / 250;
+    const dec2: number = Math.floor(dec2_1 + dec2_2);
 
-    let dec3: number = (student_id % 1000) % 250;
-    dec3 = Math.floor(dec3);
+    const dec3: number = Math.floor((student_id % 1000) % 250);
 
-    let vlan1: number = (student_id / 1000000 - 61) * 400 + (student_id % 1000);
-    let vlan2: number = (student_id / 1000000 - 61) * 500 + (student_id % 1000);
-    vlan1 = Math.floor(vlan1);
-    vlan2 = Math.floor(vlan2);
-
-    // Base network parsing
-    const [baseOct1, baseOct2, baseOct3] = this.config.baseNetwork.split('.').map(Number);
+    const vlan1: number = Math.floor((student_id / 1000000 - 61) * 400 + (student_id % 1000));
+    const vlan2: number = Math.floor((student_id / 1000000 - 61) * 500 + (student_id % 1000));
 
     return {
       student_id,
@@ -180,7 +174,7 @@ class StudentIpGenerator {
         );
         break;
 
-      case 'pc':
+      case 'pc': {
         const pcNumber = deviceId.includes('pc1') || deviceId.includes('PC1') ? 1 : 2;
         if (pcNumber === 1) {
           variables.push(
@@ -218,6 +212,7 @@ class StudentIpGenerator {
           );
         }
         break;
+      }
     }
 
     return variables;
@@ -297,7 +292,7 @@ class StudentIpGenerator {
 
   // Management IP generation is now handled by the backend
   // This method is kept for backward compatibility but should not be used
-  generateManagementIP(blacklistedIPs: string[] = [], assignedIPs?: Map<number, string>): string {
+  generateManagementIP(_blacklistedIPs: string[] = [], _assignedIPs?: Map<number, string>): string {
     console.warn('generateManagementIP is deprecated. Management IP generation is now handled by the backend.');
     // Return a placeholder - the backend will generate the actual IP
     return 'MANAGEMENT_IP_BACKEND_GENERATED';
@@ -313,9 +308,9 @@ class StudentIpGenerator {
     const vlan = this.config.vlans[vlanIndex];
 
     // Calculate student-specific octets using original algorithm
-    let dec2_1: number = (student_id / 1000000 - 61) * 10;
-    let dec2_2: number = (student_id % 1000) / 250;
-    let dec2: number = Math.floor(dec2_1 + dec2_2);
+    const dec2_1: number = (student_id / 1000000 - 61) * 10;
+    const dec2_2: number = (student_id % 1000) / 250;
+    const dec2: number = Math.floor(dec2_1 + dec2_2);
     let dec3: number = Math.floor((student_id % 1000) % 250);
 
     // For calculated VLANs, incorporate the calculated VLAN ID into the IP generation
@@ -331,9 +326,17 @@ class StudentIpGenerator {
     // Use VLAN base network
     const [vlanOct1] = vlan.baseNetwork.split('.').map(Number);
 
-    // Base VLAN IP starts at .64, then add interface offset
-    // This ensures multiple interfaces on same VLAN get different IPs
-    const hostAddress = 64 + interfaceOffset;
+    const subnetMask = typeof vlan.subnetMask === 'number' ? Math.min(Math.max(vlan.subnetMask, 8), 30) : 24;
+    const blockSize = Math.pow(2, 32 - subnetMask);
+    const subnetIndex = typeof vlan.subnetIndex === 'number' ? vlan.subnetIndex : 1;
+    const zeroBasedIndex = Math.max(0, subnetIndex - 1);
+    const hostStart = zeroBasedIndex * blockSize;
+    const usableHosts = blockSize <= 2 ? Math.max(1, blockSize) : Math.max(1, blockSize - 2);
+    const maxOffset = Math.max(1, Math.min(usableHosts, 254 - hostStart));
+    const normalizedOffset = Number.isFinite(interfaceOffset) ? Math.floor(interfaceOffset) : 1;
+    const safeOffset = Math.min(Math.max(1, normalizedOffset), maxOffset);
+
+    const hostAddress = Math.min(254, hostStart + safeOffset);
 
     return `${vlanOct1}.${dec2}.${dec3}.${hostAddress}`;
   }
@@ -354,13 +357,14 @@ class StudentIpGenerator {
       let readonly = false;
 
       switch (varConfig.type) {
-        case 'host_offset':
+        case 'host_offset': {
           // Use management network + host offset - stay within management subnet
           const managementNetwork = this.config.managementNetwork || this.config.baseNetwork;
           const mgmtParts = managementNetwork.split('.').map(Number);
           // For host offset, simply use the network + offset (no student-specific calculation)
           value = `${mgmtParts[0]}.${mgmtParts[1]}.${mgmtParts[2]}.${varConfig.hostOffset || 1}`;
           break;
+        }
 
         case 'full_ip':
           value = varConfig.fullIP || '';
@@ -409,18 +413,14 @@ class StudentIpGenerator {
     // For backward compatibility, assume 2 VLANs with 400x and 500x multipliers
     const student_id = Number(this.config.student_id);
 
-    let dec2_1: number = (student_id / 1000000 - 61) * 10;
-    let dec2_2: number = (student_id % 1000) / 250;
-    let dec2: number = dec2_1 + dec2_2;
-    dec2 = Math.floor(dec2);
+    const dec2_1: number = (student_id / 1000000 - 61) * 10;
+    const dec2_2: number = (student_id % 1000) / 250;
+    const dec2: number = Math.floor(dec2_1 + dec2_2);
 
-    let dec3: number = (student_id % 1000) % 250;
-    dec3 = Math.floor(dec3);
+    const dec3: number = Math.floor((student_id % 1000) % 250);
 
-    let vlan1: number = (student_id / 1000000 - 61) * 400 + (student_id % 1000);
-    let vlan2: number = (student_id / 1000000 - 61) * 500 + (student_id % 1000);
-    vlan1 = Math.floor(vlan1);
-    vlan2 = Math.floor(vlan2);
+    const vlan1: number = Math.floor((student_id / 1000000 - 61) * 400 + (student_id % 1000));
+    const vlan2: number = Math.floor((student_id / 1000000 - 61) * 500 + (student_id % 1000));
 
     return {
       student_id,

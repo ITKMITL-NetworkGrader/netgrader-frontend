@@ -140,6 +140,7 @@ const hasPolledOnce = ref(false)
 const accordionValue = ref('timer')
 const isTimerExpanded = ref(true)
 const showTotemAnimation = ref(false)
+const totemAudio = ref<HTMLAudioElement | null>(null)
 const runtimeConfig = useRuntimeConfig()
 
 const parseDateInput = (value: Date | string | null | undefined): Date | null => {
@@ -407,6 +408,8 @@ const triggerTotemAnimation = (extendedFields: Array<{ type: 'dueDate' | 'availa
     totemTimeout.value = setTimeout(() => {
       showTotemAnimation.value = false
     }, 2600)
+    // Play totem sound again if animation is retriggered
+    playTotemSound()
     return
   }
 
@@ -415,9 +418,27 @@ const triggerTotemAnimation = (extendedFields: Array<{ type: 'dueDate' | 'availa
   }
 
   showTotemAnimation.value = true
+  playTotemSound()
   totemTimeout.value = setTimeout(() => {
     showTotemAnimation.value = false
   }, 2600)
+}
+
+const playTotemSound = () => {
+  try {
+    // Create audio element if not already created
+    if (!totemAudio.value) {
+      totemAudio.value = new Audio('/minecraft-totem-sound.mp3')
+    }
+
+    // Reset audio to start and play
+    totemAudio.value.currentTime = 0
+    totemAudio.value.play().catch((error) => {
+      console.warn('Failed to play totem sound:', error)
+    })
+  } catch (error) {
+    console.warn('Error creating totem audio:', error)
+  }
 }
 
 const teardownEventSource = () => {

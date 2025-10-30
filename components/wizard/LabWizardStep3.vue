@@ -104,10 +104,6 @@
           <Card
             v-for="(device, index) in localData"
             :key="device.tempId"
-            :class="{
-              'border-destructive': hasDeviceErrors(index),
-              'border-green-500': !hasDeviceErrors(index) && isDeviceValid(device)
-            }"
           >
             <CardHeader class="pb-4">
               <div class="flex items-center justify-between">
@@ -431,7 +427,7 @@
                                   v-model.number="ipVar.interfaceOffset"
                                   type="number"
                                   :min="1"
-                                  :max="50"
+                                  :max="getInterfaceOffsetLimit(ipVar)"
                                   placeholder="1"
                                   class="text-sm w-20"
                                   @input="validateIpVariable(index, ipIndex, 'interfaceOffset')"
@@ -442,7 +438,7 @@
                                 </div>
                               </div>
                               <div class="text-xs text-green-600">
-                                Different offsets ensure unique IPs when multiple interfaces use same VLAN
+                                Different offsets ensure unique IPs when multiple interfaces use same VLAN. Max offset: {{ getInterfaceOffsetLimit(ipVar) }}
                               </div>
                               <!-- Interface Offset Error -->
                               <p v-if="hasIpVarError(index, ipIndex, 'interfaceOffset')" class="text-xs text-destructive">
@@ -555,7 +551,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, watch, ref, onMounted, nextTick } from 'vue'
+import { watch, ref, onMounted, nextTick } from 'vue'
 import {
   Network,
   Router,
@@ -596,6 +592,7 @@ interface Props {
       calculationMultiplier?: number
       baseNetwork: string
       subnetMask: number
+      subnetIndex?: number
       groupModifier?: number
       isStudentGenerated: boolean
     }>
@@ -620,45 +617,81 @@ const fieldErrors = ref<Record<string, Record<string, string>>>({})
 const isUpdatingFromProps = ref(false)
 const ipVarErrors = ref<Record<string, Record<string, Record<string, string>>>>({})
 
-// Student Generated Variables state
-const showDebugInfo = ref(false)
+type VlanConfig = Props['networkConfig']['vlans'][number]
+type InterfaceOffsetContext = {
+  inputType?: Device['ipVariables'][number]['inputType']
+  vlanIndex?: number
+  interfaceOffset?: number
+}
 
-// Computed
-const availableHosts = computed(() => {
-  // Use management network subnet mask for host calculation
-  return Math.pow(2, 32 - props.networkConfig.managementSubnetMask) - 2
-})
-
-// Preview values for demonstration (using sample student ID 65070232)
-const previewValues = computed(() => {
-  try {
-    // Import and use StudentIpGenerator for preview only
-    const sampleStudentId = '65070232'
-
-    // Calculate using your algorithm
-    const student_id = Number(sampleStudentId)
-    let dec2_1 = (student_id / 1000000 - 61) * 10
-    let dec2_2 = (student_id % 1000) / 250
-    let dec2 = Math.floor(dec2_1 + dec2_2)
-    let dec3 = Math.floor((student_id % 1000) % 250)
-
-    return {
-      router_vlan1_ip: `172.${dec2}.${dec3}.65`,
-      router_vlan2_ip: `172.${dec2}.${dec3}.97`,
-      switch_management_ip: `172.${dec2}.${dec3}.70`,
-      pc1_ip: `172.${dec2}.${dec3}.66`,
-      router_external_ip: `10.30.6.190`
-    }
-  } catch (error) {
-    return {
-      router_vlan1_ip: '172.16.3.65',
-      router_vlan2_ip: '172.16.3.97',
-      switch_management_ip: '172.16.3.70',
-      pc1_ip: '172.16.3.66',
-      router_external_ip: '10.30.6.190'
-    }
+const getSubnetMask = (vlan?: VlanConfig): number => {
+  if (!vlan || typeof vlan.subnetMask !== 'number' || Number.isNaN(vlan.subnetMask)) {
+    return 24
   }
-})
+  return Math.min(Math.max(vlan.subnetMask, 8), 30)
+}
+
+const getVlanBlockSize = (vlan?: VlanConfig): number => {
+  return Math.pow(2, 32 - getSubnetMask(vlan))
+}
+
+const getVlanHostStartAddress = (vlan?: VlanConfig): number => {
+  if (!vlan) return 0
+  const blockSize = getVlanBlockSize(vlan)
+  const subnetIndex = typeof vlan.subnetIndex === 'number' ? vlan.subnetIndex : 1
+  const zeroBasedIndex = Math.max(0, subnetIndex - 1)
+  return zeroBasedIndex * blockSize
+}
+
+const getVlanHostCapacity = (vlan?: VlanConfig): number => {
+  const blockSize = getVlanBlockSize(vlan)
+  if (blockSize <= 2) {
+    return Math.max(1, blockSize)
+  }
+  return Math.max(1, blockSize - 2)
+}
+
+const getInterfaceOffsetLimit = (ipVar?: InterfaceOffsetContext | null): number => {
+  if (!ipVar?.inputType?.startsWith('studentVlan')) {
+    return 1
+  }
+
+  const vlanIndex = ipVar.vlanIndex !== undefined
+    ? ipVar.vlanIndex
+    : getVlanIndexFromInputType(ipVar.inputType)
+  const vlan = props.networkConfig.vlans?.[vlanIndex]
+  if (!vlan) {
+    return 50
+  }
+
+  const hostStart = getVlanHostStartAddress(vlan)
+  const hostCapacity = getVlanHostCapacity(vlan)
+  const remainingSpace = Math.max(1, 254 - hostStart)
+  return Math.max(1, Math.min(hostCapacity, remainingSpace))
+}
+
+const clampInterfaceOffset = (ipVar?: InterfaceOffsetContext | null) => {
+  if (!ipVar) return
+  const minOffset = 1
+  const maxOffset = getInterfaceOffsetLimit(ipVar)
+  if (!ipVar.interfaceOffset || ipVar.interfaceOffset < minOffset) {
+    ipVar.interfaceOffset = minOffset
+    return
+  }
+  if (ipVar.interfaceOffset > maxOffset) {
+    ipVar.interfaceOffset = maxOffset
+  }
+}
+
+const normalizeAllInterfaceOffsets = () => {
+  localData.value.forEach(device => {
+    device.ipVariables.forEach(ipVar => {
+      if (ipVar.inputType?.startsWith('studentVlan')) {
+        clampInterfaceOffset(ipVar)
+      }
+    })
+  })
+}
 
 // Methods
 const generateTempId = (): string => {
@@ -739,7 +772,7 @@ const addIpVariable = (deviceIndex: number) => {
 const removeIpVariable = (deviceIndex: number, ipIndex: number) => {
   localData.value[deviceIndex].ipVariables.splice(ipIndex, 1)
   // Clear existing validation errors for this device to prevent stale entries
-  delete ipVarErrors.value[deviceIndex]
+  ipVarErrors.value[deviceIndex] = {}
   validateAllIpDuplications()
   validateStep()
 }
@@ -908,7 +941,7 @@ const validateIpVariable = (deviceIndex: number, ipIndex: number, field: string)
       } else if (!/^[a-zA-Z0-9_-]+$/.test(ipVar.name)) {
         ipVarErrors.value[deviceIndex][ipIndex].name = 'Variable name must be alphanumeric with underscores and hyphens'
       } else {
-        delete ipVarErrors.value[deviceIndex][ipIndex].name
+        ipVarErrors.value[deviceIndex][ipIndex].name = undefined
       }
       break
 
@@ -919,28 +952,34 @@ const validateIpVariable = (deviceIndex: number, ipIndex: number, field: string)
         } else if (!isValidIP(ipVar.fullIP)) {
           ipVarErrors.value[deviceIndex][ipIndex].fullIP = 'Invalid IP address format'
         } else {
-          delete ipVarErrors.value[deviceIndex][ipIndex].fullIP
+          ipVarErrors.value[deviceIndex][ipIndex].fullIP = undefined
         }
       } else {
-        delete ipVarErrors.value[deviceIndex][ipIndex].fullIP
+        ipVarErrors.value[deviceIndex][ipIndex].fullIP = undefined
       }
       break
 
 
-    case 'interfaceOffset':
-      // Validate interface offset for student-generated IPs (only for VLAN IPs, not management)
+    case 'interfaceOffset': {
       if (ipVar.inputType?.startsWith('studentVlan')) {
-        if (!ipVar.interfaceOffset || ipVar.interfaceOffset < 1) {
+        const limit = getInterfaceOffsetLimit(ipVar)
+        const offsetValue = Number.isFinite(Number(ipVar.interfaceOffset))
+          ? Math.floor(Number(ipVar.interfaceOffset))
+          : NaN
+
+        if (!offsetValue || offsetValue < 1) {
           ipVarErrors.value[deviceIndex][ipIndex].interfaceOffset = 'Interface offset must be greater than 0'
-        } else if (ipVar.interfaceOffset > 50) {
-          ipVarErrors.value[deviceIndex][ipIndex].interfaceOffset = 'Interface offset cannot exceed 50'
+        } else if (offsetValue > limit) {
+          ipVarErrors.value[deviceIndex][ipIndex].interfaceOffset = `Interface offset cannot exceed ${limit}`
         } else {
-          delete ipVarErrors.value[deviceIndex][ipIndex].interfaceOffset
+          ipVar.interfaceOffset = offsetValue
+          ipVarErrors.value[deviceIndex][ipIndex].interfaceOffset = undefined
         }
       } else {
-        delete ipVarErrors.value[deviceIndex][ipIndex].interfaceOffset
+        ipVarErrors.value[deviceIndex][ipIndex].interfaceOffset = undefined
       }
       break
+    }
   }
 
   // Re-validate all IP variables for duplications to ensure all affected interfaces are updated
@@ -955,21 +994,13 @@ const onInputTypeChange = (deviceIndex: number, ipIndex: number, inputType: stri
 
   // Clear validation errors when switching modes
   if (ipVarErrors.value[deviceIndex]?.[ipIndex]) {
-    delete ipVarErrors.value[deviceIndex][ipIndex].fullIP
-    delete ipVarErrors.value[deviceIndex][ipIndex].studentManagement
-    delete ipVarErrors.value[deviceIndex][ipIndex].studentVlan
+    ipVarErrors.value[deviceIndex][ipIndex].fullIP = undefined
+    ipVarErrors.value[deviceIndex][ipIndex].studentManagement = undefined
+    ipVarErrors.value[deviceIndex][ipIndex].studentVlan = undefined
   }
 
   // Initialize default values for the selected mode
   if (inputType === 'fullIP') {
-    if (!ipVar.fullIP) {
-      ipVar.fullIP = ''
-    }
-    // Clear other fields
-    delete ipVar.interfaceOffset
-    delete ipVar.vlanIndex
-    delete ipVar.isManagementInterface
-  } else if (inputType === 'fullIP') {
     if (!ipVar.fullIP) {
       ipVar.fullIP = ''
     }
@@ -993,6 +1024,7 @@ const onInputTypeChange = (deviceIndex: number, ipIndex: number, inputType: stri
     ipVar.isStudentGenerated = true
     ipVar.readonly = true
     delete ipVar.isManagementInterface
+    clampInterfaceOffset(ipVar)
   }
 
   // Validate all IP variables for potential duplications
@@ -1010,12 +1042,16 @@ const validateIpDuplication = (deviceIndex: number, ipIndex: number) => {
     // Clear any existing duplication errors for:
     // - non-student-generated types (fullIP)
     // - studentManagement (backend assigns unique IPs per device automatically)
-    delete ipVarErrors.value[deviceIndex]?.[ipIndex]?.duplication
+    const deviceErrors = ipVarErrors.value[deviceIndex]
+    const ipErrors = deviceErrors?.[ipIndex]
+    if (ipErrors) {
+      ipErrors.duplication = undefined
+    }
     return
   }
 
   // Check for duplicates across all devices and IP variables (only for VLAN IPs)
-  let duplicates: string[] = []
+  const duplicates: string[] = []
   const currentKey = getIpKey(currentVar)
 
   localData.value.forEach((device, devIndex) => {
@@ -1045,7 +1081,11 @@ const validateIpDuplication = (deviceIndex: number, ipIndex: number) => {
     ipVarErrors.value[deviceIndex][ipIndex].duplication =
       `Duplicate IP detected! Same configuration as: ${duplicates.join(', ')}`
   } else {
-    delete ipVarErrors.value[deviceIndex]?.[ipIndex]?.duplication
+    const deviceErrors = ipVarErrors.value[deviceIndex]
+    const ipErrors = deviceErrors?.[ipIndex]
+    if (ipErrors) {
+      ipErrors.duplication = undefined
+    }
   }
 }
 
@@ -1059,7 +1099,7 @@ const validateAllIpDuplications = () => {
 }
 
 // Generate a unique key for IP configuration comparison
-const getIpKey = (ipVar: any): string => {
+const getIpKey = (ipVar: InterfaceOffsetContext & Record<string, unknown>): string => {
   if (ipVar.inputType === 'studentManagement') {
     return `mgmt:single` // Management IP has only one IP per student
   }
@@ -1117,7 +1157,7 @@ const validateAllDevices = () => {
       } else if (!/^[a-zA-Z0-9_-]+$/.test(ipVar.name)) {
         ipVarErrors.value[index][ipIndex].name = 'Variable name must be alphanumeric with underscores/hyphens'
       } else {
-        delete ipVarErrors.value[index][ipIndex].name
+        ipVarErrors.value[index][ipIndex].name = undefined
       }
 
       // Validate based on input type (fullIP or studentGenerated)
@@ -1128,8 +1168,24 @@ const validateAllDevices = () => {
         } else if (!isValidIP(ipVar.fullIP)) {
           ipVarErrors.value[index][ipIndex].fullIP = 'Please enter a valid IP address'
         } else {
-          delete ipVarErrors.value[index][ipIndex].fullIP
+          ipVarErrors.value[index][ipIndex].fullIP = undefined
         }
+      } else {
+        ipVarErrors.value[index][ipIndex].fullIP = undefined
+      }
+
+      if (ipVar.inputType?.startsWith('studentVlan')) {
+        const limit = getInterfaceOffsetLimit(ipVar)
+        if (!ipVar.interfaceOffset || ipVar.interfaceOffset < 1) {
+          ipVarErrors.value[index][ipIndex].interfaceOffset = 'Interface offset must be greater than 0'
+        } else if (ipVar.interfaceOffset > limit) {
+          ipVarErrors.value[index][ipIndex].interfaceOffset = `Interface offset cannot exceed ${limit}`
+        } else {
+          ipVar.interfaceOffset = Math.floor(ipVar.interfaceOffset)
+          ipVarErrors.value[index][ipIndex].interfaceOffset = undefined
+        }
+      } else {
+        ipVarErrors.value[index][ipIndex].interfaceOffset = undefined
       }
     })
   })
@@ -1194,34 +1250,6 @@ const loadDeviceTemplates = async () => {
   }
 }
 
-// Preview methods for Student Generated Variables
-const getPreviewIP = (variableName: string): string => {
-  // Map variable names to preview IPs from previewValues
-  const variableMap: Record<string, string> = {
-    // Router variables
-    'loopback0': previewValues.value.router_external_ip,
-    'loop0': previewValues.value.router_external_ip,
-    'gig0_0': previewValues.value.router_vlan1_ip,
-    'gig0_1': previewValues.value.router_vlan2_ip,
-    'fa0_0': previewValues.value.router_vlan1_ip,
-    'fa0_1': previewValues.value.router_vlan2_ip,
-    'eth0_0': previewValues.value.router_vlan1_ip,
-    'eth0_1': previewValues.value.router_vlan2_ip,
-
-    // Switch variables
-    'management_ip': previewValues.value.switch_management_ip,
-    'mgmt': previewValues.value.switch_management_ip,
-
-    // PC variables
-    'eth0': previewValues.value.pc1_ip,
-    'ens2': previewValues.value.pc1_ip
-  }
-
-  return variableMap[variableName.toLowerCase()] ||
-         variableMap[variableName] ||
-         previewValues.value.router_vlan1_ip
-}
-
 // Helper methods for network display
 const getModeDisplayText = (mode: string): string => {
   switch (mode) {
@@ -1237,7 +1265,7 @@ const getModeDisplayText = (mode: string): string => {
 }
 
 
-const getVlanDisplayId = (vlan: any, index: number): string => {
+const getVlanDisplayId = (vlan: VlanConfig | undefined, index: number): string => {
   if (vlan.vlanId !== undefined) {
     return vlan.vlanId.toString()
   }
@@ -1299,9 +1327,9 @@ const getVlanPreviewIP = (inputType: string, interfaceOffset: number): string =>
 
     // Use the same student algorithm with VLAN base network
     const student_id = 65070232 // Sample student ID
-    let dec2_1 = (student_id / 1000000 - 61) * 10
-    let dec2_2 = (student_id % 1000) / 250
-    let dec2 = Math.floor(dec2_1 + dec2_2)
+    const dec2_1 = (student_id / 1000000 - 61) * 10
+    const dec2_2 = (student_id % 1000) / 250
+    const dec2 = Math.floor(dec2_1 + dec2_2)
     let dec3 = Math.floor((student_id % 1000) % 250)
 
     // For calculated VLANs, incorporate the calculated VLAN ID into the IP generation
@@ -1315,8 +1343,12 @@ const getVlanPreviewIP = (inputType: string, interfaceOffset: number): string =>
     }
 
     const [vlanOct1] = vlan.baseNetwork.split('.').map(Number)
-    return `${vlanOct1}.${dec2}.${dec3}.${64 + interfaceOffset}`
-  } catch (error) {
+    const hostStart = getVlanHostStartAddress(vlan)
+    const maxOffset = getInterfaceOffsetLimit({ inputType, vlanIndex })
+    const safeOffset = Math.min(Math.max(1, interfaceOffset), maxOffset)
+    const hostAddress = Math.min(254, hostStart + safeOffset)
+    return `${vlanOct1}.${dec2}.${dec3}.${hostAddress}`
+  } catch {
     return 'Error calculating IP'
   }
 }
@@ -1351,9 +1383,20 @@ watch(
       ...device,
       tempId: (localData.value[index]?.tempId) || generateTempId()
     }))
+    normalizeAllInterfaceOffsets()
     nextTick(() => {
       isUpdatingFromProps.value = false
     })
+  },
+  { deep: true }
+)
+
+watch(
+  () => props.networkConfig.vlans,
+  () => {
+    normalizeAllInterfaceOffsets()
+    validateAllIpDuplications()
+    emitValidation()
   },
   { deep: true }
 )
@@ -1368,6 +1411,7 @@ onMounted(async () => {
       ...device,
       tempId: generateTempId()
     }))
+    normalizeAllInterfaceOffsets()
   }
 
   validateAllIpDuplications()

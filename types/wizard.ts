@@ -56,7 +56,7 @@ export interface IpVariable {
 }
 
 // Part Types
-export type PartType = 'fill_in_blank' | 'network_config' | 'dhcp_config';
+export type PartType = 'fill_in_blank' | 'network_config';
 
 // Question Types for Fill-in-Blank Parts
 export type QuestionType = 'network_address' | 'first_usable_ip' | 'last_usable_ip' |
@@ -176,14 +176,6 @@ export interface Question {
   ipTableQuestionnaire?: IpTableQuestionnaire;
 }
 
-// DHCP Configuration Interface
-export interface DhcpConfiguration {
-  vlanIndex: number;                 // Which VLAN this pool serves
-  startOffset: number;               // Last octet offset (e.g., 100 for x.x.x.100)
-  endOffset: number;                 // Last octet offset (e.g., 150 for x.x.x.150)
-  dhcpServerDevice: string;          // Device expected to run DHCP
-}
-
 // Lab Parts Structure
 export interface LabPart {
   labId: string;             // Reference to lab (ObjectId from lab creation)
@@ -194,13 +186,10 @@ export interface LabPart {
   order: number;             // Display sequence
 
   // Enhanced part types
-  partType: PartType;        // Type of part: fill_in_blank, network_config, dhcp_config
+  partType: PartType;        // Type of part: fill_in_blank, network_config
 
   // For fill-in-the-blank parts
   questions?: Question[];
-
-  // For DHCP configuration parts
-  dhcpConfiguration?: DhcpConfiguration;
 
   tasks: Task[];             // Array of tasks (min 1 required for network_config)
   task_groups: TaskGroup[];  // Optional task grouping
@@ -252,6 +241,7 @@ export interface TaskTemplate {
   templateId: string;        // Human-readable template ID
   name: string;              // Display name
   description: string;       // What this template does
+  source?: 'mongo' | 'minio' | string; // Where the template originates
   parameterSchema: Array<{   // Required parameters
     name: string;
     type: string;
@@ -262,6 +252,10 @@ export interface TaskTemplate {
     comparison_type: string;
     expected_result: any;
   }>;
+  defaultTestCase?: {        // Optional single default test case
+    comparison_type: string;
+    expected_result: any;
+  } | null;
 }
 
 // Device Templates
@@ -386,7 +380,6 @@ export interface WizardLabPart extends Omit<LabPart, 'labId'> {
   showInstructionsPreview?: boolean;
   tasks: WizardTask[];       // Extended tasks with UI state
   questions?: Question[];    // Questions for fill_in_blank parts
-  dhcpConfiguration?: DhcpConfiguration; // DHCP config for dhcp_config parts
   hasSubmissions?: boolean;  // Whether students have submissions for this part
   submissionSummary?: PartSubmissionSummary;
 }

@@ -3,20 +3,15 @@
     <!-- Test Cases Header -->
     <div class="flex items-center justify-between">
       <Label class="text-sm font-medium">
-        Test Cases <span class="text-destructive">*</span>
-        <span class="text-muted-foreground font-normal">(Minimum 1 required)</span>
+        Test Cases
+        <span v-if="enforceRequirement" class="text-destructive">*</span>
+        <span v-else class="text-muted-foreground font-normal">(Optional)</span>
       </Label>
-      <div class="flex items-center space-x-2">
-        <Button
-          v-if="template && template.defaultTestCases.length > 0"
-          @click="autoGenerateTestCases"
-          variant="ghost"
-          size="sm"
-        >
-          <Wand2 class="w-4 h-4 mr-1" />
-          Auto-generate
-        </Button>
-        <Button @click="addTestCase" variant="outline" size="sm">
+      <div v-if="isReadOnly" class="text-xs text-muted-foreground">
+        Default test cases provided by template
+      </div>
+      <div v-else class="flex items-center space-x-2">
+        <Button variant="outline" size="sm" @click="addTestCase">
           <Plus class="w-4 h-4 mr-1" />
           Add Test Case
         </Button>
@@ -26,20 +21,18 @@
     <!-- Empty State -->
     <div v-if="localTestCases.length === 0" class="text-center p-4 border-2 border-dashed border-muted-foreground/25 rounded">
       <TestTube class="w-8 h-8 mx-auto text-muted-foreground/50 mb-2" />
-      <p class="text-sm text-muted-foreground mb-3">No test cases configured</p>
-      <div class="flex items-center justify-center space-x-2">
-        <Button @click="addTestCase" variant="outline" size="sm">
+      <p class="text-sm text-muted-foreground mb-3">
+        <template v-if="enforceRequirement">
+          No test cases configured
+        </template>
+        <template v-else>
+          Test cases are optional for this template
+        </template>
+      </p>
+      <div v-if="!isReadOnly" class="flex items-center justify-center space-x-2">
+        <Button variant="outline" size="sm" @click="addTestCase">
           <Plus class="w-4 h-4 mr-1" />
           Add Test Case
-        </Button>
-        <Button
-          v-if="template && template.defaultTestCases.length > 0"
-          @click="autoGenerateTestCases"
-          variant="ghost"
-          size="sm"
-        >
-          <Wand2 class="w-4 h-4 mr-1" />
-          Auto-generate
         </Button>
       </div>
     </div>
@@ -59,10 +52,11 @@
                 <span class="font-medium text-sm">{{ getTestCaseDisplayName(testCase, index) }}</span>
               </div>
               <Button
+                v-if="!isReadOnly"
                 variant="ghost"
                 size="sm"
-                @click="removeTestCase(index)"
                 class="text-destructive hover:text-destructive"
+                @click="removeTestCase(index)"
               >
                 <X class="w-4 h-4" />
               </Button>
@@ -76,7 +70,8 @@
                 </Label>
                 <Select 
                   v-model="testCase.comparison_type"
-                  @update:modelValue="(value) => {
+                  :disabled="isReadOnly"
+                  @update:model-value="() => {
                     validateTestCase(index, 'comparison_type')
                     // Also validate expected_result since its rules depend on comparison_type
                     validateTestCase(index, 'expected_result')
@@ -87,6 +82,7 @@
                   }"
                 >
                   <SelectTrigger
+                    :disabled="isReadOnly"
                     :class="{
                       'border-destructive': hasTestCaseError(index, 'comparison_type'),
                       'border-green-500': !hasTestCaseError(index, 'comparison_type') && testCase.comparison_type
@@ -119,6 +115,8 @@
                 </Label>
                 <Input
                   v-model="testCase.expected_result"
+                  :readonly="isReadOnly"
+                  :disabled="isReadOnly"
                   :placeholder="getPlaceholderText(testCase.comparison_type)"
                   :class="{
                     'border-destructive': hasTestCaseError(index, 'expected_result'),
@@ -168,7 +166,6 @@ import {
   TestTube,
   Plus,
   X,
-  Wand2,
   Info
 } from 'lucide-vue-next'
 
@@ -186,6 +183,8 @@ import type { TestCase, TaskTemplate } from '@/types/wizard'
 interface Props {
   modelValue: TestCase[]
   template?: TaskTemplate
+  readOnly?: boolean
+  testCasesRequired?: boolean
 }
 
 // Emits
@@ -195,6 +194,8 @@ interface Emits {
 }
 
 const props = defineProps<Props>()
+const isReadOnly = computed(() => props.readOnly ?? false)
+const enforceRequirement = computed(() => props.testCasesRequired ?? true)
 const emit = defineEmits<Emits>()
 
 // Local state
@@ -202,8 +203,25 @@ const localTestCases = ref<TestCase[]>([])
 const testCaseErrors = ref<Record<string, Record<string, string>>>({})
 const isUpdatingFromProps = ref(false)
 
+const ensureTestCaseErrorBucket = (index: number): Record<string, string> => {
+  if (!testCaseErrors.value[index]) {
+    testCaseErrors.value[index] = {}
+  }
+  return testCaseErrors.value[index]
+}
+
+const clearTestCaseError = (index: number, key: string) => {
+  if (!testCaseErrors.value[index]) {
+    return
+  }
+  const { [key]: _removed, ...remaining } = testCaseErrors.value[index]
+  testCaseErrors.value[index] = remaining
+}
+
 // Methods
 const addTestCase = () => {
+  if (isReadOnly.value) return
+
   const newTestCase: TestCase = {
     comparison_type: '',
     expected_result: ''
@@ -215,23 +233,11 @@ const addTestCase = () => {
 }
 
 const removeTestCase = (index: number) => {
+  if (isReadOnly.value) return
+
   localTestCases.value.splice(index, 1)
-  delete testCaseErrors.value[index]
-  nextTick(() => {
-    validateAllTestCases()
-  })
-}
-
-const autoGenerateTestCases = () => {
-  if (!props.template?.defaultTestCases) return
-
-  localTestCases.value = props.template.defaultTestCases.map((defaultCase) => ({
-    comparison_type: defaultCase.comparison_type,
-    expected_result: typeof defaultCase.expected_result === 'boolean' 
-      ? defaultCase.expected_result.toString() 
-      : defaultCase.expected_result
-  }))
-
+  const { [String(index)]: _removed, ...remainingErrors } = testCaseErrors.value
+  testCaseErrors.value = remainingErrors
   nextTick(() => {
     validateAllTestCases()
   })
@@ -246,36 +252,35 @@ const getTestCaseError = (index: number, field: string): string => {
 }
 
 const validateTestCase = (index: number, field: string) => {
-  if (!testCaseErrors.value[index]) {
-    testCaseErrors.value[index] = {}
+  const testCase = localTestCases.value[index]
+  if (!testCase) {
+    return
   }
 
-  const testCase = localTestCases.value[index]
-
   switch (field) {
-    case 'comparison_type':
+    case 'comparison_type': {
       const validTypes = ['equals', 'contains', 'regex', 'success', 'ssh_success', 'greater_than']
       if (!testCase.comparison_type || !validTypes.includes(testCase.comparison_type)) {
-        testCaseErrors.value[index].comparison_type = 'Valid comparison type is required'
+        ensureTestCaseErrorBucket(index).comparison_type = 'Valid comparison type is required'
       } else {
-        delete testCaseErrors.value[index].comparison_type
+        clearTestCaseError(index, 'comparison_type')
       }
       break
+    }
 
-    case 'expected_result':
-      const expectedResult = String(testCase.expected_result || '').trim()
+    case 'expected_result': {
+      const expectedResult = String(testCase.expected_result ?? '').trim()
       const comparisonType = testCase.comparison_type
       
-      // For success types, empty expected result is allowed
       if (comparisonType === 'success') {
-        // Success checks don't need expected result, delete any error
-        delete testCaseErrors.value[index].expected_result
+        clearTestCaseError(index, 'expected_result')
       } else if (!expectedResult) {
-        testCaseErrors.value[index].expected_result = 'Expected result is required'
+        ensureTestCaseErrorBucket(index).expected_result = 'Expected result is required'
       } else {
-        delete testCaseErrors.value[index].expected_result
+        clearTestCaseError(index, 'expected_result')
       }
       break
+    }
   }
 }
 
@@ -291,7 +296,7 @@ const validateAllTestCases = () => {
 
   const errors: string[] = []
 
-  if (localTestCases.value.length === 0) {
+  if (enforceRequirement.value && localTestCases.value.length === 0) {
     errors.push('At least one test case is required')
   }
 
@@ -382,9 +387,19 @@ watch(
     localTestCases.value = [...(newValue || [])]
     nextTick(() => {
       isUpdatingFromProps.value = false
+      validateAllTestCases()
     })
   },
   { deep: true, immediate: false }
+)
+
+watch(
+  () => props.testCasesRequired,
+  () => {
+    nextTick(() => {
+      validateAllTestCases()
+    })
+  }
 )
 
 // Lifecycle

@@ -16,6 +16,7 @@ interface TaskTemplate {
   templateId: string
   name: string
   description: string
+  source?: 'mongo' | 'minio' | string
   parameterSchema: Array<{
     name: string
     type: string
@@ -26,6 +27,10 @@ interface TaskTemplate {
     comparison_type: string
     expected_result: any
   }>
+  defaultTestCase?: {
+    comparison_type: string
+    expected_result: any
+  } | null
 }
 
 export const useLabCreationWizard = () => {

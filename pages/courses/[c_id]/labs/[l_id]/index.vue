@@ -212,7 +212,6 @@ const currentLabParts = computed<LabPart[]>(() => {
     order: 0,
     partType: 'network_config',
     questions: [],
-    dhcpConfiguration: undefined,
     tasks: [],
     task_groups: [],
     prerequisites: [],
@@ -293,41 +292,6 @@ const calculateNetworkAddress = (ip: string, subnetMask: number): string => {
 
   const networkParts = ipParts.map((octet, i) => octet & maskOctets[i])
   return `${networkParts.join('.')}/${subnetMask}`
-}
-
-// Helper function to calculate DHCP pool IP from offset
-const calculateDhcpPoolIp = (offset: number): string => {
-  if (!currentPart.value?.dhcpConfiguration) return ''
-
-  const vlanIndex = currentPart.value.dhcpConfiguration.vlanIndex
-  const vlan = currentLab.value?.network?.vlanConfiguration?.vlans?.[vlanIndex]
-
-  if (!vlan) return ''
-
-  // Find base network from backend IP mappings
-  const sampleIp = Object.entries(backendIpMappings.value).find(([key, mapping]) => {
-    const ipVar = currentLab.value?.network.devices
-      ?.flatMap(d => d.ipVariables)
-      .find(v => key === `${currentLab.value.network.devices.find(dev => dev.ipVariables.includes(v))?.deviceId}.${v.name}`)
-    return mapping.vlan !== null && ipVar?.vlanIndex === vlanIndex
-  })
-
-  if (!sampleIp?.[1]?.ip) return ''
-
-  // Calculate base network
-  const ipParts = sampleIp[1].ip.split('.').map(Number)
-  const maskBits = '1'.repeat(vlan.subnetMask) + '0'.repeat(32 - vlan.subnetMask)
-  const maskOctets = [
-    parseInt(maskBits.slice(0, 8), 2),
-    parseInt(maskBits.slice(8, 16), 2),
-    parseInt(maskBits.slice(16, 24), 2),
-    parseInt(maskBits.slice(24, 32), 2)
-  ]
-
-  const networkParts = ipParts.map((octet, i) => octet & maskOctets[i])
-  networkParts[3] += offset
-
-  return networkParts.join('.')
 }
 
 // Variable Reference Table - Maps VLAN A-J and CIDR Q-Z to actual values
@@ -1536,10 +1500,6 @@ watch(() => route.query.part, (newPart) => {
                   :labId="labId"
                   :partId="currentPart.partId"
                   :lab-session-id="activeLabSessionId"
-                  :dhcpPoolValidation="currentPart.dhcpConfiguration ? {
-                    startIp: calculateDhcpPoolIp(currentPart.dhcpConfiguration.startOffset),
-                    endIp: calculateDhcpPoolIp(currentPart.dhcpConfiguration.endOffset)
-                  } : undefined"
                   :show-submit-button="!isFillInBlankPart"
                   @submitted="handleFillInBlankSubmissionResult"
                 />

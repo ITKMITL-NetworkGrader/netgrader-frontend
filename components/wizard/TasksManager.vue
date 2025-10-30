@@ -383,6 +383,8 @@
                 <TestCasesManager
                   v-model="task.testCases"
                   :template="getSelectedTemplate(task.templateId)"
+                  :read-only="isTemplateReadOnly(task)"
+                  :test-cases-required="isTestCasesRequired(task)"
                   @validate="handleTestCasesValidation(taskIndex, $event)"
                 />
               </CardContent>
@@ -443,7 +445,7 @@ import TaskGroupManager from './TaskGroupManager.vue'
 import IpParameterSelector from './IpParameterSelector.vue'
 
 // Types
-import type { WizardTask, WizardTaskGroup, Device, TaskTemplate } from '@/types/wizard'
+import type { WizardTask, WizardTaskGroup, Device, TaskTemplate, TestCase } from '@/types/wizard'
 
 // Props
 interface Props {
@@ -508,6 +510,63 @@ const availableVlans = computed(() => {
 })
 
 const exampleVlanToken = '{{vlan0}}' as const
+
+const normalizeDefaultTestCase = (defaultCase: unknown): TestCase | null => {
+  if (!defaultCase || typeof defaultCase !== 'object') {
+    return null
+  }
+
+  const caseRecord = defaultCase as Record<string, unknown>
+  const comparisonType = caseRecord['comparison_type'] ?? caseRecord['comparisonType']
+  if (typeof comparisonType !== 'string' || comparisonType.length === 0) {
+    return null
+  }
+
+  const rawExpectedResult = caseRecord['expected_result'] ?? caseRecord['expectedResult']
+  let expectedResult: string = ''
+
+  if (typeof rawExpectedResult === 'boolean') {
+    expectedResult = rawExpectedResult ? 'true' : 'false'
+  } else if (rawExpectedResult !== undefined && rawExpectedResult !== null) {
+    expectedResult = String(rawExpectedResult)
+  }
+
+  return {
+    comparison_type: comparisonType,
+    expected_result: expectedResult
+  }
+}
+
+const getTemplateDefaultTestCases = (template?: TaskTemplate): TestCase[] => {
+  if (!template) {
+    return []
+  }
+
+  if (Array.isArray(template.defaultTestCases) && template.defaultTestCases.length > 0) {
+    return template.defaultTestCases
+      .map(normalizeDefaultTestCase)
+      .filter((testCase): testCase is TestCase => testCase !== null)
+  }
+
+  if (template.defaultTestCase) {
+    const normalized = normalizeDefaultTestCase(template.defaultTestCase)
+    return normalized ? [normalized] : []
+  }
+
+  return []
+}
+
+const templateRequiresTestCases = (template?: TaskTemplate): boolean => {
+  if (!template) {
+    return true
+  }
+
+  if (template.source === 'mongo') {
+    return getTemplateDefaultTestCases(template).length > 0
+  }
+
+  return true
+}
 
 // Computed
 const totalPoints = computed(() => {
@@ -739,6 +798,7 @@ const onTemplateChange = (taskIndex: number, value: string | number | bigint | R
       const previousTemplateId = task.templateId
       // Update the templateId (for v-model to work)
       task.templateId = value
+
       // Then handle the template change logic with both old and new values
       handleTemplateChange(taskIndex, value, previousTemplateId)
     }
@@ -748,19 +808,29 @@ const onTemplateChange = (taskIndex: number, value: string | number | bigint | R
 const handleTemplateChange = (taskIndex: number, templateId: string, previousTemplateId?: string) => {
   warnIfNeeded()
   if (!templateId) return
-  
+
   const task = localTasks.value[taskIndex]
   if (!task) return
-  
+
   // Compare with the provided previousTemplateId (passed from onTemplateChange)
   // The templateId passed here is the NEW template ID that was selected
-  if (previousTemplateId !== templateId) {
+  // 🔧 FIX: Also populate defaults if task has no test cases (handles v-model race condition)
+  const hasNoTestCases = !task.testCases || task.testCases.length === 0
+  const shouldPopulateDefaults = (previousTemplateId !== templateId) || hasNoTestCases
+
+  if (shouldPopulateDefaults) {
     const newTemplate = getSelectedTemplate(templateId)
-    
+
     if (newTemplate) {
+      // 🔧 FIX: Clear ALL validation errors from previous template
+      // This prevents old template parameter errors from persisting
+      delete taskFieldErrors.value[taskIndex]
+      delete parameterErrors.value[taskIndex]
+      delete testCaseErrors.value[taskIndex]
+
       // Reset parameters when template changes
       task.parameters = {}
-      
+
       // Initialize parameters from template schema
       if (newTemplate.parameterSchema && newTemplate.parameterSchema.length > 0) {
         newTemplate.parameterSchema.forEach(param => {
@@ -775,36 +845,49 @@ const handleTemplateChange = (taskIndex: number, templateId: string, previousTem
           }
         })
       }
-      
+
       // Ensure parameters object is properly initialized even if no schema
       if (!task.parameters || typeof task.parameters !== 'object') {
         task.parameters = {}
       }
-      
-      // Auto-populate test cases from template defaults
-      if (newTemplate.defaultTestCases && newTemplate.defaultTestCases.length > 0) {
-        task.testCases = newTemplate.defaultTestCases.map((defaultCase) => ({
-          comparison_type: defaultCase.comparison_type,
-          expected_result: defaultCase.expected_result
-        }))
-      } else {
-        // Ensure at least one test case exists
-        if (task.testCases.length === 0) {
-          task.testCases = [{
-            comparison_type: '',
-            expected_result: ''
-          }]
-        }
-      }
+
+      const defaultTestCases = getTemplateDefaultTestCases(newTemplate)
+      task.testCases = defaultTestCases.length > 0 ? defaultTestCases : []
+
+      // Request validation AFTER parameters are set up
+      // This will validate the new template's parameters, not the old ones
+      requestValidation()
     }
+  } else {
+    // Even if not changing template, normalize parameters
+    normalizeTaskParameters(task)
   }
-  
-  normalizeTaskParameters(task)
-  validateTask(taskIndex, 'templateId')
 }
 
-const getSelectedTemplate = (templateId: string): TaskTemplate | undefined => {
-  return props.taskTemplates.find(t => t.id === templateId)
+const getSelectedTemplate = (templateId?: string): TaskTemplate | undefined => {
+  if (!templateId) {
+    return undefined
+  }
+
+  // Try matching by id first
+  let template = props.taskTemplates.find(t => t.id === templateId)
+
+  // If not found by id, try matching by templateId
+  if (!template) {
+    template = props.taskTemplates.find(t => t.templateId === templateId)
+  }
+
+  return template
+}
+
+const isTemplateReadOnly = (task: WizardTask): boolean => {
+  const selectedTemplate = getSelectedTemplate(task?.templateId)
+  return selectedTemplate?.source === 'minio'
+}
+
+const isTestCasesRequired = (task: WizardTask): boolean => {
+  const selectedTemplate = getSelectedTemplate(task?.templateId)
+  return templateRequiresTestCases(selectedTemplate)
 }
 
 const hasTaskErrors = (taskIndex: number): boolean => {
@@ -830,12 +913,16 @@ const getParameterError = (taskIndex: number, paramName: string): string => {
 }
 
 const isTaskValid = (task: WizardTask): boolean => {
-  return task.taskId.length > 0 && 
-         task.name.length > 0 && 
+  const selectedTemplate = getSelectedTemplate(task?.templateId)
+  const requiresTestCases = templateRequiresTestCases(selectedTemplate)
+  const hasRequiredTestCases = requiresTestCases ? (task.testCases?.length ?? 0) > 0 : true
+
+  return task.taskId.length > 0 &&
+         task.name.length > 0 &&
          task.templateId.length > 0 &&
          task.executionDevice.length > 0 &&
          task.points > 0 &&
-         task.testCases.length > 0
+         hasRequiredTestCases
 }
 
 const handleTaskNameChange = (taskIndex: number, newName: string) => {
@@ -928,8 +1015,8 @@ const validateTaskParameter = (taskIndex: number, paramName: string) => {
   }
 
   const task = localTasks.value[taskIndex]
-  const template = getSelectedTemplate(task.templateId)
-  const paramSchema = template?.parameterSchema.find(p => p.name === paramName)
+  const selectedTemplate = getSelectedTemplate(task.templateId)
+  const paramSchema = selectedTemplate?.parameterSchema.find(p => p.name === paramName)
 
   if (paramSchema?.required) {
     const paramValue = task.parameters[paramName]
@@ -1043,7 +1130,14 @@ const validateIpParameterValue = (value: string): boolean => {
 }
 
 const handleTestCasesValidation = (taskIndex: number, errors: string[]) => {
-  testCaseErrors.value[taskIndex] = errors
+  const task = localTasks.value[taskIndex]
+  const selectedTemplate = getSelectedTemplate(task?.templateId)
+  const requiresTestCases = templateRequiresTestCases(selectedTemplate)
+  const filteredErrors = requiresTestCases
+    ? errors
+    : errors.filter(error => error !== 'At least one test case is required')
+
+  testCaseErrors.value[taskIndex] = filteredErrors
   requestValidation()
 }
 
@@ -1060,16 +1154,16 @@ function validateTasks() {
       validateTask(index, 'executionDevice')
       validateTask(index, 'points')
 
-      // Validate test cases
-      if (!task.testCases || task.testCases.length === 0) {
+      const selectedTemplate = getSelectedTemplate(task?.templateId)
+      const requiresTestCases = templateRequiresTestCases(selectedTemplate)
+
+      if (requiresTestCases && (!task.testCases || task.testCases.length === 0)) {
         if (!taskFieldErrors.value[index]) {
           taskFieldErrors.value[index] = {}
         }
         taskFieldErrors.value[index].testCases = 'At least one test case is required'
-      } else {
-        if (taskFieldErrors.value[index]) {
-          delete taskFieldErrors.value[index].testCases
-        }
+      } else if (taskFieldErrors.value[index]) {
+        delete taskFieldErrors.value[index].testCases
       }
 
       // Validate targetDevices existence
@@ -1090,9 +1184,9 @@ function validateTasks() {
       }
 
       // Validate parameters
-      const template = getSelectedTemplate(task.templateId)
-      if (template) {
-        template.parameterSchema.forEach(param => {
+      const selectedTemplateForParams = getSelectedTemplate(task.templateId)
+      if (selectedTemplateForParams) {
+        selectedTemplateForParams.parameterSchema.forEach(param => {
           validateTaskParameter(index, param.name)
         })
       }
@@ -1147,16 +1241,16 @@ const normalizeInterfaceValue = (value: string): string => {
 }
 
 const getParameterSchema = (task: WizardTask, paramName: string) => {
-  const template = getSelectedTemplate(task.templateId)
-  return template?.parameterSchema.find(param => param.name === paramName)
+  const selectedTemplate = getSelectedTemplate(task.templateId)
+  return selectedTemplate?.parameterSchema.find(param => param.name === paramName)
 }
 
 const normalizeTaskParameters = (task: WizardTask) => {
   if (!task?.parameters || typeof task.parameters !== 'object') return
-  const template = getSelectedTemplate(task.templateId)
-  if (!template) return
+  const selectedTemplate = getSelectedTemplate(task.templateId)
+  if (!selectedTemplate) return
 
-  template.parameterSchema.forEach(param => {
+  selectedTemplate.parameterSchema.forEach(param => {
     if (param.type === 'int_string') {
       const rawValue = task.parameters?.[param.name]
       if (typeof rawValue === 'string') {

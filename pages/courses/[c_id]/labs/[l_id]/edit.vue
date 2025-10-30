@@ -414,7 +414,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, computed, onMounted, nextTick, watch } from 'vue'
+import { reactive, ref, computed, onMounted, nextTick, watch, toRaw } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { toast } from 'vue-sonner'
 import {
@@ -847,12 +847,6 @@ const detectPartChanges = (originalPart: any, updatedPart: any): string[] => {
     changes.push('Questions')
   }
 
-  const originalDhcp = originalPart.dhcpConfiguration || null
-  const updatedDhcp = updatedPart.dhcpConfiguration || null
-  if (JSON.stringify(originalDhcp) !== JSON.stringify(updatedDhcp)) {
-    changes.push('DHCP configuration')
-  }
-
   const originalPrereqs = Array.isArray(originalPart.prerequisites) ? [...originalPart.prerequisites].sort() : []
   const updatedPrereqs = Array.isArray(updatedPart.prerequisites) ? [...updatedPart.prerequisites].sort() : []
   if (JSON.stringify(originalPrereqs) !== JSON.stringify(updatedPrereqs)) {
@@ -1264,6 +1258,14 @@ const loadLabData = async () => {
 
     let fetchedParts: any[] = []
 
+    console.log('🌐 [DEBUG] Parts response structure:', {
+      hasSuccess: 'success' in partsResponse,
+      hasParts: 'parts' in partsResponse,
+      success: (partsResponse as any).success,
+      dataType: typeof (partsResponse as any).data,
+      dataKeys: Object.keys((partsResponse as any).data || {}),
+    })
+
     if ('success' in partsResponse) {
       if (!partsResponse.success) {
         throw new Error(partsResponse.message || 'Failed to load lab parts')
@@ -1279,6 +1281,17 @@ const loadLabData = async () => {
       throw new Error('Failed to load lab parts')
     }
 
+    console.log(`🌐 [DEBUG] Fetched ${fetchedParts.length} parts from backend`)
+    if (fetchedParts.length > 0) {
+      console.log('🌐 [DEBUG] First part raw data:', {
+        keys: Object.keys(fetchedParts[0]),
+        _id: fetchedParts[0]._id,
+        id: fetchedParts[0].id,
+        partId: fetchedParts[0].partId,
+        title: fetchedParts[0].title
+      })
+    }
+
     const filteredParts = fetchedParts.filter((part: any) => {
       if (!part) return false
       if (part.partId === INSTRUCTIONS_PART_ID) return false
@@ -1290,7 +1303,9 @@ const loadLabData = async () => {
     const seenPartKeys = new Set<string>()
 
     for (const part of filteredParts) {
-      const key = part._id?.toString() || part.partId || `${part.title}-${part.order}`
+      // Backend returns 'id' not '_id', so check both
+      const idValue = part._id?.toString() || part.id?.toString()
+      const key = idValue || part.partId || `${part.title}-${part.order}`
       if (!seenPartKeys.has(key)) {
         seenPartKeys.add(key)
         deduplicatedParts.push(part)
@@ -1298,6 +1313,20 @@ const loadLabData = async () => {
     }
 
     originalPartsData.value = deduplicatedParts
+
+    // Debug: Log the structure of the first part's _id
+    if (deduplicatedParts.length > 0) {
+      const firstPart = deduplicatedParts[0]
+      console.log('🔍 [DEBUG] Sample part _id structure:', {
+        _id: firstPart._id,
+        _idType: typeof firstPart._id,
+        _idConstructorName: firstPart._id?.constructor?.name,
+        _idToString: firstPart._id?.toString?.(),
+        partId: firstPart.partId,
+        title: firstPart.title,
+        rawValue: toRaw(firstPart._id)
+      })
+    }
 
     await fetchPartSubmissionSummary()
 
@@ -1376,14 +1405,25 @@ const transformBackendDataToWizard = () => {
     const summary = partSubmissionSummary.value[part.partId]
     const hasSubmissions = Boolean(summary && summary.submissionCount > 0)
 
+    // Intelligently infer partType if missing based on part content
+    let inferredPartType = part.partType
+    if (!inferredPartType) {
+      if (part.questions && Array.isArray(part.questions) && part.questions.length > 0) {
+        inferredPartType = 'fill_in_blank'
+      } else {
+        inferredPartType = 'network_config'
+      }
+    }
+
     return {
-      _id: part._id, // Keep original ID for updates
+      _id: part._id, // Keep original ID for updates (might be undefined)
+      id: part.id,   // Backend returns 'id' not '_id'
       partId: part.partId || '',
       title: part.title || '',
       description: part.description || '',
       instructions: extractInstructionsHtml(part.instructions),
       order: part.order,
-      partType: part.partType || 'network_config',
+      partType: inferredPartType,
       tasks: part.tasks?.map((task: any) => ({
         taskId: task.taskId,
         name: task.name,
@@ -1399,7 +1439,6 @@ const transformBackendDataToWizard = () => {
       })) || [],
       task_groups: part.task_groups || [],
       questions: part.questions || [],
-      dhcpConfiguration: part.dhcpConfiguration,
       prerequisites: part.prerequisites || [],
       totalPoints: part.totalPoints,
       hasSubmissions,
@@ -1568,22 +1607,85 @@ const executeLabUpdate = async () => {
 
     console.log('✅ Lab updated successfully')
 
-    const normalizeId = (value: any): string | null => {
-      if (!value) return null
-      if (typeof value === 'string') return value
-      if (typeof value === 'number') return value.toString()
-      if (typeof value === 'object' && typeof value.toString === 'function') {
-        const stringValue = value.toString()
-        return typeof stringValue === 'string' ? stringValue : null
+    const normalizeId = (value: any, debugLabel?: string): string | null => {
+      const debug = (msg: string, data?: any) => {
+        if (debugLabel) {
+          console.log(`[normalizeId:${debugLabel}] ${msg}`, data || '')
+        }
       }
+
+      if (!value) {
+        debug('Value is null/undefined')
+        return null
+      }
+
+      if (typeof value === 'string') {
+        debug('Value is already a string', value)
+        return value
+      }
+
+      if (typeof value === 'number') {
+        debug('Value is a number, converting to string', value)
+        return value.toString()
+      }
+
+      // Handle Proxy objects and reactive objects by using toRaw
+      if (typeof value === 'object') {
+        debug('Value is an object', {
+          constructor: value.constructor?.name,
+          keys: Object.keys(value || {})
+        })
+
+        try {
+          // Try to unwrap Vue reactive/proxy objects
+          const rawValue = toRaw(value)
+          debug('After toRaw', {
+            rawConstructor: rawValue?.constructor?.name,
+            rawKeys: Object.keys(rawValue || {})
+          })
+
+          // If it's a MongoDB ObjectId or has a toString method
+          if (rawValue && typeof rawValue.toString === 'function') {
+            const stringValue = rawValue.toString()
+            debug('Called toString()', stringValue)
+            if (typeof stringValue === 'string' && stringValue !== '[object Object]') {
+              debug('✅ Successfully normalized via toString', stringValue)
+              return stringValue
+            }
+          }
+
+          // If it's an object with $oid property (MongoDB ObjectId format)
+          if (rawValue && rawValue.$oid && typeof rawValue.$oid === 'string') {
+            debug('✅ Successfully normalized via $oid', rawValue.$oid)
+            return rawValue.$oid
+          }
+
+          // Try direct toString as fallback
+          if (typeof value.toString === 'function') {
+            const stringValue = value.toString()
+            debug('Called value.toString()', stringValue)
+            if (typeof stringValue === 'string' && stringValue !== '[object Object]') {
+              debug('✅ Successfully normalized via direct toString', stringValue)
+              return stringValue
+            }
+          }
+        } catch (error) {
+          console.warn(`[normalizeId:${debugLabel}] Failed to normalize ID:`, error)
+        }
+      }
+
+      debug('❌ Failed to normalize - returning null')
       return null
     }
 
     const originalPartsById = new Map<string, any>()
     const originalPartsByPartId = new Map<string, any>()
 
+    console.log(`🗂️ Building original parts maps from ${originalPartsData.value.length} parts`)
     for (const originalPart of originalPartsData.value) {
-      const id = normalizeId(originalPart?._id)
+      // Backend returns 'id' not '_id', so check both
+      const idValue = originalPart?._id || originalPart?.id
+      const id = normalizeId(idValue, `original:${originalPart?.partId}`)
       if (id) {
         originalPartsById.set(id, originalPart)
       }
@@ -1591,19 +1693,25 @@ const executeLabUpdate = async () => {
         originalPartsByPartId.set(originalPart.partId, originalPart)
       }
     }
+    console.log(`✅ Built maps: ${originalPartsById.size} by _id, ${originalPartsByPartId.size} by partId`)
 
     const findOriginalPart = (part: any) => {
       if (!part) return null
 
-      const id = normalizeId(part._id)
+      // Check both _id and id (backend returns 'id')
+      const idValue = part._id || part.id
+      const id = normalizeId(idValue, `wizard:${part.partId}`)
       if (id && originalPartsById.has(id)) {
+        console.log(`✅ Found match by _id/id: ${part.partId} (${id})`)
         return originalPartsById.get(id)
       }
 
       if (part.partId && originalPartsByPartId.has(part.partId)) {
+        console.log(`✅ Found match by partId: ${part.partId}`)
         return originalPartsByPartId.get(part.partId)
       }
 
+      console.warn(`⚠️ No match found for part: ${part.partId} (title: ${part.title})`)
       return null
     }
 
@@ -1615,33 +1723,62 @@ const executeLabUpdate = async () => {
       const originalPart = findOriginalPart(part)
 
       if (!originalPart) {
+        console.log(`➕ Part will be created (no match found): ${part.partId || part.title}`)
         partsToCreate.push(part)
         continue
       }
 
-      const targetId = normalizeId(originalPart._id)
+      // Backend returns 'id' not '_id', so check both
+      const originalIdValue = originalPart._id || originalPart.id
+      const targetId = normalizeId(originalIdValue, `target:${part.partId}`)
       if (!targetId) {
-        console.warn('Skipping part update - unable to resolve original ID', originalPart)
+        console.error('❌ CRITICAL: Unable to resolve original part ID', {
+          partId: part.partId,
+          partTitle: part.title,
+          originalPart: {
+            _id: originalPart._id,
+            id: originalPart.id,
+            _idType: typeof originalPart._id,
+            idType: typeof originalPart.id,
+            partId: originalPart.partId,
+            title: originalPart.title
+          }
+        })
         continue
       }
 
+      console.log(`🔄 Part will be updated: ${part.partId} (ID: ${targetId})`)
       matchedOriginalIds.add(targetId)
 
-      // Ensure the working copy retains the original _id for future comparisons
-      if (!normalizeId(part._id)) {
-        part._id = originalPart._id
+      // Ensure the working copy retains the original _id/id for future comparisons
+      const partIdValue = part._id || part.id
+      if (!normalizeId(partIdValue)) {
+        // Backend uses 'id', so store it there
+        part.id = originalPart.id || originalPart._id
+        part._id = originalPart._id || originalPart.id
       }
 
       partsToUpdate.push({ part, targetId })
     }
 
     const partsToDelete = originalPartsData.value.filter((originalPart: any) => {
-      const originalId = normalizeId(originalPart?._id)
+      // Backend returns 'id' not '_id', so check both
+      const originalIdValue = originalPart?._id || originalPart?.id
+      const originalId = normalizeId(originalIdValue, `delete:${originalPart?.partId}`)
       if (!originalId) {
-        console.warn('Skipping part deletion - unable to resolve original ID', originalPart)
+        console.warn('⚠️ Skipping part deletion - unable to resolve original ID', {
+          partId: originalPart?.partId,
+          title: originalPart?.title,
+          _id: originalPart?._id,
+          id: originalPart?.id
+        })
         return false
       }
-      return !matchedOriginalIds.has(originalId)
+      const shouldDelete = !matchedOriginalIds.has(originalId)
+      if (shouldDelete) {
+        console.log(`🗑️  Part will be deleted: ${originalPart.partId} (${originalPart.title})`)
+      }
+      return shouldDelete
     })
 
     console.log('📊 Parts summary:', {
@@ -1673,7 +1810,28 @@ const executeLabUpdate = async () => {
 
     for (const { part, targetId } of partsToUpdate) {
       console.log(`🔄 Updating part: ${part.partId}`)
+
+      // Debug: Log the source part data from wizard
+      console.log(`📥 Source part from wizard (${part.partId}):`, {
+        partType: part.partType,
+        questionsCount: part.questions?.length || 0,
+        totalPoints: part.totalPoints,
+        questionPoints: part.questions?.map((q: any) => q.points),
+        questions: part.questions
+      })
+
       const partData = buildPartData(labId, part)
+
+      // Debug: Log the part data being sent to backend
+      console.log(`📤 Part data for ${part.partId} being sent to backend:`, {
+        partType: partData.partType,
+        questionsCount: partData.questions?.length || 0,
+        totalPoints: partData.totalPoints,
+        hasIpTableQuestionnaire: partData.questions?.some((q: any) => q.ipTableQuestionnaire) || false,
+        questionPoints: partData.questions?.map((q: any) => q.points),
+        firstQuestion: partData.questions?.[0]
+      })
+
       await $fetch(`${backendURL}/v0/parts/${targetId}`, {
         method: 'PUT',
         credentials: 'include',
@@ -1682,6 +1840,7 @@ const executeLabUpdate = async () => {
         },
         body: partData
       })
+      console.log(`✅ Successfully updated part: ${part.partId}`)
     }
 
     console.groupEnd()
@@ -1802,16 +1961,59 @@ const buildPartData = (labId: string, part: any) => {
           inputFormat: question.inputFormat,
           expectedAnswer: question.expectedAnswer,
           caseSensitive: question.caseSensitive,
-          trimWhitespace: question.trimWhitespace
+          trimWhitespace: question.trimWhitespace,
+          // 🆕 ADDED: IP Table Questionnaire data for advanced IP table questions
+          ipTableQuestionnaire: question.ipTableQuestionnaire
+            ? {
+                tableId: question.ipTableQuestionnaire.tableId,
+                rowCount: question.ipTableQuestionnaire.rowCount,
+                columnCount: question.ipTableQuestionnaire.columnCount,
+                columns: question.ipTableQuestionnaire.columns.map((col: any) => ({
+                  columnId: col.columnId,
+                  label: col.label,
+                  order: col.order
+                })),
+                rows: question.ipTableQuestionnaire.rows.map((row: any) => ({
+                  rowId: row.rowId,
+                  deviceId: row.deviceId,
+                  interfaceName: row.interfaceName,
+                  displayName: row.displayName,
+                  order: row.order
+                })),
+                cells: question.ipTableQuestionnaire.cells.map((cellRow: any) =>
+                  cellRow.map((cell: any) => {
+                    const cellType = cell.cellType ?? 'input'
+                    const isInputCell = cellType === 'input'
+                    const isCalculated = cell.answerType === 'calculated'
+
+                    return {
+                      cellId: cell.cellId,
+                      rowId: cell.rowId,
+                      columnId: cell.columnId,
+                      cellType,
+                      answerType: isInputCell ? (cell.answerType ?? 'calculated') : undefined,
+                      staticAnswer: isInputCell && cell.answerType === 'static' ? cell.staticAnswer : undefined,
+                      calculatedAnswer: isInputCell && isCalculated && cell.calculatedAnswer
+                        ? {
+                            calculationType: cell.calculatedAnswer.calculationType,
+                            vlanIndex: cell.calculatedAnswer.vlanIndex,
+                            lecturerOffset: cell.calculatedAnswer.lecturerOffset,
+                            lecturerRangeStart: cell.calculatedAnswer.lecturerRangeStart,
+                            lecturerRangeEnd: cell.calculatedAnswer.lecturerRangeEnd,
+                            deviceId: cell.calculatedAnswer.deviceId,
+                            interfaceName: cell.calculatedAnswer.interfaceName
+                          }
+                        : undefined,
+                      readonlyContent: cellType === 'readonly' ? (cell.readonlyContent ?? '') : undefined,
+                      blankReason: cellType === 'blank' ? (cell.blankReason ?? '') : undefined,
+                      points: isInputCell ? cell.points : 0,
+                      autoCalculated: isInputCell ? !!cell.autoCalculated : false
+                    }
+                  })
+                )
+              }
+            : undefined
         }))
-      : undefined,
-    dhcpConfiguration: part.partType === 'dhcp_config'
-      ? {
-          vlanIndex: part.dhcpConfiguration?.vlanIndex ?? 0,
-          startOffset: part.dhcpConfiguration?.startOffset ?? 0,
-          endOffset: part.dhcpConfiguration?.endOffset ?? 0,
-          dhcpServerDevice: part.dhcpConfiguration?.dhcpServerDevice || ''
-        }
       : undefined,
     prerequisites: part.prerequisites,
     totalPoints: part.totalPoints

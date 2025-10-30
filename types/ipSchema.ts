@@ -12,7 +12,7 @@ export interface DeviceConfig {
   deviceName: string;
   ipVariable: string;
   vlanIndex?: number;        // Which VLAN (0-9) - for studentVlanX types
-  interfaceOffset?: number;  // Offset within VLAN (1-50) - for studentVlanX types
+  interfaceOffset?: number;  // Offset within VLAN host capacity - for studentVlanX types
   description?: string;
   isIsolated?: boolean;
   ansibleUsername?: string;
