@@ -47,7 +47,7 @@ import GradingProgress from '@/components/GradingProgress.vue'
 import LabResultsModal from '@/components/student/LabResultsModal.vue'
 import LabTimer from '@/components/student/LabTimer.vue'
 import FillInBlankQuestions from '@/components/student/FillInBlankQuestions.vue'
-import type { ISubmission } from '@/types/submission'
+import type { ISubmission, LecturerRangeAnswerPayload } from '@/types/submission'
 import { toast } from 'vue-sonner'
 
 type FillInBlankSubmissionPayload = {
@@ -61,6 +61,12 @@ type FillInBlankSubmissionPayload = {
     status?: string
     submittedAt?: string
   }
+}
+
+type StoredFillInBlankPayload = {
+  answers?: Record<string, string>
+  ipTableAnswers?: Record<string, string[][]>
+  timestamp?: number
 }
 
 // Configure marked for safe HTML rendering
@@ -139,6 +145,132 @@ const clearSessionStoredAnswers = () => {
   keysToRemove.forEach((key) => sessionStorage.removeItem(key))
 }
 
+const buildFillInStorageKey = (identifier: string, labIdentifier: string, partId: string) =>
+  `${SESSION_STORAGE_PREFIX}${identifier}:${labIdentifier}:${partId}`
+
+const parseStoredFillInPayload = (key: string): StoredFillInBlankPayload | null => {
+  if (typeof window === 'undefined') return null
+  const raw = window.localStorage.getItem(key)
+  if (!raw) return null
+
+  try {
+    return JSON.parse(raw) as StoredFillInBlankPayload
+  } catch (error) {
+    console.warn('[StudentLabView] Failed to parse stored fill-in-blank payload:', { key, error })
+    return null
+  }
+}
+
+const getStoredFillInPayload = (partId: string): StoredFillInBlankPayload | null => {
+  if (typeof window === 'undefined') return null
+
+  const currentLabId = labId.value
+  if (!currentLabId) return null
+
+  const identifiers: string[] = []
+  if (resolvedUserId.value) {
+    identifiers.push(resolvedUserId.value)
+  }
+  identifiers.push('anonymous')
+
+  for (const identifier of identifiers) {
+    const key = buildFillInStorageKey(identifier, currentLabId, partId)
+    const payload = parseStoredFillInPayload(key)
+    if (payload) {
+      return payload
+    }
+  }
+
+  return null
+}
+
+const collectLecturerRangeOverrides = (): LecturerRangeAnswerPayload[] => {
+  if (typeof window === 'undefined') return []
+
+  const overrides: LecturerRangeAnswerPayload[] = []
+
+  actualLabParts.value?.forEach(part => {
+    if (!part || part.partType !== 'fill_in_blank' || !part.questions?.length) {
+      return
+    }
+
+    const payload = getStoredFillInPayload(part.partId)
+    if (!payload || !payload.ipTableAnswers) {
+      return
+    }
+
+    part.questions.forEach(question => {
+      if (question.questionType !== 'ip_table_questionnaire' || !question.ipTableQuestionnaire) {
+        return
+      }
+
+      const storedAnswers = payload.ipTableAnswers?.[question.questionId]
+      if (!storedAnswers) {
+        return
+      }
+
+      question.ipTableQuestionnaire.cells.forEach((row, rowIndex) => {
+        row.forEach((cell, colIndex) => {
+          if (!cell || (cell.cellType ?? 'input') !== 'input') {
+            return
+          }
+
+          if (cell.answerType !== 'calculated' || !cell.calculatedAnswer) {
+            return
+          }
+
+          if (cell.calculatedAnswer.calculationType !== 'vlan_lecturer_range') {
+            return
+          }
+
+          const value = storedAnswers[rowIndex]?.[colIndex]?.trim()
+          if (!value) {
+            return
+          }
+
+          overrides.push({
+            sourcePartId: part.partId,
+            questionId: question.questionId,
+            rowIndex,
+            colIndex,
+            answer: value,
+            deviceId: cell.calculatedAnswer.deviceId,
+            interfaceName: cell.calculatedAnswer.interfaceName,
+            vlanIndex: cell.calculatedAnswer.vlanIndex
+          })
+        })
+      })
+    })
+  })
+
+  return overrides
+}
+
+const clearFillInBlankStorageForLab = () => {
+  if (typeof window === 'undefined') return
+
+  const currentLabId = labId.value
+  if (!currentLabId) return
+
+  const keysToRemove: string[] = []
+  for (let index = 0; index < window.localStorage.length; index += 1) {
+    const key = window.localStorage.key(index)
+    if (key &&
+        key.startsWith(SESSION_STORAGE_PREFIX) &&
+        key.includes(`:${currentLabId}:`)) {
+      keysToRemove.push(key)
+    }
+  }
+
+  keysToRemove.forEach(key => {
+    try {
+      window.localStorage.removeItem(key)
+    } catch {
+      /* no-op */
+    }
+  })
+}
+
 // IP Loading and Completion State
 const isLoadingIPs = ref(true)
 const ipLoadingStatus = ref('Gathering your IP addresses...')
@@ -157,6 +289,7 @@ const completionStatus = ref({
   totalParts: 0,
   allPartsPassedWithFullPoints: false
 })
+const hasClearedLabStorage = ref(false)
 
 const currentLabParts = computed<LabPart[]>(() => {
   const lab = currentLab.value
@@ -574,10 +707,15 @@ const submitPartForGrading = async () => {
   if (!currentPart.value) return
 
   try {
+    const lecturerRangeOverrides = collectLecturerRangeOverrides()
+
     const result = await createSubmission(
       labId.value,
       currentPart.value.partId,
-      { labSessionId: activeLabSessionId.value ?? undefined }
+      {
+        labSessionId: activeLabSessionId.value ?? undefined,
+        lecturerRangeAnswers: lecturerRangeOverrides.length > 0 ? lecturerRangeOverrides : undefined
+      }
     )
 
     if (result.success) {
@@ -682,6 +820,7 @@ watch(instructionsAckChecked, () => {
 
 // Get user state
 const userState = useUserState()
+const resolvedUserId = computed(() => userState.value?.u_id ?? null)
 
 watch(() => userState.value?.u_id, (newValue, oldValue) => {
   if (!newValue && oldValue) {
@@ -838,6 +977,11 @@ const checkLabCompletion = async () => {
 
       // Show completion modal if lab is fully completed
       if (completionStatus.value.isFullyCompleted && instructionsAcknowledged.value) {
+        if (!hasClearedLabStorage.value) {
+          clearFillInBlankStorageForLab()
+          hasClearedLabStorage.value = true
+        }
+
         // Show LabResultsModal directly in collapsed state
         showResultsModal.value = true
         timerExpiredModalMode.value = 'results'
@@ -948,6 +1092,7 @@ const handleRestartLabFromResults = async () => {
     totalParts: 0,
     allPartsPassedWithFullPoints: false
   }
+  hasClearedLabStorage.value = false
   lastAutoNavigatedIndex.value = null
   // Clear any locally cached answers for a fresh attempt
   clearSessionStoredAnswers()

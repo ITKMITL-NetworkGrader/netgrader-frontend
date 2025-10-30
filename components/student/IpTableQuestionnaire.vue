@@ -74,7 +74,7 @@
                     v-model="cellValues[rowIndex][colIndex]"
                     type="text"
                     :placeholder="getCellPlaceholder(rowIndex, colIndex)"
-                    :disabled="props.readonly"
+                    :disabled="isCellInputDisabled(rowIndex, colIndex)"
                     class="w-full px-3 py-2 text-sm border rounded-md transition-colors"
                     :class="getCellInputClass(rowIndex, colIndex)"
                     @blur="validateCell(rowIndex, colIndex)"
@@ -407,7 +407,7 @@ const getCellInputClass = (rowIndex: number, colIndex: number): string => {
 
   const baseClasses = 'focus:outline-none focus:ring-2'
 
-  if (props.readonly) {
+  if (isCellInputDisabled(rowIndex, colIndex)) {
     return `${baseClasses} bg-gray-100 dark:bg-gray-800 cursor-not-allowed border-gray-300 dark:border-gray-600`
   }
 
@@ -420,6 +420,35 @@ const getCellInputClass = (rowIndex: number, colIndex: number): string => {
   }
 
   return `${baseClasses} border-gray-300 dark:border-gray-600 focus:ring-blue-500 dark:focus:ring-blue-400 bg-white dark:bg-gray-900`
+}
+
+const isLecturerRangeEditableCell = (rowIndex: number, colIndex: number): boolean => {
+  const cell = props.tableData.cells[rowIndex]?.[colIndex]
+
+  if (!cell || (cell.cellType ?? 'input') !== 'input') {
+    return false
+  }
+
+  if (cell.answerType !== 'calculated' || !cell.calculatedAnswer) {
+    return false
+  }
+
+  return cell.calculatedAnswer.calculationType === 'vlan_lecturer_range'
+}
+
+const isCellInputDisabled = (rowIndex: number, colIndex: number): boolean => {
+  const cell = props.tableData.cells[rowIndex]?.[colIndex]
+
+  if (!cell || (cell.cellType ?? 'input') !== 'input') {
+    return true
+  }
+
+  if (!props.readonly) {
+    return false
+  }
+
+  // Allow lecturer-defined range cells to remain editable even in readonly mode
+  return !isLecturerRangeEditableCell(rowIndex, colIndex)
 }
 
 // Expose validation method for parent component

@@ -92,6 +92,17 @@ export interface IFillInBlankResults {
   questions: IFillInBlankQuestionResult[];
 }
 
+export interface LecturerRangeAnswerPayload {
+  sourcePartId: string;
+  questionId: string;
+  rowIndex: number;
+  colIndex: number;
+  answer: string;
+  deviceId?: string;
+  interfaceName?: string;
+  vlanIndex?: number;
+}
+
 export interface ISubmission {
   jobId: string;
   studentId: string;
@@ -131,6 +142,16 @@ export interface CreateSubmissionRequest {
   lab_id: string;
   part_id: string;
   lab_session_id?: string;
+  lecturer_range_answers?: Array<{
+    source_part_id: string;
+    question_id: string;
+    row_index: number;
+    col_index: number;
+    answer: string;
+    device_id?: string;
+    interface_name?: string;
+    vlan_index?: number;
+  }>;
 }
 
 export interface CreateSubmissionResponse {

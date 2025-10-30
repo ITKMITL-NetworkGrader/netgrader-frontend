@@ -231,6 +231,7 @@ const emit = defineEmits<{
 const answers = ref<Record<string, string>>({})
 const previousAnswers = ref<Record<string, string>>({})
 const ipTableAnswers = ref<Record<string, string[][]>>({})
+const lastPersistedIpTableAnswers = ref<Record<string, string[][]>>({})
 const ipTableRefs = ref<Record<string, any>>({})
 const results = ref<Record<string, AnswerResult>>({})
 const isSubmitting = ref(false)
@@ -311,8 +312,10 @@ const restoreAnswersFromStorage = (payload: FillInBlankStoragePayload | null = s
     })
 
     ipTableAnswers.value = nextIpTableAnswers
+    lastPersistedIpTableAnswers.value = JSON.parse(JSON.stringify(nextIpTableAnswers))
   } else {
     ipTableAnswers.value = {}
+    lastPersistedIpTableAnswers.value = {}
   }
 
   requestAnimationFrame(() => {
@@ -339,6 +342,7 @@ watch(storedPayload, payload => {
     isRestoringFromStorage.value = true
     answers.value = {}
     ipTableAnswers.value = {}
+    lastPersistedIpTableAnswers.value = {}
     requestAnimationFrame(() => {
       initializeIpTableAnswers()
       isRestoringFromStorage.value = false
@@ -346,23 +350,133 @@ watch(storedPayload, payload => {
   }
 }, { immediate: true })
 
+const IPV4_PATTERN = /^(\d{1,3}\.){3}\d{1,3}$/
+
+const isValidIpv4Address = (ip: string): boolean => {
+  if (!IPV4_PATTERN.test(ip)) {
+    return false
+  }
+
+  const segments = ip.split('.')
+  if (segments.length !== 4) {
+    return false
+  }
+
+  return segments.every(segment => {
+    if (!/^\d+$/.test(segment)) {
+      return false
+    }
+    const value = Number(segment)
+    return value >= 0 && value <= 255
+  })
+}
+
+const isWithinLecturerRange = (ip: string, start: number, end: number): boolean => {
+  const segments = ip.split('.')
+  if (segments.length !== 4) {
+    return false
+  }
+
+  const lastOctet = Number(segments[3])
+  if (Number.isNaN(lastOctet)) {
+    return false
+  }
+
+  return lastOctet >= start && lastOctet <= end
+}
+
+const sanitizeLecturerRangeAnswersForStorage = () => {
+  const sanitized = JSON.parse(JSON.stringify(ipTableAnswers.value || {})) as Record<string, string[][]>
+  const invalidCells: Array<{ questionId: string; rowIndex: number; colIndex: number }> = []
+
+  props.questions.forEach(question => {
+    if (question.questionType !== 'ip_table_questionnaire' || !question.ipTableQuestionnaire) {
+      return
+    }
+
+    const table = question.ipTableQuestionnaire
+    const answers = sanitized[question.questionId]
+
+    if (!answers) {
+      return
+    }
+
+    table.cells.forEach((row, rowIndex) => {
+      row.forEach((cell, colIndex) => {
+        if (!cell || (cell.cellType ?? 'input') !== 'input') {
+          return
+        }
+
+        if (cell.answerType !== 'calculated' || !cell.calculatedAnswer) {
+          return
+        }
+
+        if (cell.calculatedAnswer.calculationType !== 'vlan_lecturer_range') {
+          return
+        }
+
+        const currentValue = answers[rowIndex]?.[colIndex]?.trim() || ''
+        if (!currentValue) {
+          return
+        }
+
+        const { lecturerRangeStart, lecturerRangeEnd } = cell.calculatedAnswer
+        if (lecturerRangeStart === undefined || lecturerRangeEnd === undefined) {
+          return
+        }
+
+        const hasValidFormat = isValidIpv4Address(currentValue)
+        const withinRange = hasValidFormat && isWithinLecturerRange(currentValue, lecturerRangeStart, lecturerRangeEnd)
+
+        if (!hasValidFormat || !withinRange) {
+          const previousValue = lastPersistedIpTableAnswers.value
+            ?. [question.questionId]
+            ?. [rowIndex]
+            ?. [colIndex] ?? ''
+
+          if (!answers[rowIndex]) {
+            answers[rowIndex] = []
+          }
+
+          answers[rowIndex][colIndex] = previousValue
+          invalidCells.push({
+            questionId: question.questionId,
+            rowIndex,
+            colIndex
+          })
+        }
+      })
+    })
+  })
+
+  return {
+    sanitized,
+    invalidCells
+  }
+}
+
 const persistAnswersToStorage = () => {
   if (typeof window === 'undefined') return
   if (isRestoringFromStorage.value) return
 
-  if (hasSubmitted.value && isPassed.value) {
-    clearStoredAnswers()
-    return
+  const { sanitized, invalidCells } = sanitizeLecturerRangeAnswersForStorage()
+
+  if (invalidCells.length > 0) {
+    console.warn(
+      '[FillInBlankQuestions] Lecturer-defined IP out of range - skipping localStorage update for affected cells',
+      invalidCells
+    )
   }
 
   const payload = {
     answers: JSON.parse(JSON.stringify(answers.value)),
-    ipTableAnswers: JSON.parse(JSON.stringify(ipTableAnswers.value)),
+    ipTableAnswers: sanitized,
     timestamp: Date.now()
   }
 
   try {
     storedPayload.value = payload
+    lastPersistedIpTableAnswers.value = JSON.parse(JSON.stringify(sanitized))
   } catch (error) {
     console.warn('Failed to persist answers to local storage:', error)
   }
@@ -380,6 +494,7 @@ const clearStoredAnswers = () => {
   if (typeof window === 'undefined') return
 
   storedPayload.value = null
+  lastPersistedIpTableAnswers.value = {}
   if (typeof storedPayload.remove === 'function') {
     storedPayload.remove()
   }
@@ -740,7 +855,6 @@ const submitAnswers = async (): Promise<FillInBlankSubmissionResult | null> => {
         toast.success(successToastTitle.value, {
           description: `You earned ${response.data.totalPointsEarned} out of ${response.data.totalPoints} points`
         })
-        clearStoredAnswers()
       } else {
         toast.error('Submission Failed', {
           description: response.data.message || 'Some answers were incorrect or validation failed'

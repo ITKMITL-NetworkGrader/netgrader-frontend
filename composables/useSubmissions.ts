@@ -1,11 +1,12 @@
 import { ref, computed, onUnmounted } from 'vue'
-import type { 
-  ISubmission, 
-  CreateSubmissionRequest, 
-  CreateSubmissionResponse, 
+import type {
+  ISubmission,
+  CreateSubmissionRequest,
+  CreateSubmissionResponse,
   GetSubmissionResponse,
   SubmissionState,
-  GradingStatusDisplay
+  GradingStatusDisplay,
+  LecturerRangeAnswerPayload
 } from '@/types/submission'
 
 // Global state for submissions (per session)
@@ -49,6 +50,7 @@ export const useSubmissions = () => {
     partId: string,
     options?: {
       labSessionId?: string | null;
+      lecturerRangeAnswers?: LecturerRangeAnswerPayload[];
     }
   ): Promise<{ success: boolean; jobId?: string; error?: string }> => {
     try {
@@ -68,6 +70,19 @@ export const useSubmissions = () => {
 
       if (options?.labSessionId) {
         requestData.lab_session_id = options.labSessionId
+      }
+
+      if (options?.lecturerRangeAnswers && options.lecturerRangeAnswers.length > 0) {
+        requestData.lecturer_range_answers = options.lecturerRangeAnswers.map(answer => ({
+          source_part_id: answer.sourcePartId,
+          question_id: answer.questionId,
+          row_index: answer.rowIndex,
+          col_index: answer.colIndex,
+          answer: answer.answer,
+          device_id: answer.deviceId,
+          interface_name: answer.interfaceName,
+          vlan_index: answer.vlanIndex
+        }))
       }
 
       console.log('🔄 [DEBUG] Creating submission:', requestData)
