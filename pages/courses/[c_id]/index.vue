@@ -88,7 +88,7 @@ const canManageCourse = canManageCurrentCourse
 const isCourseInstructor = computed(() => currentCourseEnrollment.value?.role === 'INSTRUCTOR')
 const isCourseTA = computed(() => currentCourseEnrollment.value?.role === 'TA')
 
-const DEFAULT_BANNER_PLACEHOLDER = 'https://i.pinimg.com/736x/18/e3/ad/18e3ad7a432d41a6e2a57d1523e81c73.jpg'
+const DEFAULT_BANNER_PLACEHOLDER = '/placeholder.avif'
 const ACCEPTED_BANNER_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 const MAX_BANNER_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
 
