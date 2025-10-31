@@ -121,7 +121,7 @@ const completedTasks = ref<Record<string, Set<string>>>(new Map()) // partId -> 
 const isSubmittingPart = ref(false)
 const progress = ref<Record<string, number>>({}) // partId -> percentage
 const fillInBlankQuestionsRef = ref<InstanceType<typeof FillInBlankQuestions> | null>(null)
-const fillInBlankSubmission = ref<FillInBlankSubmissionPayload | null>(null)
+const fillInBlankSubmissions = ref<Record<string, FillInBlankSubmissionPayload | null>>({})
 
 // Part 0 Instructions acknowledgement state
 const instructionsAcknowledged = ref(false)
@@ -362,6 +362,36 @@ const actualLabParts = computed(() => currentLabParts.value.filter(part => !part
 const currentPart = computed(() => {
   const parts = currentLabParts.value || []
   return parts[currentPartIndex.value] || null
+})
+
+const currentPartKey = computed(() => currentPart.value?.partId || currentPart.value?.id || null)
+
+const currentFillInBlankSubmission = computed(() => {
+  const key = currentPartKey.value
+  if (!key) return null
+  return fillInBlankSubmissions.value[key] ?? null
+})
+
+const currentPartHasLecturerRangeCells = computed(() => {
+  const part = currentPart.value
+  if (!part?.questions?.length) {
+    return false
+  }
+
+  return part.questions.some(question => {
+    if (question.questionType !== 'ip_table_questionnaire' || !question.ipTableQuestionnaire?.cells) {
+      return false
+    }
+
+    return question.ipTableQuestionnaire.cells.some(row =>
+      row?.some(cell =>
+        cell &&
+        (cell.cellType ?? 'input') === 'input' &&
+        cell.answerType === 'calculated' &&
+        cell.calculatedAnswer?.calculationType === 'vlan_lecturer_range'
+      )
+    )
+  })
 })
 
 const isFillInBlankPart = computed(() => currentPart.value?.partType === 'fill_in_blank')
@@ -730,7 +760,14 @@ const submitPartForGrading = async () => {
 }
 
 const handleFillInBlankSubmissionResult = (result: FillInBlankSubmissionPayload) => {
-  fillInBlankSubmission.value = result
+  const partKey = currentPartKey.value
+
+  if (partKey) {
+    fillInBlankSubmissions.value = {
+      ...fillInBlankSubmissions.value,
+      [partKey]: result
+    }
+  }
 
   if (!currentPart.value) return
 
@@ -756,10 +793,21 @@ const handleFillInBlankSubmit = async () => {
   if (!fillInBlankQuestionsRef.value) return
 
   const result = await fillInBlankQuestionsRef.value.submitAnswers()
-  if (result && !fillInBlankSubmission.value) {
+  if (result) {
     handleFillInBlankSubmissionResult(result)
   }
 }
+
+const fillInBlankActionButtonLabel = computed(() => {
+  if (currentFillInBlankSubmission.value?.passed && currentPartHasLecturerRangeCells.value) {
+    return 'Update IP Schema'
+  }
+  return 'Submit for Grading'
+})
+
+const fillInBlankActionButtonDisabled = computed(() => {
+  return fillInBlankQuestionsRef.value?.isSubmitting?.value ?? false
+})
 
 // Get current grading status for display
 const currentGradingStatus = computed(() => {
@@ -800,7 +848,7 @@ watch(() => currentGradingStatus.value, async (newStatus) => {
 })
 
 watch(() => currentPart.value?.id, () => {
-  fillInBlankSubmission.value = null
+  fillInBlankQuestionsRef.value = null
 })
 
 watch(instructionsAcknowledged, (acknowledged) => {
@@ -839,6 +887,62 @@ const buildLatestSubmissionsMap = (submissions: ISubmission[]) => {
   })
 
   return latest
+}
+
+const toFillInBlankSubmissionPayload = (submission: ISubmission): FillInBlankSubmissionPayload | null => {
+  if (!submission.fillInBlankResults) {
+    return null
+  }
+
+  const { questions, totalPoints, totalPointsEarned, passed } = submission.fillInBlankResults
+
+  const results = questions.map(question => ({
+    questionId: question.questionId,
+    isCorrect: question.isCorrect,
+    pointsEarned: question.pointsEarned
+  }))
+
+  const submittedAt = submission.submittedAt
+  const submittedAtString = submittedAt instanceof Date
+    ? submittedAt.toISOString()
+    : typeof submittedAt === 'string'
+      ? submittedAt
+      : undefined
+
+  return {
+    results,
+    totalPointsEarned,
+    totalPoints,
+    passed,
+    submission: {
+      id: submission.jobId,
+      attempt: submission.attempt,
+      status: submission.status,
+      submittedAt: submittedAtString
+    }
+  }
+}
+
+const syncFillInBlankSubmissionsFromHistory = (submissions: ISubmission[]) => {
+  if (!Array.isArray(submissions) || !submissions.length) {
+    return
+  }
+
+  const latestByPart = buildLatestSubmissionsMap(submissions)
+  const next: Record<string, FillInBlankSubmissionPayload | null> = { ...fillInBlankSubmissions.value }
+
+  Object.entries(latestByPart).forEach(([partId, submission]) => {
+    if (submission.submissionType !== 'fill_in_blank') {
+      return
+    }
+
+    const payload = toFillInBlankSubmissionPayload(submission)
+    if (payload) {
+      next[partId] = payload
+    }
+  })
+
+  fillInBlankSubmissions.value = next
 }
 
 const determineResumePartIndex = (submissions: ISubmission[]): number | null => {
@@ -945,6 +1049,7 @@ const checkLabCompletion = async () => {
 
     if (result.success && result.submissions) {
       studentSubmissions.value = result.submissions
+      syncFillInBlankSubmissionsFromHistory(result.submissions)
 
       // Check completion status
       const labParts = actualLabParts.value?.map(part => ({
@@ -1640,12 +1745,14 @@ watch(() => route.query.part, (newPart) => {
               <!-- Fill-in-Blank Questions -->
               <div v-if="hasFillInBlankQuestions && currentPart">
                 <FillInBlankQuestions
+                  :key="currentPart.partId || currentPart.id"
                   ref="fillInBlankQuestionsRef"
                   :questions="currentPart.questions"
                   :labId="labId"
                   :partId="currentPart.partId"
                   :lab-session-id="activeLabSessionId"
                   :show-submit-button="!isFillInBlankPart"
+                  :initial-submission-result="currentFillInBlankSubmission"
                   @submitted="handleFillInBlankSubmissionResult"
                 />
               </div>
@@ -1673,10 +1780,10 @@ watch(() => route.query.part, (newPart) => {
               </template>
               <template v-else-if="isFillInBlankPart">
                 <h3 class="font-semibold text-lg mb-1">
-                  <span v-if="fillInBlankSubmission?.passed">
+                  <span v-if="currentFillInBlankSubmission?.passed">
                     Part {{ currentPartDisplayNumber }} Completed!
                   </span>
-                  <span v-else-if="fillInBlankSubmission">
+                  <span v-else-if="currentFillInBlankSubmission">
                     Keep Going — Review Your Results
                   </span>
                   <span v-else>
@@ -1684,17 +1791,17 @@ watch(() => route.query.part, (newPart) => {
                   </span>
                 </h3>
                 <p class="text-sm text-muted-foreground">
-                  <span v-if="fillInBlankSubmission">
-                    You earned {{ fillInBlankSubmission.totalPointsEarned }}/{{ fillInBlankSubmission.totalPoints }} points.
-                    <span v-if="fillInBlankSubmission.passed" class="font-medium text-primary ml-1">Great work!</span>
+                  <span v-if="currentFillInBlankSubmission">
+                    You earned {{ currentFillInBlankSubmission.totalPointsEarned }}/{{ currentFillInBlankSubmission.totalPoints }} points.
+                    <span v-if="currentFillInBlankSubmission.passed" class="font-medium text-primary ml-1">Great work!</span>
                   </span>
                   <span v-else>
                     Submit your answers to auto-grade this part.
                     <span class="font-medium text-primary ml-1">{{ currentPart.totalPoints }} points available</span>
                   </span>
                 </p>
-                <p v-if="fillInBlankSubmission?.submission?.attempt" class="text-xs text-muted-foreground">
-                  Attempt #{{ fillInBlankSubmission?.submission?.attempt }}
+                <p v-if="currentFillInBlankSubmission?.submission?.attempt" class="text-xs text-muted-foreground">
+                  Attempt #{{ currentFillInBlankSubmission?.submission?.attempt }}
                 </p>
               </template>
               <template v-else>
@@ -1736,12 +1843,12 @@ watch(() => route.query.part, (newPart) => {
                 <Button
                   size="lg"
                   class="min-w-[180px]"
-                  :disabled="(fillInBlankQuestionsRef?.isSubmitting?.value ?? false) || (fillInBlankSubmission?.passed === true && !isUpdateModeRoute)"
+                  :disabled="fillInBlankActionButtonDisabled"
                   @click="handleFillInBlankSubmit"
                 >
                   <Loader2 v-if="fillInBlankQuestionsRef?.isSubmitting?.value" class="w-4 h-4 mr-2 animate-spin" />
                   <Send v-else class="w-4 h-4 mr-2" />
-                  Submit for Grading
+                  {{ fillInBlankActionButtonLabel }}
                 </Button>
               </template>
               <template v-else>

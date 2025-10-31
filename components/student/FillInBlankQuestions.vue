@@ -44,7 +44,7 @@
               :ref="el => setIpTableRef(question.questionId, el)"
               :tableData="question.ipTableQuestionnaire"
               v-model="ipTableAnswers[question.questionId]"
-              :readonly="hasSubmitted && !isUpdateMode"
+              :readonly="hasSubmitted && isPassed && !isUpdateMode"
             />
           </div>
 
@@ -216,10 +216,12 @@ interface Props {
   labSessionId?: string | null
   dhcpPoolValidation?: DhcpPoolValidation
   showSubmitButton?: boolean
+  initialSubmissionResult?: FillInBlankSubmissionResult | null
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  showSubmitButton: true
+  showSubmitButton: true,
+  initialSubmissionResult: null
 })
 const route = useRoute()
 const userState = useUserState()
@@ -235,7 +237,7 @@ const lastPersistedIpTableAnswers = ref<Record<string, string[][]>>({})
 const ipTableRefs = ref<Record<string, any>>({})
 const results = ref<Record<string, AnswerResult>>({})
 const isSubmitting = ref(false)
-const hasSubmitted = ref(false)
+const hasSubmitted = ref(Boolean(props.initialSubmissionResult))
 const isRestoringFromStorage = ref(false)
 
 const resolvedUserId = computed(() => userState.value?.u_id || null)
@@ -350,123 +352,15 @@ watch(storedPayload, payload => {
   }
 }, { immediate: true })
 
-const IPV4_PATTERN = /^(\d{1,3}\.){3}\d{1,3}$/
-
-const isValidIpv4Address = (ip: string): boolean => {
-  if (!IPV4_PATTERN.test(ip)) {
-    return false
-  }
-
-  const segments = ip.split('.')
-  if (segments.length !== 4) {
-    return false
-  }
-
-  return segments.every(segment => {
-    if (!/^\d+$/.test(segment)) {
-      return false
-    }
-    const value = Number(segment)
-    return value >= 0 && value <= 255
-  })
-}
-
-const isWithinLecturerRange = (ip: string, start: number, end: number): boolean => {
-  const segments = ip.split('.')
-  if (segments.length !== 4) {
-    return false
-  }
-
-  const lastOctet = Number(segments[3])
-  if (Number.isNaN(lastOctet)) {
-    return false
-  }
-
-  return lastOctet >= start && lastOctet <= end
-}
-
 const sanitizeLecturerRangeAnswersForStorage = () => {
-  const sanitized = JSON.parse(JSON.stringify(ipTableAnswers.value || {})) as Record<string, string[][]>
-  const invalidCells: Array<{ questionId: string; rowIndex: number; colIndex: number }> = []
-
-  props.questions.forEach(question => {
-    if (question.questionType !== 'ip_table_questionnaire' || !question.ipTableQuestionnaire) {
-      return
-    }
-
-    const table = question.ipTableQuestionnaire
-    const answers = sanitized[question.questionId]
-
-    if (!answers) {
-      return
-    }
-
-    table.cells.forEach((row, rowIndex) => {
-      row.forEach((cell, colIndex) => {
-        if (!cell || (cell.cellType ?? 'input') !== 'input') {
-          return
-        }
-
-        if (cell.answerType !== 'calculated' || !cell.calculatedAnswer) {
-          return
-        }
-
-        if (cell.calculatedAnswer.calculationType !== 'vlan_lecturer_range') {
-          return
-        }
-
-        const currentValue = answers[rowIndex]?.[colIndex]?.trim() || ''
-        if (!currentValue) {
-          return
-        }
-
-        const { lecturerRangeStart, lecturerRangeEnd } = cell.calculatedAnswer
-        if (lecturerRangeStart === undefined || lecturerRangeEnd === undefined) {
-          return
-        }
-
-        const hasValidFormat = isValidIpv4Address(currentValue)
-        const withinRange = hasValidFormat && isWithinLecturerRange(currentValue, lecturerRangeStart, lecturerRangeEnd)
-
-        if (!hasValidFormat || !withinRange) {
-          const previousValue = lastPersistedIpTableAnswers.value
-            ?. [question.questionId]
-            ?. [rowIndex]
-            ?. [colIndex] ?? ''
-
-          if (!answers[rowIndex]) {
-            answers[rowIndex] = []
-          }
-
-          answers[rowIndex][colIndex] = previousValue
-          invalidCells.push({
-            questionId: question.questionId,
-            rowIndex,
-            colIndex
-          })
-        }
-      })
-    })
-  })
-
-  return {
-    sanitized,
-    invalidCells
-  }
+  return JSON.parse(JSON.stringify(ipTableAnswers.value || {})) as Record<string, string[][]>
 }
 
 const persistAnswersToStorage = () => {
   if (typeof window === 'undefined') return
   if (isRestoringFromStorage.value) return
 
-  const { sanitized, invalidCells } = sanitizeLecturerRangeAnswersForStorage()
-
-  if (invalidCells.length > 0) {
-    console.warn(
-      '[FillInBlankQuestions] Lecturer-defined IP out of range - skipping localStorage update for affected cells',
-      invalidCells
-    )
-  }
+  const sanitized = sanitizeLecturerRangeAnswersForStorage()
 
   const payload = {
     answers: JSON.parse(JSON.stringify(answers.value)),
@@ -508,6 +402,31 @@ const clearStoredAnswers = () => {
     }
   })
 }
+
+const applySubmissionResult = (result: FillInBlankSubmissionResult | null) => {
+  if (!result) return
+
+  hasSubmitted.value = true
+  results.value = {}
+
+  result.results.forEach(res => {
+    results.value[res.questionId] = res
+  })
+
+  if (result.passed) {
+    persistAnswersToStorage()
+  }
+}
+
+if (props.initialSubmissionResult) {
+  applySubmissionResult(props.initialSubmissionResult)
+}
+
+watch(() => props.initialSubmissionResult, (newResult) => {
+  if (newResult) {
+    applySubmissionResult(newResult)
+  }
+})
 
 const ensureSessionMarker = () => {
   if (typeof window === 'undefined') return
@@ -611,6 +530,12 @@ const successFooterMessage = computed(() => {
   }
 
   return `✅ Your answers have been ${isUpdateMode.value ? 'updated' : 'submitted'} successfully!`
+})
+
+watch(isPassed, (passed) => {
+  if (passed) {
+    persistAnswersToStorage()
+  }
 })
 
 // Check if answer has changed from previous
@@ -824,14 +749,7 @@ const submitAnswers = async (): Promise<FillInBlankSubmissionResult | null> => {
     )
 
     if (response.success) {
-      hasSubmitted.value = true
-
-      // Process results
-      if (response.data.results) {
-        response.data.results.forEach((result: AnswerResult) => {
-          results.value[result.questionId] = result
-        })
-      }
+      applySubmissionResult(response.data)
 
       const submissionInfo = response.submission
         ? {
