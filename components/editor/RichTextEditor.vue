@@ -10,7 +10,9 @@
       <!-- Text Formatting -->
       <div class="toolbar-group">
         <button
-          @click="editor.commands.toggleBold()"
+          type="button"
+          @mousedown.prevent
+          @click="editor.chain().focus().toggleBold().run()"
           :class="{ 'is-active': editor.isActive('bold') }"
           class="toolbar-btn"
           :aria-pressed="editor.isActive('bold')"
@@ -20,7 +22,9 @@
         </button>
 
         <button
-          @click="editor.commands.toggleItalic()"
+          type="button"
+          @mousedown.prevent
+          @click="editor.chain().focus().toggleItalic().run()"
           :class="{ 'is-active': editor.isActive('italic') }"
           class="toolbar-btn"
           :aria-pressed="editor.isActive('italic')"
@@ -30,7 +34,9 @@
         </button>
 
         <button
-          @click="editor.commands.toggleStrike()"
+          type="button"
+          @mousedown.prevent
+          @click="editor.chain().focus().toggleStrike().run()"
           :class="{ 'is-active': editor.isActive('strike') }"
           class="toolbar-btn"
           :aria-pressed="editor.isActive('strike')"
@@ -40,7 +46,9 @@
         </button>
 
         <button
-          @click="editor.commands.toggleCode()"
+          type="button"
+          @mousedown.prevent
+          @click="editor.chain().focus().toggleCode().run()"
           :class="{ 'is-active': editor.isActive('code') }"
           class="toolbar-btn"
           :aria-pressed="editor.isActive('code')"
@@ -55,7 +63,9 @@
       <!-- Headings -->
       <div class="toolbar-group">
         <button
-          @click="editor.commands.toggleHeading({ level: 1 })"
+          type="button"
+          @mousedown.prevent
+          @click="editor.chain().focus().toggleHeading({ level: 1 }).run()"
           :class="{ 'is-active': editor.isActive('heading', { level: 1 }) }"
           class="toolbar-btn"
           title="Heading 1"
@@ -64,7 +74,9 @@
         </button>
 
         <button
-          @click="editor.commands.toggleHeading({ level: 2 })"
+          type="button"
+          @mousedown.prevent
+          @click="editor.chain().focus().toggleHeading({ level: 2 }).run()"
           :class="{ 'is-active': editor.isActive('heading', { level: 2 }) }"
           class="toolbar-btn"
           title="Heading 2"
@@ -73,7 +85,9 @@
         </button>
 
         <button
-          @click="editor.commands.toggleHeading({ level: 3 })"
+          type="button"
+          @mousedown.prevent
+          @click="editor.chain().focus().toggleHeading({ level: 3 }).run()"
           :class="{ 'is-active': editor.isActive('heading', { level: 3 }) }"
           class="toolbar-btn"
           title="Heading 3"
@@ -87,7 +101,9 @@
       <!-- Lists -->
       <div class="toolbar-group">
         <button
-          @click="editor.commands.toggleBulletList()"
+          type="button"
+          @mousedown.prevent
+          @click="editor.chain().focus().toggleBulletList().run()"
           :class="{ 'is-active': editor.isActive('bulletList') }"
           class="toolbar-btn"
           title="Bullet List"
@@ -96,7 +112,9 @@
         </button>
 
         <button
-          @click="editor.commands.toggleOrderedList()"
+          type="button"
+          @mousedown.prevent
+          @click="editor.chain().focus().toggleOrderedList().run()"
           :class="{ 'is-active': editor.isActive('orderedList') }"
           class="toolbar-btn"
           title="Numbered List"
@@ -105,7 +123,9 @@
         </button>
 
         <button
-          @click="editor.commands.toggleBlockquote()"
+          type="button"
+          @mousedown.prevent
+          @click="editor.chain().focus().toggleBlockquote().run()"
           :class="{ 'is-active': editor.isActive('blockquote') }"
           class="toolbar-btn"
           title="Quote"
@@ -119,7 +139,9 @@
       <!-- Alignment -->
       <div class="toolbar-group">
         <button
-          @click="editor.commands.setTextAlign('left')"
+          type="button"
+          @mousedown.prevent
+          @click="editor.chain().focus().setTextAlign('left').run()"
           :class="{ 'is-active': editor.isActive({ textAlign: 'left' }) }"
           class="toolbar-btn"
           title="Align Left"
@@ -128,7 +150,9 @@
         </button>
 
         <button
-          @click="editor.commands.setTextAlign('center')"
+          type="button"
+          @mousedown.prevent
+          @click="editor.chain().focus().setTextAlign('center').run()"
           :class="{ 'is-active': editor.isActive({ textAlign: 'center' }) }"
           class="toolbar-btn"
           title="Align Center"
@@ -137,7 +161,9 @@
         </button>
 
         <button
-          @click="editor.commands.setTextAlign('right')"
+          type="button"
+          @mousedown.prevent
+          @click="editor.chain().focus().setTextAlign('right').run()"
           :class="{ 'is-active': editor.isActive({ textAlign: 'right' }) }"
           class="toolbar-btn"
           title="Align Right"
@@ -151,6 +177,8 @@
       <!-- Image and Link -->
       <div class="toolbar-group">
         <button
+          type="button"
+          @mousedown.prevent
           @click="showImageDialog = true"
           class="toolbar-btn"
           title="Insert Image"
@@ -159,6 +187,8 @@
         </button>
 
         <button
+          type="button"
+          @mousedown.prevent
           @click="toggleLink"
           :class="{ 'is-active': editor.isActive('link') }"
           class="toolbar-btn"
@@ -168,7 +198,9 @@
         </button>
 
         <button
-          @click="editor.commands.setHorizontalRule()"
+          type="button"
+          @mousedown.prevent
+          @click="editor.chain().focus().setHorizontalRule().run()"
           class="toolbar-btn"
           title="Horizontal Rule"
         >
@@ -181,7 +213,9 @@
       <!-- Code Block -->
       <div class="toolbar-group">
         <button
-          @click="editor.commands.toggleCodeBlock()"
+          type="button"
+          @mousedown.prevent
+          @click="editor.chain().focus().toggleCodeBlock().run()"
           :class="{ 'is-active': editor.isActive('codeBlock') }"
           class="toolbar-btn"
           title="Code Block"
@@ -195,7 +229,9 @@
       <!-- Undo/Redo -->
       <div class="toolbar-group">
         <button
-          @click="editor.commands.undo()"
+          type="button"
+          @mousedown.prevent
+          @click="editor.chain().focus().undo().run()"
           :disabled="!editor.can().undo()"
           class="toolbar-btn"
           title="Undo (Ctrl+Z)"
@@ -204,7 +240,9 @@
         </button>
 
         <button
-          @click="editor.commands.redo()"
+          type="button"
+          @mousedown.prevent
+          @click="editor.chain().focus().redo().run()"
           :disabled="!editor.can().redo()"
           class="toolbar-btn"
           title="Redo (Ctrl+Y)"
@@ -335,6 +373,7 @@ const {
 const showImageDialog = ref(false)
 const showLinkDialog = ref(false)
 const currentLinkUrl = ref('')
+const savedSelection = ref<{ from: number; to: number } | null>(null)
 const lastSaved = ref<Date | null>(null)
 const editorId = ref(`editor-${Math.random().toString(36).substr(2, 9)}`)
 
@@ -411,27 +450,60 @@ const characterCount = computed(() => {
 })
 
 // Methods
+const escapeHtml = (value: string): string => {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+const restoreSelection = () => {
+  if (!editor.value || !savedSelection.value) return
+  editor.value.commands.setTextSelection(savedSelection.value)
+}
+
 const toggleLink = () => {
-  if (editor.value?.isActive('link')) {
-    editor.value.commands.unsetLink()
-  } else {
-    const url = editor.value?.getAttributes('link').href
-    currentLinkUrl.value = url || ''
-    showLinkDialog.value = true
+  if (!editor.value) return
+
+  if (editor.value.isActive('link')) {
+    editor.value.chain().focus().unsetLink().run()
+    savedSelection.value = null
+    return
   }
+
+  const { from, to } = editor.value.state.selection
+  savedSelection.value = { from, to }
+  currentLinkUrl.value = editor.value.getAttributes('link').href || ''
+  showLinkDialog.value = true
 }
 
 const insertLink = (url: string, text?: string, openInNewTab?: boolean) => {
-  if (text) {
-    editor.value?.commands.insertContent(`<a href="${url}"${openInNewTab ? ' target="_blank" rel="noopener"' : ''}>${text}</a>`)
+  if (!editor.value) return
+
+  restoreSelection()
+
+  const target = openInNewTab ? '_blank' : undefined
+
+  if (text && text.trim().length > 0) {
+    const safeText = escapeHtml(text)
+    const safeUrl = escapeHtml(url)
+    editor.value.chain().focus().insertContent(`<a href="${safeUrl}"${target ? ' target="_blank" rel="noopener"' : ''}>${safeText}</a>`).run()
   } else {
-    editor.value?.commands.setLink({ href: url, target: openInNewTab ? '_blank' : undefined })
+    editor.value.chain().focus().setLink({ href: url, target }).run()
   }
+
+  savedSelection.value = null
   showLinkDialog.value = false
 }
 
 const removeLink = () => {
-  editor.value?.commands.unsetLink()
+  if (!editor.value) return
+
+  restoreSelection()
+  editor.value.chain().focus().unsetLink().run()
+  savedSelection.value = null
   showLinkDialog.value = false
 }
 
@@ -475,6 +547,12 @@ onMounted(() => {
       }
     }
   })
+})
+
+watch(showLinkDialog, (isOpen) => {
+  if (!isOpen) {
+    savedSelection.value = null
+  }
 })
 
 // Watch for external content changes
@@ -547,13 +625,14 @@ defineExpose({
 }
 
 .toolbar-btn.is-active {
-  background-color: hsl(var(--primary) / 0.1);
-  color: hsl(var(--primary));
+  background-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  box-shadow: 0 0 0 1px hsl(var(--primary));
 }
 
 .dark .toolbar-btn.is-active {
-  background-color: hsl(var(--primary) / 0.2);
-  color: hsl(var(--primary));
+  background-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
 }
 
 .toolbar-btn:disabled {
@@ -667,8 +746,20 @@ defineExpose({
 }
 
 :deep(.ProseMirror ul, .ProseMirror ol) {
-  padding-left: 1.5rem;
   margin: 1rem 0;
+}
+
+:deep(.ProseMirror ul) {
+  padding-left: 1.5rem;
+  list-style-position: outside;
+  list-style-type: disc;
+}
+
+:deep(.ProseMirror ol) {
+  padding-left: 1.75rem;
+  margin-left: 0;
+  list-style-position: outside;
+  list-style-type: decimal;
 }
 
 :deep(.ProseMirror li) {

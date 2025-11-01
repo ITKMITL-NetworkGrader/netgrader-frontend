@@ -1970,80 +1970,111 @@ watch(() => route.query.part, (newPart) => {
 }
 
 /* Fix for TipTap editor HTML content with nested headings */
-.lab-instructions p h1,
-.lab-instructions p h2,
-.lab-instructions p h3,
-.lab-instructions p h4,
-.lab-instructions p h5,
-.lab-instructions p h6 {
+:deep(.lab-instructions p h1),
+:deep(.lab-instructions p h2),
+:deep(.lab-instructions p h3),
+:deep(.lab-instructions p h4),
+:deep(.lab-instructions p h5),
+:deep(.lab-instructions p h6) {
   display: block;
   margin: 0;
   padding: 0;
 }
 
-.lab-instructions p h1 {
+:deep(.lab-instructions p h1) {
   font-size: 2rem !important;
   font-weight: 700 !important;
-  margin: 2rem 0 1rem 0 !important;
+  margin: 1.25rem 0 0.6rem 0 !important;
   color: hsl(var(--foreground)) !important;
   border-bottom: 2px solid hsl(var(--border)) !important;
   padding-bottom: 0.5rem !important;
   line-height: 1.2 !important;
 }
 
-.lab-instructions p h2 {
+:deep(.lab-instructions p h2) {
   font-size: 1.5rem !important;
   font-weight: 600 !important;
-  margin: 1.5rem 0 0.75rem 0 !important;
+  margin: 1rem 0 0.4rem 0 !important;
   color: hsl(var(--foreground)) !important;
   border-bottom: 1px solid hsl(var(--border)) !important;
   padding-bottom: 0.25rem !important;
   line-height: 1.3 !important;
 }
 
-.lab-instructions p h3 {
+:deep(.lab-instructions p h3) {
   font-size: 1.25rem !important;
   font-weight: 600 !important;
-  margin: 1.25rem 0 0.5rem 0 !important;
+  margin: 0.85rem 0 0.35rem 0 !important;
   color: hsl(var(--foreground)) !important;
   line-height: 1.4 !important;
 }
 
 /* Also style regular headings in case some are not nested */
-.lab-instructions h1 {
+:deep(.lab-instructions h1) {
   font-size: 2rem;
   font-weight: 700;
-  margin-top: 2rem;
-  margin-bottom: 1rem;
+  margin-top: 1.25rem;
+  margin-bottom: 0.6rem;
   color: hsl(var(--foreground));
   border-bottom: 2px solid hsl(var(--border));
   padding-bottom: 0.5rem;
 }
 
-.lab-instructions h2 {
+:deep(.lab-instructions h2) {
   font-size: 1.5rem;
   font-weight: 600;
-  margin-top: 1.5rem;
-  margin-bottom: 0.75rem;
+  margin-top: 1rem;
+  margin-bottom: 0.4rem;
   color: hsl(var(--foreground));
   border-bottom: 1px solid hsl(var(--border));
   padding-bottom: 0.25rem;
 }
 
-.lab-instructions h3 {
+:deep(.lab-instructions h3) {
   font-size: 1.25rem;
   font-weight: 600;
-  margin-top: 1.25rem;
-  margin-bottom: 0.5rem;
+  margin-top: 0.9rem;
+  margin-bottom: 0.35rem;
   color: hsl(var(--foreground));
 }
 
-.lab-instructions img {
+:deep(.lab-instructions img) {
   max-width: 100%;
   height: auto;
   border-radius: 0.5rem;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
   margin: 1rem 0;
+}
+
+:deep(.lab-instructions > *:first-child),
+:deep(.lab-instructions > p:first-child > *:first-child) {
+  margin-top: 0 !important;
+}
+
+:deep(.lab-instructions ul),
+:deep(.lab-instructions ol) {
+  margin: 0.75rem 0;
+}
+
+:deep(.lab-instructions ul) {
+  padding-left: 1.5rem;
+  list-style-position: outside;
+  list-style-type: disc;
+}
+
+:deep(.lab-instructions ol) {
+  padding-left: 1.75rem;
+  margin-left: 0;
+  list-style-position: outside;
+  list-style-type: decimal;
+}
+
+:deep(.lab-instructions li) {
+  margin: 0.25rem 0;
+}
+
+:deep(.lab-instructions li > p) {
+  margin: 0;
 }
 
 /* IP Loading Animation */
