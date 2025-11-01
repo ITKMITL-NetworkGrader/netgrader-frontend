@@ -302,6 +302,19 @@ import LabTimer from '@/components/student/LabTimer.vue'
 import { useSubmissions } from '@/composables/useSubmissions'
 import type { ISubmission } from '@/types/submission'
 
+const DOMPURIFY_TEXT_COLOR_CONFIG = {
+  ADD_ATTR: ['style'],
+  ALLOWED_CSS: ['color']
+} as const
+const EMPTY_PARAGRAPH_REGEX = /<p>(?:\s|&nbsp;|<br\s*\/?>)*<\/p>/gi
+
+const normalizeEmptyParagraphs = (html: string): string => {
+  return html.replace(
+    EMPTY_PARAGRAPH_REGEX,
+    '<p class="lab-empty-line"><span aria-hidden="true">&nbsp;</span></p>'
+  )
+}
+
 // IP Calculation State
 const isCalculatingIPs = ref(true)
 const calculationStatus = ref('Gathering your IP addresses...')
@@ -532,7 +545,8 @@ const renderedInstructions = computed(() => {
   instructions = instructions.replace(/\{network\.vlan2\}/g, personalizedNetworks.value.vlan2.toString())
 
   const html = convertContentToHtml(instructions)
-  return DOMPurify.sanitize(html)
+  const sanitized = DOMPurify.sanitize(html, DOMPURIFY_TEXT_COLOR_CONFIG)
+  return normalizeEmptyParagraphs(sanitized)
 })
 
 const renderPartInstructions = (part: LabPart): string => {
@@ -550,7 +564,8 @@ const renderPartInstructions = (part: LabPart): string => {
 
   try {
     const rendered = convertContentToHtml(html)
-    return DOMPurify.sanitize(rendered)
+    const sanitized = DOMPurify.sanitize(rendered, DOMPURIFY_TEXT_COLOR_CONFIG)
+    return normalizeEmptyParagraphs(sanitized)
   } catch (error) {
     console.warn('Failed to render part instructions:', error)
     return html
@@ -901,6 +916,16 @@ onMounted(async () => {
 
 :deep(.prose p) {
   margin-bottom: 1em;
+}
+
+:deep(.prose p.lab-empty-line) {
+  margin: 1em 0;
+  min-height: 0.75rem;
+}
+
+:deep(.prose p.lab-empty-line span) {
+  display: block;
+  height: 0.75rem;
 }
 
 :deep(.prose code) {

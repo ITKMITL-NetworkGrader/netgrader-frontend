@@ -60,6 +60,44 @@
 
       <div class="toolbar-separator"></div>
 
+      <!-- Text Color -->
+      <div class="toolbar-group">
+        <label
+          class="toolbar-color-picker"
+          :class="{ 'has-color': hasTextColor }"
+          @mousedown="saveCurrentSelection"
+          title="Text Color"
+        >
+          <Icon
+            name="lucide:palette"
+            class="w-4 h-4"
+            :style="{ color: hasTextColor ? currentTextColor : undefined }"
+          />
+          <input
+            type="color"
+            class="color-input"
+            :value="currentTextColor"
+            aria-label="Select text color"
+            @focus="saveCurrentSelection"
+            @input="onColorInput"
+          />
+        </label>
+
+        <button
+          type="button"
+          @mousedown.prevent="saveCurrentSelection"
+          @click="clearTextColor"
+          class="toolbar-btn"
+          :class="{ 'is-active': hasTextColor }"
+          :disabled="!hasTextColor"
+          title="Reset Text Color"
+        >
+          <Icon name="lucide:eraser" class="w-4 h-4" />
+        </button>
+      </div>
+
+      <div class="toolbar-separator"></div>
+
       <!-- Headings -->
       <div class="toolbar-group">
         <button
@@ -329,6 +367,8 @@ import Link from '@tiptap/extension-link'
 import TextAlign from '@tiptap/extension-text-align'
 import CharacterCount from '@tiptap/extension-character-count'
 import Placeholder from '@tiptap/extension-placeholder'
+import { TextStyle } from '@tiptap/extension-text-style'
+import Color from '@tiptap/extension-color'
 
 interface Props {
   modelValue?: string
@@ -359,6 +399,76 @@ const emit = defineEmits<{
   'blur': []
 }>()
 
+const DEFAULT_TEXT_COLOR = '#000000'
+const currentTextColor = ref(DEFAULT_TEXT_COLOR)
+const hasTextColor = ref(false)
+
+const normalizeColor = (value: string | undefined): string => {
+  if (!value) return DEFAULT_TEXT_COLOR
+  const color = value.trim()
+  if (color.startsWith('#')) {
+    if (color.length === 4) {
+      return `#${color[1]}${color[1]}${color[2]}${color[2]}${color[3]}${color[3]}`
+    }
+    return color
+  }
+
+  const rgbMatch = color.match(/rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)/i)
+  if (rgbMatch) {
+    const toHex = (num: string) => Math.max(0, Math.min(255, parseInt(num, 10))).toString(16).padStart(2, '0')
+    return `#${toHex(rgbMatch[1])}${toHex(rgbMatch[2])}${toHex(rgbMatch[3])}`
+  }
+
+  return DEFAULT_TEXT_COLOR
+}
+
+const updateColorState = () => {
+  if (!editor.value) return
+  const color = editor.value.getAttributes('textStyle')?.color as string | undefined
+  if (color) {
+    currentTextColor.value = normalizeColor(color)
+    hasTextColor.value = true
+  } else {
+    currentTextColor.value = DEFAULT_TEXT_COLOR
+    hasTextColor.value = false
+  }
+}
+
+const restoreSelection = () => {
+  if (!editor.value || !savedSelection.value) return
+  editor.value.commands.setTextSelection(savedSelection.value)
+}
+
+const setTextColor = (color: string) => {
+  if (!editor.value) return
+  restoreSelection()
+
+  if (!color) {
+    editor.value.chain().focus().unsetColor().run()
+  } else {
+    editor.value.chain().focus().setColor(color).run()
+  }
+
+  savedSelection.value = null
+  updateColorState()
+}
+
+const onColorInput = (event: Event) => {
+  const target = event.target as HTMLInputElement | null
+  if (!target) return
+  setTextColor(target.value)
+}
+
+const clearTextColor = () => {
+  setTextColor('')
+}
+
+const saveCurrentSelection = () => {
+  if (!editor.value) return
+  const { from, to } = editor.value.state.selection
+  savedSelection.value = { from, to }
+}
+
 // Image upload composable
 const {
   isUploading,
@@ -384,6 +494,10 @@ const editor = useEditor({
   autofocus: props.autofocus,
 
   extensions: [
+    Color.configure({
+      types: ['textStyle', 'listItem']
+    }),
+    TextStyle,
     StarterKit.configure({
       heading: {
         levels: [1, 2, 3, 4, 5, 6]
@@ -417,6 +531,10 @@ const editor = useEditor({
 
   onUpdate: ({ editor }) => {
     emit('update:modelValue', editor.getHTML())
+    updateColorState()
+  },
+  onSelectionUpdate: () => {
+    updateColorState()
   },
 
   onFocus: () => {
@@ -435,7 +553,25 @@ const editor = useEditor({
     // Setup clipboard paste
     const { handlePaste } = setupClipboardPaste(editor)
     editor.view.dom.addEventListener('paste', handlePaste)
+
+    updateColorState()
   }
+})
+
+watch(editor, (instance, _, onCleanup) => {
+  if (!instance) return
+
+  const handler = () => updateColorState()
+  instance.on('selectionUpdate', handler)
+  instance.on('transaction', handler)
+  instance.on('update', handler)
+  handler()
+
+  onCleanup(() => {
+    instance.off('selectionUpdate', handler)
+    instance.off('transaction', handler)
+    instance.off('update', handler)
+  })
 })
 
 // Character count computed
@@ -457,11 +593,6 @@ const escapeHtml = (value: string): string => {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;')
-}
-
-const restoreSelection = () => {
-  if (!editor.value || !savedSelection.value) return
-  editor.value.commands.setTextSelection(savedSelection.value)
 }
 
 const toggleLink = () => {
@@ -560,6 +691,7 @@ watch(() => props.modelValue, (newValue) => {
   const currentValue = editor.value?.getHTML()
   if (newValue !== currentValue) {
     editor.value?.commands.setContent(newValue, false)
+    updateColorState()
   }
 })
 
@@ -638,6 +770,48 @@ defineExpose({
 .toolbar-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.toolbar-color-picker {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.375rem;
+  border-radius: 0.25rem;
+  border: 1px solid transparent;
+  color: hsl(var(--muted-foreground));
+  background-color: transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.toolbar-color-picker:hover {
+  background-color: hsl(var(--muted));
+  color: hsl(var(--foreground));
+}
+
+.dark .toolbar-color-picker {
+  color: hsl(var(--muted-foreground));
+}
+
+.dark .toolbar-color-picker:hover {
+  background-color: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+}
+
+.toolbar-color-picker.has-color {
+  border-color: hsl(var(--primary));
+  box-shadow: 0 0 0 1px hsl(var(--primary));
+}
+
+.toolbar-color-picker .color-input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  width: 100%;
+  height: 100%;
 }
 
 .toolbar-group {

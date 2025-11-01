@@ -77,6 +77,18 @@ marked.setOptions({
 
 const route = useRoute()
 const router = useRouter()
+const DOMPURIFY_TEXT_COLOR_CONFIG = {
+  ADD_ATTR: ['style'],
+  ALLOWED_CSS: ['color']
+} as const
+const EMPTY_PARAGRAPH_REGEX = /<p>(?:\s|&nbsp;|<br\s*\/?>)*<\/p>/gi
+
+const normalizeEmptyParagraphs = (html: string): string => {
+  return html.replace(
+    EMPTY_PARAGRAPH_REGEX,
+    '<p class="lab-empty-line"><span aria-hidden="true">&nbsp;</span></p>'
+  )
+}
 
 // Route params
 const courseId = computed(() => route.params.c_id as string)
@@ -646,7 +658,8 @@ const renderMarkdown = (markdown: string | any): string => {
     htmlContent = marked(content)
   }
 
-  return DOMPurify.sanitize(htmlContent)
+  const sanitized = DOMPurify.sanitize(htmlContent, DOMPURIFY_TEXT_COLOR_CONFIG)
+  return normalizeEmptyParagraphs(sanitized)
 }
 
 // Navigation Methods
@@ -2075,6 +2088,16 @@ watch(() => route.query.part, (newPart) => {
 
 :deep(.lab-instructions li > p) {
   margin: 0;
+}
+
+:deep(.lab-instructions p.lab-empty-line) {
+  margin: 0.75rem 0;
+  min-height: 0.75rem;
+}
+
+:deep(.lab-instructions p.lab-empty-line span) {
+  display: block;
+  height: 0.75rem;
 }
 
 /* IP Loading Animation */
