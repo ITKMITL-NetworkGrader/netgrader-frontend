@@ -207,7 +207,7 @@ const collectLecturerRangeOverrides = (): LecturerRangeAnswerPayload[] => {
     }
 
     const payload = getStoredFillInPayload(part.partId)
-    if (!payload || !payload.ipTableAnswers) {
+    if (!payload || !payload.validatedIpTableAnswers) {
       return
     }
 
@@ -216,7 +216,7 @@ const collectLecturerRangeOverrides = (): LecturerRangeAnswerPayload[] => {
         return
       }
 
-      const storedAnswers = payload.ipTableAnswers?.[question.questionId]
+      const storedAnswers = payload.validatedIpTableAnswers?.[question.questionId]
       if (!storedAnswers) {
         return
       }
@@ -240,14 +240,33 @@ const collectLecturerRangeOverrides = (): LecturerRangeAnswerPayload[] => {
             return
           }
 
+          const rowMeta = question.ipTableQuestionnaire.rows?.[rowIndex]
+
+          let resolvedDeviceId = cell.calculatedAnswer.deviceId || rowMeta?.deviceId
+          let resolvedInterfaceName = cell.calculatedAnswer.interfaceName || rowMeta?.interfaceName
+
+          if ((!resolvedDeviceId || !resolvedInterfaceName) && typeof rowMeta?.displayName === 'string') {
+            const [parsedDeviceId, parsedInterfaceName] = rowMeta.displayName.split('.')
+            if (!resolvedDeviceId && parsedDeviceId) {
+              resolvedDeviceId = parsedDeviceId.trim()
+            }
+            if (!resolvedInterfaceName && parsedInterfaceName) {
+              resolvedInterfaceName = parsedInterfaceName.trim()
+            }
+          }
+
+          if (!resolvedDeviceId || !resolvedInterfaceName) {
+            return
+          }
+
           overrides.push({
             sourcePartId: part.partId,
             questionId: question.questionId,
             rowIndex,
             colIndex,
             answer: value,
-            deviceId: cell.calculatedAnswer.deviceId,
-            interfaceName: cell.calculatedAnswer.interfaceName,
+            deviceId: resolvedDeviceId,
+            interfaceName: resolvedInterfaceName,
             vlanIndex: cell.calculatedAnswer.vlanIndex
           })
         })

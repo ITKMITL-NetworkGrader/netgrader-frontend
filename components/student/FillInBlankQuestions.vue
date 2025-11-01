@@ -207,6 +207,8 @@ interface FillInBlankStoragePayload {
   answers: Record<string, string>
   ipTableAnswers: Record<string, string[][]>
   timestamp: number
+  validatedIpTableAnswers?: Record<string, string[][]>
+  validatedTimestamp?: number
 }
 
 interface Props {
@@ -362,10 +364,15 @@ const persistAnswersToStorage = () => {
 
   const sanitized = sanitizeLecturerRangeAnswersForStorage()
 
-  const payload = {
+  const payload: FillInBlankStoragePayload = {
     answers: JSON.parse(JSON.stringify(answers.value)),
     ipTableAnswers: sanitized,
     timestamp: Date.now()
+  }
+
+  if (storedPayload.value?.validatedIpTableAnswers) {
+    payload.validatedIpTableAnswers = JSON.parse(JSON.stringify(storedPayload.value.validatedIpTableAnswers))
+    payload.validatedTimestamp = storedPayload.value.validatedTimestamp
   }
 
   try {
@@ -381,6 +388,27 @@ const persistAnswersToStorage = () => {
     } catch {
       /* no-op */
     }
+  }
+}
+
+const persistValidatedAnswersToStorage = () => {
+  if (typeof window === 'undefined') return
+
+  const sanitized = sanitizeLecturerRangeAnswersForStorage()
+
+  const payload: FillInBlankStoragePayload = {
+    answers: JSON.parse(JSON.stringify(answers.value)),
+    ipTableAnswers: JSON.parse(JSON.stringify(sanitized)),
+    timestamp: Date.now(),
+    validatedIpTableAnswers: JSON.parse(JSON.stringify(sanitized)),
+    validatedTimestamp: Date.now()
+  }
+
+  try {
+    storedPayload.value = payload
+    lastPersistedIpTableAnswers.value = JSON.parse(JSON.stringify(sanitized))
+  } catch (error) {
+    console.warn('Failed to persist validated answers to local storage:', error)
   }
 }
 
@@ -677,6 +705,8 @@ const prefillAnswersFromSchema = (schema: any) => {
       }
     }
   })
+
+  persistValidatedAnswersToStorage()
 }
 
 const submitAnswers = async (): Promise<FillInBlankSubmissionResult | null> => {
@@ -770,6 +800,7 @@ const submitAnswers = async (): Promise<FillInBlankSubmissionResult | null> => {
 
       // Show success message
       if (response.data.passed) {
+        persistValidatedAnswersToStorage()
         toast.success(successToastTitle.value, {
           description: `You earned ${response.data.totalPointsEarned} out of ${response.data.totalPoints} points`
         })

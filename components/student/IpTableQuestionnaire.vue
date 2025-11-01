@@ -183,7 +183,7 @@ const sortedRows = computed(() => {
 
 // Initialize cell values from modelValue or empty strings
 const cellValues = ref<string[][]>([])
-// Initialize cell values
+
 const initializeCellValues = () => {
   if (props.modelValue && props.modelValue.length > 0) {
     cellValues.value = props.modelValue.map(row => [...row])
@@ -196,10 +196,17 @@ const initializeCellValues = () => {
 
 initializeCellValues()
 
-// Emit changes to parent when user types
-watch(cellValues, (newValues) => {
-  emit('update:modelValue', newValues.map(row => [...row]))
-}, { deep: true, flush: 'post' })
+// Keep local state in sync when parent model changes (e.g., restored from storage)
+watch(() => props.modelValue, (newValue) => {
+  if (!newValue) return
+
+  const serializedCurrent = JSON.stringify(cellValues.value)
+  const serializedIncoming = JSON.stringify(newValue)
+
+  if (serializedCurrent !== serializedIncoming) {
+    cellValues.value = newValue.map(row => [...row])
+  }
+}, { deep: true })
 
 // Calculate total points
 const totalPoints = computed(() => {
@@ -302,7 +309,10 @@ const getLecturerRange = (rowIndex: number, colIndex: number): string | null => 
 }
 
 // Handle cell input
-const onCellInput = () => {}
+const onCellInput = () => {
+  const snapshot = cellValues.value.map(row => [...row])
+  emit('update:modelValue', snapshot)
+}
 
 // Get cell input class based on validation state
 const getCellInputClass = (rowIndex: number, colIndex: number): string => {
