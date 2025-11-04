@@ -25,7 +25,7 @@ import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbP
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
-import { useCourseLabs } from '@/composables/useCourseLabs'
+import { useCourseLabs, type LabPart } from '@/composables/useCourseLabs'
 import { useCourse } from '@/composables/useCourse'
 import { useLabStatus, type LabSubmissionOverview, type LabIPStats, type AssignedIP } from '@/composables/useLabStatus'
 
@@ -37,7 +37,7 @@ const labId = computed(() => route.params.l_id as string)
 
 // Composables
 const { currentCourse, fetchCourse } = useCourse()
-const { currentLab, fetchLabById } = useCourseLabs()
+const { currentLab, fetchLabById, fetchLabParts } = useCourseLabs()
 const { fetchLabSubmissionOverview, fetchLabIPStats } = useLabStatus()
 
 // State
@@ -45,6 +45,7 @@ const isLoading = ref(true)
 const activeTab = ref('submissions')
 const searchQuery = ref('')
 const submissionsData = ref<LabSubmissionOverview[]>([])
+const labParts = ref<LabPart[]>([])
 const ipStats = ref<LabIPStats | null>(null)
 const assignedIps = ref<AssignedIP[]>([])
 const pollingInterval = ref<NodeJS.Timeout | null>(null)
@@ -52,6 +53,236 @@ const pollingInterval = ref<NodeJS.Timeout | null>(null)
 // Computed
 const courseTitle = computed(() => currentCourse.value?.title || `Course ${courseId.value}`)
 const labTitle = computed(() => currentLab.value?.title || 'Lab')
+const backendReportsPartZero = computed(() => labParts.value.some(part => part.isPartZero))
+const backendActualLabPartCount = computed(() => labParts.value
+  .filter(part => !part.isVirtual && !part.isPartZero)
+  .length)
+
+type PartZeroStatus = 'pending' | 'current' | 'completed'
+
+interface SubmissionProgress {
+  displayLabel: string
+  actualCompleted: number | null
+  actualTotal: number | null
+  includesPartZero: boolean
+  partZeroStatus: PartZeroStatus | null
+  partZeroStatusLabel: string | null
+  isCurrentlyInPartZero: boolean
+  isFullyCompleted: boolean
+  currentActualPartNumber: number | null
+  actualPartNumbers: number[]
+}
+
+interface SubmissionWithProgress extends LabSubmissionOverview {
+  _progress: SubmissionProgress
+}
+
+const parseProgressionValues = (progression: string | null | undefined): { completed: number; total: number } | null => {
+  if (!progression) {
+    return null
+  }
+
+  const parts = progression.split('/')
+  if (parts.length !== 2) {
+    return null
+  }
+
+  const completed = Number.parseInt(parts[0]!, 10)
+  const total = Number.parseInt(parts[1]!, 10)
+
+  if (Number.isNaN(completed) || Number.isNaN(total)) {
+    return null
+  }
+
+  return {
+    completed: Math.max(completed, 0),
+    total: Math.max(total, 0)
+  }
+}
+
+const maxReportedPartTotal = computed(() => {
+  let maxTotal = 0
+
+  for (const submission of submissionsData.value) {
+    maxTotal = Math.max(maxTotal, submission.totalParts || 0)
+
+    const parsed = parseProgressionValues(submission.progression)
+    if (parsed) {
+      maxTotal = Math.max(maxTotal, parsed.total)
+    }
+  }
+
+  return maxTotal
+})
+
+const hasPartZero = computed(() => {
+  if (backendReportsPartZero.value) {
+    return true
+  }
+
+  const rawCount = backendActualLabPartCount.value
+  const maxTotal = maxReportedPartTotal.value
+
+  if (rawCount > 0) {
+    return maxTotal > rawCount
+  }
+
+  if (maxTotal > 0 && submissionsData.value.length > 0) {
+    return true
+  }
+
+  if (maxTotal === 0) {
+    return false
+  }
+
+  const lab = currentLab.value
+  if (!lab?.instructions) {
+    return false
+  }
+
+  if (typeof lab.instructions === 'string') {
+    return lab.instructions.trim().length > 0
+  }
+
+  const html = typeof lab.instructions.html === 'string' ? lab.instructions.html.trim() : ''
+  if (html.length > 0) {
+    return true
+  }
+
+  const json = lab.instructions.json
+  if (json && typeof json === 'object') {
+    return Object.keys(json).length > 0
+  }
+
+  return false
+})
+
+const actualLabPartCount = computed(() => {
+  const rawCount = backendActualLabPartCount.value
+  if (rawCount > 0) {
+    return rawCount
+  }
+
+  const maxTotal = maxReportedPartTotal.value
+  if (maxTotal === 0) {
+    return 0
+  }
+
+  return hasPartZero.value ? Math.max(maxTotal - 1, 0) : maxTotal
+})
+
+const buildSubmissionProgress = (submission: LabSubmissionOverview): SubmissionProgress => {
+  const parsed = parseProgressionValues(submission.progression)
+  const includesPartZero = hasPartZero.value
+
+  const resolvedActualCount = actualLabPartCount.value
+  const rawCompleted = parsed?.completed ?? 0
+  const rawTotal = parsed?.total ?? (submission.totalParts || 0)
+  const totalPartsReported = submission.totalParts ?? rawTotal
+
+  const actualTotalCandidates: Array<number | null> = []
+  actualTotalCandidates.push(resolvedActualCount > 0 ? resolvedActualCount : null)
+
+  if (includesPartZero) {
+    if (totalPartsReported > 0) {
+      actualTotalCandidates.push(Math.max(totalPartsReported - 1, 0))
+    }
+    if (rawTotal > 0) {
+      actualTotalCandidates.push(Math.max(rawTotal - 1, 0))
+    }
+  } else {
+    if (totalPartsReported > 0) {
+      actualTotalCandidates.push(totalPartsReported)
+    }
+    if (rawTotal > 0) {
+      actualTotalCandidates.push(rawTotal)
+    }
+  }
+
+  const actualTotal = actualTotalCandidates.find((value): value is number => typeof value === 'number' && value > 0) ?? 0
+  const actualPartNumbers = actualTotal > 0
+    ? Array.from({ length: actualTotal }, (_, idx) => idx + 1)
+    : []
+
+  let actualCompleted = actualTotal > 0
+    ? Math.min(Math.max(rawCompleted, 0), actualTotal)
+    : 0
+
+  let partZeroCompletedFromCount = false
+  if (includesPartZero && actualTotal > 0 && rawCompleted > actualTotal) {
+    actualCompleted = Math.min(Math.max(rawCompleted - 1, 0), actualTotal)
+    partZeroCompletedFromCount = true
+  }
+
+  const currentPartValue = submission.currentPart ?? 1
+  const normalizedCurrentPart = includesPartZero
+    ? Math.max(currentPartValue - 1, 0)
+    : Math.max(currentPartValue, 0)
+
+  const partZeroCompleted = includesPartZero
+    ? partZeroCompletedFromCount || normalizedCurrentPart > 0 || rawCompleted > 0
+    : false
+
+  const isCurrentlyInPartZero = includesPartZero && !partZeroCompleted && currentPartValue <= 1
+  const partZeroStatus: PartZeroStatus | null = includesPartZero
+    ? partZeroCompleted
+      ? 'completed'
+      : isCurrentlyInPartZero
+        ? 'current'
+        : 'pending'
+    : null
+
+  const partZeroStatusLabel = partZeroStatus === 'completed'
+    ? 'Completed'
+    : partZeroStatus === 'current'
+      ? 'In Progress'
+      : partZeroStatus === 'pending'
+        ? 'Not Started'
+        : null
+
+  const isFullyCompleted = actualTotal > 0
+    ? actualCompleted >= actualTotal
+    : partZeroCompleted
+
+  let currentActualPartNumber: number | null = null
+  if (actualTotal > 0) {
+    if (isFullyCompleted) {
+      currentActualPartNumber = actualTotal
+    } else if (normalizedCurrentPart > 0) {
+      currentActualPartNumber = Math.min(Math.max(normalizedCurrentPart, 1), actualTotal)
+    } else if (!isCurrentlyInPartZero && actualCompleted < actualTotal) {
+      currentActualPartNumber = Math.min(actualCompleted + 1, actualTotal)
+    }
+  }
+
+  const displayLabel = actualTotal > 0
+    ? `${actualCompleted}/${actualTotal}`
+    : submission.progression || '—'
+
+  return {
+    displayLabel,
+    actualCompleted: actualTotal > 0 ? actualCompleted : null,
+    actualTotal: actualTotal > 0 ? actualTotal : null,
+    includesPartZero,
+    partZeroStatus,
+    partZeroStatusLabel,
+    isCurrentlyInPartZero,
+    isFullyCompleted,
+    currentActualPartNumber,
+    actualPartNumbers
+  }
+}
+
+const getPartZeroBadgeClasses = (status: PartZeroStatus | null) => {
+  switch (status) {
+    case 'completed':
+      return 'bg-green-100 text-green-700 border-green-200 dark:bg-green-900/40 dark:text-green-200 dark:border-green-700/60'
+    case 'current':
+      return 'bg-yellow-100 text-yellow-700 border-yellow-200 dark:bg-yellow-900/40 dark:text-yellow-100 dark:border-yellow-600/60'
+    default:
+      return 'bg-muted text-muted-foreground border-muted-foreground/30 dark:bg-muted/40'
+  }
+}
 
 // Filtered submissions based on search
 const filteredSubmissions = computed(() => {
@@ -69,10 +300,13 @@ const filteredSubmissions = computed(() => {
 })
 
 // Sorted by Student ID
-const sortedSubmissions = computed(() => {
-  return [...filteredSubmissions.value].sort((a, b) => {
-    return a.studentId.localeCompare(b.studentId)
-  })
+const sortedSubmissions = computed<SubmissionWithProgress[]>(() => {
+  return [...filteredSubmissions.value]
+    .sort((a, b) => a.studentId.localeCompare(b.studentId))
+    .map(submission => ({
+      ...submission,
+      _progress: buildSubmissionProgress(submission)
+    }))
 })
 
 // Get status badge variant
@@ -159,7 +393,10 @@ const loadData = async () => {
   try {
     await Promise.all([
       fetchCourse(courseId.value),
-      fetchLabById(labId.value)
+      fetchLabById(labId.value),
+      fetchLabParts(labId.value).then(parts => {
+        labParts.value = parts || []
+      })
     ])
 
     // Start polling for submissions tab (default)
@@ -330,36 +567,55 @@ onUnmounted(() => {
                         <TableCell class="text-center">
                           <div class="space-y-2 inline-block">
                             <div class="text-sm font-medium">
-                              {{ submission.progression }}
+                              {{ submission._progress.displayLabel }}
                             </div>
                             <!-- Visual Progress Indicators -->
-                            <div class="flex items-center justify-center space-x-1.5">
+                            <div class="flex items-center justify-center space-x-2">
                               <div
-                                v-for="partNum in submission.totalParts"
-                                :key="partNum"
+                                v-if="submission._progress.includesPartZero"
                                 class="relative"
                               >
-                                <!-- Completed Part (Green) - includes when lab is fully completed -->
                                 <div
-                                  v-if="partNum < submission.currentPart || (partNum === submission.currentPart && submission.currentPart === submission.totalParts)"
-                                  class="w-3 h-3 rounded-full bg-green-500 border-2 border-green-600"
-                                  :title="`Part ${partNum} - Completed`"
+                                  v-if="submission._progress.partZeroStatus === 'current'"
+                                  class="absolute inset-0 rounded-full bg-yellow-300 animate-ping opacity-60"
                                 />
-                                <!-- Current Part (Yellow with Ping) - only if not the last part -->
-                                <div
-                                  v-else-if="partNum === submission.currentPart && submission.currentPart < submission.totalParts"
-                                  class="relative w-3 h-3"
-                                  :title="`Part ${partNum} - Current`"
+                                <Badge
+                                  variant="outline"
+                                  class="px-2 py-0 text-[11px] font-medium border"
+                                  :class="getPartZeroBadgeClasses(submission._progress.partZeroStatus)"
+                                  :title="submission._progress.partZeroStatusLabel ? `Part 0 - ${submission._progress.partZeroStatusLabel}` : 'Part 0'"
                                 >
-                                  <div class="absolute inset-0 w-3 h-3 rounded-full bg-yellow-400 animate-ping opacity-75" />
-                                  <div class="relative w-3 h-3 rounded-full bg-yellow-500 border-2 border-yellow-600" />
-                                </div>
-                                <!-- Not Reached Part (Grey) -->
+                                  Part 0
+                                </Badge>
+                              </div>
+                              <div class="flex items-center space-x-1.5">
                                 <div
-                                  v-else
-                                  class="w-3 h-3 rounded-full bg-gray-300 border-2 border-gray-400"
-                                  :title="`Part ${partNum} - Not Started`"
-                                />
+                                  v-for="partNum in submission._progress.actualPartNumbers"
+                                  :key="`part-${submission.studentId}-${partNum}`"
+                                  class="relative"
+                                >
+                                  <!-- Completed Part (Green), including when lab is fully completed -->
+                                  <div
+                                    v-if="submission._progress.isFullyCompleted || (submission._progress.actualCompleted !== null && partNum <= submission._progress.actualCompleted)"
+                                    class="w-3 h-3 rounded-full bg-green-500 border-2 border-green-600"
+                                    :title="`Part ${partNum} - Completed`"
+                                  />
+                                  <!-- Current Part (Yellow with Ping) -->
+                                  <div
+                                    v-else-if="submission._progress.currentActualPartNumber === partNum"
+                                    class="relative w-3 h-3"
+                                    :title="`Part ${partNum} - Current`"
+                                  >
+                                    <div class="absolute inset-0 w-3 h-3 rounded-full bg-yellow-400 animate-ping opacity-75" />
+                                    <div class="relative w-3 h-3 rounded-full bg-yellow-500 border-2 border-yellow-600" />
+                                  </div>
+                                  <!-- Not Reached Part (Grey) -->
+                                  <div
+                                    v-else
+                                    class="w-3 h-3 rounded-full bg-gray-300 border-2 border-gray-400"
+                                    :title="`Part ${partNum} - Not Started`"
+                                  />
+                                </div>
                               </div>
                             </div>
                           </div>
