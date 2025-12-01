@@ -21,51 +21,58 @@ const teamMembers = [
 </script>
 
 <template>
-  <footer class="relative mt-auto">
-    <!-- Decorative gradient -->
-    <div
-      class="absolute inset-0 bg-gradient-to-t from-secondary/10 via-secondary/5 to-transparent pointer-events-none" />
+  <footer class="bg-white border-t border-gray-200 pt-12 pb-2">
+    <div class="container mx-auto px-4">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-12 mb-12">
+        <!-- Contact Information -->
+        <div class="space-y-4">
+          <h3 class="text-lg font-bold text-gray-900">Contact Information</h3>
+          <div class="text-gray-600 leading-relaxed">
+            <p class="font-medium text-gray-800">School of Information Technology</p>
+            <p>King Mongkut's Institute of Technology Ladkrabang</p>
+            <p>1 Chalong Krung 1 Alley, Lat Krabang</p>
+            <p>Bangkok 10520, Thailand</p>
+          </div>
+        </div>
 
-    <div class="relative glass border-t border-border/30 supports-[backdrop-filter]:bg-background/60">
-      <div class="layout-container py-8 mx-8 sm:mx-10 lg:mx-12">
-        <!-- Main footer content -->
-        <div class="flex flex-col lg:flex-row gap-6 lg:gap-8 justify-between items-start lg:items-center">
-          <!-- Brand and copyright -->
-          <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
-            <div class="flex items-center gap-2">
+        <!-- Contributors -->
+        <div class="space-y-4">
+          <h3 class="text-lg font-bold text-gray-900">Made with 💦 by</h3>
+          <div class="grid gap-3">
+            <a v-for="member in teamMembers" :key="member.name" :href="member.url" target="_blank"
+              rel="noopener noreferrer"
+              class="group flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors border border-transparent hover:border-gray-100">
               <div
-                class="w-6 h-6 rounded bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center text-primary-foreground text-xs font-mono font-bold">
-                NG
+                class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 group-hover:bg-blue-50 group-hover:text-primary transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                  class="lucide lucide-instagram">
+                  <rect width="20" height="20" x="2" y="2" rx="5" ry="5" />
+                  <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+                  <line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
+                </svg>
               </div>
-              <span class="font-mono font-bold text-lg">NetGrader</span>
-            </div>
-            <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm text-muted-foreground">
-              <span>© {{ currentYear }}</span>
-              <span class="hidden sm:block">•</span>
-              <span>Property of ITKMITL</span>
-            </div>
+              <div>
+                <p class="font-medium text-gray-900 group-hover:text-primary transition-colors">{{ member.name }}</p>
+                <p class="text-xs text-gray-500">{{ member.role }}</p>
+              </div>
+            </a>
           </div>
+        </div>
+      </div>
 
-          <!-- Team credits -->
-          <div class="flex flex-col gap-3">
-            <div class="flex flex-wrap gap-x-4 gap-y-2">
-              <p class="text-sm font-medium text-foreground">
-                Made with <span class="text-primary">💦</span> by:
-              </p>
-              <NuxtLink
-              v-for="member in teamMembers" :key="member.name" :to="member.url"
-                class="group flex items-center gap-2 text-sm transition-colors hover:text-primary focus:text-primary"
-                external target="_blank" :aria-label="`Visit ${member.name}'s Instagram - ${member.role}`">
-                <span
-                  class="font-medium underline decoration-2 decoration-transparent transition-colors group-hover:decoration-primary group-focus:decoration-primary">
-                  {{ member.name }}
-                </span>
-                <span class="text-xs text-muted-foreground bg-secondary/50 px-2 py-0.5 rounded-full">
-                  {{ member.role }}
-                </span>
-              </NuxtLink>
-            </div>
+      <!-- Copyright -->
+      <div
+        class="pt-8 border-t border-gray-100 flex flex-col sm:flex-row justify-between items-center gap-4 text-sm text-gray-500">
+        <div class="flex items-center gap-2">
+          <div
+            class="w-5 h-5 rounded bg-gray-900 flex items-center justify-center text-white text-[10px] font-mono font-bold">
+            NG
           </div>
+          <span class="font-medium text-gray-900">NetGrader</span>
+        </div>
+        <div class="flex items-center gap-4">
+          <span>&copy; {{ currentYear }} ITKMITL</span>
         </div>
       </div>
     </div>

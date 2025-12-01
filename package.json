@@ -3,10 +3,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "NODE_NO_WARNINGS=1 nuxt build",
-    "dev": "NODE_NO_WARNINGS=1 nuxt dev",
-    "generate": "NODE_NO_WARNINGS=1 nuxt generate",
-    "preview": "NODE_NO_WARNINGS=1 nuxt preview",
+    "build": "NODE_OPTIONS=\"--max-old-space-size=8192\" NODE_NO_WARNINGS=1 nuxt build",
+    "dev": "NODE_OPTIONS=\"--max-old-space-size=8192\" NODE_NO_WARNINGS=1 nuxt dev",
+    "generate": "NODE_OPTIONS=\"--max-old-space-size=8192\" NODE_NO_WARNINGS=1 nuxt generate",
+    "preview": "NODE_OPTIONS=\"--max-old-space-size=8192\" NODE_NO_WARNINGS=1 nuxt preview",
     "postinstall": "NODE_NO_WARNINGS=1 nuxt prepare"
   },
   "dependencies": {
