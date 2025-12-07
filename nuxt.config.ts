@@ -9,7 +9,7 @@ export default defineNuxtConfig({
   css: ['@/assets/css/tailwind.css'],
   ssr: false,
   components: {
-    extensions: ['vue'], // avoid treating barrel index.ts files as components
+    extensions: ['.vue'], // avoid treating barrel index.ts files as components
     dirs: [
       {
         path: '~/components',
@@ -59,24 +59,20 @@ export default defineNuxtConfig({
   },
   hooks: {
     'components:dirs': (dirs) => {
-      dirs.forEach((dir) => {
-        // Only register Vue single-file components from the shadcn ui directory
-        if (dir.path && dir.path.toString().replace(/\\\\/g, '/').includes('/app/components/ui')) {
-          dir.extensions = ['vue'];
-          dir.ignore = Array.isArray(dir.ignore) ? [...dir.ignore, '**/index.ts'] : ['**/index.ts'];
-        }
-      });
+      for (let index = dirs.length - 1; index >= 0; index -= 1) {
+        const normalizedPath = dirs[index].path?.toString().replace(/\\/g, '/');
+      }
     },
     'components:extend': (components) => {
-      return components.filter((component) => {
-        const filePath = component.filePath?.toString().replace(/\\\\/g, '/');
-        if (!filePath) return true;
-        // Drop shadcn barrel index.ts files from auto-registration
-        if (filePath.includes('/app/components/ui/') && filePath.endsWith('/index.ts')) {
-          return false;
+      for (let index = components.length - 1; index >= 0; index -= 1) {
+        const filePath = components[index].filePath?.toString().replace(/\\/g, '/');
+        if (!filePath) continue;
+        // Drop all shadcn UI components (both barrels and .vue files) from auto-registration;
+        // they are meant to be imported explicitly from their barrels
+        if (filePath.includes('/app/components/ui/')) {
+          components.splice(index, 1);
         }
-        return true;
-      });
+      }
     },
   }
 })
