@@ -56,4 +56,22 @@ export default defineNuxtConfig({
   vueSonner: {
     css: false,
   },
+  hooks: {
+    'components:dirs': (dirs) => {
+      for (let index = dirs.length - 1; index >= 0; index -= 1) {
+        const normalizedPath = dirs[index].path?.toString().replace(/\\/g, '/');
+      }
+    },
+    'components:extend': (components) => {
+      for (let index = components.length - 1; index >= 0; index -= 1) {
+        const filePath = components[index].filePath?.toString().replace(/\\/g, '/');
+        if (!filePath) continue;
+        // Drop all shadcn UI components (both barrels and .vue files) from auto-registration;
+        // they are meant to be imported explicitly from their barrels
+        if (filePath.includes('/app/components/ui/')) {
+          components.splice(index, 1);
+        }
+      }
+    },
+  }
 })
