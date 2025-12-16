@@ -167,7 +167,8 @@ async function gradePart(part: Part) {
 
 function connectToGradingStream(partId: string, jobId: string) {
     const config = useRuntimeConfig()
-    const sseUrl = `${config.public.backendurl}/v0/submissions/events?jobId=${jobId}`
+    // Use the playground-specific SSE endpoint
+    const sseUrl = `${config.public.backendurl}/v0/playground/${jobId}/stream`
 
     // Close existing connection
     if (activeEventSource.value) {
@@ -177,15 +178,96 @@ function connectToGradingStream(partId: string, jobId: string) {
     const eventSource = new EventSource(sseUrl, { withCredentials: true })
     activeEventSource.value = eventSource
 
-    eventSource.onmessage = (event) => {
+    // Handle 'connected' event - initial connection acknowledgment
+    eventSource.addEventListener('connected', (event: MessageEvent) => {
         try {
             const data = JSON.parse(event.data)
-            handleGradingUpdate(partId, data)
+            console.log('[Playground SSE] Connected:', data)
         } catch (e) {
-            console.error('Failed to parse SSE message:', e)
+            console.error('Failed to parse SSE connected event:', e)
         }
-    }
+    })
 
+    // Handle 'started' event - job has started
+    eventSource.addEventListener('started', (event: MessageEvent) => {
+        try {
+            const data = JSON.parse(event.data)
+            console.log('[Playground SSE] Job started:', data)
+        } catch (e) {
+            console.error('Failed to parse SSE started event:', e)
+        }
+    })
+
+    // Handle 'progress' event - task progress updates
+    eventSource.addEventListener('progress', (event: MessageEvent) => {
+        try {
+            const data = JSON.parse(event.data)
+            console.log('[Playground SSE] Progress:', data.percentage + '%', data.message)
+            // Could update UI with progress here if desired
+        } catch (e) {
+            console.error('Failed to parse SSE progress event:', e)
+        }
+    })
+
+    // Handle 'completed' event - grading finished
+    eventSource.addEventListener('completed', (event: MessageEvent) => {
+        try {
+            const data = JSON.parse(event.data)
+            console.log('[Playground SSE] Completed:', data)
+            
+            const score = data.total_points_earned ?? 0
+            const maxScore = data.total_points_possible ?? 100
+            const passed = score >= maxScore * 0.6 // 60% pass threshold
+
+            gradingResults.value.set(partId, {
+                partId,
+                status: passed ? 'success' : 'failed',
+                score,
+                maxScore,
+                taskResults: data.test_results?.map((tr: any) => ({
+                    taskId: tr.test_name,
+                    passed: tr.status === 'passed',
+                    score: tr.points_earned,
+                    maxScore: tr.points_possible,
+                    feedback: tr.message,
+                })),
+            })
+
+            // Trigger celebration animation on success
+            if (passed) {
+                triggerSuccessAnimation()
+            } else {
+                triggerFailureAnimation()
+            }
+
+            // Close SSE connection
+            eventSource.close()
+            activeEventSource.value = null
+        } catch (e) {
+            console.error('Failed to parse SSE completed event:', e)
+        }
+    })
+
+    // Handle 'error' event from server
+    eventSource.addEventListener('error', (event: MessageEvent) => {
+        try {
+            const data = JSON.parse(event.data)
+            console.error('[Playground SSE] Error event:', data)
+            
+            gradingResults.value.set(partId, {
+                partId,
+                status: 'error',
+                error: data.error || data.message || 'Grading failed',
+            })
+
+            eventSource.close()
+            activeEventSource.value = null
+        } catch (e) {
+            // This might be a connection error, not a parsed event
+        }
+    })
+
+    // Handle connection errors
     eventSource.onerror = () => {
         eventSource.close()
         const currentResult = gradingResults.value.get(partId)
@@ -196,10 +278,12 @@ function connectToGradingStream(partId: string, jobId: string) {
                 error: 'Connection lost with SSE',
             })
         }
+        activeEventSource.value = null
     }
 }
 
 function handleGradingUpdate(partId: string, data: any) {
+    // Legacy handler - kept for backwards compatibility but no longer used
     if (data.type === 'complete' || data.status === 'done') {
         // Grading complete
         const score = data.result?.score ?? data.score ?? 0
@@ -240,6 +324,7 @@ function handleGradingUpdate(partId: string, data: any) {
     }
     // Progress updates can be handled here if needed
 }
+
 
 function triggerSuccessAnimation() {
     // Confetti burst
