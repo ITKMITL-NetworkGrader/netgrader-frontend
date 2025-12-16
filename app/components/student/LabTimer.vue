@@ -1,27 +1,20 @@
 <template>
-  <Card
-    v-if="shouldShowTimer"
-    :class="[cardBaseClasses, cardVariantClasses]"
-  >
+  <Card v-if="shouldShowTimer" :class="[cardBaseClasses, cardVariantClasses]">
     <Accordion type="single" collapsible v-model="accordionValue">
       <AccordionItem value="timer">
         <AccordionTrigger class="flex items-center gap-2 py-2 hover:no-underline">
           <TimerIcon v-if="!isExpired" class="w-4 h-4" :class="timerIconClass" />
           <TimerOffIcon v-else class="w-4 h-4 text-destructive-foreground" />
           <span :class="['text-sm font-semibold', headerTextClasses]">
-            {{ isExpired ? 'Time Expired' : (remainingMs === null && !isTimerExpanded ? 'No Remaining Time' : 'Remaining Time') }}
+            {{ isExpired ? 'Time Expired' : (remainingMs === null && !isTimerExpanded ? 'No Remaining Time' :
+            'RemainingTime') }}
           </span>
-          <code
-            v-if="!isTimerExpanded && !isExpired && remainingMs !== null"
-            class="font-mono text-sm ml-auto fade-in"
-            :class="timerTextClass"
-          >
+          <code v-if="!isTimerExpanded && !isExpired && remainingMs !== null" class="font-mono text-sm ml-auto fade-in"
+            :class="timerTextClass">
             {{ formattedTimeCollapsed }}
           </code>
-          <span
-            v-else-if="!isTimerExpanded && isExpired"
-            class="ml-auto text-sm font-bold text-destructive-foreground fade-in"
-          >
+          <span v-else-if="!isTimerExpanded && isExpired"
+            class="ml-auto text-sm font-bold text-destructive-foreground fade-in">
             Expired
           </span>
         </AccordionTrigger>
@@ -79,11 +72,7 @@
       <div class="totem-backdrop" />
       <div class="totem-container">
         <div class="totem-image-wrapper">
-          <img
-            src="/Totem_of_Undying_Bedrock_Animation.webp"
-            alt="Totem of Undying Animation"
-            class="totem-image"
-          />
+          <img src="/Totem_of_Undying_Bedrock_Animation.webp" alt="Totem of Undying Animation" class="totem-image" />
         </div>
         <div class="totem-text">
           <p class="totem-title">Extra Time Granted!</p>
@@ -341,7 +330,7 @@ const formatDateTime = (date: Date | null) => {
   })
 }
 
-const cardBaseClasses = 'fixed bottom-6 left-6 z-40 w-[360px] rounded-2xl px-4 py-3 backdrop-blur-xl border transition-all duration-300'
+const cardBaseClasses = 'fixed z-40 w-[360px] rounded-2xl px-4 py-3 backdrop-blur-xl border select-none left-6 top-1/2 -translate-y-1/2'
 const cardVariantClasses = computed(() => {
   if (isExpired.value) {
     return 'bg-destructive/95 text-destructive-foreground border-destructive/60 shadow-[0_24px_48px_-20px_rgba(220,38,38,0.55)]'
@@ -679,6 +668,7 @@ onBeforeUnmount(() => {
   from {
     opacity: 0;
   }
+
   to {
     opacity: 1;
   }
@@ -689,9 +679,12 @@ onBeforeUnmount(() => {
 }
 
 @keyframes glow-text {
-  0%, 100% {
+
+  0%,
+  100% {
     text-shadow: 0 0 6px color-mix(in oklch, var(--destructive) 60%, transparent);
   }
+
   50% {
     text-shadow: 0 0 15px color-mix(in oklch, var(--destructive) 75%, transparent);
   }
@@ -776,6 +769,7 @@ onBeforeUnmount(() => {
   from {
     opacity: 0;
   }
+
   to {
     opacity: 1;
   }
@@ -786,19 +780,24 @@ onBeforeUnmount(() => {
     transform: scale(0.7) translateY(40px);
     opacity: 0;
   }
+
   60% {
     transform: scale(1.05) translateY(-12px);
     opacity: 1;
   }
+
   100% {
     transform: scale(1) translateY(0);
   }
 }
 
 @keyframes totem-pulse {
-  0%, 100% {
+
+  0%,
+  100% {
     filter: drop-shadow(0 24px 40px rgba(45, 212, 191, 0.35));
   }
+
   50% {
     filter: drop-shadow(0 32px 60px rgba(56, 189, 248, 0.4));
   }

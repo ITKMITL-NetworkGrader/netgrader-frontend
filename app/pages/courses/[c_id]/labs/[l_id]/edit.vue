@@ -73,8 +73,15 @@
               <h1 class="text-2xl font-bold">Edit Lab</h1>
               <p class="text-muted-foreground mt-1">Modify lab configuration, network topology, tasks, and grading</p>
             </div>
-            <div class="text-sm text-muted-foreground">
-              Course: <span class="font-medium">{{ courseTitle }}</span>
+            <div class="flex items-center gap-4">
+              <!-- Playground Button -->
+              <Button v-if="validation.step4.isValid" variant="outline" @click="openPlayground" class="gap-2">
+                <Play class="w-4 h-4" />
+                Playground
+              </Button>
+              <div class="text-sm text-muted-foreground">
+                Course: <span class="font-medium">{{ courseTitle }}</span>
+              </div>
             </div>
           </div>
 
@@ -82,42 +89,32 @@
           <div class="mt-4 mb-2">
             <div class="flex flex-wrap items-center justify-center gap-3">
               <div v-for="(step, index) in steps" :key="step.id" class="flex items-center">
-                <button
-                  type="button"
+                <button type="button"
                   class="group flex items-center rounded-md px-2 py-1 transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                   :class="currentStep === index + 1 ? 'cursor-default' : 'cursor-pointer hover:bg-accent/40'"
-                  :aria-current="currentStep === index + 1 ? 'step' : undefined"
-                  :aria-label="`Go to ${step.title}`"
-                  @click="goToStep(index + 1)"
-                >
+                  :aria-current="currentStep === index + 1 ? 'step' : undefined" :aria-label="`Go to ${step.title}`"
+                  @click="goToStep(index + 1)">
                   <div
                     class="flex items-center justify-center w-8 h-8 rounded-full border-2 transition-all duration-200 group-hover:border-primary group-hover:text-primary"
                     :class="{
                       'bg-primary text-primary-foreground border-primary': currentStep >= index + 1,
                       'border-muted-foreground text-muted-foreground bg-background': currentStep < index + 1,
                       'bg-green-500 border-green-500 text-white': currentStep > index + 1
-                    }"
-                  >
+                    }">
                     <Check v-if="currentStep > index + 1" class="w-4 h-4" />
                     <span v-else class="font-semibold text-xs">{{ index + 1 }}</span>
                   </div>
                   <div class="ml-2 min-w-0 text-left">
-                    <div
-                      class="font-medium text-xs transition-colors duration-200"
-                      :class="{
-                        'text-foreground': currentStep >= index + 1,
-                        'text-muted-foreground': currentStep < index + 1,
-                        'text-green-600': currentStep > index + 1
-                      }"
-                    >
+                    <div class="font-medium text-xs transition-colors duration-200" :class="{
+                      'text-foreground': currentStep >= index + 1,
+                      'text-muted-foreground': currentStep < index + 1,
+                      'text-green-600': currentStep > index + 1
+                    }">
                       {{ step.title }}
                     </div>
                   </div>
                 </button>
-                <ChevronRight
-                  v-if="index < steps.length - 1"
-                  class="w-4 h-4 mx-3 text-muted-foreground/40"
-                />
+                <ChevronRight v-if="index < steps.length - 1" class="w-4 h-4 mx-3 text-muted-foreground/40" />
               </div>
             </div>
           </div>
@@ -131,57 +128,30 @@
             <!-- Step Content -->
             <div class="p-6">
               <!-- Step 1: Basic Lab Information -->
-              <LabWizardStep1
-                v-if="currentStep === 1"
-                v-model="wizardData.basicInfo"
-                :course-context="courseContext"
-                @validate="handleStepValidation(1, $event)"
-              />
+              <LabWizardStep1 v-if="currentStep === 1" v-model="wizardData.basicInfo" :course-context="courseContext"
+                @validate="handleStepValidation(1, $event)" />
 
               <!-- Step 2: Network Configuration -->
-              <LabWizardStep2
-                v-if="currentStep === 2"
-                v-model="wizardData.networkConfig"
-                :validation="validation.step2"
-                @validate="handleStepValidation(2, $event)"
-              />
+              <LabWizardStep2 v-if="currentStep === 2" v-model="wizardData.networkConfig" :validation="validation.step2"
+                @validate="handleStepValidation(2, $event)" />
 
               <!-- Step 3: Device Configuration -->
-              <LabWizardStep3
-                v-if="currentStep === 3"
-                v-model="wizardData.devices"
-                :network-config="wizardData.networkConfig"
-                :validation="validation.step3"
-                @validate="handleStepValidation(3, $event)"
-              />
+              <LabWizardStep3 v-if="currentStep === 3" v-model="wizardData.devices"
+                :network-config="wizardData.networkConfig" :validation="validation.step3"
+                @validate="handleStepValidation(3, $event)" />
 
               <!-- Step 4: Parts & Tasks Management -->
-              <LabWizardStep4
-                v-if="currentStep === 4"
-                v-model="wizardData.parts"
-                :devices="wizardData.devices"
-                :vlans="wizardData.networkConfig.vlans"
-                :validation="validation.step4"
-                @validate="handleStepValidation(4, $event)"
-              />
+              <LabWizardStep4 v-if="currentStep === 4" v-model="wizardData.parts" :devices="wizardData.devices"
+                :vlans="wizardData.networkConfig.vlans" :validation="validation.step4"
+                @validate="handleStepValidation(4, $event)" />
 
               <!-- Step 5: Schedule & Publishing -->
-              <LabWizardStep5
-                v-if="currentStep === 5"
-                v-model="wizardData.schedule"
-                :validation="validation.step5"
-                @validate="handleStepValidation(5, $event)"
-              />
+              <LabWizardStep5 v-if="currentStep === 5" v-model="wizardData.schedule" :validation="validation.step5"
+                @validate="handleStepValidation(5, $event)" />
 
               <!-- Step 6: Review & Update -->
-              <LabWizardStep6
-                v-if="currentStep === 6"
-                :wizard-data="wizardData"
-                :course-context="courseContext"
-                :is-submitting="isSubmitting"
-                :is-edit-mode="true"
-                @create-lab="handleUpdateLab"
-              />
+              <LabWizardStep6 v-if="currentStep === 6" :wizard-data="wizardData" :course-context="courseContext"
+                :is-submitting="isSubmitting" :is-edit-mode="true" @create-lab="handleUpdateLab" />
             </div>
           </CardContent>
         </Card>
@@ -189,13 +159,7 @@
         <!-- Navigation Footer -->
         <div class="flex items-center justify-between mt-6 pt-4 border-t bg-background sticky bottom-0 z-30">
           <div>
-            <Button
-              v-if="currentStep > 1"
-              variant="outline"
-              size="lg"
-              :disabled="isSubmitting"
-              @click="previousStep"
-            >
+            <Button v-if="currentStep > 1" variant="outline" size="lg" :disabled="isSubmitting" @click="previousStep">
               <ChevronLeft class="w-4 h-4 mr-2" />
               Previous
             </Button>
@@ -203,32 +167,18 @@
 
           <div class="flex items-center space-x-3">
             <!-- Save Draft Button -->
-            <Button
-              variant="ghost"
-              size="lg"
-              :disabled="isSubmitting"
-              @click="saveDraft"
-            >
+            <Button variant="ghost" size="lg" :disabled="isSubmitting" @click="saveDraft">
               <Save class="w-4 h-4 mr-2" />
               Save Draft
             </Button>
 
             <!-- Next/Update Button -->
-            <Button
-              v-if="currentStep < steps.length"
-              size="lg"
-              :disabled="isSubmitting || !canProceedToNextStep"
-              @click="nextStep"
-            >
+            <Button v-if="currentStep < steps.length" size="lg" :disabled="isSubmitting || !canProceedToNextStep"
+              @click="nextStep">
               Next
               <ChevronRight class="w-4 h-4 ml-2" />
             </Button>
-            <Button
-              size="lg"
-              class="shadow-sm"
-              :disabled="isSubmitting || !canUpdateLab"
-              @click="handleUpdateLab"
-            >
+            <Button size="lg" class="shadow-sm" :disabled="isSubmitting || !canUpdateLab" @click="handleUpdateLab">
               <Loader2 v-if="isSubmitting" class="w-4 h-4 mr-2 animate-spin" />
               <Save v-else class="w-4 h-4 mr-2" />
               Update Lab
@@ -238,14 +188,8 @@
       </div>
 
       <!-- Global Error/Success Messages -->
-      <div
-        v-if="globalMessage.show"
-        class="fixed bottom-4 right-4 max-w-md z-50"
-      >
-        <Alert
-          :variant="globalMessage.type === 'error' ? 'destructive' : 'default'"
-          class="shadow-lg border-2"
-        >
+      <div v-if="globalMessage.show" class="fixed bottom-4 right-4 max-w-md z-50">
+        <Alert :variant="globalMessage.type === 'error' ? 'destructive' : 'default'" class="shadow-lg border-2">
           <AlertCircle v-if="globalMessage.type === 'error'" class="h-4 w-4" />
           <CheckCircle2 v-else class="h-4 w-4" />
           <AlertTitle>
@@ -267,21 +211,14 @@
                   : 'Review Changes Before Saving'
               }}
             </AlertDialogTitle>
-            <AlertDialogDescription>
-              {{
-                saveConfirmation.summary?.hasDestructiveChanges
-                  ? 'Some of these changes affect parts that already have student submissions. Proceed only if you are sure.'
-                  : 'Here is a quick summary of the updates you are about to apply.'
-              }}
-            </AlertDialogDescription>
+            <AlertDialogDescription>{{ saveConfirmation.summary?.hasDestructiveChanges ? 'Some of these changes affect parts that already have student submissions.Proceed only if you are sure.' : 'Here is a quick summary of the updates you are about to apply.' }}</AlertDialogDescription>
           </AlertDialogHeader>
 
           <div class="space-y-4 text-sm">
-            <div
-              v-if="saveConfirmation.summary?.hasDestructiveChanges"
-              class="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-destructive"
-            >
-              Deleting a part permanently removes all related student submissions (cascade delete). Editing a submitted part may invalidate existing grades.
+            <div v-if="saveConfirmation.summary?.hasDestructiveChanges"
+              class="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-destructive">
+              Deleting a part permanently removes all related student submissions (cascade delete). Editing a submitted
+              part may invalidate existing grades.
             </div>
 
             <div v-if="saveConfirmation.summary?.deletedParts.length">
@@ -290,10 +227,7 @@
                 Parts to be deleted
               </h4>
               <ul class="mt-2 list-disc space-y-1 pl-5 text-muted-foreground">
-                <li
-                  v-for="part in saveConfirmation.summary?.deletedParts"
-                  :key="`deleted-${part.partId}`"
-                >
+                <li v-for="part in saveConfirmation.summary?.deletedParts" :key="`deleted-${part.partId}`">
                   {{ part.title }}
                 </li>
               </ul>
@@ -305,18 +239,13 @@
                 Parts to be updated
               </h4>
               <ul class="mt-2 space-y-2 pl-0">
-                <li
-                  v-for="part in saveConfirmation.summary?.modifiedParts"
-                  :key="`modified-${part.partId}`"
+                <li v-for="part in saveConfirmation.summary?.modifiedParts" :key="`modified-${part.partId}`"
                   class="rounded-md border border-border/60 p-3"
-                  :class="part.hasSubmissions ? 'border-amber-400 bg-amber-50/50' : ''"
-                >
+                  :class="part.hasSubmissions ? 'border-amber-400 bg-amber-50/50' : ''">
                   <div class="flex items-center justify-between">
                     <span class="font-medium">{{ part.title }}</span>
-                    <span
-                      v-if="part.hasSubmissions"
-                      class="text-xs font-semibold uppercase tracking-wide text-amber-600"
-                    >
+                    <span v-if="part.hasSubmissions"
+                      class="text-xs font-semibold uppercase tracking-wide text-amber-600">
                       student submissions
                     </span>
                   </div>
@@ -333,10 +262,8 @@
                 New parts
               </h4>
               <ul class="mt-2 list-disc space-y-1 pl-5 text-muted-foreground">
-                <li
-                  v-for="part in saveConfirmation.summary?.createdParts"
-                  :key="`created-${part.partId || part.title}`"
-                >
+                <li v-for="part in saveConfirmation.summary?.createdParts"
+                  :key="`created-${part.partId || part.title}`">
                   {{ part.title }}
                 </li>
               </ul>
@@ -345,10 +272,7 @@
             <div v-if="saveConfirmation.summary?.basicInfoChanges.length">
               <h4 class="font-medium">Lab information</h4>
               <ul class="mt-2 list-disc space-y-1 pl-5 text-muted-foreground">
-                <li
-                  v-for="item in saveConfirmation.summary?.basicInfoChanges"
-                  :key="`info-${item}`"
-                >
+                <li v-for="item in saveConfirmation.summary?.basicInfoChanges" :key="`info-${item}`">
                   {{ item }}
                 </li>
               </ul>
@@ -357,10 +281,7 @@
             <div v-if="saveConfirmation.summary?.networkChanges.length">
               <h4 class="font-medium">Network configuration</h4>
               <ul class="mt-2 list-disc space-y-1 pl-5 text-muted-foreground">
-                <li
-                  v-for="item in saveConfirmation.summary?.networkChanges"
-                  :key="`network-${item}`"
-                >
+                <li v-for="item in saveConfirmation.summary?.networkChanges" :key="`network-${item}`">
                   {{ item }}
                 </li>
               </ul>
@@ -369,27 +290,21 @@
             <div v-if="saveConfirmation.summary?.scheduleChanges.length">
               <h4 class="font-medium">Schedule</h4>
               <ul class="mt-2 list-disc space-y-1 pl-5 text-muted-foreground">
-                <li
-                  v-for="item in saveConfirmation.summary?.scheduleChanges"
-                  :key="`schedule-${item}`"
-                >
+                <li v-for="item in saveConfirmation.summary?.scheduleChanges" :key="`schedule-${item}`">
                   {{ item }}
                 </li>
               </ul>
             </div>
 
-            <div
-              v-if="
-                saveConfirmation.summary &&
-                !saveConfirmation.summary.deletedParts.length &&
-                !saveConfirmation.summary.modifiedParts.length &&
-                !saveConfirmation.summary.createdParts.length &&
-                !saveConfirmation.summary.basicInfoChanges.length &&
-                !saveConfirmation.summary.networkChanges.length &&
-                !saveConfirmation.summary.scheduleChanges.length
-              "
-              class="rounded-md border border-border/60 bg-muted/30 p-3 text-muted-foreground"
-            >
+            <div v-if="
+              saveConfirmation.summary &&
+              !saveConfirmation.summary.deletedParts.length &&
+              !saveConfirmation.summary.modifiedParts.length &&
+              !saveConfirmation.summary.createdParts.length &&
+              !saveConfirmation.summary.basicInfoChanges.length &&
+              !saveConfirmation.summary.networkChanges.length &&
+              !saveConfirmation.summary.scheduleChanges.length
+            " class="rounded-md border border-border/60 bg-muted/30 p-3 text-muted-foreground">
               No significant changes detected. Saving will keep your lab unchanged.
             </div>
           </div>
@@ -409,6 +324,15 @@
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <!-- Playground Modals -->
+      <PlaygroundSetupModal v-model:open="showPlaygroundSetup" :lab-id="labId" @complete="handlePlaygroundSetupComplete"
+        @reset="handlePlaygroundReset" />
+
+      <PlaygroundTestingModal v-model:open="showPlaygroundTesting" :lab-id="labId" :parts="wizardData.parts"
+        :gns3-config="playgroundConfig?.gns3Config || null" :device-mappings="playgroundConfig?.deviceMappings || []"
+        :custom-ip-mappings="playgroundConfig?.customIpMappings || {}"
+        :custom-vlan-mappings="playgroundConfig?.customVlanMappings || {}" @reconfigure="handlePlaygroundReconfigure" />
     </template>
   </div>
 </template>
@@ -429,7 +353,8 @@ import {
   ArrowLeft,
   Trash2,
   Edit,
-  Plus
+  Plus,
+  Play
 } from 'lucide-vue-next'
 
 // UI Components
@@ -455,6 +380,11 @@ import LabWizardStep3 from '@/components/wizard/LabWizardStep3.vue'
 import LabWizardStep4 from '@/components/wizard/LabWizardStep4.vue'
 import LabWizardStep5 from '@/components/wizard/LabWizardStep5.vue'
 import LabWizardStep6 from '@/components/wizard/LabWizardStep6.vue'
+
+// Playground Components
+import PlaygroundSetupModal from '@/components/playground/PlaygroundSetupModal.vue'
+import PlaygroundTestingModal from '@/components/playground/PlaygroundTestingModal.vue'
+import type { GNS3Config, DeviceMapping } from '@/composables/usePlayground'
 
 // Types
 import type {
@@ -614,6 +544,43 @@ const saveConfirmation = reactive({
   summary: null as ChangeSummary | null
 })
 
+// Playground state
+const showPlaygroundSetup = ref(false)
+const showPlaygroundTesting = ref(false)
+const playgroundConfig = ref<{
+  gns3Config: GNS3Config
+  deviceMappings: DeviceMapping[]
+  customIpMappings: Record<string, string>
+  customVlanMappings: Record<string, number>
+} | null>(null)
+
+// Playground functions
+function openPlayground() {
+  if (playgroundConfig.value) {
+    // If already configured, go directly to testing modal
+    showPlaygroundTesting.value = true
+  } else {
+    // Otherwise, show setup modal first
+    showPlaygroundSetup.value = true
+  }
+}
+
+function handlePlaygroundSetupComplete(config: typeof playgroundConfig.value) {
+  playgroundConfig.value = config
+  showPlaygroundSetup.value = false
+  // Open testing modal after setup is complete
+  showPlaygroundTesting.value = true
+}
+
+function handlePlaygroundReset() {
+  playgroundConfig.value = null
+}
+
+function handlePlaygroundReconfigure() {
+  showPlaygroundTesting.value = false
+  showPlaygroundSetup.value = true
+}
+
 // Computed properties
 const canProceedToNextStep = computed(() => {
   return validation.value[`step${currentStep.value}` as keyof StepValidation]?.isValid || false
@@ -621,10 +588,10 @@ const canProceedToNextStep = computed(() => {
 
 const canUpdateLab = computed(() => {
   return validation.value.step1.isValid &&
-         validation.value.step2.isValid &&
-         validation.value.step3.isValid &&
-         validation.value.step4.isValid &&
-         validation.value.step5.isValid
+    validation.value.step2.isValid &&
+    validation.value.step3.isValid &&
+    validation.value.step4.isValid &&
+    validation.value.step5.isValid
 })
 
 // Helper function to convert string boolean values to actual booleans
@@ -1907,113 +1874,113 @@ const buildPartData = (labId: string, part: any) => {
     partType: part.partType,
     tasks: part.partType === 'network_config'
       ? part.tasks.map((task: any) => ({
-          taskId: task.taskId,
-          name: task.name,
-          description: task.description,
-          templateId: task.templateId,
-          executionDevice: task.executionDevice,
-          targetDevices: task.targetDevices,
-          parameters: Object.fromEntries(
-            Object.entries(task.parameters).map(([key, value]) => [
-              key,
-              formatParameterValue(value)
-            ])
-          ),
-          testCases: task.testCases.map((testCase: any) => ({
-            ...testCase,
-            expected_result: convertStringToBoolean(testCase.expected_result)
-          })),
-          order: task.order,
-          points: task.points,
-          group_id: task.groupId || undefined
-        }))
+        taskId: task.taskId,
+        name: task.name,
+        description: task.description,
+        templateId: task.templateId,
+        executionDevice: task.executionDevice,
+        targetDevices: task.targetDevices,
+        parameters: Object.fromEntries(
+          Object.entries(task.parameters).map(([key, value]) => [
+            key,
+            formatParameterValue(value)
+          ])
+        ),
+        testCases: task.testCases.map((testCase: any) => ({
+          ...testCase,
+          expected_result: convertStringToBoolean(testCase.expected_result)
+        })),
+        order: task.order,
+        points: task.points,
+        group_id: task.groupId || undefined
+      }))
       : [],
     task_groups: part.partType === 'network_config'
       ? part.task_groups.map((group: any) => ({
-          group_id: group.group_id,
-          title: group.title,
-          description: group.description,
-          group_type: group.group_type,
-          points: group.points,
-          continue_on_failure: group.continue_on_failure,
-          timeout_seconds: group.timeout_seconds
-        }))
+        group_id: group.group_id,
+        title: group.title,
+        description: group.description,
+        group_type: group.group_type,
+        points: group.points,
+        continue_on_failure: group.continue_on_failure,
+        timeout_seconds: group.timeout_seconds
+      }))
       : [],
     questions: part.partType === 'fill_in_blank'
       ? part.questions?.map((question: any) => ({
-          questionId: question.questionId,
-          questionText: question.questionText,
-          questionType: question.questionType,
-          order: question.order,
-          points: question.points,
-          schemaMapping: question.schemaMapping
-            ? {
-                vlanIndex: question.schemaMapping.vlanIndex,
-                field: question.schemaMapping.field,
-                deviceId: question.schemaMapping.deviceId,
-                variableName: question.schemaMapping.variableName,
-                autoDetected: question.schemaMapping.autoDetected
-              }
-            : undefined,
-          answerFormula: question.answerFormula,
-          expectedAnswerType: question.expectedAnswerType,
-          placeholder: question.placeholder,
-          inputFormat: question.inputFormat,
-          expectedAnswer: question.expectedAnswer,
-          caseSensitive: question.caseSensitive,
-          trimWhitespace: question.trimWhitespace,
-          // 🆕 ADDED: IP Table Questionnaire data for advanced IP table questions
-          ipTableQuestionnaire: question.ipTableQuestionnaire
-            ? {
-                tableId: question.ipTableQuestionnaire.tableId,
-                rowCount: question.ipTableQuestionnaire.rowCount,
-                columnCount: question.ipTableQuestionnaire.columnCount,
-                columns: question.ipTableQuestionnaire.columns.map((col: any) => ({
-                  columnId: col.columnId,
-                  label: col.label,
-                  order: col.order
-                })),
-                rows: question.ipTableQuestionnaire.rows.map((row: any) => ({
-                  rowId: row.rowId,
-                  deviceId: row.deviceId,
-                  interfaceName: row.interfaceName,
-                  displayName: row.displayName,
-                  order: row.order
-                })),
-                cells: question.ipTableQuestionnaire.cells.map((cellRow: any) =>
-                  cellRow.map((cell: any) => {
-                    const cellType = cell.cellType ?? 'input'
-                    const isInputCell = cellType === 'input'
-                    const isCalculated = cell.answerType === 'calculated'
+        questionId: question.questionId,
+        questionText: question.questionText,
+        questionType: question.questionType,
+        order: question.order,
+        points: question.points,
+        schemaMapping: question.schemaMapping
+          ? {
+            vlanIndex: question.schemaMapping.vlanIndex,
+            field: question.schemaMapping.field,
+            deviceId: question.schemaMapping.deviceId,
+            variableName: question.schemaMapping.variableName,
+            autoDetected: question.schemaMapping.autoDetected
+          }
+          : undefined,
+        answerFormula: question.answerFormula,
+        expectedAnswerType: question.expectedAnswerType,
+        placeholder: question.placeholder,
+        inputFormat: question.inputFormat,
+        expectedAnswer: question.expectedAnswer,
+        caseSensitive: question.caseSensitive,
+        trimWhitespace: question.trimWhitespace,
+        // 🆕 ADDED: IP Table Questionnaire data for advanced IP table questions
+        ipTableQuestionnaire: question.ipTableQuestionnaire
+          ? {
+            tableId: question.ipTableQuestionnaire.tableId,
+            rowCount: question.ipTableQuestionnaire.rowCount,
+            columnCount: question.ipTableQuestionnaire.columnCount,
+            columns: question.ipTableQuestionnaire.columns.map((col: any) => ({
+              columnId: col.columnId,
+              label: col.label,
+              order: col.order
+            })),
+            rows: question.ipTableQuestionnaire.rows.map((row: any) => ({
+              rowId: row.rowId,
+              deviceId: row.deviceId,
+              interfaceName: row.interfaceName,
+              displayName: row.displayName,
+              order: row.order
+            })),
+            cells: question.ipTableQuestionnaire.cells.map((cellRow: any) =>
+              cellRow.map((cell: any) => {
+                const cellType = cell.cellType ?? 'input'
+                const isInputCell = cellType === 'input'
+                const isCalculated = cell.answerType === 'calculated'
 
-                    return {
-                      cellId: cell.cellId,
-                      rowId: cell.rowId,
-                      columnId: cell.columnId,
-                      cellType,
-                      answerType: isInputCell ? (cell.answerType ?? 'calculated') : undefined,
-                      staticAnswer: isInputCell && cell.answerType === 'static' ? cell.staticAnswer : undefined,
-                      calculatedAnswer: isInputCell && isCalculated && cell.calculatedAnswer
-                        ? {
-                            calculationType: cell.calculatedAnswer.calculationType,
-                            vlanIndex: cell.calculatedAnswer.vlanIndex,
-                            lecturerOffset: cell.calculatedAnswer.lecturerOffset,
-                            lecturerRangeStart: cell.calculatedAnswer.lecturerRangeStart,
-                            lecturerRangeEnd: cell.calculatedAnswer.lecturerRangeEnd,
-                            deviceId: cell.calculatedAnswer.deviceId,
-                            interfaceName: cell.calculatedAnswer.interfaceName
-                          }
-                        : undefined,
-                      readonlyContent: cellType === 'readonly' ? (cell.readonlyContent ?? '') : undefined,
-                      blankReason: cellType === 'blank' ? (cell.blankReason ?? '') : undefined,
-                      points: isInputCell ? cell.points : 0,
-                      autoCalculated: isInputCell ? !!cell.autoCalculated : false
+                return {
+                  cellId: cell.cellId,
+                  rowId: cell.rowId,
+                  columnId: cell.columnId,
+                  cellType,
+                  answerType: isInputCell ? (cell.answerType ?? 'calculated') : undefined,
+                  staticAnswer: isInputCell && cell.answerType === 'static' ? cell.staticAnswer : undefined,
+                  calculatedAnswer: isInputCell && isCalculated && cell.calculatedAnswer
+                    ? {
+                      calculationType: cell.calculatedAnswer.calculationType,
+                      vlanIndex: cell.calculatedAnswer.vlanIndex,
+                      lecturerOffset: cell.calculatedAnswer.lecturerOffset,
+                      lecturerRangeStart: cell.calculatedAnswer.lecturerRangeStart,
+                      lecturerRangeEnd: cell.calculatedAnswer.lecturerRangeEnd,
+                      deviceId: cell.calculatedAnswer.deviceId,
+                      interfaceName: cell.calculatedAnswer.interfaceName
                     }
-                  })
-                )
-              }
-            : undefined
-        }))
+                    : undefined,
+                  readonlyContent: cellType === 'readonly' ? (cell.readonlyContent ?? '') : undefined,
+                  blankReason: cellType === 'blank' ? (cell.blankReason ?? '') : undefined,
+                  points: isInputCell ? cell.points : 0,
+                  autoCalculated: isInputCell ? !!cell.autoCalculated : false
+                }
+              })
+            )
+          }
+          : undefined
+      }))
       : undefined,
     prerequisites: part.prerequisites,
     totalPoints: part.totalPoints

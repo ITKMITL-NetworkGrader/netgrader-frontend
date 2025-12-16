@@ -39,7 +39,7 @@
               </div>
             </div>
           </div>
-          
+
           <div v-if="wizardData.basicInfo.description" class="space-y-2">
             <Label class="text-sm font-medium text-muted-foreground">Description</Label>
             <div class="p-3 bg-muted/30 rounded border">
@@ -93,14 +93,12 @@
           <!-- VLANs Configuration -->
           <div v-if="wizardData.networkConfig.vlans.length > 0" class="space-y-2">
             <Label class="text-sm font-medium text-muted-foreground">
-              VLANs Configuration ({{ wizardData.networkConfig.vlans.length }} VLAN{{ wizardData.networkConfig.vlans.length !== 1 ? 's' : '' }})
+              VLANs Configuration ({{ wizardData.networkConfig.vlans.length }} VLAN{{
+                wizardData.networkConfig.vlans.length !== 1 ? 's' : '' }})
             </Label>
             <div class="space-y-2">
-              <div
-                v-for="(vlan, index) in wizardData.networkConfig.vlans"
-                :key="index"
-                class="p-3 bg-muted/20 rounded border"
-              >
+              <div v-for="(vlan, index) in wizardData.networkConfig.vlans" :key="index"
+                class="p-3 bg-muted/20 rounded border">
                 <div class="flex items-center justify-between mb-2">
                   <div class="font-medium">VLAN {{ index }}</div>
                   <Badge v-if="vlan.isStudentGenerated" variant="secondary" class="text-xs">
@@ -133,18 +131,15 @@
           </div>
 
           <!-- Exempt IP Ranges -->
-          <div v-if="wizardData.networkConfig.exemptIpRanges && wizardData.networkConfig.exemptIpRanges.length > 0" class="space-y-2">
+          <div v-if="wizardData.networkConfig.exemptIpRanges && wizardData.networkConfig.exemptIpRanges.length > 0"
+            class="space-y-2">
             <Label class="text-sm font-medium text-muted-foreground">
               Exempt IP Ranges ({{ wizardData.networkConfig.exemptIpRanges.length }})
             </Label>
             <div class="p-3 bg-muted/20 rounded border">
               <div class="flex flex-wrap gap-2">
-                <Badge
-                  v-for="(range, index) in wizardData.networkConfig.exemptIpRanges"
-                  :key="index"
-                  variant="outline"
-                  class="font-mono text-xs"
-                >
+                <Badge v-for="(range, index) in wizardData.networkConfig.exemptIpRanges" :key="index" variant="outline"
+                  class="font-mono text-xs">
                   {{ range.original }}
                 </Badge>
               </div>
@@ -163,14 +158,11 @@
         </CardHeader>
         <CardContent>
           <div class="space-y-3">
-            <div
-              v-for="(device, index) in wizardData.devices"
-              :key="index"
-              class="p-3 bg-muted/20 rounded border"
-            >
+            <div v-for="(device, index) in wizardData.devices" :key="index" class="p-3 bg-muted/20 rounded border">
               <div class="flex items-center justify-between mb-2">
                 <div class="font-medium">{{ device.deviceId }}</div>
-                <Badge variant="outline">{{ device.ipVariables.length }} IP variable{{ device.ipVariables.length !== 1 ? 's' : '' }}</Badge>
+                <Badge variant="outline">{{ device.ipVariables.length }} IP variable{{ device.ipVariables.length !== 1 ?
+                  's' : '' }}</Badge>
               </div>
               <div class="text-sm text-muted-foreground mb-3">
                 Template: {{ getDeviceTemplateName(device.templateId) }}
@@ -188,11 +180,7 @@
                     </tr>
                   </thead>
                   <tbody>
-                    <tr
-                      v-for="ipVar in device.ipVariables"
-                      :key="ipVar.name"
-                      class="border-t"
-                    >
+                    <tr v-for="ipVar in device.ipVariables" :key="ipVar.name" class="border-t">
                       <td class="p-2 font-mono">{{ ipVar.name }}</td>
                       <td class="p-2 font-mono text-muted-foreground">
                         {{ ipVar.interface || '-' }}
@@ -213,8 +201,13 @@
               <!-- Connection Parameters -->
               <div v-if="device.connectionParams" class="mt-3 pt-3 border-t text-xs text-muted-foreground">
                 <div class="flex items-center gap-4">
-                  <span>SSH Port: <span class="font-mono">{{ device.connectionParams.sshPort }}</span></span>
-                  <span>Username: <span class="font-mono">{{ device.connectionParams.username }}</span></span>
+                  <span>Type: <span class="font-mono capitalize">{{ device.connectionParams.connectionType || 'ssh'
+                      }}</span></span>
+                  <span v-if="device.connectionParams.connectionType !== 'console'">Port: <span class="font-mono">{{
+                    device.connectionParams.sshPort || (device.connectionParams.connectionType === 'telnet' ? 23 : 22)
+                      }}</span></span>
+                  <span v-if="device.connectionParams.username">Username: <span class="font-mono">{{
+                    device.connectionParams.username }}</span></span>
                 </div>
               </div>
             </div>
@@ -232,11 +225,8 @@
         </CardHeader>
         <CardContent>
           <div class="space-y-4">
-            <div
-              v-for="(part, partIndex) in wizardData.parts"
-              :key="part.tempId || part._id || part.partId || partIndex"
-              class="border rounded-lg p-4"
-            >
+            <div v-for="(part, partIndex) in wizardData.parts"
+              :key="part.tempId || part._id || part.partId || partIndex" class="border rounded-lg p-4">
               <div class="flex items-center justify-between mb-3">
                 <div class="flex flex-wrap items-center gap-2">
                   <Badge variant="outline">Part {{ partIndex + 1 }}</Badge>
@@ -244,30 +234,16 @@
                   <Badge variant="secondary" class="text-xs">
                     {{ formatPartType(part.partType) }}
                   </Badge>
-                  <Badge
-                    v-if="Number(part.totalPoints) > 0"
-                    variant="outline"
-                    class="text-xs"
-                  >
+                  <Badge v-if="Number(part.totalPoints) > 0" variant="outline" class="text-xs">
                     {{ part.totalPoints }} pts
                   </Badge>
-                  <Badge
-                    v-if="getPartTaskCount(part) > 0"
-                    variant="outline"
-                    class="text-xs"
-                  >
+                  <Badge v-if="getPartTaskCount(part) > 0" variant="outline" class="text-xs">
                     {{ getPartTaskCount(part) }} task{{ getPartTaskCount(part) === 1 ? '' : 's' }}
                   </Badge>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  @click="togglePartDetails(partIndex)"
-                >
-                  <ChevronDown
-                    :class="{ 'transform rotate-180': expandedParts.has(partIndex) }"
-                    class="w-4 h-4 transition-transform"
-                  />
+                <Button variant="ghost" size="sm" @click="togglePartDetails(partIndex)">
+                  <ChevronDown :class="{ 'transform rotate-180': expandedParts.has(partIndex) }"
+                    class="w-4 h-4 transition-transform" />
                 </Button>
               </div>
 
@@ -291,18 +267,16 @@
                     <div v-if="part.partType === 'network_config'" class="space-y-2">
                       <Label class="text-xs font-medium text-muted-foreground">Tasks</Label>
                       <div class="space-y-2">
-                        <div
-                          v-for="(task, taskIndex) in part.tasks"
-                          :key="task.tempId"
-                          class="p-2 bg-muted/10 rounded flex items-center justify-between"
-                        >
+                        <div v-for="(task, taskIndex) in part.tasks" :key="task.tempId"
+                          class="p-2 bg-muted/10 rounded flex items-center justify-between">
                           <div class="flex items-center space-x-2">
                             <Badge variant="outline" class="text-xs">{{ taskIndex + 1 }}</Badge>
                             <span class="text-sm">{{ task.name }}</span>
                             <Badge variant="secondary" class="text-xs">{{ task.points }} pts</Badge>
                           </div>
                           <div class="text-xs text-muted-foreground">
-                            {{ task.executionDevice }} • {{ task.testCases.length }} test{{ task.testCases.length !== 1 ? 's' : '' }}
+                            {{ task.executionDevice }} • {{ task.testCases.length }} test{{ task.testCases.length !== 1
+                            ? 's' : '' }}
                           </div>
                         </div>
                       </div>
@@ -314,15 +288,13 @@
                         Questions ({{ Array.isArray(part.questions) ? part.questions.length : 0 }})
                       </Label>
                       <div v-if="Array.isArray(part.questions) && part.questions.length" class="space-y-2">
-                        <div
-                          v-for="(question, questionIndex) in part.questions"
-                          :key="question.questionId || questionIndex"
-                          class="border rounded p-3 space-y-2 bg-muted/10"
-                        >
+                        <div v-for="(question, questionIndex) in part.questions"
+                          :key="question.questionId || questionIndex" class="border rounded p-3 space-y-2 bg-muted/10">
                           <div class="flex flex-wrap items-start justify-between gap-2">
                             <div class="flex items-center gap-2">
                               <Badge variant="outline" class="text-xs">{{ questionIndex + 1 }}</Badge>
-                              <span class="font-medium text-sm">{{ question.questionText || 'Untitled question' }}</span>
+                              <span class="font-medium text-sm">{{ question.questionText || 'Untitled question'
+                                }}</span>
                             </div>
                             <div class="flex items-center gap-2">
                               <Badge variant="secondary" class="text-xs">
@@ -336,8 +308,7 @@
 
                           <div
                             v-if="question.questionType === 'ip_table_questionnaire' && question.ipTableQuestionnaire"
-                            class="mt-2 p-3 bg-background border rounded space-y-2 text-xs"
-                          >
+                            class="mt-2 p-3 bg-background border rounded space-y-2 text-xs">
                             <div class="font-semibold text-sm">Advanced IP Table</div>
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                               <div>
@@ -399,7 +370,8 @@
                         </div>
                         <div>
                           <span class="text-muted-foreground">Server Device:</span>
-                          <span class="ml-1 font-medium">{{ part.dhcpConfiguration.dhcpServerDevice || 'Not set' }}</span>
+                          <span class="ml-1 font-medium">{{ part.dhcpConfiguration.dhcpServerDevice || 'Not set'
+                            }}</span>
                         </div>
                         <div>
                           <span class="text-muted-foreground">Range Start Offset:</span>
@@ -432,24 +404,24 @@
             <div class="space-y-2">
               <Label class="text-sm font-medium text-muted-foreground">Available From</Label>
               <div class="p-3 bg-muted/30 rounded border">
-                {{ wizardData.schedule.availableFrom 
-                  ? formatDateTime(wizardData.schedule.availableFrom) 
+                {{ wizardData.schedule.availableFrom
+                  ? formatDateTime(wizardData.schedule.availableFrom)
                   : 'Immediately' }}
               </div>
             </div>
             <div class="space-y-2">
               <Label class="text-sm font-medium text-muted-foreground">Due Date</Label>
               <div class="p-3 bg-muted/30 rounded border">
-                {{ wizardData.schedule.dueDate 
-                  ? formatDateTime(wizardData.schedule.dueDate) 
+                {{ wizardData.schedule.dueDate
+                  ? formatDateTime(wizardData.schedule.dueDate)
                   : 'No deadline' }}
               </div>
             </div>
             <div class="space-y-2">
               <Label class="text-sm font-medium text-muted-foreground">Available Until</Label>
               <div class="p-3 bg-muted/30 rounded border">
-                {{ wizardData.schedule.availableUntil 
-                  ? formatDateTime(wizardData.schedule.availableUntil) 
+                {{ wizardData.schedule.availableUntil
+                  ? formatDateTime(wizardData.schedule.availableUntil)
                   : 'Always available' }}
               </div>
             </div>
@@ -503,7 +475,7 @@
                 : 'Please review all information above carefully. Once created, some lab settings cannot be easily modified if students have already started working on the lab.'
             }}
           </p>
-          
+
           <div class="flex items-center space-x-2 p-3 bg-muted/30 rounded">
             <Info class="w-4 h-4 text-blue-600" />
             <span class="text-sm">
@@ -515,12 +487,7 @@
             </span>
           </div>
 
-          <Button
-            @click="handleCreateLab"
-            size="lg"
-            class="w-full"
-            :disabled="isSubmitting"
-          >
+          <Button @click="handleCreateLab" size="lg" class="w-full" :disabled="isSubmitting">
             <Loader2 v-if="isSubmitting" class="w-4 h-4 mr-2 animate-spin" />
             <Rocket v-else class="w-4 h-4 mr-2" />
             {{

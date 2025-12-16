@@ -1,19 +1,14 @@
+<script setup lang="ts">
+import type { HTMLAttributes } from "vue"
+import { cn } from "@/lib/utils"
+
+const props = defineProps<{
+  class?: HTMLAttributes["class"]
+}>()
+</script>
+
 <template>
-  <div
-    :class="cn('text-sm [&_p]:leading-relaxed', className)"
-    v-bind="$attrs"
-  >
+  <div :class="cn('text-sm [&_p]:leading-relaxed', props.class)">
     <slot />
   </div>
 </template>
-
-<script setup lang="ts">
-import { cn } from '@/lib/utils'
-
-interface Props {
-  class?: string
-}
-
-const props = defineProps<Props>()
-const className = computed(() => props.class)
-</script>

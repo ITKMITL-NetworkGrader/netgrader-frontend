@@ -40,10 +40,19 @@
         <div class="flex items-center justify-between">
           <div>
             <h1 class="text-2xl font-bold">Create New {{ labType === 'exam' ? 'Exam' : 'Lab' }}</h1>
-            <p class="text-muted-foreground mt-1">Design a comprehensive {{ labType === 'exam' ? 'exam' : 'lab' }} with network topology, tasks, and grading</p>
+            <p class="text-muted-foreground mt-1">Design a comprehensive {{ labType === 'exam' ? 'exam' : 'lab' }} with
+              network topology, tasks, and grading</p>
           </div>
-          <div class="text-sm text-muted-foreground">
-            Course: <span class="font-medium">{{ courseTitle }}</span>
+          <div class="flex items-center gap-4">
+            <!-- Playground Button -->
+            <Button v-if="currentStep >= 4 && validation.step4.isValid" variant="outline" @click="openPlayground"
+              class="gap-2">
+              <Play class="w-4 h-4" />
+              Playground
+            </Button>
+            <div class="text-sm text-muted-foreground">
+              Course: <span class="font-medium">{{ courseTitle }}</span>
+            </div>
           </div>
         </div>
 
@@ -51,33 +60,25 @@
         <div class="mt-4 mb-2">
           <div class="flex items-center justify-center space-x-4">
             <div v-for="(step, index) in steps" :key="step.id" class="flex items-center">
-              <div
-                class="flex items-center justify-center w-8 h-8 rounded-full border-2 transition-all duration-200"
+              <div class="flex items-center justify-center w-8 h-8 rounded-full border-2 transition-all duration-200"
                 :class="{
                   'bg-primary text-primary-foreground border-primary': currentStep >= index + 1,
                   'border-muted-foreground text-muted-foreground bg-background': currentStep < index + 1,
                   'bg-green-500 border-green-500 text-white': currentStep > index + 1
-                }"
-              >
+                }">
                 <Check v-if="currentStep > index + 1" class="w-4 h-4" />
                 <span v-else class="font-semibold text-xs">{{ index + 1 }}</span>
               </div>
               <div class="ml-2 min-w-0">
-                <div
-                  class="font-medium text-xs transition-colors duration-200"
-                  :class="{
-                    'text-foreground': currentStep >= index + 1,
-                    'text-muted-foreground': currentStep < index + 1,
-                    'text-green-600': currentStep > index + 1
-                  }"
-                >
+                <div class="font-medium text-xs transition-colors duration-200" :class="{
+                  'text-foreground': currentStep >= index + 1,
+                  'text-muted-foreground': currentStep < index + 1,
+                  'text-green-600': currentStep > index + 1
+                }">
                   {{ step.title }}
                 </div>
               </div>
-              <ChevronRight
-                v-if="index < steps.length - 1"
-                class="w-4 h-4 mx-3 text-muted-foreground/40"
-              />
+              <ChevronRight v-if="index < steps.length - 1" class="w-4 h-4 mx-3 text-muted-foreground/40" />
             </div>
           </div>
         </div>
@@ -91,56 +92,30 @@
           <!-- Step Content -->
           <div class="p-6">
             <!-- Step 1: Basic Lab Information -->
-            <LabWizardStep1
-              v-if="currentStep === 1"
-              v-model="wizardData.basicInfo"
-              :course-context="courseContext"
-              @validate="handleStepValidation(1, $event)"
-            />
+            <LabWizardStep1 v-if="currentStep === 1" v-model="wizardData.basicInfo" :course-context="courseContext"
+              @validate="handleStepValidation(1, $event)" />
 
             <!-- Step 2: Network Configuration -->
-            <LabWizardStep2
-              v-if="currentStep === 2"
-              v-model="wizardData.networkConfig"
-              :validation="validation.step2"
-              @validate="handleStepValidation(2, $event)"
-            />
+            <LabWizardStep2 v-if="currentStep === 2" v-model="wizardData.networkConfig" :validation="validation.step2"
+              @validate="handleStepValidation(2, $event)" />
 
             <!-- Step 3: Device Configuration -->
-            <LabWizardStep3
-              v-if="currentStep === 3"
-              v-model="wizardData.devices"
-              :network-config="wizardData.networkConfig"
-              :validation="validation.step3"
-              @validate="handleStepValidation(3, $event)"
-            />
+            <LabWizardStep3 v-if="currentStep === 3" v-model="wizardData.devices"
+              :network-config="wizardData.networkConfig" :validation="validation.step3"
+              @validate="handleStepValidation(3, $event)" />
 
             <!-- Step 4: Parts & Tasks Management -->
-            <LabWizardStep4
-              v-if="currentStep === 4"
-              v-model="wizardData.parts"
-              :devices="wizardData.devices"
-              :vlans="wizardData.networkConfig.vlans"
-              :validation="validation.step4"
-              @validate="handleStepValidation(4, $event)"
-            />
+            <LabWizardStep4 v-if="currentStep === 4" v-model="wizardData.parts" :devices="wizardData.devices"
+              :vlans="wizardData.networkConfig.vlans" :validation="validation.step4"
+              @validate="handleStepValidation(4, $event)" />
 
             <!-- Step 5: Schedule & Publishing -->
-            <LabWizardStep5
-              v-if="currentStep === 5"
-              v-model="wizardData.schedule"
-              :validation="validation.step5"
-              @validate="handleStepValidation(5, $event)"
-            />
+            <LabWizardStep5 v-if="currentStep === 5" v-model="wizardData.schedule" :validation="validation.step5"
+              @validate="handleStepValidation(5, $event)" />
 
             <!-- Step 6: Review & Create -->
-            <LabWizardStep6
-              v-if="currentStep === 6"
-              :wizard-data="wizardData"
-              :course-context="courseContext"
-              :is-submitting="isSubmitting"
-              @create-lab="handleCreateLab"
-            />
+            <LabWizardStep6 v-if="currentStep === 6" :wizard-data="wizardData" :course-context="courseContext"
+              :is-submitting="isSubmitting" @create-lab="handleCreateLab" />
           </div>
         </CardContent>
       </Card>
@@ -148,13 +123,7 @@
       <!-- Navigation Footer -->
       <div class="flex items-center justify-between mt-6 pt-4 border-t bg-background sticky bottom-0 z-30">
         <div>
-          <Button
-            v-if="currentStep > 1"
-            variant="outline"
-            size="lg"
-            :disabled="isSubmitting"
-            @click="previousStep"
-          >
+          <Button v-if="currentStep > 1" variant="outline" size="lg" :disabled="isSubmitting" @click="previousStep">
             <ChevronLeft class="w-4 h-4 mr-2" />
             Previous
           </Button>
@@ -162,32 +131,18 @@
 
         <div class="flex items-center space-x-3">
           <!-- Save Draft Button -->
-          <Button
-            variant="ghost"
-            size="lg"
-            :disabled="isSubmitting"
-            @click="saveDraft"
-          >
+          <Button variant="ghost" size="lg" :disabled="isSubmitting" @click="saveDraft">
             <Save class="w-4 h-4 mr-2" />
             Save Draft
           </Button>
 
           <!-- Next/Create Button -->
-          <Button
-            v-if="currentStep < steps.length"
-            size="lg"
-            :disabled="isSubmitting || !canProceedToNextStep"
-            @click="nextStep"
-          >
+          <Button v-if="currentStep < steps.length" size="lg" :disabled="isSubmitting || !canProceedToNextStep"
+            @click="nextStep">
             Next
             <ChevronRight class="w-4 h-4 ml-2" />
           </Button>
-          <Button
-            v-else
-            size="lg"
-            :disabled="isSubmitting || !canCreateLab"
-            @click="handleCreateLab"
-          >
+          <Button v-else size="lg" :disabled="isSubmitting || !canCreateLab" @click="handleCreateLab">
             <Loader2 v-if="isSubmitting" class="w-4 h-4 mr-2 animate-spin" />
             <Plus v-else class="w-4 h-4 mr-2" />
             Create Lab
@@ -197,14 +152,8 @@
     </div>
 
     <!-- Global Error/Success Messages -->
-    <div
-      v-if="globalMessage.show"
-      class="fixed bottom-4 right-4 max-w-md z-50"
-    >
-      <Alert
-        :variant="globalMessage.type === 'error' ? 'destructive' : 'default'"
-        class="shadow-lg border-2"
-      >
+    <div v-if="globalMessage.show" class="fixed bottom-4 right-4 max-w-md z-50">
+      <Alert :variant="globalMessage.type === 'error' ? 'destructive' : 'default'" class="shadow-lg border-2">
         <AlertCircle v-if="globalMessage.type === 'error'" class="h-4 w-4" />
         <CheckCircle2 v-else class="h-4 w-4" />
         <AlertTitle>
@@ -215,6 +164,15 @@
         </AlertDescription>
       </Alert>
     </div>
+
+    <!-- Playground Modals -->
+    <PlaygroundSetupModal v-model:open="showPlaygroundSetup" :lab-id="playgroundLabId"
+      @complete="handlePlaygroundSetupComplete" @reset="handlePlaygroundReset" />
+
+    <PlaygroundTestingModal v-model:open="showPlaygroundTesting" :lab-id="playgroundLabId" :parts="wizardData.parts"
+      :gns3-config="playgroundConfig?.gns3Config || null" :device-mappings="playgroundConfig?.deviceMappings || []"
+      :custom-ip-mappings="playgroundConfig?.customIpMappings || {}"
+      :custom-vlan-mappings="playgroundConfig?.customVlanMappings || {}" @reconfigure="handlePlaygroundReconfigure" />
   </div>
 </template>
 
@@ -231,7 +189,8 @@ import {
   Save,
   Loader2,
   AlertCircle,
-  CheckCircle2
+  CheckCircle2,
+  Play
 } from 'lucide-vue-next'
 
 // UI Components
@@ -247,6 +206,11 @@ import LabWizardStep3 from '@/components/wizard/LabWizardStep3.vue'
 import LabWizardStep4 from '@/components/wizard/LabWizardStep4.vue'
 import LabWizardStep5 from '@/components/wizard/LabWizardStep5.vue'
 import LabWizardStep6 from '@/components/wizard/LabWizardStep6.vue'
+
+// Playground Components
+import PlaygroundSetupModal from '@/components/playground/PlaygroundSetupModal.vue'
+import PlaygroundTestingModal from '@/components/playground/PlaygroundTestingModal.vue'
+import type { GNS3Config, DeviceMapping } from '@/composables/usePlayground'
 
 // Types
 import type {
@@ -374,6 +338,47 @@ const globalMessage = reactive({
   message: ''
 })
 
+// Playground state
+const showPlaygroundSetup = ref(false)
+const showPlaygroundTesting = ref(false)
+const playgroundLabId = ref('')
+const playgroundConfig = ref<{
+  gns3Config: GNS3Config
+  deviceMappings: DeviceMapping[]
+  customIpMappings: Record<string, string>
+  customVlanMappings: Record<string, number>
+} | null>(null)
+
+// Playground functions
+function openPlayground() {
+  // Generate a temporary lab ID for playground testing (not saved to DB)
+  playgroundLabId.value = `playground-${courseId}-${Date.now()}`
+
+  if (playgroundConfig.value) {
+    // If already configured, go directly to testing modal
+    showPlaygroundTesting.value = true
+  } else {
+    // Otherwise, show setup modal first
+    showPlaygroundSetup.value = true
+  }
+}
+
+function handlePlaygroundSetupComplete(config: typeof playgroundConfig.value) {
+  playgroundConfig.value = config
+  showPlaygroundSetup.value = false
+  // Open testing modal after setup is complete
+  showPlaygroundTesting.value = true
+}
+
+function handlePlaygroundReset() {
+  playgroundConfig.value = null
+}
+
+function handlePlaygroundReconfigure() {
+  showPlaygroundTesting.value = false
+  showPlaygroundSetup.value = true
+}
+
 // Computed properties
 const canProceedToNextStep = computed(() => {
   return validation.value[`step${currentStep.value}` as keyof StepValidation]?.isValid || false
@@ -381,10 +386,10 @@ const canProceedToNextStep = computed(() => {
 
 const canCreateLab = computed(() => {
   return validation.value.step1.isValid &&
-         validation.value.step2.isValid &&
-         validation.value.step3.isValid &&
-         validation.value.step4.isValid &&
-         validation.value.step5.isValid
+    validation.value.step2.isValid &&
+    validation.value.step3.isValid &&
+    validation.value.step4.isValid &&
+    validation.value.step5.isValid
 })
 
 // Helper function to convert string boolean values to actual booleans
@@ -433,7 +438,7 @@ const saveDraft = async () => {
       lastSaved: new Date().toISOString()
     }
     localStorage.setItem(`lab-draft-${courseId}`, JSON.stringify(draftData))
-    
+
     showGlobalMessage('success', 'Draft saved successfully')
   } catch (error) {
     console.error('Failed to save draft:', error)
@@ -447,7 +452,7 @@ const loadDraft = () => {
     if (draftData) {
       const parsed = JSON.parse(draftData)
       Object.assign(wizardData, parsed)
-      
+
       // Show message about loaded draft
       toast.info('Draft loaded from previous session')
     }
@@ -515,7 +520,7 @@ const handleCreateLab = async () => {
               vlanIndex: ipVar.vlanIndex,
               interfaceOffset: ipVar.interfaceOffset
             }
-            
+
             // Add either hostOffset or fullIp based on inputType
             if (ipVar.inputType === 'fullIP') {
               return {
@@ -565,7 +570,7 @@ const handleCreateLab = async () => {
     }
 
     const labId = labResponse.data.id  // Lab ID is in 'id' field, not 'labId'
-    
+
     // Verify we got a valid lab ID
     if (!labId) {
       throw new Error('Failed to get lab ID from lab creation response')
@@ -574,7 +579,7 @@ const handleCreateLab = async () => {
     // Step 2: Create lab parts
     for (let i = 0; i < wizardData.parts.length; i++) {
       const part = wizardData.parts[i]
-      
+
       const partData = {
         labId,
         partId: part.partId,
@@ -585,113 +590,113 @@ const handleCreateLab = async () => {
         partType: part.partType,
         tasks: part.partType === 'network_config'
           ? part.tasks.map(task => ({
-              taskId: task.taskId,
-              name: task.name,
-              description: task.description,
-              templateId: task.templateId,
-              executionDevice: task.executionDevice,
-              targetDevices: task.targetDevices,
-              parameters: Object.fromEntries(
-                Object.entries(task.parameters).map(([key, value]) => [
-                  key,
-                  formatParameterValue(value)
-                ])
-              ),
-              testCases: task.testCases.map(testCase => ({
-                ...testCase,
-                expected_result: convertStringToBoolean(testCase.expected_result)
-              })),
-              order: task.order,
-              points: task.points,
-              group_id: task.groupId || undefined
-            }))
+            taskId: task.taskId,
+            name: task.name,
+            description: task.description,
+            templateId: task.templateId,
+            executionDevice: task.executionDevice,
+            targetDevices: task.targetDevices,
+            parameters: Object.fromEntries(
+              Object.entries(task.parameters).map(([key, value]) => [
+                key,
+                formatParameterValue(value)
+              ])
+            ),
+            testCases: task.testCases.map(testCase => ({
+              ...testCase,
+              expected_result: convertStringToBoolean(testCase.expected_result)
+            })),
+            order: task.order,
+            points: task.points,
+            group_id: task.groupId || undefined
+          }))
           : [],
         task_groups: part.partType === 'network_config'
           ? part.task_groups.map(group => ({
-              group_id: group.group_id,
-              title: group.title,
-              description: group.description,
-              group_type: group.group_type,
-              points: group.points,
-              continue_on_failure: group.continue_on_failure,
-              timeout_seconds: group.timeout_seconds
-            }))
+            group_id: group.group_id,
+            title: group.title,
+            description: group.description,
+            group_type: group.group_type,
+            points: group.points,
+            continue_on_failure: group.continue_on_failure,
+            timeout_seconds: group.timeout_seconds
+          }))
           : [],
         questions: part.partType === 'fill_in_blank'
           ? part.questions?.map(question => ({
-              questionId: question.questionId,
-              questionText: question.questionText,
-              questionType: question.questionType,
-              order: question.order,
-              points: question.points,
-              schemaMapping: question.schemaMapping
-                ? {
-                    vlanIndex: question.schemaMapping.vlanIndex,
-                    field: question.schemaMapping.field,
-                    deviceId: question.schemaMapping.deviceId,
-                    variableName: question.schemaMapping.variableName,
-                    autoDetected: question.schemaMapping.autoDetected
-                  }
-                : undefined,
-              answerFormula: question.answerFormula,
-              expectedAnswerType: question.expectedAnswerType,
-              placeholder: question.placeholder,
-              inputFormat: question.inputFormat,
-              expectedAnswer: question.expectedAnswer,
-              caseSensitive: question.caseSensitive,
-              trimWhitespace: question.trimWhitespace,
-              // 🆕 ADDED: IP Table Questionnaire data for advanced IP table questions
-              ipTableQuestionnaire: question.ipTableQuestionnaire
-                ? {
-                    tableId: question.ipTableQuestionnaire.tableId,
-                    rowCount: question.ipTableQuestionnaire.rowCount,
-                    columnCount: question.ipTableQuestionnaire.columnCount,
-                    columns: question.ipTableQuestionnaire.columns.map(col => ({
-                      columnId: col.columnId,
-                      label: col.label,
-                      order: col.order
-                    })),
-                    rows: question.ipTableQuestionnaire.rows.map(row => ({
-                      rowId: row.rowId,
-                      deviceId: row.deviceId,
-                      interfaceName: row.interfaceName,
-                      displayName: row.displayName,
-                      order: row.order
-                    })),
-                    cells: question.ipTableQuestionnaire.cells.map(cellRow =>
-                      cellRow.map(cell => {
-                        const cellType = cell.cellType ?? 'input'
-                        const isInputCell = cellType === 'input'
-                        const isCalculated = cell.answerType === 'calculated'
+            questionId: question.questionId,
+            questionText: question.questionText,
+            questionType: question.questionType,
+            order: question.order,
+            points: question.points,
+            schemaMapping: question.schemaMapping
+              ? {
+                vlanIndex: question.schemaMapping.vlanIndex,
+                field: question.schemaMapping.field,
+                deviceId: question.schemaMapping.deviceId,
+                variableName: question.schemaMapping.variableName,
+                autoDetected: question.schemaMapping.autoDetected
+              }
+              : undefined,
+            answerFormula: question.answerFormula,
+            expectedAnswerType: question.expectedAnswerType,
+            placeholder: question.placeholder,
+            inputFormat: question.inputFormat,
+            expectedAnswer: question.expectedAnswer,
+            caseSensitive: question.caseSensitive,
+            trimWhitespace: question.trimWhitespace,
+            // 🆕 ADDED: IP Table Questionnaire data for advanced IP table questions
+            ipTableQuestionnaire: question.ipTableQuestionnaire
+              ? {
+                tableId: question.ipTableQuestionnaire.tableId,
+                rowCount: question.ipTableQuestionnaire.rowCount,
+                columnCount: question.ipTableQuestionnaire.columnCount,
+                columns: question.ipTableQuestionnaire.columns.map(col => ({
+                  columnId: col.columnId,
+                  label: col.label,
+                  order: col.order
+                })),
+                rows: question.ipTableQuestionnaire.rows.map(row => ({
+                  rowId: row.rowId,
+                  deviceId: row.deviceId,
+                  interfaceName: row.interfaceName,
+                  displayName: row.displayName,
+                  order: row.order
+                })),
+                cells: question.ipTableQuestionnaire.cells.map(cellRow =>
+                  cellRow.map(cell => {
+                    const cellType = cell.cellType ?? 'input'
+                    const isInputCell = cellType === 'input'
+                    const isCalculated = cell.answerType === 'calculated'
 
-                        return {
-                          cellId: cell.cellId,
-                          rowId: cell.rowId,
-                          columnId: cell.columnId,
-                          cellType,
-                          answerType: isInputCell ? (cell.answerType ?? 'calculated') : undefined,
-                          staticAnswer: isInputCell && cell.answerType === 'static' ? cell.staticAnswer : undefined,
-                          calculatedAnswer: isInputCell && isCalculated && cell.calculatedAnswer
-                            ? {
-                                calculationType: cell.calculatedAnswer.calculationType,
-                                vlanIndex: cell.calculatedAnswer.vlanIndex,
-                                lecturerOffset: cell.calculatedAnswer.lecturerOffset,
-                                lecturerRangeStart: cell.calculatedAnswer.lecturerRangeStart,
-                                lecturerRangeEnd: cell.calculatedAnswer.lecturerRangeEnd,
-                                deviceId: cell.calculatedAnswer.deviceId,
-                                interfaceName: cell.calculatedAnswer.interfaceName
-                              }
-                            : undefined,
-                          readonlyContent: cellType === 'readonly' ? (cell.readonlyContent ?? '') : undefined,
-                          blankReason: cellType === 'blank' ? (cell.blankReason ?? '') : undefined,
-                          points: isInputCell ? cell.points : 0,
-                          autoCalculated: isInputCell ? !!cell.autoCalculated : false
+                    return {
+                      cellId: cell.cellId,
+                      rowId: cell.rowId,
+                      columnId: cell.columnId,
+                      cellType,
+                      answerType: isInputCell ? (cell.answerType ?? 'calculated') : undefined,
+                      staticAnswer: isInputCell && cell.answerType === 'static' ? cell.staticAnswer : undefined,
+                      calculatedAnswer: isInputCell && isCalculated && cell.calculatedAnswer
+                        ? {
+                          calculationType: cell.calculatedAnswer.calculationType,
+                          vlanIndex: cell.calculatedAnswer.vlanIndex,
+                          lecturerOffset: cell.calculatedAnswer.lecturerOffset,
+                          lecturerRangeStart: cell.calculatedAnswer.lecturerRangeStart,
+                          lecturerRangeEnd: cell.calculatedAnswer.lecturerRangeEnd,
+                          deviceId: cell.calculatedAnswer.deviceId,
+                          interfaceName: cell.calculatedAnswer.interfaceName
                         }
-                      })
-                    )
-                  }
-                : undefined
-            }))
+                        : undefined,
+                      readonlyContent: cellType === 'readonly' ? (cell.readonlyContent ?? '') : undefined,
+                      blankReason: cellType === 'blank' ? (cell.blankReason ?? '') : undefined,
+                      points: isInputCell ? cell.points : 0,
+                      autoCalculated: isInputCell ? !!cell.autoCalculated : false
+                    }
+                  })
+                )
+              }
+              : undefined
+          }))
           : undefined,
         prerequisites: part.prerequisites,
         totalPoints: part.totalPoints
@@ -728,7 +733,7 @@ const handleCreateLab = async () => {
 
     // Success - redirect to course page
     showGlobalMessage('success', 'Lab created successfully!')
-    
+
     setTimeout(() => {
       router.push(`/courses/${courseId}`)
     }, 1500)

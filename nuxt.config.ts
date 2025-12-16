@@ -40,6 +40,7 @@ export default defineNuxtConfig({
     '@hypernym/nuxt-anime',
     '@nuxt/fonts',
     'vue-sonner/nuxt',
+    '@vueuse/motion/nuxt',
   ],
   shadcn: {
     /**
@@ -50,7 +51,7 @@ export default defineNuxtConfig({
        * Directory that the component lives in.
        * @default "./components/ui"
        */
-      componentDir: './app/components/ui'
+    componentDir: './app/components/ui'
   },
   vueSonner: {
     css: false,

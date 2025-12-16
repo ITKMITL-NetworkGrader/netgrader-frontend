@@ -47,6 +47,7 @@ import GradingProgress from '@/components/GradingProgress.vue'
 import LabResultsModal from '@/components/student/LabResultsModal.vue'
 import LabTimer from '@/components/student/LabTimer.vue'
 import FillInBlankQuestions from '@/components/student/FillInBlankQuestions.vue'
+import PlaygroundTab from '@/components/playground/PlaygroundTab.vue'
 import type { ISubmission, LecturerRangeAnswerPayload } from '@/types/submission'
 import { toast } from 'vue-sonner'
 
@@ -66,6 +67,7 @@ type FillInBlankSubmissionPayload = {
 type StoredFillInBlankPayload = {
   answers?: Record<string, string>
   ipTableAnswers?: Record<string, string[][]>
+  validatedIpTableAnswers?: Record<string, string[][]>
   timestamp?: number
 }
 
@@ -80,8 +82,8 @@ const router = useRouter()
 const DOMPURIFY_TEXT_COLOR_CONFIG = {
   ADD_ATTR: ['style'],
   ALLOWED_CSS: ['color']
-} as const
-const EMPTY_PARAGRAPH_REGEX = /<p>(?:\s|&nbsp;|<br\s*\/?>)*<\/p>/gi
+}
+const EMPTY_PARAGRAPH_REGEX = /\<p\>(?:\s|\&nbsp;|\<br\s*\/?\>)*\<\/p\>/gi
 
 const normalizeEmptyParagraphs = (html: string): string => {
   return html.replace(
@@ -129,7 +131,7 @@ const SESSION_STORAGE_PREFIX = 'fillin:'
 // State Management
 const currentPartIndex = ref(0)
 const completedParts = ref<Set<string>>(new Set())
-const completedTasks = ref<Record<string, Set<string>>>(new Map()) // partId -> Set of taskIds
+const completedTasks = ref<Record<string, Set<string>>>({}) // partId -> Set of taskIds
 const isSubmittingPart = ref(false)
 const progress = ref<Record<string, number>>({}) // partId -> percentage
 const fillInBlankQuestionsRef = ref<InstanceType<typeof FillInBlankQuestions> | null>(null)
@@ -146,7 +148,7 @@ const lastAutoNavigatedIndex = ref<number | null>(null)
 const clearSessionStoredAnswers = () => {
   if (typeof window === 'undefined') return
 
- const keysToRemove: string[] = []
+  const keysToRemove: string[] = []
   for (let i = 0; i < sessionStorage.length; i++) {
     const key = sessionStorage.key(i)
     if (key && key.startsWith(SESSION_STORAGE_PREFIX)) {
@@ -287,8 +289,8 @@ const clearFillInBlankStorageForLab = () => {
   for (let index = 0; index < window.localStorage.length; index += 1) {
     const key = window.localStorage.key(index)
     if (key &&
-        key.startsWith(SESSION_STORAGE_PREFIX) &&
-        key.includes(`:${currentLabId}:`)) {
+      key.startsWith(SESSION_STORAGE_PREFIX) &&
+      key.includes(`:${currentLabId}:`)) {
       keysToRemove.push(key)
     }
   }
@@ -355,14 +357,14 @@ const currentLabParts = computed<LabPart[]>(() => {
 
   const fallbackInstructions = typeof instructions === 'string'
     ? (instructions.trim()
-        ? instructions
-        : '<p class="text-muted-foreground">No instructions provided.</p>')
+      ? instructions
+      : '<p class="text-muted-foreground">No instructions provided.</p>')
     : {
-        ...instructions,
-        html: instructionsHtml.trim()
-          ? instructionsHtml
-          : '<p class="text-muted-foreground">No instructions provided.</p>'
-      }
+      ...instructions,
+      html: instructionsHtml.trim()
+        ? instructionsHtml
+        : '<p class="text-muted-foreground">No instructions provided.</p>'
+    }
 
   const virtualInstructionsPart: LabPart = {
     id: PART_ZERO_ID,
@@ -469,8 +471,8 @@ const shouldHideStudentContent = computed(() => showResultsModal.value || timerE
 const hasFillInBlankQuestions = computed(() => {
   if (!currentPart.value) return false
   return currentPart.value.partType === 'fill_in_blank' &&
-         currentPart.value.questions &&
-         currentPart.value.questions.length > 0
+    currentPart.value.questions &&
+    currentPart.value.questions.length > 0
 })
 
 // Helper function to calculate network address from IP and subnet mask
@@ -581,7 +583,7 @@ const isPartUnlocked = (part: LabPart): boolean => {
   if (!part.prerequisites || part.prerequisites.length === 0) {
     return true
   }
-  
+
   // Check if all prerequisite parts are completed
   return part.prerequisites.every(prereqPartId => {
     if (prereqPartId === PART_ZERO_ID) {
@@ -608,17 +610,17 @@ const canAccessPart = (index: number): boolean => {
 // Task Organization and Grouping
 const organizedTasks = computed(() => {
   if (!currentPart.value) return { grouped: [], ungrouped: [] }
-  
+
   const grouped: Array<{ group: TaskGroup; tasks: LabTask[] }> = []
   const ungrouped: LabTask[] = []
-  
+
   // Get all tasks for current part, sorted by order
   const allTasks = [...(currentPart.value.tasks || [])].sort((a, b) => a.order - b.order)
   const taskGroups = currentPart.value.task_groups || []
-  
+
   // Create a set of task IDs that belong to any group
   const groupedTaskIds = new Set<string>()
-  
+
   // Process task groups
   taskGroups.forEach(group => {
     const groupTasks = allTasks.filter(task => {
@@ -627,20 +629,20 @@ const organizedTasks = computed(() => {
       // This is a placeholder - you may need to adjust based on your actual data structure
       return true // Placeholder logic
     })
-    
+
     if (groupTasks.length > 0) {
       grouped.push({ group, tasks: groupTasks })
       groupTasks.forEach(task => groupedTaskIds.add(task.taskId))
     }
   })
-  
+
   // Process ungrouped tasks
   allTasks.forEach(task => {
     if (!groupedTaskIds.has(task.taskId)) {
       ungrouped.push(task)
     }
   })
-  
+
   return { grouped, ungrouped }
 })
 
@@ -1332,33 +1334,17 @@ watch(() => route.query.part, (newPart) => {
 <template>
   <div class="min-h-screen bg-background">
     <!-- Lab Results Modal -->
-    <LabResultsModal
-      :is-open="showResultsModal"
-      :course-id="courseId"
-      :lab-name="currentLab?.title || 'Lab'"
-      :submissions="studentSubmissions"
-      :active-lab-session-id="activeLabSessionId"
-      :lab-parts="actualLabParts || []"
-      :mode="timerExpiredModalMode"
-      :available-until="currentLab?.availableUntil"
-      :is-fresh-completion="isFreshCompletion"
-      :initially-collapsed="showCollapsedSummary"
-      @start-over="handleRestartLabFromResults()"
-      @close="handleCloseResultsModal()"
-    />
+    <LabResultsModal :is-open="showResultsModal" :course-id="courseId" :lab-name="currentLab?.title || 'Lab'"
+      :submissions="studentSubmissions" :active-lab-session-id="activeLabSessionId" :lab-parts="actualLabParts || []"
+      :mode="timerExpiredModalMode" :available-until="currentLab?.availableUntil"
+      :is-fresh-completion="isFreshCompletion" :initially-collapsed="showCollapsedSummary"
+      @start-over="handleRestartLabFromResults()" @close="handleCloseResultsModal()" />
 
     <!-- Lab Timer (Fixed at bottom center) -->
-    <LabTimer
-      v-if="!isLoadingIPs && !isLoading && !isLoadingParts && currentLab"
-      :available-from="currentLab?.availableFrom"
-      :due-date="currentLab?.dueDate"
-      :available-until="currentLab?.availableUntil"
-      :created-at="currentLab?.createdAt"
-      :lab-id="labId"
-      :poll-interval-ms="45000"
-      @timer-expired="handleTimerExpired"
-      @deadline-extended="handleDeadlineExtended"
-    />
+    <LabTimer v-if="!isLoadingIPs && !isLoading && !isLoadingParts && currentLab"
+      :available-from="currentLab?.availableFrom" :due-date="currentLab?.dueDate"
+      :available-until="currentLab?.availableUntil" :created-at="currentLab?.createdAt" :lab-id="labId"
+      :poll-interval-ms="45000" @timer-expired="handleTimerExpired" @deadline-extended="handleDeadlineExtended" />
 
     <!-- Navigation Breadcrumb -->
     <div class="border-b bg-background p-4 sticky top-0 z-[100] shadow-sm">
@@ -1398,7 +1384,8 @@ watch(() => route.query.part, (newPart) => {
     </div>
 
     <!-- IP Loading Overlay -->
-    <div v-if="isLoadingIPs && !isLoading && !isLoadingParts && currentLab" class="fixed inset-x-0 top-[73px] bottom-0 z-40 flex items-center justify-center bg-background/95">
+    <div v-if="isLoadingIPs && !isLoading && !isLoadingParts && currentLab"
+      class="fixed inset-x-0 top-[73px] bottom-0 z-40 flex items-center justify-center bg-background/95">
       <div class="text-center space-y-6 px-4">
         <!-- Animated IP Loading Text -->
         <div class="relative">
@@ -1442,12 +1429,14 @@ watch(() => route.query.part, (newPart) => {
     <!-- Main Lab Interface -->
     <div v-else-if="currentLab && currentLabParts && currentLabParts.length > 0" class="flex min-h-[calc(100vh-80px)]">
       <!-- Right Sidebar - Part Navigation (30%) -->
-      <div v-if="!shouldHideStudentContent" class="w-[30%] min-w-[380px] max-w-[420px] border-r bg-card/30 backdrop-blur-sm flex flex-col">
+      <div v-if="!shouldHideStudentContent"
+        class="w-[30%] min-w-[380px] max-w-[420px] border-r bg-card/30 backdrop-blur-sm flex flex-col">
         <!-- Lab Header -->
         <div class="p-6 border-b bg-card/80 backdrop-blur-sm">
           <div class="flex items-start space-x-4">
             <div class="flex-shrink-0">
-              <div class="w-14 h-14 bg-gradient-to-br from-primary/20 to-primary/30 rounded-xl flex items-center justify-center border border-primary/20">
+              <div
+                class="w-14 h-14 bg-gradient-to-br from-primary/20 to-primary/30 rounded-xl flex items-center justify-center border border-primary/20">
                 <BookOpen class="w-7 h-7 text-primary" />
               </div>
             </div>
@@ -1470,11 +1459,9 @@ watch(() => route.query.part, (newPart) => {
             </div>
             <!-- Custom Progress Bar with Success Color Fill -->
             <div class="relative h-3 bg-secondary rounded-full overflow-hidden">
-              <div 
-                class="h-full rounded-full transition-all duration-500 ease-out"
+              <div class="h-full rounded-full transition-all duration-500 ease-out"
                 :class="overallProgress === 100 ? 'bg-green-500' : 'bg-primary'"
-                :style="{ width: `${overallProgress}%` }"
-              ></div>
+                :style="{ width: `${overallProgress}%` }"></div>
             </div>
             <div class="flex items-center justify-between text-xs">
               <span class="text-muted-foreground">{{ overallProgress }}% complete</span>
@@ -1486,45 +1473,29 @@ watch(() => route.query.part, (newPart) => {
         <!-- Parts List -->
         <ScrollArea class="flex-1 p-4">
           <div class="space-y-3">
-            <Card
-              v-for="(part, index) in currentLabParts"
-              :key="part.id"
-              :class="[
-                'cursor-pointer transition-all duration-300 overflow-hidden',
-                {
-                  // Current part - primary styling
-                  'bg-gradient-to-r from-primary/10 to-primary/5 border-primary/30 shadow-lg': index === currentPartIndex,
-                  // Completed part - success styling
-                  'bg-green-300/30 border-green-200 shadow-md scale-[0.98]': completedParts.has(part.id) && index !== currentPartIndex,
-                  // Available part - default styling
-                  'bg-card border-border shadow-sm hover:shadow-md hover:border-primary/20 scale-[0.98]': canAccessPart(index) && index !== currentPartIndex && !completedParts.has(part.id),
-                  // Locked part - disabled styling
-                  'opacity-50 cursor-not-allowed bg-muted border-muted-foreground/20 scale-[0.98]': !canAccessPart(index)
-                }
-              ]"
-              @click="selectPart(index)"
-            >
+            <Card v-for="(part, index) in currentLabParts" :key="part.id" :class="[
+              'cursor-pointer transition-all duration-300 overflow-hidden',
+              {
+                // Current part - primary styling
+                'bg-gradient-to-r from-primary/10 to-primary/5 border-primary/30 shadow-lg': index === currentPartIndex,
+                // Completed part - success styling
+                'bg-green-300/30 border-green-200 shadow-md scale-[0.98]': completedParts.has(part.id) && index !== currentPartIndex,
+                // Available part - default styling
+                'bg-card border-border shadow-sm hover:shadow-md hover:border-primary/20 scale-[0.98]': canAccessPart(index) && index !== currentPartIndex && !completedParts.has(part.id),
+                // Locked part - disabled styling
+                'opacity-50 cursor-not-allowed bg-muted border-muted-foreground/20 scale-[0.98]': !canAccessPart(index)
+              }
+            ]" @click="selectPart(index)">
               <CardContent class="p-4">
                 <div class="flex items-start space-x-3">
                   <!-- Status Icon -->
                   <div class="flex-shrink-0 mt-1">
                     <div class="relative">
-                      <CheckCircle2 
-                        v-if="completedParts.has(part.id)" 
-                        class="w-6 h-6 text-green-600 drop-shadow-sm" 
-                      />
-                      <Play 
-                        v-else-if="index === currentPartIndex" 
-                        class="w-6 h-6 text-primary drop-shadow-sm animate-pulse" 
-                      />
-                      <Lock 
-                        v-else-if="!canAccessPart(index)" 
-                        class="w-6 h-6 text-muted-foreground/50" 
-                      />
-                      <Clock 
-                        v-else 
-                        class="w-6 h-6 text-muted-foreground" 
-                      />
+                      <CheckCircle2 v-if="completedParts.has(part.id)" class="w-6 h-6 text-green-600 drop-shadow-sm" />
+                      <Play v-else-if="index === currentPartIndex"
+                        class="w-6 h-6 text-primary drop-shadow-sm animate-pulse" />
+                      <Lock v-else-if="!canAccessPart(index)" class="w-6 h-6 text-muted-foreground/50" />
+                      <Clock v-else class="w-6 h-6 text-muted-foreground" />
                     </div>
                   </div>
 
@@ -1534,51 +1505,35 @@ watch(() => route.query.part, (newPart) => {
                       <h3 class="font-semibold text-sm leading-tight">
                         Part {{ part.isPartZero ? 0 : index }}: {{ part.title }}
                       </h3>
-                      <Badge
-                        v-if="part.isPartZero && completedParts.has(part.id)"
-                        variant="secondary"
-                        class="text-xs bg-emerald-100 text-emerald-700 border-emerald-200 ml-2"
-                      >
+                      <Badge v-if="part.isPartZero && completedParts.has(part.id)" variant="secondary"
+                        class="text-xs bg-emerald-100 text-emerald-700 border-emerald-200 ml-2">
                         Acknowledged
                       </Badge>
-                      <Badge
-                        v-else-if="completedParts.has(part.id)"
-                        variant="secondary"
-                        class="text-xs bg-green-100 text-green-800 border-green-200 ml-2"
-                      >
+                      <Badge v-else-if="completedParts.has(part.id)" variant="secondary"
+                        class="text-xs bg-green-100 text-green-800 border-green-200 ml-2">
                         Completed
                       </Badge>
-                      <Badge
-                        v-else-if="index === currentPartIndex"
-                        variant="secondary"
-                        class="text-xs bg-primary/15 text-primary border-primary/30 ml-2"
-                      >
+                      <Badge v-else-if="index === currentPartIndex" variant="secondary"
+                        class="text-xs bg-primary/15 text-primary border-primary/30 ml-2">
                         Current
                       </Badge>
                     </div>
-                    
-                      <div
-                        v-if="!part.isPartZero"
-                        class="flex items-center space-x-3 text-xs text-muted-foreground mb-2"
-                      >
-                        <div class="flex items-center space-x-1">
-                          <Award class="w-3 h-3" />
-                          <span>{{ part.totalPoints || 0 }} pts</span>
-                        </div>
+
+                    <div v-if="!part.isPartZero" class="flex items-center space-x-3 text-xs text-muted-foreground mb-2">
+                      <div class="flex items-center space-x-1">
+                        <Award class="w-3 h-3" />
+                        <span>{{ part.totalPoints || 0 }} pts</span>
                       </div>
-                    
+                    </div>
+
                     <!-- Prerequisites -->
-                    <div
-                      v-if="!part.isPartZero && part.prerequisites?.length"
-                      class="flex items-center space-x-1 text-xs text-amber-600"
-                    >
+                    <div v-if="!part.isPartZero && part.prerequisites?.length"
+                      class="flex items-center space-x-1 text-xs text-amber-600">
                       <Lock class="w-3 h-3" />
                       <span>Requires: {{ part.prerequisites.join(', ') }}</span>
                     </div>
-                    <div
-                      v-else-if="!part.isPartZero && !instructionsAcknowledged"
-                      class="flex items-center space-x-1 text-xs text-amber-600"
-                    >
+                    <div v-else-if="!part.isPartZero && !instructionsAcknowledged"
+                      class="flex items-center space-x-1 text-xs text-amber-600">
                       <Lock class="w-3 h-3" />
                       <span>Requires: Student Instructions</span>
                     </div>
@@ -1588,6 +1543,12 @@ watch(() => route.query.part, (newPart) => {
             </Card>
           </div>
         </ScrollArea>
+
+        <!-- Playground Tab for Lecturers/TAs -->
+        <div v-if="canManageCurrentCourse" class="border-t p-4">
+          <PlaygroundTab :lab-id="labId" :part-id="currentPart?.partId || ''"
+            :vlan-config="currentLab?.network?.vlanConfiguration?.vlans" />
+        </div>
       </div>
 
       <!-- Main Content Area (70%) -->
@@ -1604,23 +1565,14 @@ watch(() => route.query.part, (newPart) => {
               </p>
             </div>
             <div class="flex items-center space-x-3">
-              <Button
-                variant="outline"
-                size="sm"
-                :disabled="currentPartIndex === 0"
-                @click="goToPreviousPart"
-                class="shadow-sm"
-              >
+              <Button variant="outline" size="sm" :disabled="currentPartIndex === 0" @click="goToPreviousPart"
+                class="shadow-sm">
                 <ChevronLeft class="w-4 h-4 mr-1" />
                 Previous
               </Button>
-              <Button
-                variant="outline"
-                size="sm"
+              <Button variant="outline" size="sm"
                 :disabled="currentPartIndex === totalParts - 1 || !canAccessPart(currentPartIndex + 1)"
-                @click="goToNextPart"
-                class="shadow-sm"
-              >
+                @click="goToNextPart" class="shadow-sm">
                 Next
                 <ChevronRight class="w-4 h-4 ml-1" />
               </Button>
@@ -1628,10 +1580,7 @@ watch(() => route.query.part, (newPart) => {
           </div>
 
           <!-- Part Metadata -->
-          <div
-            v-if="!currentPart.isPartZero"
-            class="flex items-center space-x-6 text-sm text-muted-foreground"
-          >
+          <div v-if="!currentPart.isPartZero" class="flex items-center space-x-6 text-sm text-muted-foreground">
             <div class="flex items-center space-x-2">
               <Award class="w-4 h-4" />
               <span>{{ currentPart.totalPoints || 0 }} points available</span>
@@ -1642,7 +1591,7 @@ watch(() => route.query.part, (newPart) => {
         <!-- Part Content -->
         <ScrollArea class="flex-1 p-6">
           <div v-if="currentPart" class="max-w-5xl mx-auto space-y-8">
-            
+
             <!-- Instructions Section -->
             <Card class="shadow-sm">
               <CardHeader class="pb-4">
@@ -1656,15 +1605,11 @@ watch(() => route.query.part, (newPart) => {
               <CardContent>
                 <div
                   class="prose prose-sm max-w-none prose-headings:text-foreground prose-p:text-muted-foreground prose-strong:text-foreground prose-code:text-foreground prose-pre:bg-muted prose-pre:border lab-instructions"
-                  v-html="renderMarkdown(currentPart.instructions)"
-                />
+                  v-html="renderMarkdown(currentPart.instructions)" />
               </CardContent>
             </Card>
 
-            <Card
-              v-if="currentPart.isPartZero"
-              class="shadow-sm border-emerald-200 bg-emerald-50/60"
-            >
+            <Card v-if="currentPart.isPartZero" class="shadow-sm border-emerald-200 bg-emerald-50/60">
               <CardHeader class="pb-3">
                 <CardTitle class="flex items-center space-x-3 text-lg text-emerald-800">
                   <div class="p-2 bg-emerald-100 rounded-lg">
@@ -1676,13 +1621,11 @@ watch(() => route.query.part, (newPart) => {
               <CardContent>
                 <div class="space-y-4">
                   <div class="flex items-start gap-3">
-                    <Checkbox
-                      id="ack-instructions"
-                      v-model="instructionsAckChecked"
-                      :disabled="instructionsAcknowledged"
-                    />
+                    <Checkbox id="ack-instructions" v-model="instructionsAckChecked"
+                      :disabled="instructionsAcknowledged" />
                     <Label for="ack-instructions" class="text-sm text-muted-foreground leading-snug">
-                      I have read and understand the instructions above. I agree to follow these rules while working on this lab.
+                      I have read and understand the instructions above. I agree to follow these rules while working on
+                      this lab.
                     </Label>
                   </div>
 
@@ -1690,16 +1633,13 @@ watch(() => route.query.part, (newPart) => {
                     {{ instructionsAckError }}
                   </p>
 
-                  <div
-                    v-if="instructionsAcknowledged"
-                    class="flex items-center gap-2 text-xs text-emerald-700"
-                  >
+                  <div v-if="instructionsAcknowledged" class="flex items-center gap-2 text-xs text-emerald-700">
                     <CheckCircle class="w-4 h-4" />
                     <span>Acknowledged {{ instructionsAcknowledgedLabel }}</span>
                   </div>
                 </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
             <template v-else>
               <!-- Variable Reference Table (VLAN A-J, CIDR Q-Z) -->
@@ -1724,14 +1664,13 @@ watch(() => route.query.part, (newPart) => {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        <TableRow
-                          v-for="(variable, index) in variableReferenceTable"
-                          :key="`variable-${index}`"
-                          class="hover:bg-muted/30"
-                        >
-                          <TableCell class="font-mono font-semibold text-purple-600">{{ variable.vlanVariable }}</TableCell>
+                        <TableRow v-for="(variable, index) in variableReferenceTable" :key="`variable-${index}`"
+                          class="hover:bg-muted/30">
+                          <TableCell class="font-mono font-semibold text-purple-600">{{ variable.vlanVariable }}
+                          </TableCell>
                           <TableCell class="font-mono text-sm">{{ variable.vlanValue }}</TableCell>
-                          <TableCell class="font-mono font-semibold text-purple-600">{{ variable.cidrVariable }}</TableCell>
+                          <TableCell class="font-mono font-semibold text-purple-600">{{ variable.cidrVariable }}
+                          </TableCell>
                           <TableCell class="font-mono text-sm">{{ variable.cidrValue }}</TableCell>
                         </TableRow>
                       </TableBody>
@@ -1760,11 +1699,8 @@ watch(() => route.query.part, (newPart) => {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        <TableRow
-                          v-for="(device, index) in deviceManagementTable"
-                          :key="`device-${index}`"
-                          class="hover:bg-muted/30"
-                        >
+                        <TableRow v-for="(device, index) in deviceManagementTable" :key="`device-${index}`"
+                          class="hover:bg-muted/30">
                           <TableCell class="font-medium">{{ device.deviceDisplay }}</TableCell>
                           <TableCell class="font-mono text-sm text-blue-600">{{ device.managementIp }}</TableCell>
                         </TableRow>
@@ -1776,17 +1712,11 @@ watch(() => route.query.part, (newPart) => {
 
               <!-- Fill-in-Blank Questions -->
               <div v-if="hasFillInBlankQuestions && currentPart">
-                <FillInBlankQuestions
-                  :key="currentPart.partId || currentPart.id"
-                  ref="fillInBlankQuestionsRef"
-                  :questions="currentPart.questions"
-                  :labId="labId"
-                  :partId="currentPart.partId"
-                  :lab-session-id="activeLabSessionId"
-                  :show-submit-button="!isFillInBlankPart"
+                <FillInBlankQuestions :key="currentPart.partId || currentPart.id" ref="fillInBlankQuestionsRef"
+                  :questions="currentPart.questions" :labId="labId" :partId="currentPart.partId"
+                  :lab-session-id="activeLabSessionId" :show-submit-button="!isFillInBlankPart"
                   :initial-submission-result="currentFillInBlankSubmission"
-                  @submitted="handleFillInBlankSubmissionResult"
-                />
+                  @submitted="handleFillInBlankSubmissionResult" />
               </div>
             </template>
 
@@ -1797,107 +1727,98 @@ watch(() => route.query.part, (newPart) => {
         <div class="border-t bg-card/80 backdrop-blur-sm">
           <!-- Part Submission Area -->
           <div v-if="currentPart" class="p-6">
-          <div class="max-w-5xl mx-auto flex items-center justify-between gap-4">
-            <div class="flex-1">
-              <template v-if="currentPart.isPartZero">
-                <h3 class="font-semibold text-lg mb-1">
-                  {{ instructionsAcknowledged ? 'Instructions acknowledged' : 'Acknowledge the instructions to continue' }}
-                </h3>
-                <p class="text-sm text-muted-foreground">
-                  These terms must be accepted before you can access the rest of the lab parts.
-                  <span v-if="instructionsAcknowledged" class="font-medium text-emerald-700 ml-1">
-                    Acknowledged {{ instructionsAcknowledgedLabel }}
-                  </span>
-                </p>
-              </template>
-              <template v-else-if="isFillInBlankPart">
-                <h3 class="font-semibold text-lg mb-1">
-                  <span v-if="currentFillInBlankSubmission?.passed">
-                    Part {{ currentPartDisplayNumber }} Completed!
-                  </span>
-                  <span v-else-if="currentFillInBlankSubmission">
-                    Keep Going — Review Your Results
-                  </span>
-                  <span v-else>
-                    Ready to Submit Part {{ currentPartDisplayNumber }}?
-                  </span>
-                </h3>
-                <p class="text-sm text-muted-foreground">
-                  <span v-if="currentFillInBlankSubmission">
-                    You earned {{ currentFillInBlankSubmission.totalPointsEarned }}/{{ currentFillInBlankSubmission.totalPoints }} points.
-                    <span v-if="currentFillInBlankSubmission.passed" class="font-medium text-primary ml-1">Great work!</span>
-                  </span>
-                  <span v-else>
-                    Submit your answers to auto-grade this part.
-                    <span class="font-medium text-primary ml-1">{{ currentPart.totalPoints }} points available</span>
-                  </span>
-                </p>
-                <p v-if="currentFillInBlankSubmission?.submission?.attempt" class="text-xs text-muted-foreground">
-                  Attempt #{{ currentFillInBlankSubmission?.submission?.attempt }}
-                </p>
-              </template>
-              <template v-else>
-                <h3 class="font-semibold text-lg mb-1">
-                  {{ currentGradingStatus.status === 'completed' && currentGradingStatus.results?.total_points_earned > 0 
-                     ? `Part ${currentPartDisplayNumber} Completed!` 
-                     : `Ready to Submit Part ${currentPartDisplayNumber}?` }}
-                </h3>
-                <p class="text-sm text-muted-foreground">
-                  <span v-if="currentGradingStatus.status === 'completed' && currentGradingStatus.results?.total_points_earned > 0">
-                    Great work! You earned {{ currentGradingStatus.results.total_points_earned }}/{{ currentGradingStatus.results.total_points_possible }} points.
-                  </span>
-                  <span v-else>
-                    Once submitted, your work will be automatically graded and you can proceed to the next part.
-                    <span class="font-medium text-primary ml-1">{{ currentPart.totalPoints }} points available</span>
-                  </span>
-                </p>
-              </template>
+            <div class="max-w-5xl mx-auto flex items-center justify-between gap-4">
+              <div class="flex-1">
+                <template v-if="currentPart.isPartZero">
+                  <h3 class="font-semibold text-lg mb-1">{{ instructionsAcknowledged ? 'Instructions acknowledged' :
+                    'Acknowledge the instructions to continue' }}</h3>
+                  <p class="text-sm text-muted-foreground">
+                    These terms must be accepted before you can access the rest of the lab parts.
+                    <span v-if="instructionsAcknowledged" class="font-medium text-emerald-700 ml-1">
+                      Acknowledged {{ instructionsAcknowledgedLabel }}
+                    </span>
+                  </p>
+                </template>
+                <template v-else-if="isFillInBlankPart">
+                  <h3 class="font-semibold text-lg mb-1">
+                    <span v-if="currentFillInBlankSubmission?.passed">
+                      Part {{ currentPartDisplayNumber }} Completed!
+                    </span>
+                    <span v-else-if="currentFillInBlankSubmission">
+                      Keep Going — Review Your Results
+                    </span>
+                    <span v-else>
+                      Ready to Submit Part {{ currentPartDisplayNumber }}?
+                    </span>
+                  </h3>
+                  <p class="text-sm text-muted-foreground">
+                    <span v-if="currentFillInBlankSubmission">
+                      You earned {{ currentFillInBlankSubmission.totalPointsEarned }}/{{
+                        currentFillInBlankSubmission.totalPoints }} points.
+                      <span v-if="currentFillInBlankSubmission.passed" class="font-medium text-primary ml-1">Great
+                        work!</span>
+                    </span>
+                    <span v-else>
+                      Submit your answers to auto-grade this part.
+                      <span class="font-medium text-primary ml-1">{{ currentPart.totalPoints }} points available</span>
+                    </span>
+                  </p>
+                  <p v-if="currentFillInBlankSubmission?.submission?.attempt" class="text-xs text-muted-foreground">
+                    Attempt #{{ currentFillInBlankSubmission?.submission?.attempt }}
+                  </p>
+                </template>
+                <template v-else>
+                  <h3 class="font-semibold text-lg mb-1">
+                    {{ currentGradingStatus.status === 'completed' && currentGradingStatus.results?.total_points_earned
+                      > 0
+                      ? `Part ${currentPartDisplayNumber} Completed!`
+                      : `Ready to Submit Part ${currentPartDisplayNumber}?` }}
+                  </h3>
+                  <p class="text-sm text-muted-foreground">
+                    <span
+                      v-if="currentGradingStatus.status === 'completed' && currentGradingStatus.results?.total_points_earned > 0">
+                      Great work! You earned {{ currentGradingStatus.results.total_points_earned }}/{{
+                        currentGradingStatus.results.total_points_possible }} points.
+                    </span>
+                    <span v-else>
+                      Once submitted, your work will be automatically graded and you can proceed to the next part.
+                      <span class="font-medium text-primary ml-1">{{ currentPart.totalPoints }} points available</span>
+                    </span>
+                  </p>
+                </template>
+              </div>
+              <div class="flex items-center space-x-3">
+                <template v-if="currentPart.isPartZero">
+                  <Button variant="success" size="lg" class="min-w-[180px]"
+                    :disabled="instructionsAcknowledged || !instructionsAckChecked || instructionsAckLoading"
+                    @click="acknowledgeInstructions">
+                    <Loader2 v-if="instructionsAckLoading" class="w-4 h-4 mr-2 animate-spin" />
+                    <CheckCircle2 v-else-if="instructionsAcknowledged" class="w-4 h-4 mr-2" />
+                    <Send v-else class="w-4 h-4 mr-2" />
+                    <span>{{ instructionsAcknowledged ? 'Acknowledged' : 'Submit' }}</span>
+                  </Button>
+                  <p v-if="instructionsAckError" class="text-sm text-destructive">
+                    {{ instructionsAckError }}
+                  </p>
+                </template>
+                <template v-else-if="isFillInBlankPart">
+                  <Button size="lg" class="min-w-[180px]" :disabled="fillInBlankActionButtonDisabled"
+                    @click="handleFillInBlankSubmit">
+                    <Loader2 v-if="fillInBlankQuestionsRef?.isSubmitting?.value" class="w-4 h-4 mr-2 animate-spin" />
+                    <Send v-else class="w-4 h-4 mr-2" />
+                    {{ fillInBlankActionButtonLabel }}
+                  </Button>
+                </template>
+                <template v-else>
+                  <!-- Grading Progress Component -->
+                  <GradingProgress :status="currentGradingStatus.status" :progress="currentGradingStatus.progress"
+                    :results="currentGradingStatus.results" :error="currentGradingStatus.error"
+                    :total-test-cases="currentPartTotalTestCases" @submit="submitPartForGrading"
+                    @toggle-details="toggleProgressDetails(labId, currentPart.partId)"
+                    @close-results="clearGradingResults(labId, currentPart.partId)" />
+                </template>
+              </div>
             </div>
-            <div class="flex items-center space-x-3">
-              <template v-if="currentPart.isPartZero">
-                <Button
-                  variant="success"
-                  size="lg"
-                  class="min-w-[180px]"
-                  :disabled="instructionsAcknowledged || !instructionsAckChecked || instructionsAckLoading"
-                  @click="acknowledgeInstructions"
-                >
-                  <Loader2 v-if="instructionsAckLoading" class="w-4 h-4 mr-2 animate-spin" />
-                  <CheckCircle2 v-else-if="instructionsAcknowledged" class="w-4 h-4 mr-2" />
-                  <Send v-else class="w-4 h-4 mr-2" />
-                  <span>{{ instructionsAcknowledged ? 'Acknowledged' : 'Submit' }}</span>
-                </Button>
-                <p v-if="instructionsAckError" class="text-sm text-destructive">
-                  {{ instructionsAckError }}
-                </p>
-              </template>
-              <template v-else-if="isFillInBlankPart">
-                <Button
-                  size="lg"
-                  class="min-w-[180px]"
-                  :disabled="fillInBlankActionButtonDisabled"
-                  @click="handleFillInBlankSubmit"
-                >
-                  <Loader2 v-if="fillInBlankQuestionsRef?.isSubmitting?.value" class="w-4 h-4 mr-2 animate-spin" />
-                  <Send v-else class="w-4 h-4 mr-2" />
-                  {{ fillInBlankActionButtonLabel }}
-                </Button>
-              </template>
-              <template v-else>
-                <!-- Grading Progress Component -->
-                <GradingProgress
-                  :status="currentGradingStatus.status"
-                  :progress="currentGradingStatus.progress"
-                  :results="currentGradingStatus.results"
-                  :error="currentGradingStatus.error"
-                  :total-test-cases="currentPartTotalTestCases"
-                  @submit="submitPartForGrading"
-                  @toggle-details="toggleProgressDetails(labId, currentPart.partId)"
-                  @close-results="clearGradingResults(labId, currentPart.partId)"
-                />
-              </template>
-            </div>
-          </div>
           </div>
 
         </div>
@@ -2123,14 +2044,12 @@ watch(() => route.query.part, (newPart) => {
 .ip-loading-text {
   position: relative;
   display: inline-block;
-  background: linear-gradient(
-    90deg,
-    var(--foreground) 0%,
-    var(--foreground) 40%,
-    var(--primary) 50%,
-    var(--foreground) 60%,
-    var(--foreground) 100%
-  );
+  background: linear-gradient(90deg,
+      var(--foreground) 0%,
+      var(--foreground) 40%,
+      var(--primary) 50%,
+      var(--foreground) 60%,
+      var(--foreground) 100%);
   background-size: 200% 100%;
   -webkit-background-clip: text;
   background-clip: text;
@@ -2142,6 +2061,7 @@ watch(() => route.query.part, (newPart) => {
   0% {
     background-position: -200% 0;
   }
+
   100% {
     background-position: 200% 0;
   }
@@ -2149,14 +2069,12 @@ watch(() => route.query.part, (newPart) => {
 
 /* Shine effect overlay */
 .shine-effect {
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    transparent 40%,
-    rgba(255, 255, 255, 0.3) 50%,
-    transparent 60%,
-    transparent 100%
-  );
+  background: linear-gradient(90deg,
+      transparent 0%,
+      transparent 40%,
+      rgba(255, 255, 255, 0.3) 50%,
+      transparent 60%,
+      transparent 100%);
   background-size: 200% 100%;
   animation: shine 3s linear infinite;
 }

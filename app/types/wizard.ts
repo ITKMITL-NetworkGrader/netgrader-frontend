@@ -13,7 +13,7 @@ export interface Lab {
   name: string;               // Lab name (max 100 chars)
   description?: string;       // Optional description (max 2000 chars)
   instructions: string;       // Student-facing instructions (Markdown)
-  
+
   network: {
     topology: {
       baseNetwork: string;    // CIDR base (e.g., "192.168.1.0")
@@ -21,9 +21,9 @@ export interface Lab {
     };
     devices: Device[];        // Array of network devices
   };
-  
+
   parts: LabPart[];          // Lab parts (created after lab creation)
-  
+
   dueDate?: Date;            // Optional due date
   availableFrom?: Date;      // Optional availability start
   availableUntil?: Date;     // Optional availability end
@@ -34,9 +34,10 @@ export interface Device {
   templateId: string;        // Device template ID (ObjectId)
   ipVariables: IpVariable[]; // IP variable configurations
   connectionParams?: {       // Connection parameters (optional)
-    sshPort: number;
-    username: string;
-    password: string;
+    connectionType: 'ssh' | 'telnet' | 'console';  // Connection type
+    sshPort?: number;        // SSH/Telnet port (not needed for console)
+    username?: string;       // Username (required for SSH, optional for Telnet)
+    password?: string;       // Password (required for SSH, optional for Telnet)
   };
 }
 
@@ -60,8 +61,8 @@ export type PartType = 'fill_in_blank' | 'network_config';
 
 // Question Types for Fill-in-Blank Parts
 export type QuestionType = 'network_address' | 'first_usable_ip' | 'last_usable_ip' |
-                          'broadcast_address' | 'subnet_mask' | 'ip_address' | 'number' |
-                          'custom_text' | 'ip_table_questionnaire';
+  'broadcast_address' | 'subnet_mask' | 'ip_address' | 'number' |
+  'custom_text' | 'ip_table_questionnaire';
 
 // IP Table Questionnaire Structure
 export interface IpTableQuestionnaire {
@@ -204,17 +205,17 @@ export interface Task {
   name: string;              // Task name
   description?: string;      // Optional description
   templateId: string;        // Task template ID (ObjectId)
-  
+
   // Execution Configuration
   executionDevice: string;   // Device ID from lab.network.devices
   targetDevices: string[];   // Device IDs for multi-device tasks
-  
+
   // Task Parameters (passed to template)
   parameters: Record<string, any>;
-  
+
   // Grading Configuration
   testCases: TestCase[];     // Array of test cases
-  
+
   order: number;             // Order within part
   points: number;            // Total points for task
   group_id?: string;         // Optional group ID if task belongs to a group
@@ -313,20 +314,20 @@ export interface LabWizardData {
     }>;
     exemptIpRanges: IpRange[];  // IPs to exclude from Management IP assignment
   };
-  
+
   // Step 3: Device Configuration
   devices: Device[];
-  
+
   // Step 4: Parts & Tasks
   parts: WizardLabPart[];
-  
+
   // Step 5: Schedule & Publishing
   schedule: {
     availableFrom?: Date;
     availableUntil?: Date;
     dueDate?: Date;
   };
-  
+
   // Course context (provided)
   courseId: string;
   courseName: string;

@@ -52,7 +52,8 @@
         <div class="grid grid-cols-1 md:grid-cols-2 gap-2 ml-7">
           <div v-for="(vlan, index) in networkConfig.vlans" :key="vlan.id || index" class="flex items-center space-x-2">
             <div class="text-xs bg-background px-2 py-1 rounded border">
-              {{ vlan.calculationMultiplier !== undefined ? getVlanDisplayId(vlan, index) : `VLAN ${getVlanDisplayId(vlan, index)}` }}
+              {{ vlan.calculationMultiplier !== undefined ? getVlanDisplayId(vlan, index) : `VLAN
+              ${getVlanDisplayId(vlan, index)}` }}
             </div>
             <code class="bg-background px-2 py-1 rounded text-xs">
               {{ vlan.baseNetwork }}/{{ vlan.subnetMask }}
@@ -86,7 +87,8 @@
       </div>
 
       <!-- Empty State -->
-      <div v-else-if="localData.length === 0" class="text-center p-8 border-2 border-dashed border-muted-foreground/25 rounded-lg">
+      <div v-else-if="localData.length === 0"
+        class="text-center p-8 border-2 border-dashed border-muted-foreground/25 rounded-lg">
         <Router class="w-12 h-12 mx-auto text-muted-foreground/50 mb-4" />
         <h3 class="text-lg font-medium mb-2">No devices configured</h3>
         <p class="text-muted-foreground mb-4">
@@ -101,10 +103,7 @@
       <!-- Devices List -->
       <div v-else class="space-y-4">
         <TransitionGroup name="device" tag="div" class="space-y-4">
-          <Card
-            v-for="(device, index) in localData"
-            :key="device.tempId"
-          >
+          <Card v-for="(device, index) in localData" :key="device.tempId">
             <CardHeader class="pb-4">
               <div class="flex items-center justify-between">
                 <CardTitle class="text-lg flex items-center">
@@ -115,27 +114,15 @@
                   </Badge>
                 </CardTitle>
                 <div class="flex items-center space-x-2">
-                  <Button
-                    variant="ghost"
-                    class="text-sm"
-                    @click="moveDevice(index, -1)"
-                    :disabled="index === 0"
-                  >
+                  <Button variant="ghost" class="text-sm" @click="moveDevice(index, -1)" :disabled="index === 0">
                     <MoveUp class="w-4 h-4" />
                   </Button>
-                  <Button
-                    variant="ghost"
-                    class="text-sm"
-                    @click="moveDevice(index, 1)"
-                    :disabled="index === localData.length - 1"
-                  >
+                  <Button variant="ghost" class="text-sm" @click="moveDevice(index, 1)"
+                    :disabled="index === localData.length - 1">
                     <MoveDown class="w-4 h-4" />
                   </Button>
-                  <Button
-                    variant="ghost"
-                    @click="removeDevice(index)"
-                    class="text-sm text-destructive hover:text-destructive"
-                  >
+                  <Button variant="ghost" @click="removeDevice(index)"
+                    class="text-sm text-destructive hover:text-destructive">
                     <Trash2 class="w-4 h-4" />
                   </Button>
                 </div>
@@ -149,17 +136,11 @@
                   <Label :for="`device-id-${index}`" class="text-sm font-medium">
                     Device ID <span class="text-destructive">*</span>
                   </Label>
-                  <Input
-                    :id="`device-id-${index}`"
-                    v-model="device.deviceId"
-                    placeholder="router1, switch1, etc."
+                  <Input :id="`device-id-${index}`" v-model="device.deviceId" placeholder="router1, switch1, etc."
                     :class="{
                       'border-destructive': hasFieldError(index, 'deviceId'),
                       'border-green-500': !hasFieldError(index, 'deviceId') && device.deviceId.length > 0
-                    }"
-                    @input="validateDevice(index, 'deviceId')"
-                    @blur="validateDevice(index, 'deviceId')"
-                  />
+                    }" @input="validateDevice(index, 'deviceId')" @blur="validateDevice(index, 'deviceId')" />
                   <p v-if="hasFieldError(index, 'deviceId')" class="text-sm text-destructive">
                     {{ getFieldError(index, 'deviceId') }}
                   </p>
@@ -170,19 +151,14 @@
                   <Label :for="`device-template-${index}`" class="text-sm font-medium">
                     Device Template <span class="text-destructive">*</span>
                   </Label>
-                  <Select
-                    v-model="device.templateId"
-                    @update:modelValue="(value) => {
-                      console.log('🔍 Select @update:modelValue fired:', { value, type: typeof value })
-                      onTemplateChange(index, value)
-                    }"
-                  >
-                    <SelectTrigger
-                      :class="{
-                        'border-destructive': hasFieldError(index, 'templateId'),
-                        'border-green-500': !hasFieldError(index, 'templateId') && device.templateId
-                      }"
-                    >
+                  <Select v-model="device.templateId" @update:modelValue="(value) => {
+                    console.log('🔍 Select @update:modelValue fired:', { value, type: typeof value })
+                    onTemplateChange(index, value)
+                  }">
+                    <SelectTrigger :class="{
+                      'border-destructive': hasFieldError(index, 'templateId'),
+                      'border-green-500': !hasFieldError(index, 'templateId') && device.templateId
+                    }">
                       <SelectValue>
                         <template v-if="getSelectedTemplate(device.templateId)">
                           {{ getSelectedTemplate(device.templateId).name }}
@@ -193,12 +169,8 @@
                       </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem
-                        v-for="template in deviceTemplates"
-                        :key="template.id"
-                        :value="template.id"
-                        class="py-3"
-                      >
+                      <SelectItem v-for="template in deviceTemplates" :key="template.id" :value="template.id"
+                        class="py-3">
                         <SelectItemText>
                           <div class="flex flex-col space-y-1">
                             <div class="font-medium">{{ template.name }}</div>
@@ -234,18 +206,15 @@
                     IP Variables <span class="text-destructive">*</span>
                     <span class="text-muted-foreground font-normal">(Minimum 1 required)</span>
                   </Label>
-                  <Button
-                    variant="outline"
-                    class="text-sm"
-                    @click="addIpVariable(index)"
-                  >
+                  <Button variant="outline" class="text-sm" @click="addIpVariable(index)">
                     <Plus class="w-4 h-4 mr-1" />
                     Add Variable
                   </Button>
                 </div>
 
                 <!-- IP Variables List -->
-                <div v-if="device.ipVariables.length === 0" class="text-center p-4 border-2 border-dashed border-muted-foreground/25 rounded">
+                <div v-if="device.ipVariables.length === 0"
+                  class="text-center p-4 border-2 border-dashed border-muted-foreground/25 rounded">
                   <Network class="w-8 h-8 mx-auto text-muted-foreground/50 mb-2" />
                   <p class="text-sm text-muted-foreground">No IP variables configured</p>
                   <Button variant="ghost" size="sm" @click="addIpVariable(index)" class="mt-2">
@@ -256,25 +225,16 @@
 
                 <div v-else class="space-y-3">
                   <TransitionGroup name="ip-var" tag="div" class="space-y-3">
-                    <div
-                      v-for="(ipVar, ipIndex) in device.ipVariables"
-                      :key="`${device.tempId}-ip-${ipIndex}`"
-                      class="flex items-center space-x-3 p-3 bg-muted/30 rounded-lg"
-                    >
+                    <div v-for="(ipVar, ipIndex) in device.ipVariables" :key="`${device.tempId}-ip-${ipIndex}`"
+                      class="flex items-center space-x-3 p-3 bg-muted/30 rounded-lg">
                       <div class="flex-1 grid grid-cols-1 md:grid-cols-3 gap-3">
                         <!-- Variable Name -->
                         <div class="space-y-1">
                           <Label class="text-xs font-medium">Variable Name</Label>
-                          <Input
-                            v-model="ipVar.name"
-                            placeholder="loopback0, gig0_1"
-                            class="text-sm"
-                            :class="{
-                              'border-destructive': hasIpVarError(index, ipIndex, 'name'),
-                              'border-green-500': !hasIpVarError(index, ipIndex, 'name') && ipVar.name.length > 0
-                            }"
-                            @input="onVariableNameInput(index, ipIndex, $event)"
-                          />
+                          <Input v-model="ipVar.name" placeholder="loopback0, gig0_1" class="text-sm" :class="{
+                            'border-destructive': hasIpVarError(index, ipIndex, 'name'),
+                            'border-green-500': !hasIpVarError(index, ipIndex, 'name') && ipVar.name.length > 0
+                          }" @input="onVariableNameInput(index, ipIndex, $event)" />
                           <p v-if="hasIpVarError(index, ipIndex, 'name')" class="text-xs text-destructive">
                             {{ getIpVarError(index, ipIndex, 'name') }}
                           </p>
@@ -287,10 +247,8 @@
                         <!-- IP Configuration Mode -->
                         <div class="space-y-1">
                           <Label class="text-xs font-medium">IP Configuration</Label>
-                          <Select
-                            v-model="ipVar.inputType"
-                            @update:modelValue="onInputTypeChange(index, ipIndex, $event)"
-                          >
+                          <Select v-model="ipVar.inputType"
+                            @update:modelValue="onInputTypeChange(index, ipIndex, $event)">
                             <SelectTrigger class="text-sm">
                               <SelectValue>
                                 <template v-if="ipVar.inputType === 'fullIP'">
@@ -323,20 +281,21 @@
                                 <SelectItemText>
                                   <div class="flex flex-col space-y-1">
                                     <div class="font-medium">Student Management IP</div>
-                                    <div class="text-xs text-muted-foreground">Auto-generated from management network using student ID</div>
+                                    <div class="text-xs text-muted-foreground">Auto-generated from management network
+                                      using student ID
+                                    </div>
                                   </div>
                                 </SelectItemText>
                               </SelectItem>
 
                               <!-- Dynamic Student VLAN IP Options -->
-                              <SelectItem
-                                v-for="(vlan, vlanIndex) in networkConfig.vlans"
-                                :key="`vlan-${vlanIndex}`"
-                                :value="`studentVlan${vlanIndex}`"
-                              >
+                              <SelectItem v-for="(vlan, vlanIndex) in networkConfig.vlans" :key="`vlan-${vlanIndex}`"
+                                :value="`studentVlan${vlanIndex}`">
                                 <SelectItemText>
                                   <div class="flex flex-col space-y-1">
-                                    <div class="font-medium">{{ vlan.calculationMultiplier !== undefined ? getVlanDisplayId(vlan, vlanIndex) : `Student VLAN ${getVlanDisplayId(vlan, vlanIndex)}` }} IP</div>
+                                    <div class="font-medium">{{ vlan.calculationMultiplier !== undefined ?
+                                      getVlanDisplayId(vlan,
+                                        vlanIndex) : `Student VLAN ${getVlanDisplayId(vlan, vlanIndex)}` }} IP</div>
                                     <div class="text-xs text-muted-foreground">
                                       Auto-generated from {{ vlan.baseNetwork }}/{{ vlan.subnetMask }}
                                     </div>
@@ -351,17 +310,10 @@
                         <!-- Full IP Address Input (when inputType is 'fullIP') -->
                         <div v-if="ipVar.inputType === 'fullIP'" class="space-y-1">
                           <Label class="text-xs font-medium">Full IP Address</Label>
-                          <Input
-                            v-model="ipVar.fullIP"
-                            type="text"
-                            placeholder="192.168.1.10"
-                            class="text-sm"
-                            :class="{
-                              'border-destructive': hasIpVarError(index, ipIndex, 'fullIP'),
-                              'border-green-500': !hasIpVarError(index, ipIndex, 'fullIP') && ipVar.fullIP && isValidIP(ipVar.fullIP)
-                            }"
-                            @input="validateIpVariable(index, ipIndex, 'fullIP')"
-                          />
+                          <Input v-model="ipVar.fullIP" type="text" placeholder="192.168.1.10" class="text-sm" :class="{
+                            'border-destructive': hasIpVarError(index, ipIndex, 'fullIP'),
+                            'border-green-500': !hasIpVarError(index, ipIndex, 'fullIP') && ipVar.fullIP && isValidIP(ipVar.fullIP)
+                          }" @input="validateIpVariable(index, ipIndex, 'fullIP')" />
                           <p v-if="hasIpVarError(index, ipIndex, 'fullIP')" class="text-xs text-destructive">
                             {{ getIpVarError(index, ipIndex, 'fullIP') }}
                           </p>
@@ -377,7 +329,8 @@
                                   Management Network IP Generation
                                 </div>
                                 <div class="text-xs text-blue-600">
-                                  Generated from: {{ networkConfig.managementNetwork }}/{{ networkConfig.managementSubnetMask }}
+                                  Generated from: {{ networkConfig.managementNetwork }}/{{
+                                    networkConfig.managementSubnetMask }}
                                 </div>
                               </div>
                               <div class="flex items-center space-x-1">
@@ -390,7 +343,8 @@
                             <!-- Management IP Backend Notice -->
                             <div class="mt-3">
                               <div class="text-xs text-blue-600">
-                                <strong>Backend Generated:</strong> Management IPs will be generated by the backend system
+                                <strong>Backend Generated:</strong> Management IPs will be generated by the backend
+                                system
                               </div>
                               <div class="text-xs text-blue-500 mt-1">
                                 This interface is marked for management IP assignment
@@ -423,45 +377,37 @@
                             <div class="mt-3 space-y-2">
                               <Label class="text-xs font-medium text-green-700">Interface Offset</Label>
                               <div class="flex items-center space-x-2">
-                                <Input
-                                  v-model.number="ipVar.interfaceOffset"
-                                  type="number"
-                                  :min="1"
-                                  :max="getInterfaceOffsetLimit(ipVar)"
-                                  placeholder="1"
-                                  class="text-sm w-20"
+                                <Input v-model.number="ipVar.interfaceOffset" type="number" :min="1"
+                                  :max="getInterfaceOffsetLimit(ipVar)" placeholder="1" class="text-sm w-20"
                                   @input="validateIpVariable(index, ipIndex, 'interfaceOffset')"
-                                  @change="validateIpVariable(index, ipIndex, 'interfaceOffset')"
-                                />
+                                  @change="validateIpVariable(index, ipIndex, 'interfaceOffset')" />
                                 <div class="text-xs text-green-600">
-                                  <strong>Example (Student ID: 65070232):</strong> {{ getVlanPreviewIP(ipVar.inputType, ipVar.interfaceOffset || 1) }}
+                                  <strong>Example (Student ID: 65070232):</strong> {{ getVlanPreviewIP(ipVar.inputType,
+                                    ipVar.interfaceOffset || 1) }}
                                 </div>
                               </div>
                               <div class="text-xs text-green-600">
-                                Different offsets ensure unique IPs when multiple interfaces use same VLAN. Max offset: {{ getInterfaceOffsetLimit(ipVar) }}
+                                Different offsets ensure unique IPs when multiple interfaces use same VLAN. Max offset:
+                                {{
+                                  getInterfaceOffsetLimit(ipVar) }}
                               </div>
                               <!-- Interface Offset Error -->
-                              <p v-if="hasIpVarError(index, ipIndex, 'interfaceOffset')" class="text-xs text-destructive">
+                              <p v-if="hasIpVarError(index, ipIndex, 'interfaceOffset')"
+                                class="text-xs text-destructive">
                                 {{ getIpVarError(index, ipIndex, 'interfaceOffset') }}
                               </p>
                             </div>
 
                             <!-- Set VLAN Index -->
-                            <input
-                              type="hidden"
-                              v-model="ipVar.vlanIndex"
-                            />
+                            <input type="hidden" v-model="ipVar.vlanIndex" />
                           </div>
                         </div>
 
                       </div>
 
                       <!-- Remove IP Variable -->
-                      <Button
-                        variant="ghost"
-                        @click="removeIpVariable(index, ipIndex)"
-                        class="text-sm text-destructive hover:text-destructive"
-                      >
+                      <Button variant="ghost" @click="removeIpVariable(index, ipIndex)"
+                        class="text-sm text-destructive hover:text-destructive">
                         <X class="w-4 h-4" />
                       </Button>
                     </div>
@@ -476,40 +422,104 @@
                     Connection Parameters
                   </Label>
                 </div>
-                
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-muted/30 rounded-lg">
-                  <!-- SSH Port -->
+
+                <div class="p-4 bg-muted/30 rounded-lg space-y-4">
+                  <!-- Connection Type Selector -->
                   <div class="space-y-2">
-                    <Label class="text-xs font-medium">SSH Port</Label>
-                    <Input
-                      v-model.number="device.connectionParams.sshPort"
-                      type="number"
-                      placeholder="22"
-                      min="1"
-                      max="65535"
-                      class="text-sm"
-                    />
+                    <Label class="text-xs font-medium">Connection Type <span class="text-destructive">*</span></Label>
+                    <Select v-model="device.connectionParams.connectionType"
+                      @update:modelValue="onConnectionTypeChange(index, $event)">
+                      <SelectTrigger class="text-sm">
+                        <SelectValue>
+                          <template v-if="device.connectionParams.connectionType === 'ssh'">
+                            SSH (Secure Shell)
+                          </template>
+                          <template v-else-if="device.connectionParams.connectionType === 'telnet'">
+                            Telnet
+                          </template>
+                          <template v-else-if="device.connectionParams.connectionType === 'console'">
+                            Console
+                          </template>
+                          <template v-else>
+                            Select connection type
+                          </template>
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ssh">
+                          <SelectItemText>
+                            <div class="flex flex-col space-y-1">
+                              <div class="font-medium">SSH (Secure Shell)</div>
+                              <div class="text-xs text-muted-foreground">Requires username and password</div>
+                            </div>
+                          </SelectItemText>
+                        </SelectItem>
+                        <SelectItem value="telnet">
+                          <SelectItemText>
+                            <div class="flex flex-col space-y-1">
+                              <div class="font-medium">Telnet</div>
+                              <div class="text-xs text-muted-foreground">Username and password are optional</div>
+                            </div>
+                          </SelectItemText>
+                        </SelectItem>
+                        <SelectItem value="console">
+                          <SelectItemText>
+                            <div class="flex flex-col space-y-1">
+                              <div class="font-medium">Console</div>
+                              <div class="text-xs text-muted-foreground">No additional credentials required</div>
+                            </div>
+                          </SelectItemText>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
-                  
-                  <!-- Username -->
-                  <div class="space-y-2">
-                    <Label class="text-xs font-medium">Username</Label>
-                    <Input
-                      v-model="device.connectionParams.username"
-                      placeholder="admin"
-                      class="text-sm"
-                    />
+
+                  <!-- SSH/Telnet Port (only for SSH and Telnet) -->
+                  <div
+                    v-if="device.connectionParams.connectionType === 'ssh' || device.connectionParams.connectionType === 'telnet'"
+                    class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="space-y-2">
+                      <Label class="text-xs font-medium">
+                        {{ device.connectionParams.connectionType === 'ssh' ? 'SSH' : 'Telnet' }} Port
+                      </Label>
+                      <Input v-model.number="device.connectionParams.sshPort" type="number"
+                        :placeholder="device.connectionParams.connectionType === 'ssh' ? '22' : '23'" min="1"
+                        max="65535" class="text-sm" />
+                    </div>
+
+                    <!-- Username -->
+                    <div class="space-y-2">
+                      <Label class="text-xs font-medium">
+                        Username
+                        <span v-if="device.connectionParams.connectionType === 'ssh'" class="text-destructive">*</span>
+                        <span v-else class="text-muted-foreground">(optional)</span>
+                      </Label>
+                      <Input v-model="device.connectionParams.username" placeholder="admin" class="text-sm" />
+                    </div>
+
+                    <!-- Password -->
+                    <div class="space-y-2">
+                      <Label class="text-xs font-medium">
+                        Password
+                        <span v-if="device.connectionParams.connectionType === 'ssh'" class="text-destructive">*</span>
+                        <span v-else class="text-muted-foreground">(optional)</span>
+                      </Label>
+                      <Input v-model="device.connectionParams.password" type="password" placeholder="password"
+                        class="text-sm" />
+                    </div>
                   </div>
-                  
-                  <!-- Password -->
-                  <div class="space-y-2">
-                    <Label class="text-xs font-medium">Password</Label>
-                    <Input
-                      v-model="device.connectionParams.password"
-                      type="password"
-                      placeholder="password"
-                      class="text-sm"
-                    />
+
+                  <!-- Console info message -->
+                  <div v-if="device.connectionParams.connectionType === 'console'"
+                    class="p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg">
+                    <div class="flex items-start gap-2">
+                      <Info class="w-4 h-4 mt-0.5 text-blue-600 dark:text-blue-400" />
+                      <div class="text-sm text-blue-700 dark:text-blue-300">
+                        Console connection does not require additional credentials. The device will be accessed directly
+                        through the
+                        console port.
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -523,7 +533,7 @@
                     <div class="text-xs text-muted-foreground space-y-1">
                       <div><strong>Platform:</strong> {{ getSelectedTemplate(device.templateId)?.platform }}</div>
                       <div><strong>Default Interfaces:</strong>
-                        {{ getSelectedTemplate(device.templateId)?.defaultInterfaces.map(i => i.name).join(', ') }}
+                        {{getSelectedTemplate(device.templateId)?.defaultInterfaces.map(i => i.name).join(', ')}}
                       </div>
                     </div>
                   </div>
@@ -705,7 +715,7 @@ const toAlphanumeric = (interfaceName: string): string => {
   // "GigabitEthernet0/1" -> "gig0_1"
   // "Loopback0" -> "loopback0"
   // "FastEthernet1/0/1" -> "fa1_0_1"
-  
+
   return interfaceName
     .toLowerCase()
     .replace(/gigabitethernet/g, 'gig')
@@ -727,6 +737,7 @@ const addDevice = () => {
     templateId: '',
     ipVariables: [],
     connectionParams: {
+      connectionType: 'ssh',
       sshPort: 22,
       username: '',
       password: ''
@@ -780,13 +791,13 @@ const removeIpVariable = (deviceIndex: number, ipIndex: number) => {
 const onVariableNameInput = (deviceIndex: number, ipIndex: number, event: Event) => {
   const input = event.target as HTMLInputElement
   const originalValue = input.value
-  
+
   // Convert to alphanumeric format
   const convertedValue = toAlphanumeric(originalValue)
-  
+
   // Update the model value with converted format
   localData.value[deviceIndex].ipVariables[ipIndex].name = convertedValue
-  
+
   // If the value was changed, update the input field
   if (convertedValue !== originalValue) {
     // Use nextTick to ensure the update happens after the current cycle
@@ -794,7 +805,7 @@ const onVariableNameInput = (deviceIndex: number, ipIndex: number, event: Event)
       input.value = convertedValue
     })
   }
-  
+
   // Validate after conversion
   validateIpVariable(deviceIndex, ipIndex, 'name')
 }
@@ -806,31 +817,31 @@ const onTemplateChange = (deviceIndex: number, templateId: string) => {
     templateId,
     deviceId: localData.value[deviceIndex].deviceId
   })
-  
+
   // Update the template ID
   localData.value[deviceIndex].templateId = templateId
-  
+
   // 🐛 DEBUG: Verify template ID was set
   console.log('🔍 Template ID after setting:', {
     templateId: localData.value[deviceIndex].templateId,
     device: localData.value[deviceIndex]
   })
-  
+
   // Clear template validation error immediately
   if (fieldErrors.value[deviceIndex]) {
     delete fieldErrors.value[deviceIndex].templateId
   }
-  
+
   // Get the selected template
   const selectedTemplate = getSelectedTemplate(templateId)
   if (selectedTemplate) {
     // Auto-fill Device ID with deviceType + counter
-    const sameTypeDevices = localData.value.filter(d => 
+    const sameTypeDevices = localData.value.filter(d =>
       d.templateId === templateId && d.tempId !== localData.value[deviceIndex].tempId
     )
     const counter = sameTypeDevices.length + 1
     localData.value[deviceIndex].deviceId = `${selectedTemplate.deviceType}${counter}`
-    
+
     // Create IP variables from defaultInterfaces
     localData.value[deviceIndex].ipVariables = selectedTemplate.defaultInterfaces.map(iface => ({
       name: toAlphanumeric(iface.name),
@@ -838,24 +849,42 @@ const onTemplateChange = (deviceIndex: number, templateId: string) => {
       fullIP: '',
       interface: iface.name // ✅ Add the full interface name from template
     }))
-    
+
     // Set connection parameters from template
     if (selectedTemplate.connectionParams) {
       localData.value[deviceIndex].connectionParams = {
+        connectionType: 'ssh', // Default to SSH
         sshPort: selectedTemplate.connectionParams.defaultSSHPort || 22,
         username: selectedTemplate.connectionParams.authentication?.usernameTemplate || '',
         password: selectedTemplate.connectionParams.authentication?.passwordTemplate || ''
       }
     }
-    
+
     // Clear device ID validation error since we auto-filled it
     if (fieldErrors.value[deviceIndex]) {
       delete fieldErrors.value[deviceIndex].deviceId
     }
   }
-  
+
   // Revalidate the device
   emitValidation()
+}
+
+const onConnectionTypeChange = (deviceIndex: number, connectionType: 'ssh' | 'telnet' | 'console') => {
+  const device = localData.value[deviceIndex]
+  device.connectionParams.connectionType = connectionType
+
+  // Set default port based on connection type
+  if (connectionType === 'ssh') {
+    device.connectionParams.sshPort = device.connectionParams.sshPort || 22
+  } else if (connectionType === 'telnet') {
+    device.connectionParams.sshPort = device.connectionParams.sshPort || 23
+  } else if (connectionType === 'console') {
+    // Console doesn't need port/credentials, but keep them for potential switch back
+    delete device.connectionParams.sshPort
+    delete device.connectionParams.username
+    delete device.connectionParams.password
+  }
 }
 
 // Removed calculateIP function - hostOffset no longer supported
@@ -886,10 +915,10 @@ const getIpVarError = (deviceIndex: number, ipIndex: number, field: string): str
 }
 
 const isDeviceValid = (device: Device & { tempId: string }): boolean => {
-  return device.deviceId.length > 0 && 
-         device.templateId.length > 0 && 
-         device.ipVariables.length > 0 &&
-         device.ipVariables.every(ipVar => ipVar.name.length > 0 && (ipVar.fullIP || ipVar.inputType?.startsWith('studentVlan') || ipVar.inputType === 'studentManagement'))
+  return device.deviceId.length > 0 &&
+    device.templateId.length > 0 &&
+    device.ipVariables.length > 0 &&
+    device.ipVariables.every(ipVar => ipVar.name.length > 0 && (ipVar.fullIP || ipVar.inputType?.startsWith('studentVlan') || ipVar.inputType === 'studentManagement'))
 }
 
 const validateDevice = (deviceIndex: number, field: string) => {
@@ -1360,14 +1389,14 @@ watch(
     if (!isUpdatingFromProps.value) {
       // Convert to regular Device array (remove tempId)
       const cleanDevices = newValue.map(({ tempId, ...device }) => device)
-      
+
       // 🐛 DEBUG: Log what we're emitting
       console.log('🔍 Step 3 emitting devices:', cleanDevices.map(d => ({
         deviceId: d.deviceId,
         templateId: d.templateId,
         hasTemplateId: !!d.templateId
       })))
-      
+
       emit('update:modelValue', cleanDevices)
     }
   },
