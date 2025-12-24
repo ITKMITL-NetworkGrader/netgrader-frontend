@@ -31,6 +31,5 @@ const loadingColor = computed(() => {
     >
       <slot />
     </main>
-    <PageFooter v-if="isCenteredPage" />
   </div>
 </template>
