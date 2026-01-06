@@ -14,6 +14,13 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Stepper, StepperItem, StepperTrigger, StepperTitle, StepperDescription } from '@/components/ui/stepper'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { CheckCircle2, XCircle, Server, FolderPlus, Settings, RotateCcw } from 'lucide-vue-next'
 import { usePlayground, type GNS3Config, type LabDevice, type DeviceMapping, type DeviceInterfaceMapping } from '@/composables/usePlayground'
 
@@ -66,6 +73,10 @@ const serverVersion = ref('')
 const projectName = ref('')
 const projectCreated = ref(false)
 const isExistingProject = ref(false)
+const availableProjects = ref<Array<{ name: string; project_id: string; status: string }>>([]
+)
+const isLoadingProjects = ref(false)
+const selectedProjectId = ref<string>('')
 
 // Step 3: Device & Network Config (lab-level, interface-level IPs)
 const labDevices = ref<LabDevice[]>([])
@@ -128,8 +139,55 @@ async function handleTestConnection() {
   if (result.success) {
     connectionSuccess.value = true
     serverVersion.value = result.version || ''
+    // Fetch available projects after successful connection
+    await fetchAvailableProjects()
   } else {
     connectionSuccess.value = false
+  }
+}
+
+async function fetchAvailableProjects() {
+  isLoadingProjects.value = true
+  try {
+    const config = useRuntimeConfig()
+    const response = await $fetch<{
+      success: boolean
+      projects: Array<{
+        name: string
+        project_id: string
+        status: string
+      }>
+    }>(`${config.public.backendurl}/v0/playground/gns3/list-projects`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: {
+        serverIp: serverIp.value,
+        serverPort: serverPort.value,
+        requiresAuth: requiresAuth.value,
+        username: username.value,
+        password: password.value,
+      },
+    })
+    
+    if (response.success && response.projects) {
+      availableProjects.value = response.projects
+    }
+  } catch (error) {
+    console.error('Failed to fetch projects:', error)
+  } finally {
+    isLoadingProjects.value = false
+  }
+}
+
+function handleProjectSelect(projectId: any) {
+  if (typeof projectId !== 'string' || !projectId) return
+  selectedProjectId.value = projectId
+  const project = availableProjects.value.find(p => p.project_id === projectId)
+  if (project) {
+    projectName.value = project.name
   }
 }
 
@@ -231,6 +289,8 @@ function handleReset() {
   projectName.value = ''
   projectCreated.value = false
   isExistingProject.value = false
+  availableProjects.value = []
+  selectedProjectId.value = ''
   labDevices.value = []
   localDeviceMappings.value = {}
   localVlanMappings.value = {}
@@ -322,11 +382,49 @@ function handleReset() {
 
       <!-- Step 2: Project Creation/Selection -->
       <div v-if="currentStep === 2" class="space-y-4">
+        <!-- Project Selector -->
         <div class="space-y-2">
-          <Label for="projectName">Project Name</Label>
-          <Input id="projectName" v-model="projectName" placeholder="my-test-lab" :disabled="projectCreated" />
+          <Label>Select Existing Project</Label>
+          <Select v-model="selectedProjectId" :disabled="projectCreated || isLoadingProjects" @update:model-value="handleProjectSelect">
+            <SelectTrigger class="w-full">
+              <Spinner v-if="isLoadingProjects" class="mr-2 h-4 w-4" />
+              <SelectValue :placeholder="isLoadingProjects ? 'Loading projects...' : 'Select a project'" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem v-for="project in availableProjects" :key="project.project_id" :value="project.project_id">
+                <div class="flex items-center gap-2">
+                  <span>{{ project.name }}</span>
+                  <span class="text-xs text-muted-foreground">({{ project.status }})</span>
+                </div>
+              </SelectItem>
+            </SelectContent>
+          </Select>
           <p class="text-xs text-muted-foreground">
-            If a project with this name exists, it will be used. Otherwise, a new project will be created.
+            Select an existing project from the GNS3 server
+          </p>
+        </div>
+
+        <!-- Divider -->
+        <div class="relative">
+          <div class="absolute inset-0 flex items-center">
+            <span class="w-full border-t border-border" />
+          </div>
+          <div class="relative flex justify-center text-xs uppercase">
+            <span class="bg-background px-2 text-muted-foreground">or create new</span>
+          </div>
+        </div>
+
+        <!-- New Project Name -->
+        <div class="space-y-2">
+          <Label for="projectName">New Project Name</Label>
+          <Input 
+            id="projectName" 
+            v-model="projectName" 
+            placeholder="my-test-lab" 
+            :disabled="projectCreated || !!selectedProjectId" 
+          />
+          <p class="text-xs text-muted-foreground">
+            Enter a name to create a new project
           </p>
         </div>
 
@@ -345,7 +443,7 @@ function handleReset() {
           <div class="flex gap-2">
             <Button v-if="!projectCreated" @click="handleCreateProject" :disabled="!projectName || isLoading">
               <Spinner v-if="isLoading" class="mr-2 h-4 w-4" />
-              Create/Use Project
+              {{ selectedProjectId ? 'Use Project' : 'Create Project' }}
             </Button>
             <Button v-else @click="handleNextStep">
               Next
