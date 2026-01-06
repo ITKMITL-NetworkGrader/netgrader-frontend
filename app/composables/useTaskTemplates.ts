@@ -2,7 +2,7 @@ import type { TaskTemplate, APIResponse } from '@/types/lab'
 
 export const useTaskTemplates = () => {
   const config = useRuntimeConfig()
-  const baseURL = `${config.public.backendurl}/v0/api`
+  const baseURL = `${config.public.backendurl}/v0`
 
   const templates = ref<TaskTemplate[]>([])
   const isLoading = ref(false)

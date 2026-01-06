@@ -183,6 +183,15 @@
     <div v-if="instructionsAcknowledged">
       <!-- Device Configuration Reference -->
       <div class="device-config mb-6">
+        <!-- Device Naming Warning -->
+        <Alert class="mb-4 bg-amber-500/10 border-amber-500/30">
+          <AlertTriangle class="h-4 w-4 text-amber-600" />
+          <AlertTitle class="text-amber-700 dark:text-amber-400">Important: Device Node Names</AlertTitle>
+          <AlertDescription class="text-sm text-amber-700 dark:text-amber-400">
+            GNS3 device node names must match exactly as defined below. Mismatched names will cause grading to fail.
+          </AlertDescription>
+        </Alert>
+
         <div class="bg-muted/50 border border-border rounded-lg p-6">
           <h3 class="text-lg font-semibold mb-4 text-foreground">Your Device Configuration Reference</h3>
 
@@ -290,8 +299,9 @@
 import { computed, ref, onMounted } from 'vue'
 import DOMPurify from 'dompurify'
 import { marked } from 'marked'
-import { Router, Monitor, HardDrive, CheckCircle, Info } from 'lucide-vue-next'
+import { Router, Monitor, HardDrive, CheckCircle, Info, AlertTriangle } from 'lucide-vue-next'
 import { Badge } from '@/components/ui/badge'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
