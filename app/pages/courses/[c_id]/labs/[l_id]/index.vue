@@ -48,6 +48,7 @@ import LabResultsModal from '@/components/student/LabResultsModal.vue'
 import LabTimer from '@/components/student/LabTimer.vue'
 import FillInBlankQuestions from '@/components/student/FillInBlankQuestions.vue'
 import PlaygroundTab from '@/components/playground/PlaygroundTab.vue'
+import StudentGns3SetupModal from '@/components/student/StudentGns3SetupModal.vue'
 import type { ISubmission, LecturerRangeAnswerPayload } from '@/types/submission'
 import { toast } from 'vue-sonner'
 
@@ -323,6 +324,11 @@ const completionStatus = ref({
   allPartsPassedWithFullPoints: false
 })
 const hasClearedLabStorage = ref(false)
+
+// GNS3 Setup Modal State
+const showGns3SetupModal = ref(false)
+const hasGns3Project = ref(false)
+const GNS3_PROJECT_STORAGE_KEY = 'netgrader_gns3_project'
 
 const currentLabParts = computed<LabPart[]>(() => {
   const lab = currentLab.value
@@ -751,6 +757,9 @@ const acknowledgeInstructions = async () => {
     instructionsAckError.value = ''
     toast.success('Instructions acknowledged. You can continue to Part 1.')
 
+    // Show GNS3 setup modal after acknowledging instructions if no project configured
+    checkAndShowGns3Modal()
+
     // Automatically move to the next part if available
     if (currentPartIndex.value === 0 && totalParts.value > 1) {
       goToNextPart()
@@ -764,6 +773,50 @@ const acknowledgeInstructions = async () => {
   } finally {
     instructionsAckLoading.value = false
   }
+}
+
+// GNS3 Setup Modal handlers
+function checkGns3ProjectExists(): boolean {
+  try {
+    const saved = localStorage.getItem(GNS3_PROJECT_STORAGE_KEY)
+    if (saved) {
+      const config = JSON.parse(saved)
+      // Check if config exists for current lab
+      if (config.labId === labId.value && config.projectName) {
+        return true
+      }
+    }
+  } catch (e) {
+    // Ignore parse errors
+  }
+  return false
+}
+
+function checkAndShowGns3Modal() {
+  console.log('[GNS3 Modal Debug] checkAndShowGns3Modal called')
+  console.log('[GNS3 Modal Debug] instructionsAcknowledged:', instructionsAcknowledged.value)
+  
+  const projectExists = checkGns3ProjectExists()
+  console.log('[GNS3 Modal Debug] projectExists:', projectExists)
+  
+  if (!projectExists) {
+    console.log('[GNS3 Modal Debug] Showing modal - no project found')
+    showGns3SetupModal.value = true
+  } else {
+    console.log('[GNS3 Modal Debug] Not showing modal - project already exists')
+    hasGns3Project.value = true
+  }
+}
+
+function handleGns3SetupComplete(config: {
+  serverIp: string
+  serverPort: number
+  projectId: string
+  projectName: string
+}) {
+  hasGns3Project.value = true
+  showGns3SetupModal.value = false
+  toast.success(`GNS3 project "${config.projectName}" configured successfully!`)
 }
 
 // Grading Submission
@@ -1313,6 +1366,11 @@ const loadLabData = async () => {
 // Lifecycle
 onMounted(async () => {
   await loadLabData()
+  
+  // For returning users: if instructions already acknowledged but no GNS3 project, show modal
+  if (instructionsAcknowledged.value) {
+    checkAndShowGns3Modal()
+  }
 })
 
 // Watch for URL changes to update current part
@@ -1339,6 +1397,17 @@ watch(() => route.query.part, (newPart) => {
       :mode="timerExpiredModalMode" :available-until="currentLab?.availableUntil"
       :is-fresh-completion="isFreshCompletion" :initially-collapsed="showCollapsedSummary"
       @start-over="handleRestartLabFromResults()" @close="handleCloseResultsModal()" />
+
+    <!-- GNS3 Setup Modal -->
+    <StudentGns3SetupModal
+      :open="showGns3SetupModal"
+      :lab-id="labId"
+      :lab-name="currentLab?.title"
+      :course-name="currentCourse?.title"
+      :student-id="resolvedUserId || ''"
+      @update:open="showGns3SetupModal = $event"
+      @complete="handleGns3SetupComplete"
+    />
 
     <!-- Lab Timer (Fixed at bottom center) -->
     <LabTimer v-if="!isLoadingIPs && !isLoading && !isLoadingParts && currentLab"

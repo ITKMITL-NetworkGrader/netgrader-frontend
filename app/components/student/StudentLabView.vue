@@ -26,6 +26,15 @@
       @start-over="handleRestartLab"
     />
 
+    <!-- GNS3 Setup Modal -->
+    <StudentGns3SetupModal
+      :open="showGns3SetupModal"
+      :lab-id="labData.id"
+      :lab-name="labData.name"
+      @update:open="showGns3SetupModal = $event"
+      @complete="handleGns3SetupComplete"
+    />
+
     <!-- Lab Timer (Fixed at bottom center) -->
     <LabTimer
       v-if="!isCalculatingIPs"
@@ -309,6 +318,7 @@ import { toast } from 'vue-sonner'
 import LabCompletionPrompt from '@/components/student/LabCompletionPrompt.vue'
 import LabResultsModal from '@/components/student/LabResultsModal.vue'
 import LabTimer from '@/components/student/LabTimer.vue'
+import StudentGns3SetupModal from '@/components/student/StudentGns3SetupModal.vue'
 import { useSubmissions } from '@/composables/useSubmissions'
 import type { ISubmission } from '@/types/submission'
 
@@ -344,6 +354,10 @@ const completionStatus = ref({
 // Timer State
 const showTimerExpiredModal = ref(false)
 const timerExpiredModalMode = ref<'results' | 'timer_expired' | 'unavailable'>('results')
+
+// GNS3 Setup Modal State
+const showGns3SetupModal = ref(false)
+const hasGns3Project = ref(false)
 
 // Backend IP Mappings (from POST /v0/labs/:id/start)
 const backendIpMappings = ref<Record<string, { ip: string; vlan: number | null }>>({})
@@ -614,6 +628,9 @@ async function acknowledgeInstructions() {
       : new Date()
     instructionsAckError.value = ''
     toast.success('Instructions acknowledged. You can start Part 1 now.')
+    
+    // Show GNS3 setup modal after acknowledging instructions if no project configured
+    checkAndShowGns3Modal()
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Failed to acknowledge instructions'
     instructionsAckError.value = message
@@ -621,6 +638,51 @@ async function acknowledgeInstructions() {
   } finally {
     instructionsAckLoading.value = false
   }
+}
+
+// GNS3 Setup Modal handlers
+const GNS3_PROJECT_STORAGE_KEY = 'netgrader_gns3_project'
+
+function checkGns3ProjectExists(): boolean {
+  try {
+    const saved = localStorage.getItem(GNS3_PROJECT_STORAGE_KEY)
+    if (saved) {
+      const config = JSON.parse(saved)
+      // Check if config exists for current lab
+      if (config.labId === props.labData.id && config.projectName) {
+        return true
+      }
+    }
+  } catch (e) {
+    // Ignore parse errors
+  }
+  return false
+}
+
+function checkAndShowGns3Modal() {
+  const projectExists = checkGns3ProjectExists()
+  console.log('[GNS3 Modal Debug] checkAndShowGns3Modal called')
+  console.log('[GNS3 Modal Debug] projectExists:', projectExists)
+  console.log('[GNS3 Modal Debug] instructionsAcknowledged:', instructionsAcknowledged.value)
+  
+  if (!projectExists) {
+    console.log('[GNS3 Modal Debug] Showing modal - no project found')
+    showGns3SetupModal.value = true
+  } else {
+    console.log('[GNS3 Modal Debug] Not showing modal - project already exists')
+    hasGns3Project.value = true
+  }
+}
+
+function handleGns3SetupComplete(config: {
+  serverIp: string
+  serverPort: number
+  projectId: string
+  projectName: string
+}) {
+  hasGns3Project.value = true
+  showGns3SetupModal.value = false
+  toast.success(`GNS3 project "${config.projectName}" configured successfully!`)
 }
 
 // Generate personalized task parameters
@@ -873,6 +935,11 @@ onMounted(async () => {
 
   if (!showCompletionPrompt.value) {
     await checkLabCompletion()
+  }
+  
+  // For returning users: if instructions already acknowledged but no GNS3 project, show modal
+  if (instructionsAcknowledged.value) {
+    checkAndShowGns3Modal()
   }
 })
 </script>

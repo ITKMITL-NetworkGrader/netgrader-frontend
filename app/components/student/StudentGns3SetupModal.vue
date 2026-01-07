@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 import {
   Dialog,
   DialogContent,
@@ -8,27 +8,30 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Badge } from '@/components/ui/badge'
-import { Stepper, StepperItem, StepperTrigger, StepperTitle, StepperDescription } from '@/components/ui/stepper'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { CheckCircle2, XCircle, Server, FolderOpen, AlertTriangle, Cloud, Monitor } from 'lucide-vue-next'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { 
+  CheckCircle2, 
+  XCircle, 
+  Server, 
+  User, 
+  FolderOpen, 
+  Shield, 
+  Copy,
+  Check,
+  RefreshCw,
+  ExternalLink
+} from 'lucide-vue-next'
+import { toast } from 'vue-sonner'
 
 const props = defineProps<{
   open: boolean
   labId: string
   labName?: string
+  courseName?: string
+  studentId: string
 }>()
 
 const emit = defineEmits<{
@@ -44,382 +47,337 @@ const emit = defineEmits<{
 const config = useRuntimeConfig()
 const backendURL = config.public.backendurl
 
-// Step control
-const currentStep = ref(1)
-const steps = [
-  { step: 1, title: 'Server Type', description: 'Choose GNS3 server', icon: Server },
-  { step: 2, title: 'Connect', description: 'Enter server details', icon: Monitor },
-  { step: 3, title: 'Project', description: 'Select project', icon: FolderOpen },
-]
+// Setup states
+type SetupStep = 'connecting' | 'finding_user' | 'creating_project' | 'finding_pool' | 'adding_to_pool' | 'creating_ace' | 'complete' | 'error'
 
-// Step 1: Server type selection
-type ServerType = 'self-hosted' | 'remote'
-const serverType = ref<ServerType>('self-hosted')
+const currentStep = ref<SetupStep>('connecting')
+const error = ref<string | null>(null)
+const isSettingUp = ref(false)
 
-// Step 2: Server connection
-const serverIp = ref('')
-const serverPort = ref(3080)
-const isConnecting = ref(false)
-const connectionSuccess = ref(false)
-const connectionError = ref<string | null>(null)
-const serverVersion = ref('')
+// Result data
+const credentials = ref<{ username: string; password: string } | null>(null)
+const projectUrl = ref<string | null>(null)
+const projectId = ref<string | null>(null)
+const projectName = ref<string | null>(null)
 
-// Step 3: Project selection
-const availableProjects = ref<Array<{ name: string; project_id: string; status: string }>>([])
-const selectedProjectId = ref<string>('')
-const selectedProjectName = ref<string>('')
-const isLoadingProjects = ref(false)
+// Copy state
+const copiedUsername = ref(false)
+const copiedPassword = ref(false)
 
-// localStorage key for saving GNS3 project name
+// localStorage key
 const GNS3_PROJECT_STORAGE_KEY = 'netgrader_gns3_project'
 
-// Computed
-const canProceedStep1 = computed(() => serverType.value === 'self-hosted')
-const canProceedStep2 = computed(() => connectionSuccess.value)
-const canComplete = computed(() => !!selectedProjectId.value && !!selectedProjectName.value)
+// Step messages
+const stepMessages: Record<SetupStep, string> = {
+  connecting: 'Connecting to the GNS3 Lab Server...',
+  finding_user: 'Finding your account...',
+  creating_project: 'Creating your project...',
+  finding_pool: 'Finding your resource pool...',
+  adding_to_pool: 'Adding project to pool...',
+  creating_ace: 'Setting up permissions...',
+  complete: 'Setup complete!',
+  error: 'Setup failed',
+}
 
-// Methods
-async function handleTestConnection() {
-  if (!serverIp.value) return
-  
-  isConnecting.value = true
-  connectionError.value = null
-  connectionSuccess.value = false
-  
+const currentMessage = computed(() => stepMessages[currentStep.value])
+
+const isLoading = computed(() => 
+  isSettingUp.value && currentStep.value !== 'complete' && currentStep.value !== 'error'
+)
+
+// Copy functions
+async function copyUsername() {
+  if (!credentials.value) return
+  try {
+    await navigator.clipboard.writeText(credentials.value.username)
+    copiedUsername.value = true
+    toast.success('Username copied!')
+    setTimeout(() => { copiedUsername.value = false }, 2000)
+  } catch (e) {
+    toast.error('Failed to copy username')
+  }
+}
+
+async function copyPassword() {
+  if (!credentials.value) return
+  try {
+    await navigator.clipboard.writeText(credentials.value.password)
+    copiedPassword.value = true
+    toast.success('Password copied!')
+    setTimeout(() => { copiedPassword.value = false }, 2000)
+  } catch (e) {
+    toast.error('Failed to copy password')
+  }
+}
+
+// Run setup
+async function runSetup() {
+  isSettingUp.value = true
+  error.value = null
+  currentStep.value = 'connecting'
+
   try {
     const response = await $fetch<{
       success: boolean
-      version?: string
+      credentials?: { username: string; password: string }
+      projectUrl?: string
+      projectId?: string
+      projectName?: string
       error?: string
-    }>(`${backendURL}/v0/playground/gns3/test`, {
+    }>(`${backendURL}/v0/student-lab/gns3/setup`, {
       method: 'POST',
       credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json'
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: {
-        serverIp: serverIp.value,
-        serverPort: serverPort.value,
-        requiresAuth: false,
-        username: '',
-        password: '',
+        studentId: props.studentId,
+        courseName: props.courseName || 'course',
+        labName: props.labName || 'lab',
+      },
+      // Use a custom fetch handler to update progress
+      onRequest() {
+        currentStep.value = 'connecting'
       },
     })
-    
-    if (response.success) {
-      connectionSuccess.value = true
-      serverVersion.value = response.version || ''
-      // Fetch available projects after successful connection
-      await fetchAvailableProjects()
+
+    if (response.success && response.credentials && response.projectUrl) {
+      // Simulate step progression for visual feedback
+      currentStep.value = 'finding_user'
+      await new Promise(r => setTimeout(r, 300))
+      currentStep.value = 'creating_project'
+      await new Promise(r => setTimeout(r, 300))
+      currentStep.value = 'finding_pool'
+      await new Promise(r => setTimeout(r, 300))
+      currentStep.value = 'adding_to_pool'
+      await new Promise(r => setTimeout(r, 300))
+      currentStep.value = 'creating_ace'
+      await new Promise(r => setTimeout(r, 300))
+      
+      credentials.value = response.credentials
+      projectUrl.value = response.projectUrl
+      projectId.value = response.projectId || null
+      projectName.value = response.projectName || null
+      currentStep.value = 'complete'
     } else {
-      connectionError.value = response.error || 'Failed to connect to GNS3 server'
+      throw new Error(response.error || 'Setup failed')
     }
-  } catch (error: any) {
-    console.error('GNS3 connection error:', error)
-    connectionError.value = error.message || 'Failed to connect to GNS3 server'
+  } catch (e: any) {
+    console.error('GNS3 setup error:', e)
+    error.value = e.message || 'Failed to setup GNS3 lab'
+    currentStep.value = 'error'
   } finally {
-    isConnecting.value = false
+    isSettingUp.value = false
   }
 }
 
-async function fetchAvailableProjects() {
-  isLoadingProjects.value = true
-  try {
-    const response = await $fetch<{
-      success: boolean
-      projects: Array<{
-        name: string
-        project_id: string
-        status: string
-      }>
-    }>(`${backendURL}/v0/playground/gns3/list-projects`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: {
-        serverIp: serverIp.value,
-        serverPort: serverPort.value,
-        requiresAuth: false,
-        username: '',
-        password: '',
-      },
-    })
-    
-    if (response.success && response.projects) {
-      availableProjects.value = response.projects
-    }
-  } catch (error) {
-    console.error('Failed to fetch projects:', error)
-  } finally {
-    isLoadingProjects.value = false
-  }
-}
-
-function handleProjectSelect(projectId: any) {
-  if (typeof projectId !== 'string' || !projectId) return
-  selectedProjectId.value = projectId
-  const project = availableProjects.value.find(p => p.project_id === projectId)
-  if (project) {
-    selectedProjectName.value = project.name
-  }
-}
-
-function handleNextStep() {
-  if (currentStep.value < 3) {
-    currentStep.value++
-  }
-}
-
-function handlePreviousStep() {
-  if (currentStep.value > 1) {
-    currentStep.value--
-  }
-}
-
+// Handle complete
 function handleComplete() {
-  // Store project name in localStorage for grading
-  localStorage.setItem(GNS3_PROJECT_STORAGE_KEY, JSON.stringify({
-    labId: props.labId,
-    projectId: selectedProjectId.value,
-    projectName: selectedProjectName.value,
-    serverIp: serverIp.value,
-    serverPort: serverPort.value,
-    timestamp: Date.now()
-  }))
-  
+  // Save to localStorage
+  if (projectName.value && projectId.value) {
+    localStorage.setItem(GNS3_PROJECT_STORAGE_KEY, JSON.stringify({
+      labId: props.labId,
+      projectId: projectId.value,
+      projectName: projectName.value,
+      serverIp: '10.70.38.8',
+      serverPort: 80,
+      timestamp: Date.now()
+    }))
+  }
+
   emit('complete', {
-    serverIp: serverIp.value,
-    serverPort: serverPort.value,
-    projectId: selectedProjectId.value,
-    projectName: selectedProjectName.value
+    serverIp: '10.70.38.8',
+    serverPort: 80,
+    projectId: projectId.value || '',
+    projectName: projectName.value || ''
   })
   
   emit('update:open', false)
 }
 
-function resetModal() {
-  currentStep.value = 1
-  serverType.value = 'self-hosted'
-  serverIp.value = ''
-  serverPort.value = 3080
-  connectionSuccess.value = false
-  connectionError.value = null
-  serverVersion.value = ''
-  availableProjects.value = []
-  selectedProjectId.value = ''
-  selectedProjectName.value = ''
+// Reset state
+function resetState() {
+  currentStep.value = 'connecting'
+  error.value = null
+  isSettingUp.value = false
+  credentials.value = null
+  projectUrl.value = null
+  projectId.value = null
+  projectName.value = null
+  copiedUsername.value = false
+  copiedPassword.value = false
 }
 
-// Watch for modal open/close to reset state
+// Watch for modal open to start setup
 watch(() => props.open, (open) => {
   if (open) {
-    // Check if we have a saved configuration
-    const saved = localStorage.getItem(GNS3_PROJECT_STORAGE_KEY)
-    if (saved) {
-      try {
-        const config = JSON.parse(saved)
-        if (config.labId === props.labId) {
-          serverIp.value = config.serverIp || ''
-          serverPort.value = config.serverPort || 3080
-          selectedProjectId.value = config.projectId || ''
-          selectedProjectName.value = config.projectName || ''
-        }
-      } catch (e) {
-        // Ignore parse errors
-      }
-    }
-  } else {
-    resetModal()
+    resetState()
+    // Start setup immediately
+    runSetup()
   }
 })
 </script>
 
 <template>
   <Dialog :open="open" @update:open="$emit('update:open', $event)">
-    <DialogContent class="max-w-xl max-h-[85vh] overflow-y-auto">
+    <DialogContent class="max-w-md" :closable="currentStep === 'complete' || currentStep === 'error'">
       <DialogHeader>
-        <DialogTitle class="text-foreground">GNS3 Server Setup</DialogTitle>
+        <DialogTitle class="text-foreground flex items-center gap-2">
+          <Server class="h-5 w-5 text-primary" />
+          GNS3 Lab Setup
+        </DialogTitle>
         <DialogDescription class="text-muted-foreground">
-          Connect to your GNS3 server to start the lab
+          Setting up your personal lab environment
         </DialogDescription>
       </DialogHeader>
 
-      <!-- Stepper -->
-      <Stepper v-model="currentStep" class="my-4">
-        <StepperItem v-for="step in steps" :key="step.step" :step="step.step" class="flex-1">
-          <StepperTrigger>
-            <component :is="step.icon" class="w-4 h-4" />
-          </StepperTrigger>
-          <div class="flex flex-col gap-0.5">
-            <StepperTitle>{{ step.title }}</StepperTitle>
-            <StepperDescription>{{ step.description }}</StepperDescription>
-          </div>
-        </StepperItem>
-      </Stepper>
-
-      <!-- Error Alert -->
-      <Alert v-if="connectionError" variant="destructive" class="mb-4">
-        <XCircle class="h-4 w-4" />
-        <AlertDescription>{{ connectionError }}</AlertDescription>
-      </Alert>
-
-      <!-- Step 1: Server Type Selection -->
-      <div v-if="currentStep === 1" class="space-y-4">
-        <RadioGroup v-model="serverType" class="space-y-3">
-          <!-- Self-hosted Option -->
-          <div
-            class="flex items-start space-x-3 p-4 border rounded-lg cursor-pointer transition-colors"
-            :class="serverType === 'self-hosted' ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/30'"
-            @click="serverType = 'self-hosted'"
-          >
-            <RadioGroupItem value="self-hosted" id="self-hosted" />
-            <div class="flex-1">
-              <div class="flex items-center gap-2">
-                <Label for="self-hosted" class="font-medium cursor-pointer">
-                  Self-hosted GNS3 Server
-                </Label>
-                <Badge variant="default" class="text-xs">Recommended</Badge>
-              </div>
-              <p class="text-sm text-muted-foreground mt-1">
-                Connect to your own GNS3 server running on your machine or network
-              </p>
+      <!-- Loading State -->
+      <div v-if="isLoading" class="py-8">
+        <!-- Progress Steps -->
+        <div class="space-y-3 mb-6">
+          <div class="flex items-center gap-3" :class="currentStep === 'connecting' ? 'text-primary' : 'text-muted-foreground'">
+            <div class="w-8 h-8 rounded-full flex items-center justify-center" :class="currentStep === 'connecting' ? 'bg-primary/20' : 'bg-muted'">
+              <Spinner v-if="currentStep === 'connecting'" class="h-4 w-4" />
+              <CheckCircle2 v-else class="h-4 w-4" />
             </div>
-            <Monitor class="h-8 w-8 text-muted-foreground/50" />
+            <span class="text-sm">Connecting to server</span>
           </div>
 
-          <!-- Remote Option (Disabled) -->
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger as-child>
-                <div
-                  class="flex items-start space-x-3 p-4 border rounded-lg cursor-not-allowed opacity-50 border-border"
-                >
-                  <RadioGroupItem value="remote" id="remote" disabled />
-                  <div class="flex-1">
-                    <div class="flex items-center gap-2">
-                      <Label for="remote" class="font-medium text-muted-foreground">
-                        Remote GNS3 Server
-                      </Label>
-                      <Badge variant="secondary" class="text-xs">Coming Soon</Badge>
-                    </div>
-                    <p class="text-sm text-muted-foreground mt-1">
-                      Use a cloud-hosted GNS3 server provided by the platform
-                    </p>
-                  </div>
-                  <Cloud class="h-8 w-8 text-muted-foreground/30" />
-                </div>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Remote GNS3 Server is coming soon!</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        </RadioGroup>
+          <div class="flex items-center gap-3" :class="currentStep === 'finding_user' ? 'text-primary' : (currentStep === 'connecting' ? 'text-muted-foreground/50' : 'text-muted-foreground')">
+            <div class="w-8 h-8 rounded-full flex items-center justify-center" :class="currentStep === 'finding_user' ? 'bg-primary/20' : 'bg-muted'">
+              <Spinner v-if="currentStep === 'finding_user'" class="h-4 w-4" />
+              <User v-else class="h-4 w-4" />
+            </div>
+            <span class="text-sm">Finding your account</span>
+          </div>
 
-        <div class="flex justify-end">
-          <Button @click="handleNextStep" :disabled="!canProceedStep1">
-            Next
-          </Button>
+          <div class="flex items-center gap-3" :class="currentStep === 'creating_project' ? 'text-primary' : (['connecting', 'finding_user'].includes(currentStep) ? 'text-muted-foreground/50' : 'text-muted-foreground')">
+            <div class="w-8 h-8 rounded-full flex items-center justify-center" :class="currentStep === 'creating_project' ? 'bg-primary/20' : 'bg-muted'">
+              <Spinner v-if="currentStep === 'creating_project'" class="h-4 w-4" />
+              <FolderOpen v-else class="h-4 w-4" />
+            </div>
+            <span class="text-sm">Creating project</span>
+          </div>
+
+          <div class="flex items-center gap-3" :class="currentStep === 'finding_pool' ? 'text-primary' : (['connecting', 'finding_user', 'creating_project'].includes(currentStep) ? 'text-muted-foreground/50' : 'text-muted-foreground')">
+            <div class="w-8 h-8 rounded-full flex items-center justify-center" :class="currentStep === 'finding_pool' ? 'bg-primary/20' : 'bg-muted'">
+              <Spinner v-if="currentStep === 'finding_pool'" class="h-4 w-4" />
+              <Server v-else class="h-4 w-4" />
+            </div>
+            <span class="text-sm">Finding resource pool</span>
+          </div>
+
+          <div class="flex items-center gap-3" :class="currentStep === 'adding_to_pool' ? 'text-primary' : (['connecting', 'finding_user', 'creating_project', 'finding_pool'].includes(currentStep) ? 'text-muted-foreground/50' : 'text-muted-foreground')">
+            <div class="w-8 h-8 rounded-full flex items-center justify-center" :class="currentStep === 'adding_to_pool' ? 'bg-primary/20' : 'bg-muted'">
+              <Spinner v-if="currentStep === 'adding_to_pool'" class="h-4 w-4" />
+              <Server v-else class="h-4 w-4" />
+            </div>
+            <span class="text-sm">Adding project to pool</span>
+          </div>
+
+          <div class="flex items-center gap-3" :class="currentStep === 'creating_ace' ? 'text-primary' : 'text-muted-foreground/50'">
+            <div class="w-8 h-8 rounded-full flex items-center justify-center" :class="currentStep === 'creating_ace' ? 'bg-primary/20' : 'bg-muted'">
+              <Spinner v-if="currentStep === 'creating_ace'" class="h-4 w-4" />
+              <Shield v-else class="h-4 w-4" />
+            </div>
+            <span class="text-sm">Setting up permissions</span>
+          </div>
         </div>
+
+        <p class="text-center text-sm text-muted-foreground">{{ currentMessage }}</p>
       </div>
 
-      <!-- Step 2: Server Connection -->
-      <div v-if="currentStep === 2" class="space-y-4">
-        <div class="grid grid-cols-2 gap-4">
-          <div class="space-y-2">
-            <Label for="serverIp">Server IP Address</Label>
-            <Input 
-              id="serverIp" 
-              v-model="serverIp" 
-              placeholder="192.168.1.100" 
-              :disabled="connectionSuccess" 
-            />
-          </div>
-          <div class="space-y-2">
-            <Label for="serverPort">Port</Label>
-            <Input 
-              id="serverPort" 
-              v-model.number="serverPort" 
-              type="number" 
-              placeholder="3080"
-              :disabled="connectionSuccess" 
-            />
-          </div>
-        </div>
-
-        <!-- Connection Status -->
-        <div v-if="connectionSuccess" class="flex items-center gap-2 p-3 bg-accent/20 rounded-md">
-          <CheckCircle2 class="h-5 w-5 text-primary" />
-          <span class="text-sm">
-            Connected to GNS3 server v{{ serverVersion }}
-          </span>
-        </div>
-
-        <div class="flex justify-between">
-          <Button variant="outline" @click="handlePreviousStep">
-            Back
-          </Button>
-          <div class="flex gap-2">
-            <Button v-if="!connectionSuccess" @click="handleTestConnection" :disabled="!serverIp || isConnecting">
-              <Spinner v-if="isConnecting" class="mr-2 h-4 w-4" />
-              Test Connection
-            </Button>
-            <Button v-else @click="handleNextStep">
-              Next
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Step 3: Project Selection -->
-      <div v-if="currentStep === 3" class="space-y-4">
-        <div class="space-y-2">
-          <Label>Select Your GNS3 Project</Label>
-          <Select v-model="selectedProjectId" :disabled="isLoadingProjects" @update:model-value="handleProjectSelect">
-            <SelectTrigger class="w-full">
-              <Spinner v-if="isLoadingProjects" class="mr-2 h-4 w-4" />
-              <SelectValue :placeholder="isLoadingProjects ? 'Loading projects...' : 'Select a project'" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem v-for="project in availableProjects" :key="project.project_id" :value="project.project_id">
-                <div class="flex items-center gap-2">
-                  <span>{{ project.name }}</span>
-                  <span class="text-xs text-muted-foreground">({{ project.status }})</span>
-                </div>
-              </SelectItem>
-            </SelectContent>
-          </Select>
-          <p class="text-xs text-muted-foreground">
-            Select the project you will use for this lab
-          </p>
-        </div>
-
-        <!-- Selected Project Info -->
-        <div v-if="selectedProjectName" class="flex items-center gap-2 p-3 bg-accent/20 rounded-md">
-          <CheckCircle2 class="h-5 w-5 text-primary" />
-          <span class="text-sm">
-            Selected: <strong>{{ selectedProjectName }}</strong>
-          </span>
-        </div>
-
-        <!-- Warning about project name storage -->
-        <Alert class="bg-amber-500/10 border-amber-500/30">
-          <AlertTriangle class="h-4 w-4 text-amber-600" />
-          <AlertDescription class="text-sm text-amber-700 dark:text-amber-400">
-            The selected project name will be stored and used for grading. Make sure to select the correct project.
-          </AlertDescription>
+      <!-- Error State -->
+      <div v-else-if="currentStep === 'error'" class="py-6">
+        <Alert variant="destructive" class="mb-4">
+          <XCircle class="h-4 w-4" />
+          <AlertDescription>{{ error }}</AlertDescription>
         </Alert>
 
-        <div class="flex justify-between">
-          <Button variant="outline" @click="handlePreviousStep">
-            Back
-          </Button>
-          <Button @click="handleComplete" :disabled="!canComplete">
-            Start Lab
+        <div class="flex justify-center">
+          <Button @click="runSetup" variant="outline" class="gap-2">
+            <RefreshCw class="h-4 w-4" />
+            Try Again
           </Button>
         </div>
+      </div>
+
+      <!-- Complete State -->
+      <div v-else-if="currentStep === 'complete' && credentials" class="py-4 space-y-6">
+        <!-- Success Banner -->
+        <div class="flex items-center gap-2 p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
+          <CheckCircle2 class="h-5 w-5 text-green-600" />
+          <span class="text-sm text-green-700 dark:text-green-400 font-medium">
+            Your lab environment is ready!
+          </span>
+        </div>
+
+        <!-- Credentials Section -->
+        <div class="space-y-4">
+          <h4 class="text-sm font-medium text-foreground">Login Credentials</h4>
+          
+          <div class="space-y-3">
+            <!-- Username -->
+            <div class="space-y-1.5">
+              <Label class="text-xs text-muted-foreground">Username</Label>
+              <div class="flex items-center gap-2">
+                <Input 
+                  :model-value="credentials.username" 
+                  readonly 
+                  class="font-mono text-sm bg-muted/50"
+                />
+                <Button 
+                  variant="outline" 
+                  size="icon" 
+                  @click="copyUsername"
+                  class="shrink-0"
+                >
+                  <Check v-if="copiedUsername" class="h-4 w-4 text-green-600" />
+                  <Copy v-else class="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            <!-- Password -->
+            <div class="space-y-1.5">
+              <Label class="text-xs text-muted-foreground">Password</Label>
+              <div class="flex items-center gap-2">
+                <Input 
+                  :model-value="credentials.password" 
+                  readonly 
+                  class="font-mono text-sm bg-muted/50"
+                />
+                <Button 
+                  variant="outline" 
+                  size="icon" 
+                  @click="copyPassword"
+                  class="shrink-0"
+                >
+                  <Check v-if="copiedPassword" class="h-4 w-4 text-green-600" />
+                  <Copy v-else class="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Project URL -->
+        <div class="space-y-2">
+          <h4 class="text-sm font-medium text-foreground">Project URL</h4>
+          <a 
+            :href="projectUrl || '#'" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            class="flex items-start gap-2 p-3 bg-muted/50 rounded-lg text-sm text-primary hover:bg-muted transition-colors cursor-pointer"
+          >
+            <ExternalLink class="h-4 w-4 shrink-0 mt-0.5" />
+            <span class="break-all">{{ projectUrl }}</span>
+          </a>
+        </div>
+
+        <!-- Done Button -->
+        <Button @click="handleComplete" class="w-full gap-2">
+          <CheckCircle2 class="h-4 w-4" />
+          Done and Ready
+        </Button>
       </div>
     </DialogContent>
   </Dialog>

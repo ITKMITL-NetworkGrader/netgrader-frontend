@@ -863,6 +863,13 @@ const toNumberOrUndefined = (value: any): number | undefined => {
   return Number.isFinite(numeric) ? numeric : undefined
 }
 
+// Helper function to safely convert values to numbers (handles empty strings from v-model.number)
+const toSafeNumber = (value: any): number => {
+  if (value === null || value === undefined || value === '') return 0
+  const num = Number(value)
+  return Number.isFinite(num) ? num : 0
+}
+
 const normalizeVlanEntry = (vlan: any = {}) => {
   const normalized: Record<string, any> = {}
   const vlanId = toNumberOrUndefined(vlan.vlanId)
@@ -1891,7 +1898,7 @@ const buildPartData = (labId: string, part: any) => {
           expected_result: convertStringToBoolean(testCase.expected_result)
         })),
         order: task.order,
-        points: task.points,
+        points: toSafeNumber(task.points),
         group_id: task.groupId || undefined
       }))
       : [],
@@ -1901,7 +1908,7 @@ const buildPartData = (labId: string, part: any) => {
         title: group.title,
         description: group.description,
         group_type: group.group_type,
-        points: group.points,
+        points: toSafeNumber(group.points),
         continue_on_failure: group.continue_on_failure,
         timeout_seconds: group.timeout_seconds
       }))
@@ -1912,7 +1919,7 @@ const buildPartData = (labId: string, part: any) => {
         questionText: question.questionText,
         questionType: question.questionType,
         order: question.order,
-        points: question.points,
+        points: toSafeNumber(question.points),
         schemaMapping: question.schemaMapping
           ? {
             vlanIndex: question.schemaMapping.vlanIndex,
@@ -1973,7 +1980,7 @@ const buildPartData = (labId: string, part: any) => {
                     : undefined,
                   readonlyContent: cellType === 'readonly' ? (cell.readonlyContent ?? '') : undefined,
                   blankReason: cellType === 'blank' ? (cell.blankReason ?? '') : undefined,
-                  points: isInputCell ? cell.points : 0,
+                  points: isInputCell ? toSafeNumber(cell.points) : 0,
                   autoCalculated: isInputCell ? !!cell.autoCalculated : false
                 }
               })
