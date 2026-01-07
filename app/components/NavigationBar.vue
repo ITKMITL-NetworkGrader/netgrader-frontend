@@ -2,6 +2,7 @@
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { toast } from 'vue-sonner'
+import NavbarTimer from '@/components/NavbarTimer.vue'
 
 const userState = useUserState()
 const { canAccessManagePage } = useRoleGuard()
@@ -10,6 +11,10 @@ const dropdownOpen = ref(false)
 const mobileMenuOpen = ref(false)
 const config = useRuntimeConfig()
 const backendUrl = config.public.backendurl
+
+// Timer state from composable
+const { timerState } = useNavbarTimer()
+const { emitTimerExpired, emitDeadlineExtended } = useNavbarTimerEvents()
 
 // Track if component is mounted to avoid hydration issues
 const isMounted = ref(false)
@@ -81,21 +86,38 @@ watch(() => route.path, () => {
     <div class="font-roboto-mono">
         <!-- Enhanced navigation -->
         <nav class="w-full h-16 bg-background border-b border-border relative">
-            <div class="layout-container flex items-center justify-between h-full px-4 sm:px-6 lg:px-8 mx-8 sm:mx-10 lg:mx-12">
-            <!-- Logo with improved styling -->
-            <NuxtLink 
-                to="/" 
-                class="flex items-center gap-2 text-xl font-bold transition-colors hover:text-primary group"
-                aria-label="NetGrader Home"
-            >
-                <div class="w-8 h-8 rounded bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center text-primary-foreground text-sm font-mono transition-transform group-hover:scale-105">
-                NG
-                </div>
-                <span class="hidden sm:inline">NetGrader</span>
-            </NuxtLink>
+            <div class="navbar-grid h-full px-4 sm:px-6 lg:px-8 mx-8 sm:mx-10 lg:mx-12">
+            <!-- Logo with improved styling (Left) -->
+            <div class="flex items-center justify-start">
+                <NuxtLink 
+                    to="/" 
+                    class="flex items-center gap-2 text-xl font-bold transition-colors hover:text-primary group"
+                    aria-label="NetGrader Home"
+                >
+                    <div class="w-8 h-8 rounded bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center text-primary-foreground text-sm font-mono transition-transform group-hover:scale-105">
+                    NG
+                    </div>
+                    <span class="hidden sm:inline">NetGrader</span>
+                </NuxtLink>
+            </div>
 
-            <!-- Desktop Navigation -->
-            <div class="hidden md:flex items-center gap-1">
+            <!-- Center Timer Section -->
+            <div class="hidden md:flex items-center justify-center">
+                <NavbarTimer
+                    v-if="timerState.isActive"
+                    :available-from="timerState.availableFrom"
+                    :due-date="timerState.dueDate"
+                    :available-until="timerState.availableUntil"
+                    :lab-id="timerState.labId"
+                    :created-at="timerState.createdAt"
+                    :poll-interval-ms="timerState.pollIntervalMs"
+                    @timer-expired="emitTimerExpired"
+                    @deadline-extended="emitDeadlineExtended"
+                />
+            </div>
+
+            <!-- Desktop Navigation (Right) -->
+            <div class="hidden md:flex items-center justify-end gap-1">
                 <nav class="flex items-center gap-1" role="navigation" aria-label="Main navigation">
                 <NuxtLink
                     v-for="item in navigationItems.filter(item => item.show)"
@@ -270,3 +292,19 @@ watch(() => route.path, () => {
         </nav>
     </div>
 </template>
+
+<style scoped>
+.navbar-grid {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 1rem;
+}
+
+@media (max-width: 768px) {
+    .navbar-grid {
+        display: flex;
+        justify-content: space-between;
+    }
+}
+</style>

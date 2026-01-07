@@ -56,6 +56,7 @@ const isSettingUp = ref(false)
 
 // Result data
 const credentials = ref<{ username: string; password: string } | null>(null)
+const loginUrl = ref<string | null>(null)
 const projectUrl = ref<string | null>(null)
 const projectId = ref<string | null>(null)
 const projectName = ref<string | null>(null)
@@ -120,6 +121,7 @@ async function runSetup() {
     const response = await $fetch<{
       success: boolean
       credentials?: { username: string; password: string }
+      loginUrl?: string
       projectUrl?: string
       projectId?: string
       projectName?: string
@@ -153,6 +155,7 @@ async function runSetup() {
       await new Promise(r => setTimeout(r, 300))
       
       credentials.value = response.credentials
+      loginUrl.value = response.loginUrl || null
       projectUrl.value = response.projectUrl
       projectId.value = response.projectId || null
       projectName.value = response.projectName || null
@@ -199,6 +202,7 @@ function resetState() {
   error.value = null
   isSettingUp.value = false
   credentials.value = null
+  loginUrl.value = null
   projectUrl.value = null
   projectId.value = null
   projectName.value = null
@@ -345,32 +349,24 @@ watch(() => props.open, (open) => {
                   readonly 
                   class="font-mono text-sm bg-muted/50"
                 />
-                <Button 
-                  variant="outline" 
-                  size="icon" 
-                  @click="copyPassword"
-                  class="shrink-0"
-                >
-                  <Check v-if="copiedPassword" class="h-4 w-4 text-green-600" />
-                  <Copy v-else class="h-4 w-4" />
-                </Button>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- Project URL -->
+        <!-- Login URL -->
         <div class="space-y-2">
-          <h4 class="text-sm font-medium text-foreground">Project URL</h4>
+          <h4 class="text-sm font-medium text-foreground">GNS3 Lab URL</h4>
           <a 
-            :href="projectUrl || '#'" 
+            :href="loginUrl || '#'" 
             target="_blank" 
             rel="noopener noreferrer"
             class="flex items-start gap-2 p-3 bg-muted/50 rounded-lg text-sm text-primary hover:bg-muted transition-colors cursor-pointer"
           >
             <ExternalLink class="h-4 w-4 shrink-0 mt-0.5" />
-            <span class="break-all">{{ projectUrl }}</span>
+            <span class="break-all">{{ loginUrl }}</span>
           </a>
+          <p class="text-xs text-muted-foreground">Login with your IT credentials. You will see your project in the list.</p>
         </div>
 
         <!-- Done Button -->

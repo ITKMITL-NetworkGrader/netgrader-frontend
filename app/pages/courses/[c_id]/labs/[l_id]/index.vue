@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, nextTick } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
@@ -43,9 +43,7 @@ import { Label } from '@/components/ui/label'
 import { useCourseLabs, type Lab, type LabPart, type LabTask, type TaskGroup } from '@/composables/useCourseLabs'
 import { useCourse } from '@/composables/useCourse'
 import { useSubmissions } from '@/composables/useSubmissions'
-import GradingProgress from '@/components/GradingProgress.vue'
 import LabResultsModal from '@/components/student/LabResultsModal.vue'
-import LabTimer from '@/components/student/LabTimer.vue'
 import FillInBlankQuestions from '@/components/student/FillInBlankQuestions.vue'
 import PlaygroundTab from '@/components/playground/PlaygroundTab.vue'
 import StudentGns3SetupModal from '@/components/student/StudentGns3SetupModal.vue'
@@ -1364,6 +1362,38 @@ const loadLabData = async () => {
 }
 
 // Lifecycle
+
+// Navbar timer composable
+const { setTimer, clearTimer } = useNavbarTimer()
+const { setEventHandlers, clearEventHandlers } = useNavbarTimerEvents()
+
+// Watch for lab data to set timer
+watch(
+  () => ({
+    loading: isLoadingIPs.value || isLoading.value || isLoadingParts.value,
+    lab: currentLab.value
+  }),
+  ({ loading, lab }) => {
+    if (!loading && lab) {
+      setTimer({
+        availableFrom: lab.availableFrom,
+        dueDate: lab.dueDate,
+        availableUntil: lab.availableUntil,
+        labId: labId.value,
+        createdAt: lab.createdAt,
+        pollIntervalMs: 45000
+      })
+      setEventHandlers({
+        onTimerExpired: handleTimerExpired,
+        onDeadlineExtended: handleDeadlineExtended
+      })
+    } else {
+      clearTimer()
+    }
+  },
+  { immediate: true }
+)
+
 onMounted(async () => {
   await loadLabData()
   
@@ -1371,6 +1401,11 @@ onMounted(async () => {
   if (instructionsAcknowledged.value) {
     checkAndShowGns3Modal()
   }
+})
+
+onBeforeUnmount(() => {
+  clearTimer()
+  clearEventHandlers()
 })
 
 // Watch for URL changes to update current part
@@ -1409,11 +1444,7 @@ watch(() => route.query.part, (newPart) => {
       @complete="handleGns3SetupComplete"
     />
 
-    <!-- Lab Timer (Fixed at bottom center) -->
-    <LabTimer v-if="!isLoadingIPs && !isLoading && !isLoadingParts && currentLab"
-      :available-from="currentLab?.availableFrom" :due-date="currentLab?.dueDate"
-      :available-until="currentLab?.availableUntil" :created-at="currentLab?.createdAt" :lab-id="labId"
-      :poll-interval-ms="45000" @timer-expired="handleTimerExpired" @deadline-extended="handleDeadlineExtended" />
+
 
     <!-- Navigation Breadcrumb -->
     <div class="border-b bg-background p-4 sticky top-0 z-[100] shadow-sm">
