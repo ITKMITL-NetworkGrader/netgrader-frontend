@@ -191,7 +191,7 @@ onMounted(() => {
 <template>
   <div class="min-h-screen bg-background">
     <!-- Navigation Breadcrumb - Sticks below NavigationBar -->
-    <div class="border-b bg-background p-4 sticky top-16 z-[150] shadow-sm">
+    <div class="border-b bg-background p-4 sticky top-16 z-40 shadow-sm">
       <Breadcrumb>
         <BreadcrumbList>
           <BreadcrumbItem>

@@ -544,6 +544,9 @@ const handleCreateLab = async () => {
               return baseVar
             }
           }),
+          // Connection settings from Step 3
+          connectionType: device.connectionParams?.connectionType || 'ssh',
+          sshPort: device.connectionParams?.sshPort,
           credentials: device.credentials || {
             usernameTemplate: device.connectionParams?.username || '',
             passwordTemplate: device.connectionParams?.password || '',

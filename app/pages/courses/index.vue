@@ -2,8 +2,10 @@
 import { onMounted, ref, computed  } from 'vue'
 import { ChevronRight, Home, Lock } from 'lucide-vue-next'
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
 import { useColorMode } from "@vueuse/core";
+import ParticlesBg from '@/components/ui/particles-bg/ParticlesBg.vue'
 
 const isDark = computed(() => useColorMode().value == "dark");
 
@@ -57,7 +59,7 @@ const getCourseBanner = (course: CourseResponse['courses'][number]) => {
 <template>
   <div>
     <!-- Navigation Breadcrumb - Sticks below NavigationBar -->
-    <div class="border-b bg-background p-4 sticky top-16 z-[150] shadow-sm">
+    <div class="border-b bg-background p-4 sticky top-16 z-40 shadow-sm">
       <Breadcrumb>
         <BreadcrumbList>
           <BreadcrumbItem>
@@ -120,7 +122,7 @@ v-for="(course, index) in coursesData.courses"
             </CardContent>
             <CardFooter class="p-0 mt-4">
               <NuxtLink :to="'/courses/' + course._id" class="w-full">
-                <Button class="w-full inline-flex justify-center items-center gap-2 rounded-lg border border-transparent font-semibold transition-all hover:scale-[1.02]">
+                <Button class="w-full inline-flex justify-center items-center gap-2 rounded-lg font-semibold transition-all hover:scale-[1.02] bg-primary text-primary-foreground hover:bg-primary/90">
                   View Course
                 </Button>
               </NuxtLink>

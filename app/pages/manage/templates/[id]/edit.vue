@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
-import { ChevronRight, Home, Save, FileCode2, Code2, Boxes, AlertTriangle, Check, ArrowLeft, Info } from 'lucide-vue-next'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ChevronRight, Home, Save, FileCode2, Code2, Boxes, AlertTriangle, Check, ArrowLeft, Info, Loader2 } from 'lucide-vue-next'
 import { Breadcrumb, BreadcrumbItem, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -24,6 +24,10 @@ import { tags } from '@lezer/highlight'
 
 const config = useRuntimeConfig()
 const backendURL = config.public.backendurl
+const route = useRoute()
+
+// Get template ID from route
+const templateId = computed(() => route.params.id as string)
 
 // Light theme for CodeMirror
 const lightTheme = EditorView.theme({
@@ -81,52 +85,16 @@ const extensions = [
 ]
 
 // Template data
+const isLoading = ref(true)
 const templateName = ref('')
-const yamlContent = ref(`# Task Template Definition
-# For more info, see the NetGrader Custom YAML Template Guide
-
-task_name: "my_custom_task"
-description: "Description of what this task does"
-connection_type: "netmiko"  # netmiko, napalm, ssh, or command
-author: "Your Name"
-version: "1.0.0"
-points: 10
-
-# Parameters that can be configured when using this template
-parameters:
-  - name: "target_ip"
-    datatype: "ip_address"
-    description: "Target IP address to ping"
-    required: true
-    example: "192.168.1.100"
-
-# Commands to execute
-commands:
-  - name: "ping_test"
-    action: "ping"
-    parameters:
-      target_ip: "{{target_ip}}"
-      ping_count: 5
-    register: "ping_result"
-
-  - name: "parse_success_rate"
-    action: "parse_output"
-    parameters:
-      input: "{{ping_result}}"
-      pattern: "Success rate is (\\d+) percent"
-    register: "success_rate"
-
-# Validation rules for grading
-validation:
-  - field: "success_rate.first_match"
-    condition: "greater_than"
-    value: 60
-    description: "Ping success rate should be greater than 60%"
-`)
+const originalTemplateName = ref('')
+const templateSource = ref<'mongo' | 'minio'>('mongo')
+const yamlContent = ref('')
 
 // Save state
 const isSaving = ref(false)
 const saveError = ref<string | null>(null)
+const hasChanges = ref(false)
 
 // Validation state
 const validationResult = ref<ValidationResult>({ isValid: true, errors: [], warnings: [] })
@@ -142,19 +110,85 @@ const fileName = computed(() => {
   return `${sanitized}.yaml`
 })
 
+// Fetch template data
+const fetchTemplate = async () => {
+  try {
+    isLoading.value = true
+    const response = await $fetch<{
+      success: boolean
+      data: {
+        _id: string
+        templateId: string
+        name: string
+        description: string
+        source: 'mongo' | 'minio'
+        rawYaml?: string
+        parameters?: any[]
+        defaultTestCases?: any[]
+      }
+    }>(`${backendURL}/v0/task-templates/${templateId.value}`, {
+      method: 'GET',
+      credentials: 'include',
+    })
+    
+    if (response.success && response.data) {
+      const template = response.data
+      templateName.value = template.name
+      originalTemplateName.value = template.name
+      templateSource.value = template.source
+      
+      // If there's raw YAML, use it; otherwise construct from data
+      if (template.rawYaml) {
+        yamlContent.value = template.rawYaml
+      } else {
+        // Construct YAML from template data
+        const yamlObj: any = {
+          task_name: template.templateId,
+          display_name: template.name,
+          description: template.description,
+        }
+        if (template.parameters) {
+          yamlObj.parameters = template.parameters
+        }
+        if (template.defaultTestCases) {
+          yamlObj.validation = template.defaultTestCases
+        }
+        yamlContent.value = yaml.dump(yamlObj, { indent: 2 })
+      }
+      
+      validateYaml()
+    } else {
+      throw new Error('Template not found')
+    }
+  } catch (error: any) {
+    console.error('Failed to fetch template:', error)
+    toast.error('Failed to load template', {
+      description: error.message || 'Template not found'
+    })
+    navigateTo('/manage/templates')
+  } finally {
+    isLoading.value = false
+  }
+}
+
 // Validate YAML content using comprehensive validation
 const validateYaml = () => {
   validationResult.value = validateYamlTemplate(yamlContent.value)
   return validationResult.value.isValid
 }
 
-// Watch for YAML changes and validate (debounced)
+// Watch for changes
 let validateTimeout: ReturnType<typeof setTimeout> | null = null
 watch(yamlContent, () => {
+  hasChanges.value = true
   if (validateTimeout) clearTimeout(validateTimeout)
   validateTimeout = setTimeout(() => {
     validateYaml()
   }, 500)
+})
+
+watch(templateName, () => {
+  hasChanges.value = true
 })
 
 // Save template
@@ -173,25 +207,53 @@ const saveTemplate = async () => {
     isSaving.value = true
     saveError.value = null
     
-    const response = await $fetch<{ success: boolean; message?: string }>(`${backendURL}/v0/task-templates/upload`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: {
-        filename: fileName.value,
-        content: yamlContent.value
-      }
-    })
-    
-    if (response.success) {
-      toast.success('Template saved successfully!', {
-        description: `Saved as ${fileName.value}`
+    // For MinIO templates, use the new PUT endpoint
+    if (templateSource.value === 'minio') {
+      const response = await $fetch<{ success: boolean; message?: string }>(`${backendURL}/v0/task-templates/minio/${templateId.value}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: {
+          content: yamlContent.value
+        }
       })
-      navigateTo('/manage')
+      
+      if (response.success) {
+        toast.success('Template updated successfully!')
+        hasChanges.value = false
+        navigateTo('/manage/templates')
+      } else {
+        throw new Error(response.message || 'Failed to update template')
+      }
     } else {
-      throw new Error(response.message || 'Failed to save template')
+      // For MongoDB templates, use PUT endpoint
+      const parsed = yaml.load(yamlContent.value) as Record<string, any>
+      
+      const response = await $fetch<{ success: boolean; message?: string }>(`${backendURL}/v0/task-templates/${templateId.value}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: {
+          templateId: parsed.task_name,
+          name: parsed.display_name || parsed.name,
+          description: parsed.description,
+          category: parsed.category,
+          parameters: parsed.parameters,
+          defaultTestCases: parsed.validation || parsed.default_test_cases
+        }
+      })
+      
+      if (response.success) {
+        toast.success('Template updated successfully!')
+        hasChanges.value = false
+        navigateTo('/manage/templates')
+      } else {
+        throw new Error(response.message || 'Failed to update template')
+      }
     }
   } catch (error: any) {
     console.error('Failed to save template:', error)
@@ -225,7 +287,7 @@ const handleKeydown = (event: KeyboardEvent) => {
 
 onMounted(() => {
   window.addEventListener('keydown', handleKeydown)
-  validateYaml()
+  fetchTemplate()
 })
 
 onUnmounted(() => {
@@ -235,7 +297,7 @@ onUnmounted(() => {
 
 <template>
   <div>
-    <!-- Navigation Breadcrumb - Sticks below NavigationBar -->
+    <!-- Navigation Breadcrumb -->
     <div class="border-b bg-background p-4 sticky top-16 z-40 shadow-sm">
       <div class="flex items-center justify-between">
         <Breadcrumb>
@@ -257,28 +319,54 @@ onUnmounted(() => {
               <ChevronRight class="h-4 w-4" />
             </BreadcrumbSeparator>
             <BreadcrumbItem>
-              <BreadcrumbPage class="font-medium">Create Template</BreadcrumbPage>
+              <NuxtLink to="/manage/templates" class="hover:text-primary transition-colors">
+                Templates
+              </NuxtLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator>
+              <ChevronRight class="h-4 w-4" />
+            </BreadcrumbSeparator>
+            <BreadcrumbItem>
+              <BreadcrumbPage class="font-medium">Edit</BreadcrumbPage>
             </BreadcrumbItem>
           </BreadcrumbList>
         </Breadcrumb>
       </div>
     </div>
 
-    <div class="p-4 pb-8">
+    <!-- Loading State -->
+    <div v-if="isLoading" class="flex items-center justify-center py-24">
+      <div class="text-center">
+        <Loader2 class="h-8 w-8 animate-spin mx-auto mb-4 text-muted-foreground" />
+        <p class="text-muted-foreground">Loading template...</p>
+      </div>
+    </div>
+
+    <div v-else class="p-4 pb-8">
       <div class="flex items-center justify-between mb-4">
         <div class="flex items-center gap-3">
-          <NuxtLink to="/manage">
+          <NuxtLink to="/manage/templates">
             <Button variant="ghost" size="icon" class="h-8 w-8">
               <ArrowLeft class="h-4 w-4" />
             </Button>
           </NuxtLink>
           <div>
-            <h1 class="text-5xl font-bold mb-1">Create Task Template</h1>
-            <p class="text-xl text-muted-foreground">Define a reusable grading template</p>
+            <h1 class="text-5xl font-bold mb-1">Edit Template</h1>
+            <p class="text-xl text-muted-foreground">{{ originalTemplateName }}</p>
           </div>
         </div>
         
         <div class="flex items-center gap-3">
+          <!-- Template Type Badge -->
+          <Badge :variant="templateSource === 'minio' ? 'secondary' : 'outline'">
+            {{ templateSource === 'minio' ? 'Custom' : 'Built-in' }}
+          </Badge>
+          
+          <!-- Unsaved Changes Indicator -->
+          <Badge v-if="hasChanges" variant="outline" class="border-amber-500 text-amber-600">
+            Unsaved changes
+          </Badge>
+          
           <!-- Validation Status -->
           <TooltipProvider>
             <Tooltip>
@@ -308,7 +396,7 @@ onUnmounted(() => {
             class="bg-emerald-600 hover:bg-emerald-700"
           >
             <Save class="h-4 w-4 mr-2" />
-            {{ isSaving ? 'Saving...' : 'Save Template' }}
+            {{ isSaving ? 'Saving...' : 'Save Changes' }}
           </Button>
         </div>
       </div>

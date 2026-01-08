@@ -6,23 +6,13 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogCancel,
-  AlertDialogAction
-} from '@/components/ui/alert-dialog'
-import { Switch } from '@/components/ui/switch'
 import { toast } from 'vue-sonner'
+
+// New redesigned modal components
+import EditCourseModal from '@/components/course/EditCourseModal.vue'
+import ManageLabsExamsModal from '@/components/course/ManageLabsExamsModal.vue'
 
 import type { Enrollment } from "~/composables/states";
 
@@ -402,6 +392,24 @@ const handleSaveClick = () => {
   }
 }
 
+// Handler for EditCourseModal save event
+const handleEditCourseSave = async (form: { title: string; description: string; password: string; isPrivate: boolean }) => {
+  // Update local editForm with values from modal
+  editForm.value.title = form.title
+  editForm.value.description = form.description
+  editForm.value.password = form.password
+  editForm.value.isPrivate = form.isPrivate
+  
+  // Apply changes
+  await applyChanges()
+}
+
+// Handler for EditCourseModal cancel event
+const handleEditCourseCancel = () => {
+  initializeForm()
+  resetEnrollmentDraft()
+}
+
 const handleFileChange = async (event: Event) => {
   const target = event.target as HTMLInputElement | null
   const file = target?.files?.[0]
@@ -699,395 +707,58 @@ watchEffect(() => {
                     <!-- Management Action Buttons (Top Right) -->
                     <div v-if="canManageCourse" class="absolute top-4 right-4 z-30 flex space-x-2">
                         <!-- Edit Course Button -->
-                        <Dialog v-model:open="isEditModalOpen">
-                            <DialogTrigger as-child>
-                                <Button variant="secondary" size="sm" class="flex flex-col items-center h-auto py-2 px-3 bg-white/90 hover:bg-white text-gray-800">
-                                    <Edit class="h-4 w-4 mb-1" />
-                                    <span class="text-xs">Edit Course</span>
-                                </Button>
-                            </DialogTrigger>
-                            <DialogContent class="min-w-[80vw] max-h-[90vh] overflow-hidden">
-                                <DialogHeader>
-                                    <DialogTitle class="text-xl">Edit Course</DialogTitle>
-                                </DialogHeader>
-                                <div
-class="space-y-4 overflow-y-auto max-h-[70vh] pr-2"
-                                     style="scrollbar-width: thin; scrollbar-color: hsl(var(--muted-foreground)) transparent;"
-                                >
-                                    <div>
-                                        <Label class="pb-2" for="course-title">Course Name</Label>
-                                        <Input id="course-title" v-model="editForm.title" placeholder="Enter course name" />
-                                    </div>
-                                    <div>
-                                        <Label class="pb-2" for="course-description">Course Description</Label>
-                                        <Textarea id="course-description" v-model="editForm.description" placeholder="Enter course description" rows="3" />
-                                    </div>
-                                    <div>
-                                        <Label class="pb-2" for="banner-image">Course Banner</Label>
-                                        <Input
-                                            id="banner-image"
-                                            ref="bannerFileInput"
-                                            type="file"
-                                            accept="image/*"
-                                            :disabled="isUploadingBanner"
-                                            @change="handleFileChange"
-                                        />
-                                        <p class="text-xs text-muted-foreground mt-1">
-                                            Supported formats: JPEG, PNG, WebP. Maximum size: 10 MB.
-                                        </p>
-                                        <div v-if="isUploadingBanner" class="flex items-center gap-2 text-xs text-muted-foreground mt-2">
-                                            <Loader2 class="w-4 h-4 animate-spin" />
-                                            Uploading banner...
-                                        </div>
-                                        <div v-else class="mt-3">
-                                            <Label class="text-xs text-muted-foreground uppercase tracking-wide">Current banner preview</Label>
-                                            <div class="mt-2 h-32 rounded-md overflow-hidden border border-muted">
-                                                <img :src="courseBannerUrl" alt="Current course banner preview" class="w-full h-full object-cover" />
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <Label class="pb-2" for="course-password">Course Password (Optional)</Label>
-                                        <Input 
-                                            id="course-password" 
-                                            v-model="editForm.password" 
-                                            type="password" 
-                                            placeholder="Enter course password" 
-                                        />
-                                        <p class="text-xs text-muted-foreground mt-1">
-                                            Leave empty if you don't want to require a password for enrollment
-                                        </p>
-                                    </div>
-                                    <div>
-                                        <Label class="mb-2" for="course-visibility">Course Visibility</Label>
-                                        <div class="flex items-center space-x-3">
-                                            <Label for="visibility-switch" class="text-sm font-medium">
-                                                {{ editForm.isPrivate ? 'Private' : 'Public' }}
-                                            </Label>
-                                            <Switch 
-                                                id="visibility-switch"
-                                                v-model:checked="editForm.isPrivate"
-                                            />
-                                            <span class="text-xs text-muted-foreground">
-                                                {{ editForm.isPrivate ? 'Only enrolled students can see this course' : 'Anyone can see this course' }}
-                                            </span>
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <Label class="pb-2">Enrolled Students</Label>
-                                        <div v-if="isLoadingEnrollments" class="flex items-center justify-center py-8">
-                                            <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
-                                        </div>
-                                        <div v-else-if="enrollmentDraft.length > 0" class="rounded-lg overflow-hidden">
-                                            <div
-                                              class="overflow-x-auto max-h-96"
-                                              style="scrollbar-width: thin; scrollbar-color: hsl(var(--muted-foreground)) transparent;"
-                                            >
-                                                <Table>
-                                                    <TableHeader class="sticky top-0 z-10">
-                                                        <TableRow>
-                                                            <TableHead class="min-w-[150px]">Name</TableHead>
-                                                            <TableHead class="min-w-[120px]">Student ID</TableHead>
-                                                            <TableHead class="min-w-[140px]">Role</TableHead>
-                                                            <TableHead class="min-w-[140px]">Enrolled Date</TableHead>
-                                                            <TableHead class="w-[160px]">Action</TableHead>
-                                                        </TableRow>
-                                                    </TableHeader>
-                                                    <TableBody>
-                                                        <TableRow
-                                                          v-for="student in enrollmentDraft"
-                                                          :key="student.u_id"
-                                                          :class="[
-                                                            student.markedForRemoval
-                                                              ? 'bg-red-50'
-                                                              : student.newRole !== student.originalRole
-                                                                ? 'bg-amber-50'
-                                                                : ''
-                                                          ]"
-                                                        >
-                                                            <TableCell class="font-medium">
-                                                                {{ student.fullName || 'N/A' }}
-                                                                <div class="text-xs text-muted-foreground">
-                                                                  {{ student.originalRole === 'INSTRUCTOR' ? 'Instructor' : student.originalRole === 'TA' ? 'Teaching Assistant' : 'Student' }}
-                                                                </div>
-                                                            </TableCell>
-                                                            <TableCell>{{ student.u_id }}</TableCell>
-                                                            <TableCell>
-                                                                <div class="flex items-center gap-2">
-                                                                    <Select
-                                                                      v-if="canModifyRoleForUser(student)"
-                                                                      :modelValue="student.newRole"
-                                                                      :disabled="student.markedForRemoval || isSavingChanges"
-                                                                      @update:modelValue="value => handleRoleChange(student.u_id, value as CourseRoleOption)"
-                                                                    >
-                                                                        <SelectTrigger class="w-[220px]">
-                                                                            <SelectValue :placeholder="formatRoleLabel(student.newRole)" />
-                                                                        </SelectTrigger>
-                                                                        <SelectContent>
-                                                                            <SelectItem
-                                                                              v-for="option in ROLE_SELECT_OPTIONS"
-                                                                              :key="option.value"
-                                                                              :value="option.value"
-                                                                              :disabled="option.value === 'INSTRUCTOR'"
-                                                                            >
-                                                                                {{ option.label }}
-                                                                            </SelectItem>
-                                                                        </SelectContent>
-                                                                    </Select>
-                                                                    <span
-                                                                      v-else
-                                                                      class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
-                                                                      :class="roleBadgeClass(student.newRole)"
-                                                                    >
-                                                                        {{ formatRoleLabel(student.newRole) }}
-                                                                    </span>
-                                                                    <Badge
-                                                                      v-if="!student.markedForRemoval && student.newRole !== student.originalRole"
-                                                                      variant="secondary"
-                                                                      class="text-xs"
-                                                                    >
-                                                                      Updated
-                                                                    </Badge>
-                                                                </div>
-                                                            </TableCell>
-                                                            <TableCell>
-                                                                {{ new Date(student.enrollmentDate).toLocaleDateString() }}
-                                                            </TableCell>
-                                                            <TableCell>
-                                                                <div class="flex items-center gap-2">
-                                                                    <Button
-                                                                      v-if="canRemoveEnrollment(student)"
-                                                                      :variant="student.markedForRemoval ? 'outline' : 'destructive'"
-                                                                      size="sm"
-                                                                      :disabled="isSavingChanges"
-                                                                      @click="toggleRemoval(student.u_id)"
-                                                                    >
-                                                                        <template v-if="student.markedForRemoval">
-                                                                            <RotateCcw class="h-4 w-4 mr-1" />
-                                                                            Undo
-                                                                        </template>
-                                                                        <template v-else>
-                                                                            <Trash2 class="h-4 w-4 mr-1" />
-                                                                            Remove
-                                                                        </template>
-                                                                    </Button>
-                                                                    <Badge v-if="student.markedForRemoval" variant="destructive" class="text-xs">
-                                                                        Pending Removal
-                                                                    </Badge>
-                                                                </div>
-                                                            </TableCell>
-                                                        </TableRow>
-                                                    </TableBody>
-                                                </Table>
-                                            </div>
-                                        </div>
-                                        <div v-else class="text-center py-8 text-muted-foreground border border-dashed border-gray-300 rounded-lg">
-                                            <p>No students are currently enrolled in this course.</p>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="flex justify-end space-x-2 pt-4 border-t border-gray-200">
-                                    <Button variant="outline" @click="isEditModalOpen = false">Cancel</Button>
-                                    <Button @click="handleSaveClick" :disabled="isSavingChanges">
-                                      <template v-if="isSavingChanges">
-                                        <Loader2 class="h-4 w-4 mr-2 animate-spin" />
-                                        Saving...
-                                      </template>
-                                      <template v-else>
-                                        Save Changes
-                                      </template>
-                                    </Button>
-                                </div>
-                                <AlertDialog v-model:open="showEnrollmentConfirm">
-                                  <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                      <AlertDialogTitle>Confirm Enrollment Changes</AlertDialogTitle>
-                                      <AlertDialogDescription>
-                                        Review the changes below before applying them.
-                                      </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <div class="space-y-4">
-                                      <div v-if="courseDetailsChanged" class="text-sm text-muted-foreground">
-                                        Course details (name, description, or visibility) will also be updated.
-                                      </div>
-                                      <div v-if="roleChanges.length">
-                                        <h4 class="text-sm font-semibold">Role Updates</h4>
-                                        <ul class="list-disc list-inside text-sm text-muted-foreground">
-                                          <li v-for="change in roleChanges" :key="`role-${change.u_id}`">
-                                            <span class="font-medium text-foreground">{{ change.fullName || change.u_id }}</span>
-                                            : {{ formatRoleLabel(change.originalRole) }} → {{ formatRoleLabel(change.newRole) }}
-                                          </li>
-                                        </ul>
-                                      </div>
-                                      <div v-if="removalList.length">
-                                        <h4 class="text-sm font-semibold text-destructive">Pending Removals</h4>
-                                        <ul class="list-disc list-inside text-sm text-destructive">
-                                          <li v-for="removal in removalList" :key="`remove-${removal.u_id}`">
-                                            {{ removal.fullName || removal.u_id }}
-                                          </li>
-                                        </ul>
-                                      </div>
-                                      <div v-if="!roleChanges.length && !removalList.length" class="text-sm text-muted-foreground">
-                                        No enrollment changes detected.
-                                      </div>
-                                    </div>
-                                    <AlertDialogFooter>
-                                      <AlertDialogCancel :disabled="isSavingChanges">Cancel</AlertDialogCancel>
-                                      <AlertDialogAction as-child>
-                                        <Button @click="applyChanges" :disabled="isSavingChanges">
-                                          <Loader2 v-if="isSavingChanges" class="h-4 w-4 mr-2 animate-spin" />
-                                          <span v-else>Confirm Changes</span>
-                                        </Button>
-                                      </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                  </AlertDialogContent>
-                                </AlertDialog>
-                            </DialogContent>
-                        </Dialog>
+                        <Button 
+                            variant="secondary" 
+                            size="sm" 
+                            class="flex flex-col items-center h-auto py-2 px-3 bg-white/90 hover:bg-white text-gray-800"
+                            @click="isEditModalOpen = true"
+                        >
+                            <Edit class="h-4 w-4 mb-1" />
+                            <span class="text-xs">Edit Course</span>
+                        </Button>
 
                         <!-- Manage Labs/Exams Button -->
-                        <Dialog v-model:open="isManageModalOpen">
-                            <DialogTrigger as-child>
-                                <Button variant="secondary" size="sm" class="flex flex-col items-center h-auto py-2 px-3 bg-white/90 hover:bg-white text-gray-800">
-                                    <Settings class="h-4 w-4 mb-1" />
-                                    <span class="text-xs">Manage Labs/Exams</span>
-                                </Button>
-                            </DialogTrigger>
-                            <DialogContent class="max-w-4xl max-h-[80vh] overflow-y-auto">
-                                <DialogHeader>
-                                    <DialogTitle class="text-xl">Manage Labs & Exams</DialogTitle>
-                                </DialogHeader>
-                                <Tabs default-value="labs" class="w-full">
-                                    <TabsList class="grid w-full grid-cols-2">
-                                        <TabsTrigger value="labs">Labs</TabsTrigger>
-                                        <TabsTrigger value="exams">Exams</TabsTrigger>
-                                    </TabsList>
-                                    <TabsContent value="labs" class="space-y-4">
-                                        <div class="flex justify-between items-center pt-2">
-                                            <h3 class="text-lg font-semibold">Course Labs</h3>
-                                            <NuxtLink :to="`/courses/${courseId}/labs/create`" class="flex items-center">
-                                                <Button>
-                                                    <Plus class="h-4 w-4 mr-2" />
-                                                    Add Lab
-                                                </Button>
-                                            </NuxtLink>
-                                        </div>
-                                        <!-- Loading State -->
-                                        <div v-if="isLoadingLabs" class="flex items-center justify-center py-8">
-                                            <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
-                                            <span class="ml-3 text-muted-foreground">Loading labs...</span>
-                                        </div>
-                                        
-                                        <!-- Labs Management List -->
-                                        <div v-else-if="availableLabs.length > 0" class="space-y-4">
-                                            <Card v-for="lab in availableLabs" :key="lab.id" class="border-l-4 border-l-primary/30">
-                                                <CardHeader class="pb-4">
-                                                    <div class="flex justify-between items-start">
-                                                        <div class="flex-1 min-w-0">
-                                                            <CardTitle class="text-base font-semibold mb-1">{{ lab.title }}</CardTitle>
-                                                            <CardDescription class="text-sm text-muted-foreground mb-2">
-                                                                {{ lab.description || 'No description provided' }}
-                                                            </CardDescription>
-                                                            <div class="flex items-center space-x-4 text-xs text-muted-foreground">
-                                                                <span>Created {{ formatLabDate(lab.createdAt) }}</span>
-                                                                <span>•</span>
-                                                                <span>Updated {{ formatLabDate(lab.updatedAt) }}</span>
-                                                            </div>
-                                                        </div>
-                                                        <div class="flex space-x-2 ml-4">
-                                                            <NuxtLink :to="`/courses/${courseId}/labs/${lab.id}/edit`">
-                                                                <Button variant="outline" size="sm" class="h-8">
-                                                                    <Edit class="h-3 w-3 mr-1" />
-                                                                    Edit
-                                                                </Button>
-                                                            </NuxtLink>
-                                                            <Button 
-                                                                variant="destructive" 
-                                                                size="sm" 
-                                                                class="h-8"
-                                                                @click="handleDeleteLab(lab.id, lab.title)"
-                                                            >
-                                                                <Trash2 class="h-3 w-3 mr-1" />
-                                                                Delete
-                                                            </Button>
-                                                        </div>
-                                                    </div>
-                                                </CardHeader>
-                                            </Card>
-                                        </div>
-                                        
-                                        <!-- Empty State -->
-                                        <div v-else class="text-center py-8 text-muted-foreground border border-dashed border-gray-300 rounded-lg">
-                                            <BookOpen class="w-12 h-12 mx-auto mb-3 text-muted-foreground/50" />
-                                            <p class="font-medium mb-1">No labs have been created for this course yet.</p>
-                                            <p class="text-sm">Click "Add Lab" to create your first lab.</p>
-                                        </div>
-                                    </TabsContent>
-                                    <TabsContent value="exams" class="space-y-4">
-                                        <div class="flex justify-between items-center pt-2">
-                                            <h3 class="text-lg font-semibold">Course Exams</h3>
-                                            <NuxtLink :to="`/courses/${courseId}/exams/create`" class="flex items-center">
-                                                <Button>
-                                                    <Plus class="h-4 w-4 mr-2" />
-                                                    Add Exam
-                                                </Button>
-                                            </NuxtLink>
-                                        </div>
-                                        <!-- Loading State -->
-                                        <div v-if="isLoadingLabs" class="flex items-center justify-center py-8">
-                                            <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
-                                            <span class="ml-3 text-muted-foreground">Loading exams...</span>
-                                        </div>
-                                        
-                                        <!-- Exams Management List -->
-                                        <div v-else-if="availableExams.length > 0" class="space-y-4">
-                                            <Card v-for="exam in availableExams" :key="exam.id" class="border-l-4 border-l-orange-500/30">
-                                                <CardHeader class="pb-4">
-                                                    <div class="flex justify-between items-start">
-                                                        <div class="flex-1 min-w-0">
-                                                            <CardTitle class="text-base font-semibold mb-1">{{ exam.title }}</CardTitle>
-                                                            <CardDescription class="text-sm text-muted-foreground mb-2">
-                                                                {{ exam.description || 'No description provided' }}
-                                                            </CardDescription>
-                                                            <div class="flex items-center space-x-4 text-xs text-muted-foreground">
-                                                                <span>Created {{ formatLabDate(exam.createdAt) }}</span>
-                                                                <span>•</span>
-                                                                <span>Updated {{ formatLabDate(exam.updatedAt) }}</span>
-                                                            </div>
-                                                        </div>
-                                                        <div class="flex space-x-2 ml-4">
-                                                            <NuxtLink :to="`/courses/${courseId}/exams/${exam.id}/edit`">
-                                                                <Button variant="outline" size="sm" class="h-8">
-                                                                    <Edit class="h-3 w-3 mr-1" />
-                                                                    Edit
-                                                                </Button>
-                                                            </NuxtLink>
-                                                            <Button 
-                                                                variant="destructive" 
-                                                                size="sm" 
-                                                                class="h-8"
-                                                                @click="handleDeleteLab(exam.id, exam.title)"
-                                                            >
-                                                                <Trash2 class="h-3 w-3 mr-1" />
-                                                                Delete
-                                                            </Button>
-                                                        </div>
-                                                    </div>
-                                                </CardHeader>
-                                            </Card>
-                                        </div>
-                                        
-                                        <!-- Empty State -->
-                                        <div v-else class="text-center py-8 text-muted-foreground border border-dashed border-gray-300 rounded-lg">
-                                            <Settings class="w-12 h-12 mx-auto mb-3 text-muted-foreground/50" />
-                                            <p class="font-medium mb-1">No exams have been created for this course yet.</p>
-                                            <p class="text-sm">Click "Add Exam" to create your first exam.</p>
-                                        </div>
-                                    </TabsContent>
-                                </Tabs>
-                            </DialogContent>
-                        </Dialog>
+                        <Button 
+                            variant="secondary" 
+                            size="sm" 
+                            class="flex flex-col items-center h-auto py-2 px-3 bg-white/90 hover:bg-white text-gray-800"
+                            @click="isManageModalOpen = true"
+                        >
+                            <Settings class="h-4 w-4 mb-1" />
+                            <span class="text-xs">Manage Labs/Exams</span>
+                        </Button>
                     </div>
+
+                    <!-- Edit Course Modal (New Component) -->
+                    <EditCourseModal
+                        v-model:open="isEditModalOpen"
+                        :course="currentCourse"
+                        :show-banner-upload="true"
+                        :show-enrollment-management="true"
+                        :enrollment-draft="enrollmentDraft"
+                        :is-loading-enrollments="isLoadingEnrollments"
+                        :is-uploading-banner="isUploadingBanner"
+                        :is-saving="isSavingChanges"
+                        :can-modify-role-for-user="canModifyRoleForUser"
+                        :can-remove-enrollment="canRemoveEnrollment"
+                        @save="handleEditCourseSave"
+                        @cancel="handleEditCourseCancel"
+                        @banner-change="handleFileChange"
+                        @role-change="handleRoleChange"
+                        @toggle-removal="toggleRemoval"
+                        @confirm-changes="applyChanges"
+                    />
+
+                    <!-- Manage Labs/Exams Modal (New Component) -->
+                    <ManageLabsExamsModal
+                        v-model:open="isManageModalOpen"
+                        :course-id="courseId"
+                        :labs="availableLabs"
+                        :exams="availableExams"
+                        :is-loading="isLoadingLabs"
+                        @delete-lab="handleDeleteLab"
+                        @delete-exam="handleDeleteLab"
+                    />
 
                     <!-- Enrollment Button (Bottom Right) -->
                     <div v-if="!isEnrolled && userRole !== 'INSTRUCTOR'" class="absolute bottom-4 right-4 z-30">

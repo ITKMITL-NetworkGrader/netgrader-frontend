@@ -48,7 +48,7 @@ const config = useRuntimeConfig()
 const backendURL = config.public.backendurl
 
 // Setup states
-type SetupStep = 'connecting' | 'finding_user' | 'creating_project' | 'finding_pool' | 'adding_to_pool' | 'creating_ace' | 'complete' | 'error'
+type SetupStep = 'connecting' | 'finding_user' | 'creating_project' | 'finding_pool' | 'adding_to_pool' | 'complete' | 'error'
 
 const currentStep = ref<SetupStep>('connecting')
 const error = ref<string | null>(null)
@@ -75,7 +75,6 @@ const stepMessages: Record<SetupStep, string> = {
   creating_project: 'Creating your project...',
   finding_pool: 'Finding your resource pool...',
   adding_to_pool: 'Adding project to pool...',
-  creating_ace: 'Setting up permissions...',
   complete: 'Setup complete!',
   error: 'Setup failed',
 }
@@ -151,8 +150,6 @@ async function runSetup() {
       await new Promise(r => setTimeout(r, 300))
       currentStep.value = 'adding_to_pool'
       await new Promise(r => setTimeout(r, 300))
-      currentStep.value = 'creating_ace'
-      await new Promise(r => setTimeout(r, 300))
       
       credentials.value = response.credentials
       loginUrl.value = response.loginUrl || null
@@ -174,14 +171,12 @@ async function runSetup() {
 
 // Handle complete
 function handleComplete() {
-  // Save to localStorage
+  // Save to localStorage (excluding serverIp and serverPort for security)
   if (projectName.value && projectId.value) {
     localStorage.setItem(GNS3_PROJECT_STORAGE_KEY, JSON.stringify({
       labId: props.labId,
       projectId: projectId.value,
       projectName: projectName.value,
-      serverIp: '10.70.38.8',
-      serverPort: 80,
       timestamp: Date.now()
     }))
   }
@@ -275,14 +270,6 @@ watch(() => props.open, (open) => {
               <Server v-else class="h-4 w-4" />
             </div>
             <span class="text-sm">Adding project to pool</span>
-          </div>
-
-          <div class="flex items-center gap-3" :class="currentStep === 'creating_ace' ? 'text-primary' : 'text-muted-foreground/50'">
-            <div class="w-8 h-8 rounded-full flex items-center justify-center" :class="currentStep === 'creating_ace' ? 'bg-primary/20' : 'bg-muted'">
-              <Spinner v-if="currentStep === 'creating_ace'" class="h-4 w-4" />
-              <Shield v-else class="h-4 w-4" />
-            </div>
-            <span class="text-sm">Setting up permissions</span>
           </div>
         </div>
 

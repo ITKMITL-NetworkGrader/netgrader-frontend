@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ChevronRight, ChevronUp, Home, Plus, Edit, Trash2, Users, BookOpen, Calendar, Lock, FileCode2, RefreshCw, Eye, ArrowRight, Sparkles } from 'lucide-vue-next'
+import { ChevronRight, Home, Plus, Edit, Trash2, Users, BookOpen, Calendar, Lock, FileCode2, RefreshCw, ArrowRight } from 'lucide-vue-next'
 import { Breadcrumb, BreadcrumbItem, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -78,11 +78,9 @@ const isUpdating = ref(false)
 const taskTemplates = ref<TaskTemplate[]>([])
 const totalTemplates = ref(0)
 const isLoadingTemplates = ref(false)
-const showAllTemplates = ref(false)
 
 // Refresh animation states
 const isRefreshingCourses = ref(false)
-const isRefreshingTemplates = ref(false)
 
 // Form data for creating course
 const createForm = ref({
@@ -320,11 +318,6 @@ const navigateToCourse = (courseId: string) => {
   navigateTo(`/courses/${courseId}`)
 }
 
-// Get template category badge variant
-const getTemplateCategoryBadge = (source: string) => {
-  return source === 'minio' ? 'secondary' : 'outline'
-}
-
 // Refresh courses with spin animation
 const refreshCourses = async () => {
   isRefreshingCourses.value = true
@@ -332,16 +325,6 @@ const refreshCourses = async () => {
   // Keep spinning for at least 500ms for visual feedback
   setTimeout(() => {
     isRefreshingCourses.value = false
-  }, 500)
-}
-
-// Refresh templates with spin animation
-const refreshTemplates = async () => {
-  isRefreshingTemplates.value = true
-  await fetchTaskTemplates()
-  // Keep spinning for at least 500ms for visual feedback
-  setTimeout(() => {
-    isRefreshingTemplates.value = false
   }, 500)
 }
 
@@ -355,7 +338,7 @@ onMounted(() => {
 <template>
   <div>
     <!-- Navigation Breadcrumb - Sticks below NavigationBar -->
-    <div class="border-b bg-background p-4 sticky top-16 z-[150] shadow-sm">
+    <div class="border-b bg-background p-4 sticky top-16 z-40 shadow-sm">
       <Breadcrumb>
         <BreadcrumbList>
           <BreadcrumbItem>
@@ -641,9 +624,10 @@ onMounted(() => {
 
         <!-- Sidebar (1 column) -->
         <div class="space-y-6">
-          <!-- Task Templates Section -->
-          <Card class="border-border/50">
-            <CardHeader>
+          <!-- Task Templates Section - Summary/Gateway -->
+          <Card class="border-border/50 relative overflow-hidden">
+            <div class="absolute inset-0 bg-gradient-to-br from-emerald-500/5 via-transparent to-transparent" />
+            <CardHeader class="relative">
               <div class="flex items-center justify-between">
                 <div>
                   <CardTitle class="flex items-center gap-2 text-xl">
@@ -654,74 +638,46 @@ onMounted(() => {
                     Reusable grading templates
                   </CardDescription>
                 </div>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger as-child>
-                      <Button variant="ghost" size="icon" :disabled="isLoadingTemplates || isRefreshingTemplates" @click="refreshTemplates">
-                        <RefreshCw class="h-4 w-4" :class="{ 'animate-spin': isRefreshingTemplates }" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Refresh templates</TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
               </div>
             </CardHeader>
-            <CardContent>
-              <!-- Loading State -->
-              <div v-if="isLoadingTemplates" class="flex items-center justify-center py-8">
-                <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
+            <CardContent class="relative space-y-4">
+              <!-- Template Stats -->
+              <div class="bg-muted/30 rounded-xl p-6 text-center">
+                <div class="text-4xl font-bold text-foreground mb-1">{{ totalTemplates }}</div>
+                <div class="text-sm text-muted-foreground">Available Templates</div>
+                <div class="flex items-center justify-center gap-4 mt-3 text-xs text-muted-foreground">
+                  <span class="flex items-center gap-1">
+                    <span class="w-2 h-2 rounded-full bg-slate-400"></span>
+                    {{ taskTemplates.filter(t => t.source === 'mongo').length }} Built-in
+                  </span>
+                  <span class="flex items-center gap-1">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                    {{ taskTemplates.filter(t => t.source === 'minio').length }} Custom
+                  </span>
+                </div>
               </div>
 
-              <!-- Templates List -->
-              <div v-else class="space-y-3">
-                <div v-if="taskTemplates.length === 0" class="text-center py-8">
-                  <FileCode2 class="h-10 w-10 mx-auto text-muted-foreground/50 mb-3" />
-                  <p class="text-sm text-muted-foreground mb-4">No templates available</p>
-                </div>
-
-                <div v-else>
-                  <!-- Template Items (show first 5 or all) -->
-                  <div
-                    v-for="template in (showAllTemplates ? taskTemplates : taskTemplates.slice(0, 5))"
-                    :key="template.id"
-                    class="flex items-center justify-between p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors group"
-                  >
-                    <div class="min-w-0 flex-1">
-                      <div class="font-medium text-sm truncate">{{ template.name }}</div>
-                      <div class="text-xs text-muted-foreground truncate">{{ template.description }}</div>
-                    </div>
-                    <Badge :variant="getTemplateCategoryBadge(template.source)" class="text-xs ml-2 shrink-0">
-                      {{ template.source === 'minio' ? 'Custom' : 'Built-in' }}
-                    </Badge>
-                  </div>
-
-                  <!-- View All / Collapse Link -->
-                  <div v-if="taskTemplates.length > 5" class="pt-2">
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      class="w-full text-xs text-muted-foreground"
-                      @click="showAllTemplates = !showAllTemplates"
-                    >
-                      <Eye v-if="!showAllTemplates" class="h-3 w-3 mr-1" />
-                      <ChevronUp v-else class="h-3 w-3 mr-1" />
-                      {{ showAllTemplates ? 'Show less' : `View all ${totalTemplates} templates` }}
-                    </Button>
-                  </div>
-                </div>
-
-                <!-- Create Template Button -->
-                <div class="pt-4 border-t border-border/50">
-                  <NuxtLink to="/manage/templates/create">
-                    <Button class="w-full bg-emerald-600 hover:bg-emerald-700">
-                      <Plus class="h-4 w-4 mr-2" />
-                      Create New Template
-                    </Button>
-                  </NuxtLink>
-                </div>
+              <!-- Action Buttons -->
+              <div class="space-y-2">
+                <NuxtLink to="/manage/templates" class="block">
+                  <Button variant="outline" class="w-full justify-between group">
+                    <span class="flex items-center gap-2">
+                      <FileCode2 class="h-4 w-4" />
+                      View All Templates
+                    </span>
+                    <ArrowRight class="h-4 w-4 text-muted-foreground group-hover:translate-x-1 transition-transform" />
+                  </Button>
+                </NuxtLink>
+                <NuxtLink to="/manage/templates/create" class="block">
+                  <Button class="w-full bg-emerald-600 hover:bg-emerald-700">
+                    <Plus class="h-4 w-4 mr-2" />
+                    Create New Template
+                  </Button>
+                </NuxtLink>
               </div>
             </CardContent>
           </Card>
+
 
           <!-- Quick Actions Card -->
           <Card class="border-border/50">
@@ -733,10 +689,10 @@ onMounted(() => {
                 <Plus class="h-4 w-4 mr-2" />
                 New Course
               </Button>
-              <NuxtLink to="/manage/templates/create" class="block">
+              <NuxtLink to="/manage/templates" class="block">
                 <Button variant="outline" class="w-full justify-start text-sm">
                   <FileCode2 class="h-4 w-4 mr-2" />
-                  New Template
+                  Manage Templates
                 </Button>
               </NuxtLink>
             </CardContent>

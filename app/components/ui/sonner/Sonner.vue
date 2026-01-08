@@ -11,6 +11,11 @@ const delegatedProps = reactiveOmit(props, "toastOptions")
 <template>
   <Sonner
     class="toaster group"
+    :style="{
+      '--normal-bg': 'var(--background)',
+      '--normal-border': 'var(--border)',
+      '--normal-text': 'var(--foreground)',
+    }"
     :toast-options="{
       classes: {
         toast: 'group toast group-[.toaster]:bg-background group-[.toaster]:text-foreground group-[.toaster]:border-border group-[.toaster]:shadow-lg',
@@ -45,3 +50,16 @@ const delegatedProps = reactiveOmit(props, "toastOptions")
     </template>
   </Sonner>
 </template>
+
+<style>
+/* Toast font configuration: Geist Mono for English, Bai Jamjuree for Thai */
+[data-sonner-toaster] [data-sonner-toast] {
+  font-family: "Geist Mono", "Bai Jamjuree", monospace !important;
+}
+
+[data-sonner-toaster] [data-sonner-toast] [data-title],
+[data-sonner-toaster] [data-sonner-toast] [data-description] {
+  font-family: "Geist Mono", "Bai Jamjuree", monospace !important;
+}
+</style>
+

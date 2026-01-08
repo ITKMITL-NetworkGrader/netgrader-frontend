@@ -344,6 +344,7 @@
                         'border-green-500': !hasTaskFieldError(taskIndex, 'points') && task.points > 0
                       }"
                       @input="() => { warnIfNeeded(); validateTask(taskIndex, 'points') }"
+                      @blur="() => forceEmitTasksUpdate()"
                     />
                     <p v-if="hasTaskFieldError(taskIndex, 'points')" class="text-xs text-destructive">
                       {{ getTaskFieldError(taskIndex, 'points') }}
@@ -1297,6 +1298,11 @@ const handleTasksUpdate = (updatedTasks: WizardTask[]) => {
 const handleTaskGroupsUpdate = (updatedTaskGroups: WizardTaskGroup[]) => {
   warnIfNeeded()
   emit('update:task-groups', updatedTaskGroups)
+}
+
+// Force emit current task state to parent - used on blur to ensure data is synced before navigation
+const forceEmitTasksUpdate = () => {
+  emit('update:modelValue', [...localTasks.value])
 }
 
 // Watchers
