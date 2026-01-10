@@ -439,12 +439,24 @@ const handleStepValidation = (step: number, validationResult: ValidationResult) 
 
 const saveDraft = async () => {
   try {
-    // Save to localStorage as draft
+    // Deep clone the reactive object to get plain data
+    const rawData = JSON.parse(JSON.stringify(wizardData))
+    
+    // Convert Date objects to ISO strings for schedule
     const draftData = {
-      ...wizardData,
+      ...rawData,
+      schedule: {
+        availableFrom: wizardData.schedule.availableFrom?.toISOString?.() || wizardData.schedule.availableFrom || null,
+        availableUntil: wizardData.schedule.availableUntil?.toISOString?.() || wizardData.schedule.availableUntil || null,
+        dueDate: wizardData.schedule.dueDate?.toISOString?.() || wizardData.schedule.dueDate || null
+      },
+      currentStep: currentStep.value,
       lastSaved: new Date().toISOString()
     }
-    localStorage.setItem(`lab-draft-${courseId}`, JSON.stringify(draftData))
+    
+    const draftKey = `lab-draft-${courseId}`
+    console.log(`💾 Saving draft with key: ${draftKey}`, draftData)
+    localStorage.setItem(draftKey, JSON.stringify(draftData))
 
     showGlobalMessage('success', 'Draft saved successfully')
   } catch (error) {
@@ -455,13 +467,54 @@ const saveDraft = async () => {
 
 const loadDraft = () => {
   try {
-    const draftData = localStorage.getItem(`lab-draft-${courseId}`)
+    const draftKey = `lab-draft-${courseId}`
+    const draftData = localStorage.getItem(draftKey)
     if (draftData) {
       const parsed = JSON.parse(draftData)
-      Object.assign(wizardData, parsed)
+      console.log(`📂 Loading draft with key: ${draftKey}`, parsed)
+      
+      // Restore basic info
+      if (parsed.basicInfo) {
+        wizardData.basicInfo.name = parsed.basicInfo.name || ''
+        wizardData.basicInfo.description = parsed.basicInfo.description || ''
+        wizardData.basicInfo.instructions = parsed.basicInfo.instructions || { html: '', json: { type: 'doc', content: [] } }
+      }
+      
+      // Restore network config
+      if (parsed.networkConfig) {
+        Object.assign(wizardData.networkConfig, parsed.networkConfig)
+      }
+      
+      // Restore devices
+      if (parsed.devices) {
+        wizardData.devices = parsed.devices
+      }
+      
+      // Restore parts
+      if (parsed.parts) {
+        wizardData.parts = parsed.parts
+      }
+      
+      // Restore schedule (convert ISO strings back to Date objects)
+      if (parsed.schedule) {
+        wizardData.schedule.availableFrom = parsed.schedule.availableFrom ? new Date(parsed.schedule.availableFrom) : undefined
+        wizardData.schedule.availableUntil = parsed.schedule.availableUntil ? new Date(parsed.schedule.availableUntil) : undefined
+        wizardData.schedule.dueDate = parsed.schedule.dueDate ? new Date(parsed.schedule.dueDate) : undefined
+      }
+      
+      // Restore current step
+      if (parsed.currentStep && parsed.currentStep >= 1 && parsed.currentStep <= steps.length) {
+        currentStep.value = parsed.currentStep
+        // Mark previous steps as complete
+        for (let i = 0; i < parsed.currentStep; i++) {
+          steps[i].isComplete = i < parsed.currentStep - 1
+          steps[i].isAccessible = true
+        }
+      }
 
       // Show message about loaded draft
-      toast.info('Draft loaded from previous session')
+      const lastSavedDate = parsed.lastSaved ? new Date(parsed.lastSaved).toLocaleString() : 'unknown time'
+      toast.info(`Draft loaded from ${lastSavedDate}`)
     }
   } catch (error) {
     console.error('Failed to load draft:', error)
@@ -739,7 +792,10 @@ const handleCreateLab = async () => {
     }
 
     // Clear draft from localStorage
-    localStorage.removeItem(`lab-draft-${courseId}`)
+    const draftKey = `lab-draft-${courseId}`
+    console.log(`🧹 Clearing draft with key: ${draftKey}`)
+    localStorage.removeItem(draftKey)
+    console.log(`✅ Draft cleared. Verifying: ${localStorage.getItem(draftKey) === null ? 'Success' : 'FAILED'}`)
 
     // Success - redirect to course page
     showGlobalMessage('success', 'Lab created successfully!')

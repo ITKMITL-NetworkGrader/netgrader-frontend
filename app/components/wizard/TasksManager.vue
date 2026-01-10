@@ -129,39 +129,71 @@
                   <Label class="text-sm font-medium">
                     Task Template <span class="text-destructive">*</span>
                   </Label>
-                    <Select
-                      v-model="task.templateId"
-                      @update:model-value="(value) => onTemplateChange(taskIndex, value)"
-                    >
-                      <SelectTrigger
-                      :class="{
-                        'border-destructive': hasTaskFieldError(taskIndex, 'templateId'),
-                        'border-green-500': !hasTaskFieldError(taskIndex, 'templateId') && task.templateId
-                      }"
-                    >
-                      <SelectValue>
-                        <template v-if="getSelectedTemplate(task.templateId)">
-                          {{ getSelectedTemplate(task.templateId)?.name }}
-                        </template>
-                        <template v-else>
-                          Select task template
-                        </template>
-                      </SelectValue>
-                    </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem
-                          v-for="template in taskTemplates"
-                          :key="template.id"
-                          :value="template.id"
-                          :text-value="template.name"
-                        >
-                        <div class="flex flex-col">
-                          <div class="font-medium">{{ template.name }}</div>
-                          <div class="text-xs text-muted-foreground">{{ template.description }}</div>
+                  <Combobox
+                    :model-value="task.templateId"
+                    :display-value="(id: string) => getSelectedTemplate(id)?.name || ''"
+                    @update:model-value="(value: string) => onTemplateChange(taskIndex, value)"
+                  >
+                    <ComboboxAnchor class="w-full relative">
+                      <div
+                        class="relative w-full flex items-center rounded-lg border bg-background shadow-sm transition-all duration-200 hover:shadow-md focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-1"
+                        :class="{
+                          'border-destructive': hasTaskFieldError(taskIndex, 'templateId'),
+                          'border-primary/50 ring-1 ring-primary/20': !hasTaskFieldError(taskIndex, 'templateId') && task.templateId,
+                          'border-input hover:border-muted-foreground/50': !hasTaskFieldError(taskIndex, 'templateId') && !task.templateId
+                        }"
+                      >
+                        <Search class="ml-3 h-4 w-4 shrink-0 text-muted-foreground/70" />
+                        <ComboboxInput
+                          class="h-10 w-full border-none bg-transparent px-3 py-2 text-sm outline-none placeholder:text-muted-foreground/60"
+                          placeholder="Search templates..."
+                          auto-focus
+                        />
+                        <ComboboxTrigger class="px-3 hover:bg-muted/50 rounded-r-lg transition-colors">
+                          <ChevronDown class="h-4 w-4 shrink-0 text-muted-foreground" />
+                        </ComboboxTrigger>
+                      </div>
+                    </ComboboxAnchor>
+
+                    <ComboboxList class="w-full max-h-[320px] overflow-y-auto p-1">
+                      <ComboboxEmpty class="py-8 flex flex-col items-center justify-center gap-2">
+                        <div class="w-12 h-12 rounded-full bg-muted/50 flex items-center justify-center">
+                          <Search class="h-5 w-5 text-muted-foreground/50" />
                         </div>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
+                        <span class="text-sm text-muted-foreground">No templates found</span>
+                        <span class="text-xs text-muted-foreground/70">Try a different search term</span>
+                      </ComboboxEmpty>
+
+                      <ComboboxItem
+                        v-for="template in taskTemplates"
+                        :key="template.id"
+                        :value="template.id"
+                        class="cursor-pointer rounded-md px-3 py-2.5 my-0.5 transition-all duration-150 hover:bg-accent/80 data-[highlighted]:bg-accent group"
+                      >
+                        <div class="flex items-center justify-between w-full gap-3">
+                          <div class="flex flex-col gap-0.5 min-w-0 flex-1">
+                            <div class="flex items-center gap-2">
+                              <span class="font-medium text-sm truncate">{{ template.name }}</span>
+                              <Badge 
+                                v-if="template.source === 'builtin'" 
+                                variant="secondary" 
+                                class="text-[10px] px-1.5 py-0 h-4 shrink-0"
+                              >
+                                Built-in
+                              </Badge>
+                            </div>
+                            <span class="text-xs text-muted-foreground truncate leading-tight">{{ template.description }}</span>
+                          </div>
+                          <div 
+                            v-if="task.templateId === template.id"
+                            class="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center shrink-0"
+                          >
+                            <Check class="h-3 w-3 text-primary" />
+                          </div>
+                        </div>
+                      </ComboboxItem>
+                    </ComboboxList>
+                  </Combobox>
                   <p v-if="hasTaskFieldError(taskIndex, 'templateId')" class="text-xs text-destructive">
                     {{ getTaskFieldError(taskIndex, 'templateId') }}
                   </p>
@@ -194,7 +226,6 @@
                         :has-error="hasParameterError(taskIndex, param.name)"
                         :error-message="getParameterError(taskIndex, param.name)"
                         @update:model-value="value => setTaskParameter(taskIndex, param.name, value)"
-                        @validate="validateTaskParameter(taskIndex, param.name)"
                       />
 
                       <!-- Interface string parameter with VLAN picker -->
@@ -277,7 +308,7 @@
                           'border-destructive': hasParameterError(taskIndex, param.name),
                           'border-green-500': !hasParameterError(taskIndex, param.name) && task.parameters[param.name]
                         }"
-                        @input="() => { warnIfNeeded(); validateTaskParameter(taskIndex, param.name) }"
+                        @input="() => warnIfNeeded()"
                       />
 
                       <!-- Error message only for non-IP address parameters -->
@@ -297,7 +328,7 @@
                     </Label>
                     <Select
                       v-model="task.executionDevice"
-                      @update:model-value="() => { warnIfNeeded(); validateTask(taskIndex, 'executionDevice') }"
+                      @update:model-value="() => warnIfNeeded()"
                     >
                       <SelectTrigger
                         :class="{
@@ -343,7 +374,7 @@
                         'border-destructive': hasTaskFieldError(taskIndex, 'points'),
                         'border-green-500': !hasTaskFieldError(taskIndex, 'points') && task.points > 0
                       }"
-                      @input="() => { warnIfNeeded(); validateTask(taskIndex, 'points') }"
+                      @input="() => warnIfNeeded()"
                       @blur="() => forceEmitTasksUpdate()"
                     />
                     <p v-if="hasTaskFieldError(taskIndex, 'points')" class="text-xs text-destructive">
@@ -386,8 +417,8 @@
                   :template="getSelectedTemplate(task.templateId)"
                   :read-only="isTemplateReadOnly(task)"
                   :test-cases-required="isTestCasesRequired(task)"
-                  @validate="handleTestCasesValidation(taskIndex, $event)"
                 />
+                <!-- Validation handled reactively by useTaskValidation composable -->
               </CardContent>
             </CollapsibleContent>
           </Collapsible>
@@ -402,7 +433,6 @@
         :task-groups="taskGroups || []"
         @update:tasks="handleTasksUpdate"
         @update:task-groups="handleTaskGroupsUpdate"
-        @task-group-changed="validateTasks"
       />
     </div>
 
@@ -416,14 +446,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed, watch, ref, onMounted, nextTick, onUnmounted } from 'vue'
+import { computed, watch, ref, onMounted, nextTick, onUnmounted, toRef } from 'vue'
 import {
   CheckSquare,
   Plus,
   Trash2,
   MoveUp,
   MoveDown,
-  ChevronDown
+  ChevronDown,
+  Search,
+  Check
 } from 'lucide-vue-next'
 
 // Import utility functions
@@ -439,6 +471,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge'
 import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible'
 import { Popover, PopoverContent, PopoverAnchor } from '@/components/ui/popover'
+import {
+  Combobox,
+  ComboboxAnchor,
+  ComboboxInput,
+  ComboboxTrigger,
+  ComboboxEmpty,
+  ComboboxList,
+  ComboboxItem
+} from '@/components/ui/combobox'
 
 // Local Components
 import TestCasesManager from './TestCasesManager.vue'
@@ -447,6 +488,9 @@ import IpParameterSelector from './IpParameterSelector.vue'
 
 // Types
 import type { WizardTask, WizardTaskGroup, Device, TaskTemplate, TestCase } from '@/types/wizard'
+
+// Composables
+import { useTaskValidation } from '@/composables/useTaskValidation'
 
 // Props
 interface Props {
@@ -481,23 +525,50 @@ const emit = defineEmits<Emits>()
 
 // Local state
 const localTasks = ref<WizardTask[]>([])
-const taskFieldErrors = ref<Record<string, Record<string, string>>>({})
-const parameterErrors = ref<Record<string, Record<string, string>>>({})
-const testCaseErrors = ref<Record<string, string[]>>({})
 const isUpdatingFromProps = ref(false)
-const isValidating = ref(false)
-const validationDebounceTimer = ref<ReturnType<typeof setTimeout> | null>(null)
 
-function requestValidation() {
-  if (isUpdatingFromProps.value || isValidating.value) return
-  if (validationDebounceTimer.value) {
-    clearTimeout(validationDebounceTimer.value)
-  }
-  validationDebounceTimer.value = setTimeout(() => {
-    validationDebounceTimer.value = null
-    validateTasks()
-  }, 150)
+// Use the new validation composable - provides reactive, template-aware validation
+const validation = useTaskValidation({
+  tasks: localTasks,
+  templates: toRef(props, 'taskTemplates'),
+  devices: toRef(props, 'devices')
+})
+
+// Legacy bridge functions for backward compatibility with template
+// These wrap the composable's computed refs for simpler template usage
+const hasTaskErrors = (taskIndex: number): boolean => {
+  return validation.hasTaskErrors(taskIndex).value
 }
+
+const hasTaskFieldError = (taskIndex: number, field: string): boolean => {
+  return !!(validation.getFieldErrors(taskIndex).value[field])
+}
+
+const getTaskFieldError = (taskIndex: number, field: string): string => {
+  return validation.getFieldErrors(taskIndex).value[field] || ''
+}
+
+const hasParameterError = (taskIndex: number, paramName: string): boolean => {
+  return !!(validation.getParameterErrors(taskIndex).value[paramName])
+}
+
+const getParameterError = (taskIndex: number, paramName: string): string => {
+  return validation.getParameterErrors(taskIndex).value[paramName] || ''
+}
+
+const isTaskValid = (task: WizardTask): boolean => {
+  const taskIndex = localTasks.value.findIndex(t => t.tempId === task.tempId)
+  if (taskIndex === -1) return false
+  return validation.isTaskValid(taskIndex).value
+}
+
+// Emit validation errors to parent whenever they change
+watch(() => validation.allErrors.value, (errors) => {
+  if (!isUpdatingFromProps.value) {
+    emit('validate', errors)
+  }
+}, { immediate: true })
+
 const vlanPopoverState = ref<Record<string, boolean>>({})
 const inputRefs = ref<Record<string, HTMLInputElement | null>>({})
 
@@ -507,6 +578,16 @@ const availableVlans = computed(() => {
     description: vlan?.baseNetwork && vlan?.subnetMask
       ? `VLAN ${index + 1} • ${vlan.baseNetwork}/${vlan.subnetMask}`
       : `VLAN ${index + 1}`
+  }))
+})
+
+// Transform task templates into format for USelectMenu
+const templateMenuItems = computed(() => {
+  return props.taskTemplates.map(template => ({
+    id: template.id,
+    label: template.name,
+    description: template.description || '',
+    source: template.source || 'custom'
   }))
 })
 
@@ -624,13 +705,7 @@ const setVlanPopoverOpen = (taskIndex: number, paramName: string, value: boolean
 
 const formatVlanLabel = (index: number): string => `Insert {{vlan${index}}}`
 
-const clearParameterError = (taskIndex: number, paramName: string) => {
-  if (parameterErrors.value[taskIndex]) {
-    const { [paramName]: _, ...rest } = parameterErrors.value[taskIndex]
-    parameterErrors.value[taskIndex] = rest
-    requestValidation()
-  }
-}
+
 
 const setInputRef = (taskIndex: number, paramName: string, el: HTMLInputElement | null) => {
   const key = getVlanPopoverKey(taskIndex, paramName)
@@ -729,7 +804,7 @@ const applyVlanVariable = (taskIndex: number, paramName: string, vlanIndex: numb
 
   setTaskParameter(taskIndex, paramName, nextValue)
   setVlanPopoverOpen(taskIndex, paramName, false)
-  validateTaskParameter(taskIndex, paramName)
+  // Validation happens automatically via useTaskValidation composable
 }
 
 const addTask = () => {
@@ -759,18 +834,7 @@ const removeTask = (taskIndex: number) => {
   localTasks.value.forEach((task, index) => {
     task.order = index + 1
   })
-  // Clean up errors
-  if (taskFieldErrors.value[taskIndex]) {
-    taskFieldErrors.value[taskIndex] = {}
-  }
-  if (parameterErrors.value[taskIndex]) {
-    parameterErrors.value[taskIndex] = {}
-  }
-  if (testCaseErrors.value[taskIndex]) {
-    testCaseErrors.value[taskIndex] = []
-  }
-  // updateTotalPoints() will be called automatically by the watcher
-  // Don't call validateTasks() here to avoid circular calls
+  // Validation errors are handled reactively by useTaskValidation composable
 }
 
 const moveTask = (taskIndex: number, direction: number) => {
@@ -823,11 +887,7 @@ const handleTemplateChange = (taskIndex: number, templateId: string, previousTem
     const newTemplate = getSelectedTemplate(templateId)
 
     if (newTemplate) {
-      // 🔧 FIX: Clear ALL validation errors from previous template
-      // This prevents old template parameter errors from persisting
-      delete taskFieldErrors.value[taskIndex]
-      delete parameterErrors.value[taskIndex]
-      delete testCaseErrors.value[taskIndex]
+      // Validation errors are handled reactively by useTaskValidation composable
 
       // Reset parameters when template changes
       task.parameters = {}
@@ -855,9 +915,7 @@ const handleTemplateChange = (taskIndex: number, templateId: string, previousTem
       const defaultTestCases = getTemplateDefaultTestCases(newTemplate)
       task.testCases = defaultTestCases.length > 0 ? defaultTestCases : []
 
-      // Request validation AFTER parameters are set up
-      // This will validate the new template's parameters, not the old ones
-      requestValidation()
+      // Validation happens automatically via useTaskValidation composable
     }
   } else {
     // Even if not changing template, normalize parameters
@@ -891,41 +949,6 @@ const isTestCasesRequired = (task: WizardTask): boolean => {
   return templateRequiresTestCases(selectedTemplate)
 }
 
-const hasTaskErrors = (taskIndex: number): boolean => {
-  return !!taskFieldErrors.value[taskIndex] || 
-         !!parameterErrors.value[taskIndex] ||
-         !!(testCaseErrors.value[taskIndex]?.length > 0)
-}
-
-const hasTaskFieldError = (taskIndex: number, field: string): boolean => {
-  return !!(taskFieldErrors.value[taskIndex]?.[field])
-}
-
-const getTaskFieldError = (taskIndex: number, field: string): string => {
-  return taskFieldErrors.value[taskIndex]?.[field] || ''
-}
-
-const hasParameterError = (taskIndex: number, paramName: string): boolean => {
-  return !!(parameterErrors.value[taskIndex]?.[paramName])
-}
-
-const getParameterError = (taskIndex: number, paramName: string): string => {
-  return parameterErrors.value[taskIndex]?.[paramName] || ''
-}
-
-const isTaskValid = (task: WizardTask): boolean => {
-  const selectedTemplate = getSelectedTemplate(task?.templateId)
-  const requiresTestCases = templateRequiresTestCases(selectedTemplate)
-  const hasRequiredTestCases = requiresTestCases ? (task.testCases?.length ?? 0) > 0 : true
-
-  return task.taskId.length > 0 &&
-         task.name.length > 0 &&
-         task.templateId.length > 0 &&
-         task.executionDevice.length > 0 &&
-         task.points > 0 &&
-         hasRequiredTestCases
-}
-
 const handleTaskNameChange = (taskIndex: number, newName: string) => {
   warnIfNeeded()
   const task = localTasks.value[taskIndex]
@@ -945,283 +968,13 @@ const handleTaskNameChange = (taskIndex: number, newName: string) => {
   } else {
     task.taskId = ''
   }
-
-  // Validate the name and taskId fields
-  validateTask(taskIndex, 'name')
-  validateTask(taskIndex, 'taskId')
+  // Validation happens automatically via useTaskValidation composable
 }
 
-const validateTask = (taskIndex: number, field: string) => {
-  if (!taskFieldErrors.value[taskIndex]) {
-    taskFieldErrors.value[taskIndex] = {}
-  }
-
-  const task = localTasks.value[taskIndex]
-
-  switch (field) {
-    case 'taskId':
-      if (!task.taskId.trim()) {
-        taskFieldErrors.value[taskIndex].taskId = 'Task ID is required (generated from name)'
-      } else if (!/^[a-zA-Z0-9_-]+$/.test(task.taskId)) {
-        taskFieldErrors.value[taskIndex].taskId = 'Task ID must be alphanumeric with underscores/hyphens'
-      } else if (localTasks.value.some((t, i) => i !== taskIndex && t.taskId === task.taskId)) {
-        taskFieldErrors.value[taskIndex].taskId = 'Task ID must be unique within this part'
-      } else {
-        delete taskFieldErrors.value[taskIndex].taskId
-      }
-      break
-
-    case 'name':
-      if (!task.name.trim()) {
-        taskFieldErrors.value[taskIndex].name = 'Task name is required'
-      } else {
-        delete taskFieldErrors.value[taskIndex].name
-      }
-      break
-
-    case 'templateId':
-      if (!task.templateId) {
-        taskFieldErrors.value[taskIndex].templateId = 'Task template is required'
-      } else {
-        delete taskFieldErrors.value[taskIndex].templateId
-      }
-      break
-
-    case 'executionDevice':
-      if (!task.executionDevice) {
-        taskFieldErrors.value[taskIndex].executionDevice = 'Execution device is required'
-      } else if (!props.devices.some(d => d.deviceId === task.executionDevice)) {
-        taskFieldErrors.value[taskIndex].executionDevice = `Selected device '${task.executionDevice}' does not exist in configured devices`
-      } else {
-        delete taskFieldErrors.value[taskIndex].executionDevice
-      }
-      break
-
-    case 'points':
-      if (!task.points || task.points <= 0) {
-        taskFieldErrors.value[taskIndex].points = 'Task points must be greater than 0'
-      } else {
-        delete taskFieldErrors.value[taskIndex].points
-      }
-      break
-  }
-
-  // Don't call validateTasks() here to avoid circular calls
-  requestValidation()
-}
-
-const validateTaskParameter = (taskIndex: number, paramName: string) => {
-  if (!parameterErrors.value[taskIndex]) {
-    parameterErrors.value[taskIndex] = {}
-  }
-
-  const task = localTasks.value[taskIndex]
-  const selectedTemplate = getSelectedTemplate(task.templateId)
-  const paramSchema = selectedTemplate?.parameterSchema.find(p => p.name === paramName)
-
-  if (paramSchema?.required) {
-    const paramValue = task.parameters[paramName]
-    // More robust validation - check for meaningful values
-    const isEmpty = paramValue === undefined ||
-                   paramValue === null ||
-                   (typeof paramValue === 'string' && paramValue.trim() === '') ||
-                   (typeof paramValue === 'number' && isNaN(paramValue))
-
-    if (isEmpty) {
-      parameterErrors.value[taskIndex][paramName] = `${paramName} is required`
-    } else {
-      // Special validation for IP address parameters
-      if (paramSchema.type === 'ip_address' && typeof paramValue === 'string') {
-        // Only validate if the value looks complete
-        const shouldValidate = paramValue.includes('.') && (
-          // Complete IP address pattern (4 octets)
-          /^(\d{1,3}\.){3}\d{1,3}$/.test(paramValue) ||
-          // Variable reference pattern (deviceId.variableName)
-          /^[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+$/.test(paramValue) ||
-          // Domain name pattern (e.g., google.com, example.org)
-          /^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*\.[a-zA-Z]{2,}$/.test(paramValue)
-        )
-        
-        if (shouldValidate) {
-          const isValid = validateIpParameterValue(paramValue)
-          if (!isValid) {
-            parameterErrors.value[taskIndex][paramName] = `${paramName} must be a valid IP variable, IP address, or domain name`
-          } else {
-            clearParameterError(taskIndex, paramName)
-          }
-        } else {
-          // For incomplete values, clear any existing errors
-          clearParameterError(taskIndex, paramName)
-        }
-      } else {
-        clearParameterError(taskIndex, paramName)
-      }
-    }
-  } else {
-    clearParameterError(taskIndex, paramName)
-  }
-
-  // Don't call validateTasks() here to avoid circular calls
-  requestValidation()
-}
-
-// Helper function to validate IP parameter values
-const validateIpParameterValue = (value: string): boolean => {
-  if (!value || typeof value !== 'string') return false
-
-  const trimmedValue = value.trim()
-
-  // Check if it's a wrapped variable reference {{deviceId.variableName}}
-  const wrappedPattern = /^\{\{([a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+)\}\}$/
-  const wrappedMatch = trimmedValue.match(wrappedPattern)
-
-  if (wrappedMatch) {
-    const innerValue = wrappedMatch[1]
-    const [deviceId, variableName] = innerValue.split('.')
-
-    // Validate that this variable exists in devices
-    const isValidVariable = props.devices.some(device =>
-      device.deviceId === deviceId &&
-      device.ipVariables.some(ipVar => ipVar.name === variableName)
-    )
-
-    return isValidVariable
-  }
-
-  // Check if it's a valid IP address
-  const ipRegex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/
-  const isIp = ipRegex.test(trimmedValue)
-
-  // Check if it's a valid domain name
-  const domainRegex = /^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*\.[a-zA-Z]{2,}$/
-  const isDomain = domainRegex.test(trimmedValue)
-
-  // Check if it's a variable reference (deviceId.variableName format) without {{}}
-  // Only check this if it's NOT already a valid domain name
-  if (trimmedValue.includes('.') && !isDomain && !isIp) {
-    // Check if it matches deviceId.variableName pattern and exists in devices
-    const variablePattern = /^[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+$/
-    if (variablePattern.test(trimmedValue)) {
-      // Check if this variable actually exists in our devices
-      const [deviceId, variableName] = trimmedValue.split('.')
-      const isVariable = props.devices.some(device =>
-        device.deviceId === deviceId &&
-        device.ipVariables.some(ipVar => ipVar.name === variableName)
-      )
-      if (isVariable) return true
-    }
-  }
-  
-  // Test with common IP addresses and domains for debugging (commented out for production)
-  // const testIps = ['8.8.8.8', '192.168.1.1', '10.0.0.1', '127.0.0.1']
-  // const testDomains = ['google.com', 'example.org', 'github.io']
-  // const testResults = [...testIps, ...testDomains].map(item => ({ 
-  //   item, 
-  //   validIp: ipRegex.test(item), 
-  //   validDomain: domainRegex.test(item) 
-  // }))
-  
-  // console.log('🔍 IP/Domain check:', { 
-  //   trimmedValue, 
-  //   isIp, 
-  //   isDomain,
-  //   testResults
-  // })
-  return isIp || isDomain
-}
-
-const handleTestCasesValidation = (taskIndex: number, errors: string[]) => {
-  const task = localTasks.value[taskIndex]
-  const selectedTemplate = getSelectedTemplate(task?.templateId)
-  const requiresTestCases = templateRequiresTestCases(selectedTemplate)
-  const filteredErrors = requiresTestCases
-    ? errors
-    : errors.filter(error => error !== 'At least one test case is required')
-
-  testCaseErrors.value[taskIndex] = filteredErrors
-  requestValidation()
-}
-
-function validateTasks() {
-  if (isValidating.value) return // Prevent recursive validation
-  isValidating.value = true
-  
-  try {
-    // Validate all tasks
-    localTasks.value.forEach((task, index) => {
-      validateTask(index, 'taskId')
-      validateTask(index, 'name')
-      validateTask(index, 'templateId')
-      validateTask(index, 'executionDevice')
-      validateTask(index, 'points')
-
-      const selectedTemplate = getSelectedTemplate(task?.templateId)
-      const requiresTestCases = templateRequiresTestCases(selectedTemplate)
-
-      if (requiresTestCases && (!task.testCases || task.testCases.length === 0)) {
-        if (!taskFieldErrors.value[index]) {
-          taskFieldErrors.value[index] = {}
-        }
-        taskFieldErrors.value[index].testCases = 'At least one test case is required'
-      } else if (taskFieldErrors.value[index]) {
-        delete taskFieldErrors.value[index].testCases
-      }
-
-      // Validate targetDevices existence
-      if (task.targetDevices && task.targetDevices.length > 0) {
-        const invalidDevices = task.targetDevices.filter(deviceId =>
-          !props.devices.some(d => d.deviceId === deviceId)
-        )
-        if (invalidDevices.length > 0) {
-          if (!taskFieldErrors.value[index]) {
-            taskFieldErrors.value[index] = {}
-          }
-          taskFieldErrors.value[index].targetDevices = `Target device(s) do not exist: ${invalidDevices.join(', ')}`
-        } else {
-          if (taskFieldErrors.value[index]) {
-            delete taskFieldErrors.value[index].targetDevices
-          }
-        }
-      }
-
-      // Validate parameters
-      const selectedTemplateForParams = getSelectedTemplate(task.templateId)
-      if (selectedTemplateForParams) {
-        selectedTemplateForParams.parameterSchema.forEach(param => {
-          validateTaskParameter(index, param.name)
-        })
-      }
-    })
-
-    const errors: string[] = []
-
-    if (localTasks.value.length === 0) {
-      errors.push('At least one task is required per part')
-    }
-
-    // Collect task field errors
-    Object.values(taskFieldErrors.value).forEach(taskErrors => {
-      errors.push(...Object.values(taskErrors))
-    })
-
-    // Collect parameter errors
-    Object.values(parameterErrors.value).forEach(taskParamErrors => {
-      errors.push(...Object.values(taskParamErrors))
-    })
-
-    // Collect test case errors
-    Object.values(testCaseErrors.value).forEach(taskTestErrors => {
-      errors.push(...taskTestErrors)
-    })
-
-    // Remove duplicate error messages
-    const uniqueErrors = Array.from(new Set(errors))
-
-    emit('validate', uniqueErrors)
-  } finally {
-    isValidating.value = false
-  }
-}
+// All validation is now handled reactively by useTaskValidation composable
+// Old validateTask, validateTaskParameter, handleTestCasesValidation, and validateTasks
+// functions have been removed. Validation errors automatically recompute when
+// task data or templates change.
 
 const normalizeInterfaceValue = (value: string): string => {
   let result = value.trim()
@@ -1314,9 +1067,7 @@ watch(
         warnIfNeeded()
       }
       emit('update:modelValue', [...newValue])
-      requestValidation()
-      // Don't call updateTotalPoints() here as it causes circular updates
-      // The computed totalPoints will update automatically
+      // Validation happens automatically via useTaskValidation composable
     }
   },
   { deep: true, flush: 'post' }
@@ -1344,7 +1095,7 @@ watch(
     localTasks.value.forEach(normalizeTaskParameters)
     nextTick(() => {
       isUpdatingFromProps.value = false
-      requestValidation()
+      // Validation happens automatically via useTaskValidation composable
     })
   },
   { deep: true, immediate: false }
@@ -1354,7 +1105,7 @@ watch(
   () => props.taskTemplates,
   () => {
     localTasks.value.forEach(normalizeTaskParameters)
-    requestValidation()
+    // Validation happens automatically via useTaskValidation composable
   },
   { deep: true }
 )
@@ -1368,18 +1119,10 @@ onMounted(() => {
       tempId: task.tempId || generateTempId()
     }))
   }
-  
-  // Initial validation pass
-  nextTick(() => {
-    requestValidation()
-  })
+  // Validation happens automatically via useTaskValidation composable on mount
 })
 
-onUnmounted(() => {
-  if (validationDebounceTimer.value) {
-    clearTimeout(validationDebounceTimer.value)
-  }
-})
+// No cleanup needed - useTaskValidation composable handles everything reactively
 </script>
 
 <style scoped>

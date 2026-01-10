@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import {
@@ -327,6 +327,27 @@ const hasClearedLabStorage = ref(false)
 const showGns3SetupModal = ref(false)
 const hasGns3Project = ref(false)
 const GNS3_PROJECT_STORAGE_KEY = 'netgrader_gns3_project'
+
+// Clear GNS3 project data from localStorage when navigating away from the lab page
+const clearGns3ProjectData = () => {
+  if (typeof window === 'undefined') return
+
+  try {
+    const saved = localStorage.getItem(GNS3_PROJECT_STORAGE_KEY)
+    if (saved) {
+      const config = JSON.parse(saved)
+      // Only clear if it matches the current lab to avoid clearing other sessions
+      if (config.labId === labId.value) {
+        localStorage.removeItem(GNS3_PROJECT_STORAGE_KEY)
+        console.log('[GNS3 Cleanup] Cleared GNS3 project data for lab:', labId.value)
+      }
+    }
+  } catch (e) {
+    // Ignore parse errors, just try to remove the item
+    localStorage.removeItem(GNS3_PROJECT_STORAGE_KEY)
+    console.log('[GNS3 Cleanup] Cleared GNS3 project data (error during parse)')
+  }
+}
 
 const currentLabParts = computed<LabPart[]>(() => {
   const lab = currentLab.value
@@ -1406,6 +1427,13 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   clearTimer()
   clearEventHandlers()
+  // Clear GNS3 project data when component unmounts
+  clearGns3ProjectData()
+})
+
+// Clear GNS3 project data when navigating away from the lab page via Vue Router
+onBeforeRouteLeave(() => {
+  clearGns3ProjectData()
 })
 
 // Watch for URL changes to update current part

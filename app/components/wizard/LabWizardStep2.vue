@@ -157,37 +157,20 @@
         </div>
       </div>
 
-      <!-- VLAN Mode Selection -->
+      <!-- VLAN Mode Selection (Disabled - Forced to Calculated VLAN) -->
       <div class="space-y-2">
         <Label class="text-sm font-medium">
           VLAN Configuration Mode <span class="text-destructive">*</span>
         </Label>
-        <Select v-model="localData.mode" @update:modelValue="onModeChange">
+        <Select v-model="localData.mode" disabled>
           <SelectTrigger
-            :class="{
-              'border-destructive': hasError('mode'),
-              'border-green-500': !hasError('mode') && localData.mode
-            }"
+            class="border-green-500 bg-muted/50"
           >
-            <SelectValue placeholder="Select VLAN configuration mode...">
-              <template v-if="localData.mode">
-                {{ getModeDisplayText(localData.mode) }}
-              </template>
+            <SelectValue>
+              Calculated VLAN (Examination)
             </SelectValue>
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="fixed_vlan">
-              <div class="flex flex-col space-y-1">
-                <div class="font-medium">Fixed VLAN (Beginning Course)</div>
-                <div class="text-xs text-muted-foreground">Use VLAN 1 with custom subnet mask</div>
-              </div>
-            </SelectItem>
-            <SelectItem value="lecturer_group">
-              <div class="flex flex-col space-y-1">
-                <div class="font-medium">Lecturer VLAN + Group (Advanced Course)</div>
-                <div class="text-xs text-muted-foreground">Custom VLANs with group-based modifications</div>
-              </div>
-            </SelectItem>
             <SelectItem value="calculated_vlan">
               <div class="flex flex-col space-y-1">
                 <div class="font-medium">Calculated VLAN (Examination)</div>
@@ -196,39 +179,32 @@
             </SelectItem>
           </SelectContent>
         </Select>
-        <p v-if="hasError('mode')" class="text-sm text-destructive">
-          {{ getError('mode') }}
-        </p>
+        <div class="flex items-center space-x-2 text-xs text-muted-foreground">
+          <Info class="w-3 h-3" />
+          <span>This mode is currently locked to Calculated VLAN (Examination) mode.</span>
+        </div>
       </div>
 
-      <!-- IP Allocation Strategy -->
+      <!-- IP Allocation Strategy (Disabled - Forced to Student ID Based) -->
       <div class="space-y-2">
         <Label class="text-sm font-medium">
           IP Allocation Strategy <span class="text-destructive">*</span>
         </Label>
-        <Select v-model="localData.allocationStrategy" @update:modelValue="validateField('allocationStrategy')">
+        <Select v-model="localData.allocationStrategy" disabled>
           <SelectTrigger
-            :class="{
-              'border-destructive': hasError('allocationStrategy'),
-              'border-green-500': !hasError('allocationStrategy') && localData.allocationStrategy
-            }"
+            class="border-green-500 bg-muted/50"
           >
-            <SelectValue placeholder="Select IP allocation strategy..." />
+            <SelectValue>
+              Student ID Based
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="group_based">Group Based</SelectItem>
             <SelectItem value="student_id_based">Student ID Based</SelectItem>
           </SelectContent>
         </Select>
-        <p v-if="hasError('allocationStrategy')" class="text-sm text-destructive">
-          {{ getError('allocationStrategy') }}
-        </p>
         <div class="flex items-center space-x-2 text-xs text-muted-foreground">
           <Info class="w-3 h-3" />
-          <span>
-            <strong>Student ID Based:</strong> Each student gets unique IPs based on their student ID.
-            <strong>Group Based:</strong> Students in the same group share the same IP range.
-          </span>
+          <span>This strategy is currently locked to Student ID Based allocation.</span>
         </div>
       </div>
 
@@ -564,13 +540,13 @@ interface Emits {
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
-// Local state
+// Local state - FORCED: mode=calculated_vlan, allocationStrategy=student_id_based
 const localData = ref<NetworkConfig>({
   ...props.modelValue,
   managementNetwork: props.modelValue.managementNetwork || '10.0.0.0',
   managementSubnetMask: props.modelValue.managementSubnetMask || 24,
-  mode: props.modelValue.mode || '',
-  allocationStrategy: props.modelValue.allocationStrategy || 'group_based',
+  mode: 'calculated_vlan', // FORCED: Only Calculated VLAN mode is currently supported
+  allocationStrategy: 'student_id_based', // FORCED: Only Student ID Based allocation is currently supported
   vlanCount: props.modelValue.vlanCount || 1,
   vlans: props.modelValue.vlans || [],
   exemptIpRanges: props.modelValue.exemptIpRanges || []
@@ -1035,8 +1011,9 @@ watch(
     isUpdatingFromProps.value = true
     localData.value = {
       ...newValue,
-      // Ensure group_based is default if not explicitly set
-      allocationStrategy: newValue.allocationStrategy || 'group_based'
+      // FORCED: Only Calculated VLAN and Student ID Based are currently supported
+      mode: 'calculated_vlan',
+      allocationStrategy: 'student_id_based'
     }
     nextTick(() => {
       isUpdatingFromProps.value = false
@@ -1049,6 +1026,14 @@ watch(
 
 // Lifecycle
 onMounted(() => {
+  // Force mode to calculated_vlan if not already set or if empty
+  if (localData.value.mode !== 'calculated_vlan') {
+    localData.value.mode = 'calculated_vlan'
+  }
+  // Force allocationStrategy to student_id_based if not already set
+  if (localData.value.allocationStrategy !== 'student_id_based') {
+    localData.value.allocationStrategy = 'student_id_based'
+  }
   // Initialize with default VLAN if empty
   if (localData.value.vlans.length === 0 && localData.value.mode) {
     addVlan()

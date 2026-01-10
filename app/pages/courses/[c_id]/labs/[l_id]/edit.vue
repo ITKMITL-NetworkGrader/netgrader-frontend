@@ -1483,12 +1483,24 @@ const handleStepValidation = (step: number, validationResult: ValidationResult) 
 
 const saveDraft = async () => {
   try {
-    // Save to localStorage as draft (separate from create drafts)
+    // Deep clone the reactive object to get plain data
+    const rawData = JSON.parse(JSON.stringify(wizardData))
+    
+    // Convert Date objects to ISO strings for schedule
     const draftData = {
-      ...wizardData,
+      ...rawData,
+      schedule: {
+        availableFrom: wizardData.schedule.availableFrom?.toISOString?.() || wizardData.schedule.availableFrom || null,
+        availableUntil: wizardData.schedule.availableUntil?.toISOString?.() || wizardData.schedule.availableUntil || null,
+        dueDate: wizardData.schedule.dueDate?.toISOString?.() || wizardData.schedule.dueDate || null
+      },
+      currentStep: currentStep.value,
       lastSaved: new Date().toISOString()
     }
-    localStorage.setItem(`lab-edit-draft-${labId}`, JSON.stringify(draftData))
+    
+    const draftKey = `lab-edit-draft-${labId}`
+    console.log(`💾 Saving edit draft with key: ${draftKey}`, draftData)
+    localStorage.setItem(draftKey, JSON.stringify(draftData))
 
     showGlobalMessage('success', 'Draft saved successfully')
   } catch (error) {
@@ -1499,19 +1511,58 @@ const saveDraft = async () => {
 
 const loadDraft = () => {
   try {
-    const draftData = localStorage.getItem(`lab-edit-draft-${labId}`)
+    const draftKey = `lab-edit-draft-${labId}`
+    const draftData = localStorage.getItem(draftKey)
     if (draftData) {
       const parsed = JSON.parse(draftData)
-      Object.assign(wizardData, parsed)
-      wizardData.basicInfo.instructions = normalizeRichText(wizardData.basicInfo.instructions)
-      wizardData.parts = (wizardData.parts || []).map((part: any) => ({
-        ...part,
-        instructions: extractInstructionsHtml(part.instructions)
-      }))
-      applySubmissionSummaryToParts()
+      console.log(`📂 Loading edit draft with key: ${draftKey}`, parsed)
+      
+      // Restore basic info
+      if (parsed.basicInfo) {
+        wizardData.basicInfo.name = parsed.basicInfo.name || ''
+        wizardData.basicInfo.description = parsed.basicInfo.description || ''
+        wizardData.basicInfo.instructions = normalizeRichText(parsed.basicInfo.instructions)
+      }
+      
+      // Restore network config
+      if (parsed.networkConfig) {
+        Object.assign(wizardData.networkConfig, parsed.networkConfig)
+      }
+      
+      // Restore devices
+      if (parsed.devices) {
+        wizardData.devices = parsed.devices
+      }
+      
+      // Restore parts with proper instructions handling
+      if (parsed.parts) {
+        wizardData.parts = (parsed.parts || []).map((part: any) => ({
+          ...part,
+          instructions: extractInstructionsHtml(part.instructions)
+        }))
+        applySubmissionSummaryToParts()
+      }
+      
+      // Restore schedule (convert ISO strings back to Date objects)
+      if (parsed.schedule) {
+        wizardData.schedule.availableFrom = parsed.schedule.availableFrom ? new Date(parsed.schedule.availableFrom) : undefined
+        wizardData.schedule.availableUntil = parsed.schedule.availableUntil ? new Date(parsed.schedule.availableUntil) : undefined
+        wizardData.schedule.dueDate = parsed.schedule.dueDate ? new Date(parsed.schedule.dueDate) : undefined
+      }
+      
+      // Restore current step
+      if (parsed.currentStep && parsed.currentStep >= 1 && parsed.currentStep <= steps.length) {
+        currentStep.value = parsed.currentStep
+        // Mark previous steps as complete
+        for (let i = 0; i < parsed.currentStep; i++) {
+          steps[i].isComplete = i < parsed.currentStep - 1
+          steps[i].isAccessible = true
+        }
+      }
 
       // Show message about loaded draft
-      toast.info('Draft loaded from previous session')
+      const lastSavedDate = parsed.lastSaved ? new Date(parsed.lastSaved).toLocaleString() : 'unknown time'
+      toast.info(`Draft loaded from ${lastSavedDate}`)
     }
   } catch (error) {
     console.error('Failed to load draft:', error)
@@ -1819,7 +1870,11 @@ const executeLabUpdate = async () => {
 
     console.groupEnd()
 
-    localStorage.removeItem(`lab-edit-draft-${labId}`)
+    // Clear draft from localStorage
+    const draftKey = `lab-edit-draft-${labId}`
+    console.log(`🧹 Clearing edit draft with key: ${draftKey}`)
+    localStorage.removeItem(draftKey)
+    console.log(`✅ Edit draft cleared. Verifying: ${localStorage.getItem(draftKey) === null ? 'Success' : 'FAILED'}`)
 
     showGlobalMessage('success', 'Lab updated successfully!')
 
