@@ -529,7 +529,8 @@
                   </div>
                   <div class="p-3 bg-white/80 rounded border border-blue-100">
                     <p class="text-xs text-slate-600 mb-1">IPv6 Prefix Format:</p>
-                    <code class="text-sm font-mono text-blue-700 break-all">2001:{{ vlan.ipv6VlanAlphabet || getVlanAlphabet(index) }}&lt;VLAN_ID&gt;:&lt;Last3StudentID&gt;::&lt;InterfaceID&gt;/64</code>
+                    <code class="text-sm font-mono text-blue-700 break-all">{{ localData.ipv6Config?.template || '2001:{X}:{Y}:{VLAN}::{offset}/64' }}</code>
+                    <p class="text-xs text-slate-500 mt-1">Example: {{ generateIPv6Preview(vlan, index) }}</p>
                   </div>
                 </div>
               </div>
