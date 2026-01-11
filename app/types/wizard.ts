@@ -54,15 +54,25 @@ export interface IpVariable {
   readonly?: boolean;        // Whether the field is read-only (true for student-generated)
   isManagementInterface?: boolean; // Whether this interface requires management IP (for backend to know)
   isVlanInterface?: boolean; // Whether this interface is a VLAN interface (for studentVlanX types)
+
+  // IPv6 Configuration (separate variable for dual-stack)
+  ipv6InputType?: 'fullIPv6' | 'studentVlan6_0' | 'studentVlan6_1' | 'studentVlan6_2' | 'studentVlan6_3' | 'studentVlan6_4' | 'studentVlan6_5' | 'studentVlan6_6' | 'studentVlan6_7' | 'studentVlan6_8' | 'studentVlan6_9' | 'linkLocal';
+  fullIpv6?: string;           // Full IPv6 address for static assignments
+  ipv6InterfaceId?: string;    // Lecturer-defined interface identifier (last part after ::)
+  isIpv6Variable?: boolean;    // Whether this is an IPv6 variable
+  ipv6VlanIndex?: number;      // Which VLAN for IPv6 (0-based)
 }
 
 // Part Types
 export type PartType = 'fill_in_blank' | 'network_config';
 
-// Question Types for Fill-in-Blank Parts
+// Question Types for Fill-in-Blank Parts (IPv4)
 export type QuestionType = 'network_address' | 'first_usable_ip' | 'last_usable_ip' |
   'broadcast_address' | 'subnet_mask' | 'ip_address' | 'number' |
-  'custom_text' | 'ip_table_questionnaire';
+  'custom_text' | 'ip_table_questionnaire' |
+  // IPv6 Question Types
+  'ipv6_network_prefix' | 'ipv6_address' | 'ipv6_link_local' |
+  'ipv6_global_unicast' | 'ipv6_prefix_length' | 'ipv6_slaac_address';
 
 // IP Table Questionnaire Structure
 export interface IpTableQuestionnaire {
@@ -103,7 +113,13 @@ export type CalculationType =
   | 'vlan_lecturer_offset'      // Lecturer-defined exact offset (exact match)
   | 'vlan_lecturer_range'        // Lecturer-defined IP range (any IP in range is valid)
   | 'device_interface_ip'        // From device.interface
-  | 'vlan_id';                   // The VLAN ID itself
+  | 'vlan_id'                    // The VLAN ID itself
+  // IPv6 Calculation Types
+  | 'ipv6_network_prefix'
+  | 'ipv6_address'
+  | 'ipv6_interface_id'
+  | 'ipv6_link_local'
+  | 'ipv6_slaac';
 
 export interface CalculatedAnswer {
   calculationType: CalculationType;
@@ -152,6 +168,8 @@ export interface Question {
   questionType: QuestionType;
   order: number;
   points: number;
+  // Whether this field can be updated later (like SLAAC/DHCP fields)
+  isUpdatable?: boolean;
 
   // Hybrid Schema Mapping
   schemaMapping?: {
@@ -308,11 +326,22 @@ export interface LabWizardData {
       calculationMultiplier?: number;
       baseNetwork: string;
       subnetMask: number;
-      subnetIndex: number;       // NEW: Which subnet block (0 = first, 1 = second, etc.)
+      subnetIndex: number;       // Which subnet block (0 = first, 1 = second, etc.)
       groupModifier?: number;
       isStudentGenerated: boolean;
+      // IPv6 Configuration per VLAN
+      ipv6Enabled?: boolean;       // Whether IPv6 is enabled for this VLAN
+      ipv6VlanAlphabet?: string;   // A, B, C, etc. (auto-assigned based on VLAN index)
+      ipv6SubnetId?: string;       // Custom subnet ID for template (e.g., "141")
     }>;
     exemptIpRanges: IpRange[];  // IPs to exclude from Management IP assignment
+    // IPv6 Template Configuration
+    ipv6Config?: {
+      enabled: boolean;            // Master toggle for IPv6
+      template: string;            // e.g., "2001:{X}:{Y}:{VLAN}::{offset}/64"
+      managementTemplate?: string; // e.g., "2001:{X}:{Y}:306::{offset}/64"
+      presetName?: 'standard_exam' | 'university_network' | 'simple_lab' | 'custom';
+    };
   };
 
   // Step 3: Device Configuration
@@ -383,6 +412,9 @@ export interface WizardLabPart extends Omit<LabPart, 'labId'> {
   questions?: Question[];    // Questions for fill_in_blank parts
   hasSubmissions?: boolean;  // Whether students have submissions for this part
   submissionSummary?: PartSubmissionSummary;
+  // IPv4/IPv6 Display Settings (for Student Lab page)
+  defaultIpVersion?: 'ipv4' | 'ipv6';    // Which tab to show by default
+  lockIpVersionToggle?: boolean;          // Whether the toggle is locked (user can't switch)
 }
 
 // Wizard-specific Task (extended with UI state)

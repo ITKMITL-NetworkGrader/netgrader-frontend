@@ -562,9 +562,20 @@ const handleCreateLab = async () => {
             subnetMask: vlan.subnetMask,
             subnetIndex: vlan.subnetIndex,
             groupModifier: vlan.groupModifier,
-            isStudentGenerated: vlan.isStudentGenerated
+            isStudentGenerated: vlan.isStudentGenerated,
+            // IPv6 Configuration per VLAN
+            ipv6Enabled: vlan.ipv6Enabled || false,
+            ipv6VlanAlphabet: vlan.ipv6VlanAlphabet || '',
+            ipv6SubnetId: vlan.ipv6SubnetId || ''
           }))
         },
+        // IPv6 Template Configuration
+        ipv6Config: wizardData.networkConfig.ipv6Config ? {
+          enabled: wizardData.networkConfig.ipv6Config.enabled,
+          template: wizardData.networkConfig.ipv6Config.template,
+          managementTemplate: wizardData.networkConfig.ipv6Config.managementTemplate || '',
+          presetName: wizardData.networkConfig.ipv6Config.presetName
+        } : undefined,
         devices: wizardData.devices.map(device => ({
           deviceId: device.deviceId,
           templateId: device.templateId, // This should be the actual device template ID from API

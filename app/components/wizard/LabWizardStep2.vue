@@ -157,6 +157,116 @@
         </div>
       </div>
 
+      <!-- IPv6 Template Configuration -->
+      <div class="space-y-3 p-4 border-2 border-primary/20 rounded-lg bg-primary/5">
+        <div class="flex items-center justify-between">
+          <div class="space-y-0.5">
+            <Label class="text-sm font-medium flex items-center gap-2">
+              <Globe class="w-4 h-4 text-primary" />
+              IPv6 Configuration
+            </Label>
+            <p class="text-xs text-muted-foreground">
+              Configure IPv6 address generation using templates
+            </p>
+          </div>
+          <Switch v-model="ipv6Enabled" />
+        </div>
+
+        <!-- IPv6 Configuration Fields (when enabled) -->
+        <div v-if="localData.ipv6Config?.enabled" class="space-y-4 pt-3 border-t border-primary/20">
+          <!-- Preset Selection -->
+          <div class="space-y-2">
+            <Label class="text-sm font-medium">Template Preset</Label>
+            <Select 
+              :modelValue="localData.ipv6Config?.presetName || 'standard_exam'"
+              @update:modelValue="(val) => selectIPv6Preset(String(val) as any)"
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select preset..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="standard_exam">
+                  <div class="flex flex-col space-y-1">
+                    <div class="font-medium">Standard Exam</div>
+                    <div class="text-xs text-muted-foreground">2001:{X}:{Y}:{VLAN}::{offset}/64</div>
+                  </div>
+                </SelectItem>
+                <SelectItem value="university_network">
+                  <div class="flex flex-col space-y-1">
+                    <div class="font-medium">University Network</div>
+                    <div class="text-xs text-muted-foreground">Fixed prefix with student variables</div>
+                  </div>
+                </SelectItem>
+                <SelectItem value="simple_lab">
+                  <div class="flex flex-col space-y-1">
+                    <div class="font-medium">Simple Lab</div>
+                    <div class="text-xs text-muted-foreground">2001:db8:{X}:{VLAN}::{offset}/64</div>
+                  </div>
+                </SelectItem>
+                <SelectItem value="custom">
+                  <div class="flex flex-col space-y-1">
+                    <div class="font-medium">Custom Template</div>
+                    <div class="text-xs text-muted-foreground">Define your own IPv6 template</div>
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <!-- Template Input -->
+          <div class="space-y-2">
+            <Label class="text-sm font-medium">IPv6 Template</Label>
+            <Input
+              :modelValue="localData.ipv6Config?.template || ''"
+              @update:modelValue="(val) => updateIPv6Template(String(val))"
+              placeholder="2001:{X}:{Y}:{VLAN}::{offset}/64"
+              class="font-mono text-sm"
+              :class="{ 'border-primary': localData.ipv6Config?.presetName === 'custom' }"
+            />
+            <div class="flex flex-wrap gap-1 text-xs text-muted-foreground">
+              <span>Variables:</span>
+              <code class="bg-muted px-1 rounded">{X}</code>
+              <code class="bg-muted px-1 rounded">{Y}</code>
+              <code class="bg-muted px-1 rounded">{Z}</code>
+              <code class="bg-muted px-1 rounded">{VLAN}</code>
+              <code class="bg-muted px-1 rounded">{offset}</code>
+              <code class="bg-muted px-1 rounded">{last3}</code>
+            </div>
+          </div>
+
+          <!-- Management Template (Optional) -->
+          <div class="space-y-2">
+            <Label class="text-sm font-medium flex items-center gap-2">
+              Management IPv6 Template
+              <span class="text-muted-foreground font-normal">(Optional)</span>
+            </Label>
+            <Input
+              :modelValue="localData.ipv6Config?.managementTemplate || ''"
+              @update:modelValue="(val) => updateManagementTemplate(String(val))"
+              placeholder="2001:{X}:{Y}:306::{offset}/64"
+              class="font-mono text-sm"
+            />
+          </div>
+
+          <!-- Preview -->
+          <div class="p-3 bg-background rounded border space-y-2">
+            <div class="flex items-center gap-2 text-sm font-medium">
+              <Eye class="w-4 h-4" />
+              Preview (Student {{ previewStudentId }})
+            </div>
+            <div class="grid gap-2 text-sm font-mono">
+              <div v-for="(vlan, index) in localData.vlans.filter(v => v.ipv6Enabled).slice(0, 3)" :key="vlan.id || index" class="flex items-center gap-2">
+                <Badge variant="secondary" class="text-xs">VLAN {{ vlan.ipv6VlanAlphabet || getVlanAlphabet(index) }}</Badge>
+                <code class="text-xs text-muted-foreground break-all">{{ generateIPv6Preview(vlan, index) }}</code>
+              </div>
+              <div v-if="localData.vlans.filter(v => v.ipv6Enabled).length === 0" class="text-xs text-muted-foreground">
+                Enable IPv6 on at least one VLAN to see preview
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- VLAN Mode Selection (Disabled - Forced to Calculated VLAN) -->
       <div class="space-y-2">
         <Label class="text-sm font-medium">
@@ -387,6 +497,42 @@
                   Added to VLAN ID based on student group (e.g., Group A = +0, Group B = +10)
                 </p>
               </div>
+
+              <!-- IPv6 Configuration -->
+              <div class="space-y-3 pt-4 border-t border-slate-200">
+                <div class="flex items-center justify-between p-3 rounded-lg bg-slate-50 hover:bg-slate-100 transition-colors duration-200">
+                  <div class="space-y-0.5">
+                    <Label class="text-sm font-medium flex items-center gap-2">
+                      <Globe class="w-4 h-4 text-blue-600" />
+                      Enable IPv6
+                    </Label>
+                    <p class="text-xs text-slate-500">
+                      Generate IPv6 addresses for this VLAN using algorithm
+                    </p>
+                  </div>
+                  <Switch
+                    v-model="vlan.ipv6Enabled"
+                    @update:model-value="() => vlan.ipv6VlanAlphabet = getVlanAlphabet(index)"
+                  />
+                </div>
+
+                <!-- IPv6 Preview (when enabled) -->
+                <div v-if="vlan.ipv6Enabled" class="p-4 bg-blue-50 border border-blue-200 rounded-lg space-y-3 transition-all duration-200">
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                      <Globe class="w-4 h-4 text-blue-600" />
+                      <span class="text-sm font-medium text-blue-900">IPv6 VLAN Identifier</span>
+                    </div>
+                    <Badge variant="secondary" class="bg-blue-100 text-blue-800 font-mono text-sm px-3">
+                      {{ vlan.ipv6VlanAlphabet || getVlanAlphabet(index) }}
+                    </Badge>
+                  </div>
+                  <div class="p-3 bg-white/80 rounded border border-blue-100">
+                    <p class="text-xs text-slate-600 mb-1">IPv6 Prefix Format:</p>
+                    <code class="text-sm font-mono text-blue-700 break-all">2001:{{ vlan.ipv6VlanAlphabet || getVlanAlphabet(index) }}&lt;VLAN_ID&gt;:&lt;Last3StudentID&gt;::&lt;InterfaceID&gt;/64</code>
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -477,7 +623,8 @@ import {
   Router,
   Users,
   Calculator,
-  X
+  X,
+  Globe
 } from 'lucide-vue-next'
 
 // Import IP range utilities
@@ -499,6 +646,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
+import { Switch } from '@/components/ui/switch'
 
 // Types
 import type { ValidationResult, IpRange } from '@/types/wizard'
@@ -510,9 +658,13 @@ interface VlanConfig {
   calculationMultiplier?: number
   baseNetwork: string
   subnetMask: number
-  subnetIndex: number        // NEW: Which subnet block (0 = first, 1 = second, etc.)
+  subnetIndex: number        // Which subnet block (0 = first, 1 = second, etc.)
   groupModifier?: number
   isStudentGenerated: boolean
+  // IPv6 Configuration per VLAN
+  ipv6Enabled?: boolean       // Whether IPv6 is enabled for this VLAN
+  ipv6VlanAlphabet?: string   // A, B, C, etc. (auto-assigned based on VLAN index)
+  ipv6SubnetId?: string       // Custom subnet ID for template (e.g., "141")
 }
 
 interface NetworkConfig {
@@ -523,6 +675,13 @@ interface NetworkConfig {
   vlanCount: number
   vlans: VlanConfig[]
   exemptIpRanges: IpRange[]
+  // IPv6 Template Configuration
+  ipv6Config?: {
+    enabled: boolean
+    template: string
+    managementTemplate?: string
+    presetName?: 'standard_exam' | 'university_network' | 'simple_lab' | 'custom'
+  }
 }
 
 // Props
@@ -549,13 +708,43 @@ const localData = ref<NetworkConfig>({
   allocationStrategy: 'student_id_based', // FORCED: Only Student ID Based allocation is currently supported
   vlanCount: props.modelValue.vlanCount || 1,
   vlans: props.modelValue.vlans || [],
-  exemptIpRanges: props.modelValue.exemptIpRanges || []
+  exemptIpRanges: props.modelValue.exemptIpRanges || [],
+  ipv6Config: props.modelValue.ipv6Config || {
+    enabled: false,
+    template: '2001:{X}:{Y}:{VLAN}::{offset}/64',
+    managementTemplate: '2001:{X}:{Y}:306::{offset}/64',
+    presetName: 'standard_exam'
+  }
 })
 const fieldErrors = ref<Record<string, string>>({})
 const isUpdatingFromProps = ref(false)
 
 // Preview student ID state
 const previewStudentId = ref(65070232)
+
+// IPv6 enabled computed property for v-model binding
+const ipv6Enabled = computed({
+  get: () => localData.value.ipv6Config?.enabled ?? false,
+  set: (val: boolean) => {
+    console.log('ipv6Enabled setter called with:', val)
+    if (val) {
+      localData.value.ipv6Config = {
+        enabled: true,
+        template: '2001:{X}:{Y}:{VLAN}::{offset}/64',
+        managementTemplate: '2001:{X}:{Y}:306::{offset}/64',
+        presetName: 'standard_exam'
+      }
+    } else {
+      localData.value.ipv6Config = {
+        enabled: false,
+        template: '',
+        managementTemplate: '',
+        presetName: undefined
+      }
+    }
+    console.log('ipv6Config after toggle:', localData.value.ipv6Config)
+  }
+})
 
 // Exempt IP Ranges state
 const exemptRangeInput = ref('')
@@ -606,6 +795,12 @@ const generateVlanId = (): string => {
   return `vlan_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 }
 
+// Get VLAN alphabet letter from index (A=0, B=1, C=2, etc.)
+const getVlanAlphabet = (index: number): string => {
+  if (index < 0 || index > 25) return 'A'
+  return String.fromCharCode(65 + index) // 65 = 'A'
+}
+
 const createDefaultVlan = (mode: string, index: number): VlanConfig => {
   // Use consistent base network since IP generation algorithm replaces second and third octets
   // This allows multiple VLANs to use the same base network without conflicts
@@ -616,7 +811,10 @@ const createDefaultVlan = (mode: string, index: number): VlanConfig => {
     baseNetwork: baseNetwork,
     subnetMask: 24,
     subnetIndex: 1,          // NEW: Default to first subnet block (1-indexed for UI)
-    isStudentGenerated: true
+    isStudentGenerated: true,
+    // IPv6 defaults
+    ipv6Enabled: false,
+    ipv6VlanAlphabet: getVlanAlphabet(index)
   }
 
   switch (mode) {
@@ -737,6 +935,104 @@ const generatePreviewIP = (vlan: VlanConfig): string => {
 
   const [baseOct1] = vlan.baseNetwork.split('.').map(Number)
   return `${baseOct1}.${dec2}.${dec3}.${dec4}/${vlan.subnetMask}`
+}
+
+// IPv6 Helper Functions
+// Note: getVlanAlphabet is defined above at line ~773
+
+const IPv6_PRESETS: Record<string, { template: string; managementTemplate: string }> = {
+  standard_exam: {
+    template: '2001:{X}:{Y}:{VLAN}::{offset}/64',
+    managementTemplate: '2001:{X}:{Y}:306::{offset}/64'
+  },
+  university_network: {
+    template: '2001:3c8:1106:4{last3}:{VLAN}::{offset}/64',
+    managementTemplate: '2001:3c8:1106:4306::{last3}/64'
+  },
+  simple_lab: {
+    template: '2001:db8:{X}:{VLAN}::{offset}/64',
+    managementTemplate: '2001:db8:{X}:mgmt::{offset}/64'
+  },
+  custom: {
+    template: '2001:{X}:{Y}:{VLAN}::{offset}/64',
+    managementTemplate: ''
+  }
+}
+
+const toggleIPv6Config = (enabled: boolean) => {
+  console.log('toggleIPv6Config called with:', enabled)
+  if (enabled) {
+    const preset = IPv6_PRESETS['standard_exam']!
+    localData.value.ipv6Config = {
+      enabled: true,
+      template: preset.template,
+      managementTemplate: preset.managementTemplate,
+      presetName: 'standard_exam'
+    }
+  } else {
+    localData.value.ipv6Config = {
+      enabled: false,
+      template: '',
+      managementTemplate: '',
+      presetName: undefined
+    }
+  }
+  console.log('ipv6Config after toggle:', localData.value.ipv6Config)
+}
+
+const selectIPv6Preset = (presetName: 'standard_exam' | 'university_network' | 'simple_lab' | 'custom') => {
+  const preset = IPv6_PRESETS[presetName]
+  if (preset && localData.value.ipv6Config) {
+    localData.value.ipv6Config.presetName = presetName
+    localData.value.ipv6Config.template = preset.template
+    localData.value.ipv6Config.managementTemplate = preset.managementTemplate
+  }
+}
+
+const updateIPv6Template = (template: string) => {
+  if (localData.value.ipv6Config) {
+    localData.value.ipv6Config.template = template
+    localData.value.ipv6Config.presetName = 'custom'
+  }
+}
+
+const updateManagementTemplate = (template: string) => {
+  if (localData.value.ipv6Config) {
+    localData.value.ipv6Config.managementTemplate = template
+  }
+}
+
+const calculateStudentVariables = (studentId: number) => {
+  const sidStr = studentId.toString()
+  if (sidStr.length !== 8) return { X: 0, Y: 0, Z: 0, last3: '000' }
+  
+  const year = parseInt(sidStr.substring(0, 2), 10)
+  const faculty = parseInt(sidStr.substring(2, 4), 10)
+  const seq = parseInt(sidStr.substring(4, 8), 10)
+  
+  return {
+    X: year * 100 + faculty,
+    Y: seq,
+    Z: seq % 1000,
+    last3: sidStr.slice(-3)
+  }
+}
+
+const generateIPv6Preview = (vlan: VlanConfig, vlanIndex: number): string => {
+  const template = localData.value.ipv6Config?.template || '2001:{X}:{Y}:{VLAN}::{offset}/64'
+  const studentId = previewStudentId.value || 65070232
+  const vars = calculateStudentVariables(studentId)
+  
+  // VLAN can be alphabet or numeric
+  const vlanId = vlan.ipv6SubnetId || vlan.ipv6VlanAlphabet || getVlanAlphabet(vlanIndex)
+  
+  return template
+    .replace(/\{X\}/g, vars.X.toString())
+    .replace(/\{Y\}/g, vars.Y.toString())
+    .replace(/\{Z\}/g, vars.Z.toString())
+    .replace(/\{VLAN\}/g, vlanId)
+    .replace(/\{offset\}/g, '1')
+    .replace(/\{last3\}/g, vars.last3)
 }
 
 const validateVlan = (index: number) => {

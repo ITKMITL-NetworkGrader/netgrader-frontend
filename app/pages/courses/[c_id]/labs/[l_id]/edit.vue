@@ -890,6 +890,15 @@ const normalizeVlanEntry = (vlan: any = {}) => {
   } else if (vlan.isStudentGenerated !== undefined) {
     normalized.isStudentGenerated = Boolean(vlan.isStudentGenerated)
   }
+  // IPv6 Configuration
+  if (typeof vlan.ipv6Enabled === 'boolean') {
+    normalized.ipv6Enabled = vlan.ipv6Enabled
+  } else if (vlan.ipv6Enabled !== undefined) {
+    normalized.ipv6Enabled = Boolean(vlan.ipv6Enabled)
+  }
+  if (typeof vlan.ipv6VlanAlphabet === 'string' && vlan.ipv6VlanAlphabet.trim()) {
+    normalized.ipv6VlanAlphabet = vlan.ipv6VlanAlphabet.trim()
+  }
   return normalized
 }
 
@@ -1152,6 +1161,16 @@ const prepareVlanForApi = (vlan: any) => {
     formatted.isStudentGenerated = vlan.isStudentGenerated
   } else if (vlan?.isStudentGenerated !== undefined) {
     formatted.isStudentGenerated = Boolean(vlan.isStudentGenerated)
+  }
+
+  // IPv6 Configuration
+  if (typeof vlan?.ipv6Enabled === 'boolean') {
+    formatted.ipv6Enabled = vlan.ipv6Enabled
+  } else if (vlan?.ipv6Enabled !== undefined) {
+    formatted.ipv6Enabled = Boolean(vlan.ipv6Enabled)
+  }
+  if (typeof vlan?.ipv6VlanAlphabet === 'string' && vlan.ipv6VlanAlphabet.trim()) {
+    formatted.ipv6VlanAlphabet = vlan.ipv6VlanAlphabet.trim()
   }
 
   return formatted
@@ -1601,6 +1620,13 @@ const executeLabUpdate = async () => {
           vlanCount: wizardData.networkConfig.vlanCount,
           vlans: wizardData.networkConfig.vlans.map(prepareVlanForApi)
         },
+        // IPv6 Template Configuration
+        ipv6Config: wizardData.networkConfig.ipv6Config ? {
+          enabled: wizardData.networkConfig.ipv6Config.enabled,
+          template: wizardData.networkConfig.ipv6Config.template,
+          managementTemplate: wizardData.networkConfig.ipv6Config.managementTemplate || '',
+          presetName: wizardData.networkConfig.ipv6Config.presetName
+        } : undefined,
         devices: wizardData.devices.map(prepareDeviceForApi)
       }
     }

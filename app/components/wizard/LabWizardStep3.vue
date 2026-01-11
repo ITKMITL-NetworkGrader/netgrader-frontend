@@ -257,8 +257,18 @@
                                 <template v-else-if="ipVar.inputType === 'studentManagement'">
                                   Student Management IP
                                 </template>
-                                <template v-else-if="ipVar.inputType?.startsWith('studentVlan')">
+                                <template v-else-if="ipVar.inputType?.startsWith('studentVlan') && !ipVar.inputType?.startsWith('studentVlan6_')">
                                   {{ getVlanNumberFromInputType(ipVar.inputType) }} IP
+                                </template>
+                                <!-- IPv6 display options -->
+                                <template v-else-if="ipVar.inputType === 'fullIPv6'">
+                                  Full IPv6 Address
+                                </template>
+                                <template v-else-if="ipVar.inputType === 'linkLocal'">
+                                  Link-Local IPv6
+                                </template>
+                                <template v-else-if="ipVar.inputType?.startsWith('studentVlan6_')">
+                                  VLAN {{ String.fromCharCode(65 + parseInt(ipVar.inputType.replace('studentVlan6_', ''), 10)) }} IPv6
                                 </template>
                                 <template v-else>
                                   Select configuration type
@@ -302,6 +312,48 @@
                                   </div>
                                 </SelectItemText>
                               </SelectItem>
+
+                              <!-- IPv6 Section Divider -->
+                              <div class="px-2 py-1.5 text-xs font-semibold text-slate-600 bg-slate-50 border-t border-b border-slate-200 flex items-center gap-1.5">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>
+                                IPv6 Options
+                              </div>
+
+                              <!-- Full IPv6 Address Option -->
+                              <SelectItem value="fullIPv6">
+                                <SelectItemText>
+                                  <div class="flex flex-col space-y-1">
+                                    <div class="font-medium">Full IPv6 Address</div>
+                                    <div class="text-xs text-muted-foreground">Enter complete IPv6 address</div>
+                                  </div>
+                                </SelectItemText>
+                              </SelectItem>
+
+                              <!-- Link-Local IPv6 Option -->
+                              <SelectItem value="linkLocal">
+                                <SelectItemText>
+                                  <div class="flex flex-col space-y-1">
+                                    <div class="font-medium">Link-Local IPv6</div>
+                                    <div class="text-xs text-muted-foreground">fe80::-based local address</div>
+                                  </div>
+                                </SelectItemText>
+                              </SelectItem>
+
+                              <!-- Dynamic Student VLAN IPv6 Options (only for IPv6-enabled VLANs) -->
+                              <template v-for="(vlan, vlanIndex) in networkConfig.vlans" :key="`vlan6-${vlanIndex}`">
+                                <SelectItem v-if="vlan.ipv6Enabled" :value="`studentVlan6_${vlanIndex}`">
+                                  <SelectItemText>
+                                    <div class="flex flex-col space-y-1">
+                                      <div class="font-medium">
+                                        VLAN {{ vlan.ipv6VlanAlphabet || String.fromCharCode(65 + vlanIndex) }} IPv6
+                                      </div>
+                                      <div class="text-xs text-muted-foreground">
+                                        2001:{{ vlan.ipv6VlanAlphabet || String.fromCharCode(65 + vlanIndex) }}&lt;ID&gt;:&lt;StudentID&gt;::&lt;offset&gt;/64
+                                      </div>
+                                    </div>
+                                  </SelectItemText>
+                                </SelectItem>
+                              </template>
 
                             </SelectContent>
                           </Select>
@@ -605,6 +657,9 @@ interface Props {
       subnetIndex?: number
       groupModifier?: number
       isStudentGenerated: boolean
+      // IPv6 Configuration
+      ipv6Enabled?: boolean
+      ipv6VlanAlphabet?: string
     }>
   }
   validation?: ValidationResult
