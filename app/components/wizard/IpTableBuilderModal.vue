@@ -123,7 +123,7 @@
                         <SelectTrigger class="w-full">
                           <SelectValue placeholder="Select device..." />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent class="z-[250]">
                           <SelectItem
                             v-for="device in devices"
                             :key="device.deviceId"
@@ -143,7 +143,7 @@
                         <SelectTrigger class="w-full">
                           <SelectValue placeholder="Select interface..." />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent class="z-[250]">
                           <SelectItem
                             v-for="iface in getDeviceInterfaces(row.deviceId)"
                             :key="iface.name"

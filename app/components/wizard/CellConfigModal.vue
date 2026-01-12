@@ -109,7 +109,7 @@
               <SelectTrigger>
                 <SelectValue placeholder="Select calculation type..." />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent class="z-[250]">
                 <SelectItem value="vlan_network_address">VLAN Network Address</SelectItem>
                 <SelectItem value="vlan_first_usable">VLAN First Usable IP</SelectItem>
                 <SelectItem value="vlan_last_usable">VLAN Last Usable IP</SelectItem>
@@ -137,7 +137,7 @@
               <SelectTrigger>
                 <SelectValue placeholder="Select VLAN..." />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent class="z-[250]">
                 <SelectItem
                   v-for="(vlan, vlanIdx) in vlans"
                   :key="vlanIdx"
@@ -279,7 +279,7 @@
                 <SelectTrigger>
                   <SelectValue placeholder="Select device..." />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent class="z-[250]">
                   <SelectItem
                     v-for="device in devices"
                     :key="device.deviceId"
@@ -300,7 +300,7 @@
                 <SelectTrigger>
                   <SelectValue placeholder="Select interface..." />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent class="z-[250]">
                   <SelectItem
                     v-for="iface in getDeviceInterfaces(localCell.calculatedAnswer?.deviceId)"
                     :key="iface.name"

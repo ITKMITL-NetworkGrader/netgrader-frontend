@@ -365,7 +365,7 @@
                           <Input v-model="ipVar.fullIP" type="text" placeholder="192.168.1.10" class="text-sm" :class="{
                             'border-destructive': hasIpVarError(index, ipIndex, 'fullIP'),
                             'border-green-500': !hasIpVarError(index, ipIndex, 'fullIP') && ipVar.fullIP && isValidIP(ipVar.fullIP)
-                          }" @input="validateIpVariable(index, ipIndex, 'fullIP')" />
+                          }" @input="debouncedValidateFullIP(index, ipIndex)" />
                           <p v-if="hasIpVarError(index, ipIndex, 'fullIP')" class="text-xs text-destructive">
                             {{ getIpVarError(index, ipIndex, 'fullIP') }}
                           </p>
@@ -614,6 +614,7 @@
 
 <script setup lang="ts">
 import { watch, ref, onMounted, nextTick } from 'vue'
+import { useDebounceFn } from '@vueuse/core'
 import {
   Network,
   Router,
@@ -781,8 +782,8 @@ const toAlphanumeric = (interfaceName: string): string => {
     .replace(/tunnel/g, 'tun')
     .replace(/vlan/g, 'vlan')
     .replace(/[^a-zA-Z0-9_-]/g, '_') // Replace non-alphanumeric characters (except _ and -) with underscore
-    .replace(/_+/g, '_') // Replace multiple underscores with single
-    .replace(/^_|_$/g, '') // Remove leading/trailing underscores
+    // .replace(/_+/g, '_') // Replace multiple underscores with single
+    // .replace(/^_|_$/g, '') // Remove leading/trailing underscores
 }
 
 const addDevice = () => {
@@ -1071,6 +1072,11 @@ const validateIpVariable = (deviceIndex: number, ipIndex: number, field: string)
 
   emitValidation()
 }
+
+// Debounced validation for fullIP to prevent input glitching
+const debouncedValidateFullIP = useDebounceFn((deviceIndex: number, ipIndex: number) => {
+  validateIpVariable(deviceIndex, ipIndex, 'fullIP')
+}, 300)
 
 const onInputTypeChange = (deviceIndex: number, ipIndex: number, inputType: string) => {
   const ipVar = localData.value[deviceIndex].ipVariables[ipIndex]
