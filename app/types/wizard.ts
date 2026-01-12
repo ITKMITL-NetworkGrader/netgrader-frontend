@@ -56,7 +56,7 @@ export interface IpVariable {
   isVlanInterface?: boolean; // Whether this interface is a VLAN interface (for studentVlanX types)
 
   // IPv6 Configuration (separate variable for dual-stack)
-  ipv6InputType?: 'fullIPv6' | 'studentVlan6_0' | 'studentVlan6_1' | 'studentVlan6_2' | 'studentVlan6_3' | 'studentVlan6_4' | 'studentVlan6_5' | 'studentVlan6_6' | 'studentVlan6_7' | 'studentVlan6_8' | 'studentVlan6_9' | 'linkLocal';
+  ipv6InputType?: 'none' | 'fullIPv6' | 'studentVlan6_0' | 'studentVlan6_1' | 'studentVlan6_2' | 'studentVlan6_3' | 'studentVlan6_4' | 'studentVlan6_5' | 'studentVlan6_6' | 'studentVlan6_7' | 'studentVlan6_8' | 'studentVlan6_9' | 'linkLocal';
   fullIpv6?: string;           // Full IPv6 address for static assignments
   ipv6InterfaceId?: string;    // Lecturer-defined interface identifier (last part after ::)
   isIpv6Variable?: boolean;    // Whether this is an IPv6 variable
@@ -341,6 +341,15 @@ export interface LabWizardData {
       template: string;            // e.g., "2001:{X}:{Y}:{VLAN}::{offset}/64"
       managementTemplate?: string; // e.g., "2001:{X}:{Y}:306::{offset}/64"
       presetName?: 'standard_exam' | 'university_network' | 'simple_lab' | 'custom';
+      // Enhanced configurable prefix support
+      globalPrefix?: string;           // e.g., "2001:3c8:1106:4" - base prefix for all addresses
+      prefixMode?: 'template' | 'structured'; // 'template' = use template string, 'structured' = use globalPrefix + X/Y
+      // Management Network Override (for firewall traversal / Internet access)
+      managementOverride?: {
+        enabled: boolean;              // Whether management uses a special fixed format
+        fixedPrefix: string;           // e.g., "2001:3c8:1106:4306"
+        useStudentIdSuffix: boolean;   // Whether to use last 3 digits as interface ID suffix
+      };
     };
   };
 

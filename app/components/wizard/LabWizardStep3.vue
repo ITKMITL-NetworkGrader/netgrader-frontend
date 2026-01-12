@@ -199,16 +199,23 @@
                 </div>
               </div>
 
-              <!-- IP Variables Configuration -->
+              <!-- IP Variables Configuration (Dual-Stack Table) -->
               <div class="space-y-4">
                 <div class="flex items-center justify-between">
-                  <Label class="text-sm font-medium">
-                    IP Variables <span class="text-destructive">*</span>
-                    <span class="text-muted-foreground font-normal">(Minimum 1 required)</span>
-                  </Label>
+                  <div class="flex items-center gap-3">
+                    <Label class="text-sm font-medium">
+                      Interface Configuration <span class="text-destructive">*</span>
+                    </Label>
+                    <!-- Dual-Stack Indicator -->
+                    <div v-if="hasIpv6Enabled" class="flex items-center gap-1.5">
+                      <Badge variant="outline" class="text-xs bg-emerald-50 border-emerald-200 text-emerald-700">IPv4</Badge>
+                      <span class="text-muted-foreground">+</span>
+                      <Badge variant="outline" class="text-xs bg-indigo-50 border-indigo-200 text-indigo-700">IPv6</Badge>
+                    </div>
+                  </div>
                   <Button variant="outline" class="text-sm" @click="addIpVariable(index)">
                     <Plus class="w-4 h-4 mr-1" />
-                    Add Variable
+                    Add Interface
                   </Button>
                 </div>
 
@@ -216,67 +223,74 @@
                 <div v-if="device.ipVariables.length === 0"
                   class="text-center p-4 border-2 border-dashed border-muted-foreground/25 rounded">
                   <Network class="w-8 h-8 mx-auto text-muted-foreground/50 mb-2" />
-                  <p class="text-sm text-muted-foreground">No IP variables configured</p>
+                  <p class="text-sm text-muted-foreground">No interfaces configured</p>
                   <Button variant="ghost" size="sm" @click="addIpVariable(index)" class="mt-2">
                     <Plus class="w-4 h-4 mr-1" />
-                    Add IP Variable
+                    Add Interface
                   </Button>
                 </div>
 
                 <div v-else class="space-y-3">
                   <TransitionGroup name="ip-var" tag="div" class="space-y-3">
                     <div v-for="(ipVar, ipIndex) in device.ipVariables" :key="`${device.tempId}-ip-${ipIndex}`"
-                      class="flex items-center space-x-3 p-3 bg-muted/30 rounded-lg">
-                      <div class="flex-1 grid grid-cols-1 md:grid-cols-3 gap-3">
-                        <!-- Variable Name -->
-                        <div class="space-y-1">
-                          <Label class="text-xs font-medium">Variable Name</Label>
-                          <Input v-model="ipVar.name" placeholder="loopback0, gig0_1" class="text-sm" :class="{
-                            'border-destructive': hasIpVarError(index, ipIndex, 'name'),
-                            'border-green-500': !hasIpVarError(index, ipIndex, 'name') && ipVar.name.length > 0
-                          }" @input="onVariableNameInput(index, ipIndex, $event)" />
+                      class="border rounded-lg overflow-hidden">
+                      
+                      <!-- Interface Header -->
+                      <div class="flex items-center justify-between p-3 bg-muted/40 border-b">
+                        <div class="flex items-center gap-3">
+                          <div class="space-y-0.5 flex-1">
+                            <Label class="text-xs font-medium text-muted-foreground">Interface Name</Label>
+                            <Input v-model="ipVar.name" placeholder="loopback0, gig0_1" class="text-sm h-8 w-48" :class="{
+                              'border-destructive': hasIpVarError(index, ipIndex, 'name'),
+                              'border-green-500': !hasIpVarError(index, ipIndex, 'name') && ipVar.name.length > 0
+                            }" @input="onVariableNameInput(index, ipIndex, $event)" />
+                          </div>
                           <p v-if="hasIpVarError(index, ipIndex, 'name')" class="text-xs text-destructive">
                             {{ getIpVarError(index, ipIndex, 'name') }}
                           </p>
-                          <!-- IP Duplication Error -->
-                          <p v-if="hasIpVarError(index, ipIndex, 'duplication')" class="text-xs text-destructive">
-                            {{ getIpVarError(index, ipIndex, 'duplication') }}
-                          </p>
                         </div>
+                        <Button variant="ghost" size="sm" @click="removeIpVariable(index, ipIndex)"
+                          class="text-destructive hover:text-destructive h-8 w-8 p-0">
+                          <X class="w-4 h-4" />
+                        </Button>
+                      </div>
 
-                        <!-- IP Configuration Mode -->
-                        <div class="space-y-1">
-                          <Label class="text-xs font-medium">IP Configuration</Label>
+                      <!-- Dual-Stack Configuration Grid -->
+                      <div class="grid gap-0" :class="hasIpv6Enabled ? 'grid-cols-2' : 'grid-cols-1'">
+                        
+                        <!-- IPv4 Column -->
+                        <div class="p-3 space-y-3" :class="hasIpv6Enabled ? 'border-r' : ''">
+                          <div class="flex items-center gap-2">
+                            <Badge variant="outline" class="text-xs bg-emerald-50 border-emerald-200 text-emerald-700">IPv4</Badge>
+                          </div>
+                          
+                          <!-- IPv4 Type Selector -->
                           <Select v-model="ipVar.inputType"
                             @update:modelValue="onInputTypeChange(index, ipIndex, $event)">
                             <SelectTrigger class="text-sm">
                               <SelectValue>
-                                <template v-if="ipVar.inputType === 'fullIP'">
-                                  Full IP Address
-                                </template>
-                                <template v-else-if="ipVar.inputType === 'studentManagement'">
-                                  Student Management IP
-                                </template>
+                                <template v-if="ipVar.inputType === 'fullIP'">Full IP Address</template>
+                                <template v-else-if="ipVar.inputType === 'studentManagement'">Student Management IP</template>
                                 <template v-else-if="ipVar.inputType?.startsWith('studentVlan') && !ipVar.inputType?.startsWith('studentVlan6_')">
                                   {{ getVlanNumberFromInputType(ipVar.inputType) }} IP
                                 </template>
-                                <!-- IPv6 display options -->
-                                <template v-else-if="ipVar.inputType === 'fullIPv6'">
-                                  Full IPv6 Address
-                                </template>
-                                <template v-else-if="ipVar.inputType === 'linkLocal'">
-                                  Link-Local IPv6
-                                </template>
-                                <template v-else-if="ipVar.inputType?.startsWith('studentVlan6_')">
-                                  VLAN {{ String.fromCharCode(65 + parseInt(ipVar.inputType.replace('studentVlan6_', ''), 10)) }} IPv6
+                                <template v-else-if="ipVar.inputType === 'none' || !ipVar.inputType">
+                                  No IPv4
                                 </template>
                                 <template v-else>
-                                  Select configuration type
+                                  Select IPv4 type
                                 </template>
                               </SelectValue>
                             </SelectTrigger>
                             <SelectContent>
-                              <!-- Full IP Address Option -->
+                              <SelectItem value="none">
+                                <SelectItemText>
+                                  <div class="flex flex-col space-y-1">
+                                    <div class="font-medium text-muted-foreground">No IPv4</div>
+                                    <div class="text-xs text-muted-foreground">Skip IPv4 configuration</div>
+                                  </div>
+                                </SelectItemText>
+                              </SelectItem>
                               <SelectItem value="fullIP">
                                 <SelectItemText>
                                   <div class="flex flex-col space-y-1">
@@ -285,41 +299,94 @@
                                   </div>
                                 </SelectItemText>
                               </SelectItem>
-
-                              <!-- Student Management IP Option -->
                               <SelectItem value="studentManagement">
                                 <SelectItemText>
                                   <div class="flex flex-col space-y-1">
                                     <div class="font-medium">Student Management IP</div>
-                                    <div class="text-xs text-muted-foreground">Auto-generated from management network
-                                      using student ID
-                                    </div>
+                                    <div class="text-xs text-muted-foreground">Auto-generated from management network</div>
                                   </div>
                                 </SelectItemText>
                               </SelectItem>
-
-                              <!-- Dynamic Student VLAN IP Options -->
                               <SelectItem v-for="(vlan, vlanIndex) in networkConfig.vlans" :key="`vlan-${vlanIndex}`"
                                 :value="`studentVlan${vlanIndex}`">
                                 <SelectItemText>
                                   <div class="flex flex-col space-y-1">
                                     <div class="font-medium">{{ vlan.calculationMultiplier !== undefined ?
-                                      getVlanDisplayId(vlan,
-                                        vlanIndex) : `Student VLAN ${getVlanDisplayId(vlan, vlanIndex)}` }} IP</div>
-                                    <div class="text-xs text-muted-foreground">
-                                      Auto-generated from {{ vlan.baseNetwork }}/{{ vlan.subnetMask }}
-                                    </div>
+                                      getVlanDisplayId(vlan, vlanIndex) : `Student VLAN ${getVlanDisplayId(vlan, vlanIndex)}` }} IP</div>
+                                    <div class="text-xs text-muted-foreground">{{ vlan.baseNetwork }}/{{ vlan.subnetMask }}</div>
                                   </div>
                                 </SelectItemText>
                               </SelectItem>
+                            </SelectContent>
+                          </Select>
 
-                              <!-- IPv6 Section Divider -->
-                              <div class="px-2 py-1.5 text-xs font-semibold text-slate-600 bg-slate-50 border-t border-b border-slate-200 flex items-center gap-1.5">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>
-                                IPv6 Options
-                              </div>
+                          <!-- IPv4 Configuration Details -->
+                          <div v-if="ipVar.inputType === 'fullIP'" class="space-y-1">
+                            <Input v-model="ipVar.fullIP" type="text" placeholder="192.168.1.10" class="text-sm" :class="{
+                              'border-destructive': hasIpVarError(index, ipIndex, 'fullIP'),
+                              'border-green-500': !hasIpVarError(index, ipIndex, 'fullIP') && ipVar.fullIP && isValidIP(ipVar.fullIP)
+                            }" @input="validateIpVariable(index, ipIndex, 'fullIP')" />
+                            <p v-if="hasIpVarError(index, ipIndex, 'fullIP')" class="text-xs text-destructive">
+                              {{ getIpVarError(index, ipIndex, 'fullIP') }}
+                            </p>
+                          </div>
 
-                              <!-- Full IPv6 Address Option -->
+                          <div v-else-if="ipVar.inputType === 'studentManagement'" class="p-2 bg-blue-50 rounded text-xs text-blue-700">
+                            <div class="font-medium">Backend Generated</div>
+                            <div>From: {{ networkConfig.managementNetwork }}/{{ networkConfig.managementSubnetMask }}</div>
+                          </div>
+
+                          <div v-else-if="ipVar.inputType?.startsWith('studentVlan') && !ipVar.inputType?.startsWith('studentVlan6_')" class="space-y-2">
+                            <div class="p-2 bg-green-50 rounded text-xs text-green-700">
+                              <div class="font-medium">{{ getVlanBadgeText(ipVar.inputType) }}</div>
+                              <div>From: {{ getVlanNetworkInfo(ipVar.inputType) }}</div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                              <span class="text-xs text-muted-foreground">Offset:</span>
+                              <Input v-model.number="ipVar.interfaceOffset" type="number" :min="1"
+                                :max="getInterfaceOffsetLimit(ipVar)" placeholder="1" class="text-sm w-16 h-7"
+                                @input="validateIpVariable(index, ipIndex, 'interfaceOffset')" />
+                              <span class="text-xs text-green-600">{{ getVlanPreviewIP(ipVar.inputType, ipVar.interfaceOffset || 1) }}</span>
+                            </div>
+                            <input type="hidden" v-model="ipVar.vlanIndex" />
+                          </div>
+
+                          <div v-else-if="ipVar.inputType === 'none' || !ipVar.inputType" class="p-2 bg-muted/50 rounded text-xs text-muted-foreground">
+                            No IPv4 address for this interface
+                          </div>
+                        </div>
+
+                        <!-- IPv6 Column (only if IPv6 is enabled globally) -->
+                        <div v-if="hasIpv6Enabled" class="p-3 space-y-3 bg-indigo-50/30">
+                          <div class="flex items-center gap-2">
+                            <Badge variant="outline" class="text-xs bg-indigo-50 border-indigo-200 text-indigo-700">IPv6</Badge>
+                          </div>
+                          
+                          <!-- IPv6 Type Selector -->
+                          <Select v-model="ipVar.ipv6InputType"
+                            @update:modelValue="(val) => onIpv6InputTypeChange(index, ipIndex, val)">
+                            <SelectTrigger class="text-sm">
+                              <SelectValue>
+                                <template v-if="ipVar.ipv6InputType === 'fullIPv6'">Full IPv6 Address</template>
+                                <template v-else-if="ipVar.ipv6InputType === 'linkLocal'">Link-Local</template>
+                                <template v-else-if="ipVar.ipv6InputType?.startsWith('studentVlan6_')">
+                                  VLAN {{ String.fromCharCode(65 + parseInt(ipVar.ipv6InputType.replace('studentVlan6_', ''), 10)) }} IPv6
+                                </template>
+                                <template v-else-if="ipVar.ipv6InputType === 'none' || !ipVar.ipv6InputType">
+                                  No IPv6
+                                </template>
+                                <template v-else>Select IPv6 type</template>
+                              </SelectValue>
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">
+                                <SelectItemText>
+                                  <div class="flex flex-col space-y-1">
+                                    <div class="font-medium text-muted-foreground">No IPv6</div>
+                                    <div class="text-xs text-muted-foreground">Skip IPv6 configuration</div>
+                                  </div>
+                                </SelectItemText>
+                              </SelectItem>
                               <SelectItem value="fullIPv6">
                                 <SelectItemText>
                                   <div class="flex flex-col space-y-1">
@@ -328,140 +395,55 @@
                                   </div>
                                 </SelectItemText>
                               </SelectItem>
-
-                              <!-- Link-Local IPv6 Option -->
                               <SelectItem value="linkLocal">
                                 <SelectItemText>
                                   <div class="flex flex-col space-y-1">
-                                    <div class="font-medium">Link-Local IPv6</div>
+                                    <div class="font-medium">Link-Local</div>
                                     <div class="text-xs text-muted-foreground">fe80::-based local address</div>
                                   </div>
                                 </SelectItemText>
                               </SelectItem>
-
-                              <!-- Dynamic Student VLAN IPv6 Options (only for IPv6-enabled VLANs) -->
                               <template v-for="(vlan, vlanIndex) in networkConfig.vlans" :key="`vlan6-${vlanIndex}`">
                                 <SelectItem v-if="vlan.ipv6Enabled" :value="`studentVlan6_${vlanIndex}`">
                                   <SelectItemText>
                                     <div class="flex flex-col space-y-1">
-                                      <div class="font-medium">
-                                        VLAN {{ vlan.ipv6VlanAlphabet || String.fromCharCode(65 + vlanIndex) }} IPv6
-                                      </div>
-                                      <div class="text-xs text-muted-foreground">
-                                        2001:{{ vlan.ipv6VlanAlphabet || String.fromCharCode(65 + vlanIndex) }}&lt;ID&gt;:&lt;StudentID&gt;::&lt;offset&gt;/64
-                                      </div>
+                                      <div class="font-medium">VLAN {{ vlan.ipv6VlanAlphabet || String.fromCharCode(65 + vlanIndex) }} IPv6</div>
+                                      <div class="text-xs text-muted-foreground">Auto-generated from template</div>
                                     </div>
                                   </SelectItemText>
                                 </SelectItem>
                               </template>
-
                             </SelectContent>
                           </Select>
-                        </div>
 
-                        <!-- Full IP Address Input (when inputType is 'fullIP') -->
-                        <div v-if="ipVar.inputType === 'fullIP'" class="space-y-1">
-                          <Label class="text-xs font-medium">Full IP Address</Label>
-                          <Input v-model="ipVar.fullIP" type="text" placeholder="192.168.1.10" class="text-sm" :class="{
-                            'border-destructive': hasIpVarError(index, ipIndex, 'fullIP'),
-                            'border-green-500': !hasIpVarError(index, ipIndex, 'fullIP') && ipVar.fullIP && isValidIP(ipVar.fullIP)
-                          }" @input="validateIpVariable(index, ipIndex, 'fullIP')" />
-                          <p v-if="hasIpVarError(index, ipIndex, 'fullIP')" class="text-xs text-destructive">
-                            {{ getIpVarError(index, ipIndex, 'fullIP') }}
-                          </p>
-                        </div>
+                          <!-- IPv6 Configuration Details -->
+                          <div v-if="ipVar.ipv6InputType === 'fullIPv6'" class="space-y-1">
+                            <Input v-model="ipVar.fullIpv6" type="text" placeholder="2001:db8::1/64" class="text-sm font-mono" />
+                            <p class="text-xs text-muted-foreground">Include prefix length (e.g., /64)</p>
+                          </div>
 
-                        <!-- Student Management IP Configuration -->
-                        <div v-else-if="ipVar.inputType === 'studentManagement'" class="space-y-1">
-                          <Label class="text-xs font-medium">Student Management IP Configuration</Label>
-                          <div class="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                            <div class="flex items-center justify-between">
-                              <div class="space-y-1">
-                                <div class="text-sm font-medium text-blue-700">
-                                  Management Network IP Generation
-                                </div>
-                                <div class="text-xs text-blue-600">
-                                  Generated from: {{ networkConfig.managementNetwork }}/{{
-                                    networkConfig.managementSubnetMask }}
-                                </div>
-                              </div>
-                              <div class="flex items-center space-x-1">
-                                <Badge variant="outline" class="text-xs border-blue-300 text-blue-700">
-                                  Management
-                                </Badge>
-                              </div>
+                          <div v-else-if="ipVar.ipv6InputType === 'linkLocal'" class="space-y-1">
+                            <Input v-model="ipVar.fullIpv6" type="text" placeholder="fe80::1" class="text-sm font-mono" />
+                            <p class="text-xs text-muted-foreground">Link-local for direct neighbors</p>
+                          </div>
+
+                          <div v-else-if="ipVar.ipv6InputType?.startsWith('studentVlan6_')" class="space-y-2">
+                            <div class="p-2 bg-indigo-100 rounded text-xs text-indigo-700">
+                              <div class="font-medium">Student VLAN IPv6</div>
+                              <div>Template: 2001:&lt;X&gt;:&lt;Y&gt;:&lt;VLAN&gt;::&lt;offset&gt;/64</div>
                             </div>
-
-                            <!-- Management IP Backend Notice -->
-                            <div class="mt-3">
-                              <div class="text-xs text-blue-600">
-                                <strong>Backend Generated:</strong> Management IPs will be generated by the backend
-                                system
-                              </div>
-                              <div class="text-xs text-blue-500 mt-1">
-                                This interface is marked for management IP assignment
-                              </div>
+                            <div class="flex items-center gap-2">
+                              <span class="text-xs text-muted-foreground">Interface ID:</span>
+                              <Input v-model.number="ipVar.ipv6InterfaceId" type="text" placeholder="1" class="text-sm w-16 h-7 font-mono" />
                             </div>
+                            <input type="hidden" v-model="ipVar.ipv6VlanIndex" />
+                          </div>
+
+                          <div v-else-if="ipVar.ipv6InputType === 'none' || !ipVar.ipv6InputType" class="p-2 bg-muted/50 rounded text-xs text-muted-foreground">
+                            No IPv6 address for this interface
                           </div>
                         </div>
-
-                        <!-- Student VLAN IP Configuration -->
-                        <div v-else-if="ipVar.inputType?.startsWith('studentVlan')" class="space-y-1">
-                          <Label class="text-xs font-medium">Student VLAN IP Configuration</Label>
-                          <div class="p-3 bg-green-50 border border-green-200 rounded-lg">
-                            <div class="flex items-center justify-between">
-                              <div class="space-y-1">
-                                <div class="text-sm font-medium text-green-700">
-                                  {{ getVlanNumberFromInputType(ipVar.inputType) }} IP Generation
-                                </div>
-                                <div class="text-xs text-green-600">
-                                  Generated from: {{ getVlanNetworkInfo(ipVar.inputType) }}
-                                </div>
-                              </div>
-                              <div class="flex items-center space-x-1">
-                                <Badge variant="outline" class="text-xs border-green-300 text-green-700">
-                                  {{ getVlanBadgeText(ipVar.inputType) }}
-                                </Badge>
-                              </div>
-                            </div>
-
-                            <!-- Interface Offset Selection -->
-                            <div class="mt-3 space-y-2">
-                              <Label class="text-xs font-medium text-green-700">Interface Offset</Label>
-                              <div class="flex items-center space-x-2">
-                                <Input v-model.number="ipVar.interfaceOffset" type="number" :min="1"
-                                  :max="getInterfaceOffsetLimit(ipVar)" placeholder="1" class="text-sm w-20"
-                                  @input="validateIpVariable(index, ipIndex, 'interfaceOffset')"
-                                  @change="validateIpVariable(index, ipIndex, 'interfaceOffset')" />
-                                <div class="text-xs text-green-600">
-                                  <strong>Example (Student ID: 65070232):</strong> {{ getVlanPreviewIP(ipVar.inputType,
-                                    ipVar.interfaceOffset || 1) }}
-                                </div>
-                              </div>
-                              <div class="text-xs text-green-600">
-                                Different offsets ensure unique IPs when multiple interfaces use same VLAN. Max offset:
-                                {{
-                                  getInterfaceOffsetLimit(ipVar) }}
-                              </div>
-                              <!-- Interface Offset Error -->
-                              <p v-if="hasIpVarError(index, ipIndex, 'interfaceOffset')"
-                                class="text-xs text-destructive">
-                                {{ getIpVarError(index, ipIndex, 'interfaceOffset') }}
-                              </p>
-                            </div>
-
-                            <!-- Set VLAN Index -->
-                            <input type="hidden" v-model="ipVar.vlanIndex" />
-                          </div>
-                        </div>
-
                       </div>
-
-                      <!-- Remove IP Variable -->
-                      <Button variant="ghost" @click="removeIpVariable(index, ipIndex)"
-                        class="text-sm text-destructive hover:text-destructive">
-                        <X class="w-4 h-4" />
-                      </Button>
                     </div>
                   </TransitionGroup>
                 </div>
@@ -661,6 +643,18 @@ interface Props {
       ipv6Enabled?: boolean
       ipv6VlanAlphabet?: string
     }>
+    // IPv6 Global Configuration
+    ipv6Config?: {
+      enabled: boolean
+      template?: string
+      globalPrefix?: string
+      prefixMode?: 'template' | 'structured'
+      managementOverride?: {
+        enabled: boolean
+        fixedPrefix: string
+        useStudentIdSuffix: boolean
+      }
+    }
   }
   validation?: ValidationResult
 }
@@ -756,6 +750,38 @@ const normalizeAllInterfaceOffsets = () => {
       }
     })
   })
+}
+
+// Computed property to check if IPv6 is enabled globally
+const hasIpv6Enabled = computed(() => {
+  return props.networkConfig.ipv6Config?.enabled === true
+})
+
+// Handler for IPv6 input type changes in dual-stack mode
+const onIpv6InputTypeChange = (deviceIndex: number, ipIndex: number, ipv6InputType: unknown) => {
+  const ipVar = localData.value[deviceIndex]?.ipVariables[ipIndex]
+  if (!ipVar) return
+  
+  const inputType = ipv6InputType as string
+  ipVar.ipv6InputType = inputType as typeof ipVar.ipv6InputType
+  
+  // Initialize default values for the selected IPv6 mode
+  if (inputType === 'fullIPv6' || inputType === 'linkLocal') {
+    if (!ipVar.fullIpv6) {
+      ipVar.fullIpv6 = ''
+    }
+  } else if (inputType?.startsWith('studentVlan6_')) {
+    // Extract VLAN index from input type
+    const vlanIndexMatch = inputType.match(/studentVlan6_(\d+)/)
+    if (vlanIndexMatch) {
+      ipVar.ipv6VlanIndex = parseInt(vlanIndexMatch[1])
+      if (!ipVar.ipv6InterfaceId) {
+        ipVar.ipv6InterfaceId = '1' // Default interface ID
+      }
+    }
+  }
+  
+  emitValidation()
 }
 
 // Methods
@@ -1362,11 +1388,19 @@ const getVlanDisplayId = (vlan: VlanConfig | undefined, index: number): string =
 }
 
 const getVlanNumberFromInputType = (inputType: string): string => {
+  // Skip IPv6 variants - they use a different format
+  if (inputType.startsWith('studentVlan6_')) {
+    return '?'
+  }
   // Extract VLAN number from "studentVlan0", "studentVlan1", etc.
   const match = inputType.match(/studentVlan(\d+)/)
   if (match) {
     const vlanIndex = parseInt(match[1])
-    const vlan = props.networkConfig.vlans[vlanIndex]
+    const vlan = props.networkConfig.vlans?.[vlanIndex]
+    // Add null check for vlan
+    if (!vlan) {
+      return `VLAN ${vlanIndex + 1}`
+    }
     // Use conditional labeling for VLAN display
     return vlan.calculationMultiplier !== undefined
       ? getVlanDisplayId(vlan, vlanIndex)
@@ -1383,10 +1417,18 @@ const getVlanIndexFromInputType = (inputType: string): number => {
 
 // Get badge text for VLAN configuration (shorter version for badge display)
 const getVlanBadgeText = (inputType: string): string => {
+  // Skip IPv6 variants
+  if (inputType.startsWith('studentVlan6_')) {
+    const vlanIndex = parseInt(inputType.replace('studentVlan6_', ''), 10)
+    return `IPv6 VLAN ${String.fromCharCode(65 + vlanIndex)}`
+  }
   const match = inputType.match(/studentVlan(\d+)/)
   if (match) {
     const vlanIndex = parseInt(match[1])
-    const vlan = props.networkConfig.vlans[vlanIndex]
+    const vlan = props.networkConfig.vlans?.[vlanIndex]
+    if (!vlan) {
+      return `VLAN ${vlanIndex + 1}`
+    }
     // For badges, use shorter text
     return vlan.calculationMultiplier !== undefined
       ? `Calculated Student VLAN ${String.fromCharCode(65 + vlanIndex)}`

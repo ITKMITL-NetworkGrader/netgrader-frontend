@@ -123,6 +123,11 @@
                 </SelectItem>
                 <SelectItem value="device_interface_ip">Device Interface IP</SelectItem>
                 <SelectItem value="vlan_id">VLAN ID</SelectItem>
+                <!-- IPv6 Calculation Types -->
+                <SelectItem value="ipv6_network_prefix">IPv6 Network Prefix</SelectItem>
+                <SelectItem value="ipv6_address">IPv6 Interface Address</SelectItem>
+                <SelectItem value="ipv6_link_local">IPv6 Link-Local</SelectItem>
+                <SelectItem value="ipv6_slaac">IPv6 SLAAC (Student Updatable)</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -312,6 +317,36 @@
               </Select>
             </div>
           </div>
+
+          <!-- IPv6 SLAAC Info (for SLAAC type) -->
+          <div
+            v-if="localCell.calculatedAnswer?.calculationType === 'ipv6_slaac'"
+            class="space-y-2"
+          >
+            <Alert>
+              <Info class="w-4 h-4" />
+              <AlertDescription class="text-sm">
+                <div class="font-semibold mb-1">SLAAC (Student Updatable)</div>
+                <div>Students can update this field with their SLAAC-assigned IPv6 address throughout the lab.</div>
+                <div class="mt-2 text-muted-foreground">This works like DHCP - the student enters the address assigned by their network's router advertisement.</div>
+              </AlertDescription>
+            </Alert>
+          </div>
+
+          <!-- IPv6 Info (for other IPv6 types) -->
+          <div
+            v-if="isIpv6CalculationType && localCell.calculatedAnswer?.calculationType !== 'ipv6_slaac'"
+            class="space-y-2"
+          >
+            <Alert>
+              <Info class="w-4 h-4" />
+              <AlertDescription class="text-sm">
+                <div v-if="localCell.calculatedAnswer?.calculationType === 'ipv6_network_prefix'">The IPv6 network prefix is calculated based on the lab's IPv6 configuration.</div>
+                <div v-else-if="localCell.calculatedAnswer?.calculationType === 'ipv6_address'">The IPv6 address is calculated based on interface and student ID.</div>
+                <div v-else-if="localCell.calculatedAnswer?.calculationType === 'ipv6_link_local'">Link-local addresses (fe80::/10) are auto-configured on each interface.</div>
+              </AlertDescription>
+            </Alert>
+          </div>
         </div>
 
         <!-- Points Configuration -->
@@ -454,9 +489,25 @@ const requiresVlanSelection = (calcType: CalculationType | undefined): boolean =
     'vlan_subnet_mask',
     'vlan_lecturer_offset',
     'vlan_lecturer_range',
-    'vlan_id'
+    'vlan_id',
+    // IPv6 types that require VLAN selection
+    'ipv6_network_prefix',
+    'ipv6_address',
+    'ipv6_slaac'
   ].includes(calcType)
 }
+
+// Check if current type is an IPv6 calculation
+const isIpv6CalculationType = computed(() => {
+  const calcType = localCell.value.calculatedAnswer?.calculationType
+  return calcType && [
+    'ipv6_network_prefix',
+    'ipv6_address',
+    'ipv6_interface_id',
+    'ipv6_link_local',
+    'ipv6_slaac'
+  ].includes(calcType)
+})
 
 const getDeviceInterfaces = (deviceId: string | undefined) => {
   if (!deviceId) return []

@@ -278,6 +278,88 @@ const collectLecturerRangeOverrides = (): LecturerRangeAnswerPayload[] => {
   return overrides
 }
 
+// Collect SLAAC IPv6 overrides from IP Table Questionnaires (works like lecturer range)
+const collectSlaacOverrides = (): LecturerRangeAnswerPayload[] => {
+  if (typeof window === 'undefined') return []
+
+  const overrides: LecturerRangeAnswerPayload[] = []
+
+  actualLabParts.value?.forEach(part => {
+    if (!part || part.partType !== 'fill_in_blank' || !part.questions?.length) {
+      return
+    }
+
+    const payload = getStoredFillInPayload(part.partId)
+    if (!payload || !payload.validatedIpTableAnswers) {
+      return
+    }
+
+    part.questions.forEach(question => {
+      if (question.questionType !== 'ip_table_questionnaire' || !question.ipTableQuestionnaire) {
+        return
+      }
+
+      const storedAnswers = payload.validatedIpTableAnswers?.[question.questionId]
+      if (!storedAnswers) {
+        return
+      }
+
+      question.ipTableQuestionnaire.cells.forEach((row, rowIndex) => {
+        row.forEach((cell, colIndex) => {
+          if (!cell || (cell.cellType ?? 'input') !== 'input') {
+            return
+          }
+
+          if (cell.answerType !== 'calculated' || !cell.calculatedAnswer) {
+            return
+          }
+
+          // Only process SLAAC cells
+          if (cell.calculatedAnswer.calculationType !== 'ipv6_slaac') {
+            return
+          }
+
+          const value = storedAnswers[rowIndex]?.[colIndex]?.trim()
+          if (!value) {
+            return
+          }
+
+          const rowMeta = question.ipTableQuestionnaire.rows?.[rowIndex]
+
+          let resolvedDeviceId = cell.calculatedAnswer.deviceId || rowMeta?.deviceId
+          let resolvedInterfaceName = cell.calculatedAnswer.interfaceName || rowMeta?.interfaceName
+
+          if ((!resolvedDeviceId || !resolvedInterfaceName) && typeof rowMeta?.displayName === 'string') {
+            const [parsedDeviceId, parsedInterfaceName] = rowMeta.displayName.split('.')
+            if (!resolvedDeviceId && parsedDeviceId) {
+              resolvedDeviceId = parsedDeviceId.trim()
+            }
+            if (!resolvedInterfaceName && parsedInterfaceName) {
+              resolvedInterfaceName = parsedInterfaceName.trim()
+            }
+          }
+
+          if (!resolvedDeviceId || !resolvedInterfaceName) {
+            return
+          }
+
+          overrides.push({
+            sourcePartId: part.partId,
+            questionId: question.questionId,
+            rowIndex,
+            colIndex,
+            answer: value,
+            deviceId: resolvedDeviceId,
+            interfaceName: resolvedInterfaceName,
+            vlanIndex: cell.calculatedAnswer.vlanIndex
+          })
+        })
+      })
+    })
+  })
+
+  return overrides
+}
 const clearFillInBlankStorageForLab = () => {
   if (typeof window === 'undefined') return
 
@@ -446,7 +528,9 @@ const currentPartHasLecturerRangeCells = computed(() => {
         cell &&
         (cell.cellType ?? 'input') === 'input' &&
         cell.answerType === 'calculated' &&
-        cell.calculatedAnswer?.calculationType === 'vlan_lecturer_range'
+        // Check for both DHCP (lecturer range) and SLAAC (IPv6) student-updatable cells
+        (cell.calculatedAnswer?.calculationType === 'vlan_lecturer_range' ||
+         cell.calculatedAnswer?.calculationType === 'ipv6_slaac')
       )
     )
   })

@@ -166,7 +166,7 @@
               IPv6 Configuration
             </Label>
             <p class="text-xs text-muted-foreground">
-              Configure IPv6 address generation using templates
+              Configure IPv6 address generation using templates or structured prefix
             </p>
           </div>
           <Switch v-model="ipv6Enabled" />
@@ -174,93 +174,178 @@
 
         <!-- IPv6 Configuration Fields (when enabled) -->
         <div v-if="localData.ipv6Config?.enabled" class="space-y-4 pt-3 border-t border-primary/20">
-          <!-- Preset Selection -->
+          <!-- Prefix Mode Selection -->
           <div class="space-y-2">
-            <Label class="text-sm font-medium">Template Preset</Label>
-            <Select 
-              :modelValue="localData.ipv6Config?.presetName || 'standard_exam'"
-              @update:modelValue="(val) => selectIPv6Preset(String(val) as any)"
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select preset..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="standard_exam">
-                  <div class="flex flex-col space-y-1">
-                    <div class="font-medium">Standard Exam</div>
-                    <div class="text-xs text-muted-foreground">2001:{X}:{Y}:{VLAN}::{offset}/64</div>
-                  </div>
-                </SelectItem>
-                <SelectItem value="university_network">
-                  <div class="flex flex-col space-y-1">
-                    <div class="font-medium">University Network</div>
-                    <div class="text-xs text-muted-foreground">Fixed prefix with student variables</div>
-                  </div>
-                </SelectItem>
-                <SelectItem value="simple_lab">
-                  <div class="flex flex-col space-y-1">
-                    <div class="font-medium">Simple Lab</div>
-                    <div class="text-xs text-muted-foreground">2001:db8:{X}:{VLAN}::{offset}/64</div>
-                  </div>
-                </SelectItem>
-                <SelectItem value="custom">
-                  <div class="flex flex-col space-y-1">
-                    <div class="font-medium">Custom Template</div>
-                    <div class="text-xs text-muted-foreground">Define your own IPv6 template</div>
-                  </div>
-                </SelectItem>
-              </SelectContent>
-            </Select>
+            <Label class="text-sm font-medium">Addressing Mode</Label>
+            <RadioGroup v-model="prefixMode" class="flex gap-4">
+              <div class="flex items-center space-x-2">
+                <RadioGroupItem value="template" id="mode-template" />
+                <Label for="mode-template" class="font-normal cursor-pointer">Template Mode</Label>
+              </div>
+              <div class="flex items-center space-x-2">
+                <RadioGroupItem value="structured" id="mode-structured" />
+                <Label for="mode-structured" class="font-normal cursor-pointer">Structured Prefix</Label>
+              </div>
+            </RadioGroup>
           </div>
 
-          <!-- Template Input -->
-          <div class="space-y-2">
-            <Label class="text-sm font-medium">IPv6 Template</Label>
+          <!-- Global Prefix Input (for structured mode) -->
+          <div v-if="localData.ipv6Config?.prefixMode === 'structured'" class="space-y-2">
+            <Label class="text-sm font-medium">Global Prefix</Label>
             <Input
-              :modelValue="localData.ipv6Config?.template || ''"
-              @update:modelValue="(val) => updateIPv6Template(String(val))"
-              placeholder="2001:{X}:{Y}:{VLAN}::{offset}/64"
+              :model-value="localData.ipv6Config?.globalPrefix || ''"
+              @update:model-value="updateGlobalPrefix"
+              placeholder="2001:3c8:1106:4"
               class="font-mono text-sm"
-              :class="{ 'border-primary': localData.ipv6Config?.presetName === 'custom' }"
             />
-            <div class="flex flex-wrap gap-1 text-xs text-muted-foreground">
-              <span>Variables:</span>
-              <code class="bg-muted px-1 rounded">{X}</code>
-              <code class="bg-muted px-1 rounded">{Y}</code>
-              <code class="bg-muted px-1 rounded">{Z}</code>
-              <code class="bg-muted px-1 rounded">{VLAN}</code>
-              <code class="bg-muted px-1 rounded">{offset}</code>
-              <code class="bg-muted px-1 rounded">{last3}</code>
+            <p class="text-xs text-muted-foreground">
+              Format: [GlobalPrefix]:[X]:[Y]:[VLAN]::[offset]/64
+            </p>
+          </div>
+
+          <!-- Template Mode Fields -->
+          <template v-if="localData.ipv6Config?.prefixMode !== 'structured'">
+            <!-- Preset Selection -->
+            <div class="space-y-2">
+              <Label class="text-sm font-medium">Template Preset</Label>
+              <Select 
+                :model-value="localData.ipv6Config?.presetName || 'standard_exam'"
+                @update:model-value="(val) => selectIPv6Preset(String(val) as any)"
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select preset..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="standard_exam">
+                    <div class="flex flex-col space-y-1">
+                      <div class="font-medium">Standard Exam</div>
+                      <div class="text-xs text-muted-foreground">2001:{X}:{Y}:{VLAN}::{offset}/64</div>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="university_network">
+                    <div class="flex flex-col space-y-1">
+                      <div class="font-medium">University Network</div>
+                      <div class="text-xs text-muted-foreground">Fixed prefix with student variables</div>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="simple_lab">
+                    <div class="flex flex-col space-y-1">
+                      <div class="font-medium">Simple Lab</div>
+                      <div class="text-xs text-muted-foreground">2001:db8:{X}:{VLAN}::{offset}/64</div>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="custom">
+                    <div class="flex flex-col space-y-1">
+                      <div class="font-medium">Custom Template</div>
+                      <div class="text-xs text-muted-foreground">Define your own IPv6 template</div>
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <!-- Template Input -->
+            <div class="space-y-2">
+              <Label class="text-sm font-medium">IPv6 Template</Label>
+              <Input
+                :model-value="localData.ipv6Config?.template || ''"
+                @update:model-value="(val) => updateIPv6Template(String(val))"
+                placeholder="2001:{X}:{Y}:{VLAN}::{offset}/64"
+                class="font-mono text-sm"
+                :class="{ 'border-primary': localData.ipv6Config?.presetName === 'custom' }"
+              />
+              <div class="flex flex-wrap gap-1 text-xs text-muted-foreground">
+                <span>Variables:</span>
+                <code class="bg-muted px-1 rounded">{X}</code>
+                <code class="bg-muted px-1 rounded">{Y}</code>
+                <code class="bg-muted px-1 rounded">{Z}</code>
+                <code class="bg-muted px-1 rounded">{VLAN}</code>
+                <code class="bg-muted px-1 rounded">{offset}</code>
+                <code class="bg-muted px-1 rounded">{last3}</code>
+              </div>
+            </div>
+          </template>
+
+          <!-- Management Network Override Section -->
+          <div class="space-y-3 p-3 border rounded-lg bg-amber-50/50 border-amber-200 dark:bg-amber-900/10 dark:border-amber-800">
+            <div class="flex items-center justify-between">
+              <div class="space-y-0.5">
+                <Label class="text-sm font-medium flex items-center gap-2">
+                  <Shield class="w-4 h-4 text-amber-600" />
+                  Management Network Override
+                </Label>
+                <p class="text-xs text-muted-foreground">
+                  Fixed prefix for firewall traversal (Internet access)
+                </p>
+              </div>
+              <Switch v-model="managementOverrideEnabled" />
+            </div>
+            
+            <div v-if="localData.ipv6Config?.managementOverride?.enabled" class="space-y-3 pt-2">
+              <div class="space-y-2">
+                <Label class="text-sm">Fixed Prefix</Label>
+                <Input
+                  :model-value="localData.ipv6Config?.managementOverride?.fixedPrefix || ''"
+                  @update:model-value="updateManagementFixedPrefix"
+                  placeholder="2001:3c8:1106:4306"
+                  class="font-mono text-sm"
+                />
+              </div>
+              <div class="flex items-center justify-between">
+                <Label class="text-sm font-normal">Use Student ID (last 3 digits) as suffix</Label>
+                <Switch v-model="useStudentIdSuffix" />
+              </div>
+              <div class="p-2 bg-white dark:bg-background rounded border text-xs font-mono">
+                Preview: <span class="text-amber-700 dark:text-amber-400">{{ managementPreview }}</span>
+              </div>
             </div>
           </div>
 
-          <!-- Management Template (Optional) -->
-          <div class="space-y-2">
-            <Label class="text-sm font-medium flex items-center gap-2">
-              Management IPv6 Template
-              <span class="text-muted-foreground font-normal">(Optional)</span>
-            </Label>
-            <Input
-              :modelValue="localData.ipv6Config?.managementTemplate || ''"
-              @update:modelValue="(val) => updateManagementTemplate(String(val))"
-              placeholder="2001:{X}:{Y}:306::{offset}/64"
-              class="font-mono text-sm"
-            />
-          </div>
-
-          <!-- Preview -->
-          <div class="p-3 bg-background rounded border space-y-2">
+          <!-- Enhanced Live Preview -->
+          <div class="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-lg border space-y-4">
             <div class="flex items-center gap-2 text-sm font-medium">
               <Eye class="w-4 h-4" />
-              Preview (Student {{ previewStudentId }})
+              Live Preview (Student {{ previewStudentId }})
             </div>
-            <div class="grid gap-2 text-sm font-mono">
-              <div v-for="(vlan, index) in localData.vlans.filter(v => v.ipv6Enabled).slice(0, 3)" :key="vlan.id || index" class="flex items-center gap-2">
-                <Badge variant="secondary" class="text-xs">VLAN {{ vlan.ipv6VlanAlphabet || getVlanAlphabet(index) }}</Badge>
-                <code class="text-xs text-muted-foreground break-all">{{ generateIPv6Preview(vlan, index) }}</code>
+            
+            <!-- Student Variable Breakdown -->
+            <div class="grid grid-cols-4 gap-2 text-xs">
+              <div class="p-2 bg-white dark:bg-background rounded border text-center">
+                <div class="font-semibold text-primary">X</div>
+                <div class="font-mono">{{ studentVariables.X }}</div>
               </div>
-              <div v-if="localData.vlans.filter(v => v.ipv6Enabled).length === 0" class="text-xs text-muted-foreground">
+              <div class="p-2 bg-white dark:bg-background rounded border text-center">
+                <div class="font-semibold text-primary">Y</div>
+                <div class="font-mono">{{ studentVariables.Y }}</div>
+              </div>
+              <div class="p-2 bg-white dark:bg-background rounded border text-center">
+                <div class="font-semibold text-primary">last3</div>
+                <div class="font-mono">{{ studentVariables.last3 }}</div>
+              </div>
+              <div class="p-2 bg-white dark:bg-background rounded border text-center">
+                <div class="font-semibold text-primary">X (hex)</div>
+                <div class="font-mono">{{ studentVariables.X_hex }}</div>
+              </div>
+            </div>
+            
+            <!-- VLAN Previews -->
+            <div class="space-y-2">
+              <div v-for="(vlan, index) in enabledIPv6Vlans.slice(0, 3)" :key="vlan.id || index" 
+                   class="flex items-center gap-3 text-sm">
+                <Badge variant="secondary" class="text-xs">VLAN {{ vlan.ipv6VlanAlphabet || getVlanAlphabet(index) }}</Badge>
+                <code class="flex-1 text-xs font-mono text-primary break-all">{{ generateIPv6Preview(vlan, index) }}</code>
+              </div>
+              <div v-if="enabledIPv6Vlans.length === 0" class="text-xs text-muted-foreground">
                 Enable IPv6 on at least one VLAN to see preview
+              </div>
+            </div>
+            
+            <!-- Management Network Preview -->
+            <div v-if="localData.ipv6Config?.managementOverride?.enabled" 
+                 class="pt-3 border-t">
+              <div class="flex items-center gap-3 text-sm">
+                <Badge variant="secondary" class="bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-400">Management</Badge>
+                <code class="flex-1 text-xs font-mono text-amber-700 dark:text-amber-400 break-all">{{ managementPreview }}</code>
               </div>
             </div>
           </div>
@@ -625,7 +710,8 @@ import {
   Users,
   Calculator,
   X,
-  Globe
+  Globe,
+  Shield
 } from 'lucide-vue-next'
 
 // Import IP range utilities
@@ -648,6 +734,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 
 // Types
 import type { ValidationResult, IpRange } from '@/types/wizard'
@@ -682,6 +769,15 @@ interface NetworkConfig {
     template: string
     managementTemplate?: string
     presetName?: 'standard_exam' | 'university_network' | 'simple_lab' | 'custom'
+    // Enhanced configurable prefix support
+    globalPrefix?: string
+    prefixMode?: 'template' | 'structured'
+    // Management Network Override
+    managementOverride?: {
+      enabled: boolean
+      fixedPrefix: string
+      useStudentIdSuffix: boolean
+    }
   }
 }
 
@@ -723,7 +819,7 @@ const isUpdatingFromProps = ref(false)
 // Preview student ID state
 const previewStudentId = ref(65070232)
 
-// IPv6 enabled computed property for v-model binding
+// IPv6 enabled computed property for v-model binding (Switch component)
 const ipv6Enabled = computed({
   get: () => localData.value.ipv6Config?.enabled ?? false,
   set: (val: boolean) => {
@@ -733,19 +829,108 @@ const ipv6Enabled = computed({
         enabled: true,
         template: '2001:{X}:{Y}:{VLAN}::{offset}/64',
         managementTemplate: '2001:{X}:{Y}:306::{offset}/64',
-        presetName: 'standard_exam'
+        presetName: 'standard_exam',
+        prefixMode: 'template',
+        globalPrefix: '',
+        managementOverride: {
+          enabled: false,
+          fixedPrefix: '2001:3c8:1106:4306',
+          useStudentIdSuffix: true
+        }
       }
     } else {
       localData.value.ipv6Config = {
         enabled: false,
         template: '',
         managementTemplate: '',
-        presetName: undefined
+        presetName: undefined,
+        prefixMode: undefined,
+        globalPrefix: undefined,
+        managementOverride: undefined
       }
     }
     console.log('ipv6Config after toggle:', localData.value.ipv6Config)
   }
 })
+
+// Management Override enabled - for v-model binding
+const managementOverrideEnabled = computed({
+  get: () => localData.value.ipv6Config?.managementOverride?.enabled ?? false,
+  set: (val: boolean) => {
+    if (!localData.value.ipv6Config) return
+    localData.value.ipv6Config.managementOverride = {
+      enabled: val,
+      fixedPrefix: val ? '2001:3c8:1106:4306' : '',
+      useStudentIdSuffix: true
+    }
+  }
+})
+
+// Use Student ID Suffix - for v-model binding
+const useStudentIdSuffix = computed({
+  get: () => localData.value.ipv6Config?.managementOverride?.useStudentIdSuffix ?? true,
+  set: (val: boolean) => {
+    if (localData.value.ipv6Config?.managementOverride) {
+      localData.value.ipv6Config.managementOverride.useStudentIdSuffix = val
+    }
+  }
+})
+
+// Current prefix mode - for RadioGroup v-model binding
+const prefixMode = computed({
+  get: () => localData.value.ipv6Config?.prefixMode || 'template',
+  set: (val: 'template' | 'structured') => {
+    if (localData.value.ipv6Config) {
+      localData.value.ipv6Config.prefixMode = val
+    }
+  }
+})
+
+// Management Preview computed
+const managementPreview = computed(() => {
+  const config = localData.value.ipv6Config?.managementOverride
+  if (!config?.enabled) return ''
+  const prefix = config.fixedPrefix || '2001:3c8:1106:4306'
+  const suffix = config.useStudentIdSuffix 
+    ? String(previewStudentId.value).slice(-3) 
+    : '1'
+  return `${prefix}::${parseInt(suffix, 10)}/64`
+})
+
+// Student variables computed for preview
+const studentVariables = computed(() => {
+  const studentId = String(previewStudentId.value)
+  const year = parseInt(studentId.substring(0, 2), 10)
+  const faculty = parseInt(studentId.substring(2, 4), 10)
+  const sequence = parseInt(studentId.substring(4), 10)
+  const X = year * 100 + faculty
+  const Y = sequence
+  const last3 = studentId.slice(-3)
+  return {
+    X,
+    Y,
+    last3,
+    X_hex: X.toString(16).toUpperCase()
+  }
+})
+
+// Enabled IPv6 VLANs for preview
+const enabledIPv6Vlans = computed(() => 
+  localData.value.vlans.filter(v => v.ipv6Enabled)
+)
+
+// Methods to update config
+function updateGlobalPrefix(prefix: string | number) {
+  if (localData.value.ipv6Config) {
+    localData.value.ipv6Config.globalPrefix = String(prefix)
+  }
+}
+
+function updateManagementFixedPrefix(prefix: string | number) {
+  if (localData.value.ipv6Config?.managementOverride) {
+    localData.value.ipv6Config.managementOverride.fixedPrefix = String(prefix)
+  }
+}
 
 // Exempt IP Ranges state
 const exemptRangeInput = ref('')
@@ -1310,7 +1495,14 @@ watch(
       ...newValue,
       // FORCED: Only Calculated VLAN and Student ID Based are currently supported
       mode: 'calculated_vlan',
-      allocationStrategy: 'student_id_based'
+      allocationStrategy: 'student_id_based',
+      // Preserve ipv6Config with fallback for edit mode
+      ipv6Config: newValue.ipv6Config || {
+        enabled: false,
+        template: '2001:{X}:{Y}:{VLAN}::{offset}/64',
+        managementTemplate: '2001:{X}:{Y}:306::{offset}/64',
+        presetName: 'standard_exam'
+      }
     }
     nextTick(() => {
       isUpdatingFromProps.value = false
