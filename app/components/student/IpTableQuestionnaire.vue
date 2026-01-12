@@ -284,6 +284,16 @@ const getCellPlaceholder = (rowIndex: number, colIndex: number): string => {
       if (calcType === 'vlan_lecturer_range') {
         return 'DHCP assigned IP'
       }
+      // IPv6 placeholders
+      if (calcType === 'ipv6_slaac') {
+        return 'SLAAC-assigned IPv6'
+      }
+      if (calcType === 'ipv6_link_local') {
+        return 'fe80::...'
+      }
+      if (calcType === 'ipv6_address' || calcType === 'ipv6_network_prefix') {
+        return '2001:db8::...'
+      }
       return 'Enter IP address'
     }
   }
@@ -291,7 +301,7 @@ const getCellPlaceholder = (rowIndex: number, colIndex: number): string => {
   return 'xxx.xxx.xxx.xxx'
 }
 
-// Get lecturer-defined range hint
+// Get lecturer-defined range or SLAAC hint
 const getLecturerRange = (rowIndex: number, colIndex: number): string | null => {
   const cell = props.tableData.cells[rowIndex]?.[colIndex]
   if (!cell || (cell.cellType ?? 'input') !== 'input' || cell.answerType !== 'calculated' || !cell.calculatedAnswer) {
@@ -303,6 +313,11 @@ const getLecturerRange = (rowIndex: number, colIndex: number): string | null => 
       calc.lecturerRangeStart !== undefined &&
       calc.lecturerRangeEnd !== undefined) {
     return `Host offset ${calc.lecturerRangeStart}-${calc.lecturerRangeEnd}`
+  }
+
+  // SLAAC hint for IPv6
+  if (calc.calculationType === 'ipv6_slaac') {
+    return 'Enter your SLAAC-assigned IPv6 address'
   }
 
   return null
@@ -345,6 +360,21 @@ const isLecturerRangeEditableCell = (rowIndex: number, colIndex: number): boolea
   return cell.calculatedAnswer.calculationType === 'vlan_lecturer_range'
 }
 
+// Check if cell is SLAAC editable (student can update throughout lab, like DHCP)
+const isSlaacEditableCell = (rowIndex: number, colIndex: number): boolean => {
+  const cell = props.tableData.cells[rowIndex]?.[colIndex]
+
+  if (!cell || (cell.cellType ?? 'input') !== 'input') {
+    return false
+  }
+
+  if (cell.answerType !== 'calculated' || !cell.calculatedAnswer) {
+    return false
+  }
+
+  return cell.calculatedAnswer.calculationType === 'ipv6_slaac'
+}
+
 const isCellInputDisabled = (rowIndex: number, colIndex: number): boolean => {
   const cell = props.tableData.cells[rowIndex]?.[colIndex]
 
@@ -356,8 +386,8 @@ const isCellInputDisabled = (rowIndex: number, colIndex: number): boolean => {
     return false
   }
 
-  // Allow lecturer-defined range cells to remain editable even in readonly mode
-  return !isLecturerRangeEditableCell(rowIndex, colIndex)
+  // Allow lecturer-defined range and SLAAC cells to remain editable even in readonly mode
+  return !isLecturerRangeEditableCell(rowIndex, colIndex) && !isSlaacEditableCell(rowIndex, colIndex)
 }
 
 // Expose validation method for parent component

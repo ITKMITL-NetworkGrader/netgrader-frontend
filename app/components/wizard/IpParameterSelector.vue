@@ -84,7 +84,7 @@
       </Label>
       <Input
         v-model="customIp"
-        placeholder="192.168.1.1, 8.8.8.8, google.com, example.org"
+        placeholder="192.168.1.1, 2001:db8::1, 8.8.8.8, google.com"
         :class="{
           'border-destructive': hasError && mode === 'custom' && (!customIp || !isIpOrDomain(customIp)),
           'border-green-500': !hasError && customIp && isIpOrDomain(customIp)
@@ -92,10 +92,10 @@
         @input="handleCustomIpChange($event)"
       />
       <p class="text-xs text-muted-foreground">
-        Enter a custom IP address or domain name (supports external destinations like Internet)
+        Enter a custom IPv4/IPv6 address or domain name (supports external destinations like Internet)
       </p>
       <p v-if="customIp && !isIpOrDomain(customIp)" class="text-xs text-destructive">
-        Please enter a valid IP address or domain name
+        Please enter a valid IPv4/IPv6 address or domain name
       </p>
     </div>
 
@@ -172,10 +172,23 @@ const ipVariableOptions = computed(() => {
 })
 
 // Methods
-const isValidIp = (ip: string): boolean => {
+const isValidIpv4 = (ip: string): boolean => {
   if (!ip) return false
-  const ipRegex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/
-  return ipRegex.test(ip.trim())
+  const ipv4Regex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/
+  return ipv4Regex.test(ip.trim())
+}
+
+const isValidIpv6 = (ip: string): boolean => {
+  if (!ip) return false
+  // Remove prefix length if present (e.g., /64)
+  const ipWithoutPrefix = ip.split('/')[0].trim()
+  // Comprehensive IPv6 regex supporting full, compressed, and mixed formats
+  const ipv6Regex = /^(?:(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}|(?:[0-9a-fA-F]{1,4}:){1,7}:|(?:[0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|(?:[0-9a-fA-F]{1,4}:){1,5}(?::[0-9a-fA-F]{1,4}){1,2}|(?:[0-9a-fA-F]{1,4}:){1,4}(?::[0-9a-fA-F]{1,4}){1,3}|(?:[0-9a-fA-F]{1,4}:){1,3}(?::[0-9a-fA-F]{1,4}){1,4}|(?:[0-9a-fA-F]{1,4}:){1,2}(?::[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:(?::[0-9a-fA-F]{1,4}){1,6}|:(?::[0-9a-fA-F]{1,4}){1,7}|::(?:[fF]{4}:)?(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)|(?:[0-9a-fA-F]{1,4}:){1,4}:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?))$/
+  return ipv6Regex.test(ipWithoutPrefix)
+}
+
+const isValidIp = (ip: string): boolean => {
+  return isValidIpv4(ip) || isValidIpv6(ip)
 }
 
 const isValidDomainName = (domain: string): boolean => {

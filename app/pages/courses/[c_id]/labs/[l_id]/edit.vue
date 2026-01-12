@@ -1181,6 +1181,7 @@ const prepareDeviceForApi = (device: any) => {
     deviceId: device.deviceId,
     templateId: device.templateId,
     displayName: (device.displayName || device.deviceId || '').trim(),
+    connectionType: device.connectionParams?.connectionType || device.connectionType || 'ssh',
     ipVariables: (device.ipVariables || []).map((ipVar: any) => {
       const baseVar: Record<string, any> = {
         name: ipVar.name,
@@ -1360,7 +1361,14 @@ const transformBackendDataToWizard = () => {
       exemptIpRanges: lab.network.topology.exemptIpRanges || [],
       mode: lab.network.vlanConfiguration?.mode || 'fixed',
       vlanCount: lab.network.vlanConfiguration?.vlanCount || 1,
-      vlans: lab.network.vlanConfiguration?.vlans || []
+      vlans: lab.network.vlanConfiguration?.vlans || [],
+      // Load IPv6 Configuration
+      ipv6Config: lab.network.ipv6Config || {
+        enabled: false,
+        template: '2001:{X}:{Y}:{VLAN}::{offset}/64',
+        managementTemplate: '2001:{X}:{Y}:306::{offset}/64',
+        presetName: 'standard_exam'
+      }
     }
   }
 
@@ -1387,6 +1395,8 @@ const transformBackendDataToWizard = () => {
         enablePassword: ''
       },
       connectionParams: {
+        connectionType: device.connectionType || 'ssh',
+        sshPort: device.sshPort || 22,
         username: device.credentials?.usernameTemplate || '',
         password: device.credentials?.passwordTemplate || ''
       }

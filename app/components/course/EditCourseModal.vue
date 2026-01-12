@@ -372,7 +372,7 @@ const handleToggleRemoval = (userId: string) => {
                   </div>
                 </div>
                 <Switch 
-                  v-model:checked="editForm.isPrivate"
+                  v-model="editForm.isPrivate"
                   class="data-[state=checked]:bg-primary"
                 />
               </div>
