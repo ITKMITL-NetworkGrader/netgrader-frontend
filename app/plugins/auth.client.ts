@@ -15,10 +15,9 @@ export default defineNuxtPlugin(async () => {
 
       if (userData) {
         userState.value = userData
-        console.log('User state restored on client:', userData)
       }
-    } catch (error) {
-      console.log('User not authenticated or error fetching user data:', error)
+    } catch {
+      // User not authenticated
     }
   }
 })

@@ -5,13 +5,13 @@ export default defineNuxtRouteMiddleware(async (to, _from) => {
     const courseRoleState = useCourseRoleState();
     const config = useRuntimeConfig()
     const backendURL = config.public.backendurl;
-    const excludedRoutes = [ "/login", "/", "/demo", "/oat"];
-    
+    const excludedRoutes = ["/login", "/", "/demo", "/oat"];
+
     // Always try to restore user state if it's not set, or if coming from login page
-    const shouldRefetchUser = !userState.value || 
-                              userState.value === false || 
-                              _from?.path === "/login";
-    
+    const shouldRefetchUser = !userState.value ||
+        userState.value === false ||
+        _from?.path === "/login";
+
     if (shouldRefetchUser) {
         try {
             const userDataResponse = await $fetch<User>(`${backendURL}/v0/auth/me`, {
@@ -21,7 +21,6 @@ export default defineNuxtRouteMiddleware(async (to, _from) => {
 
             if (userDataResponse) {
                 userState.value = userDataResponse;
-                console.log("User data fetched:", userState.value);
             } else {
                 userState.value = null; // Explicitly set to null when no data
             }
@@ -35,17 +34,16 @@ export default defineNuxtRouteMiddleware(async (to, _from) => {
     //     console.log("Development environment detected, skipping route protection.");
     //     return;
     // }
-    
+
     // Check if user is properly authenticated (not just a falsy value)
-    const isAuthenticated = userState.value && 
-                           typeof userState.value === 'object' && 
-                           userState.value !== null &&
-                           userState.value.u_id &&
-                           userState.value.role; // Ensure role is present
-    
+    const isAuthenticated = userState.value &&
+        typeof userState.value === 'object' &&
+        userState.value !== null &&
+        userState.value.u_id &&
+        userState.value.role; // Ensure role is present
+
     // Check authentication for protected routes
     if (!isAuthenticated && !excludedRoutes.includes(to.path)) {
-        console.log("User is not authenticated, redirecting to login.");
         return navigateTo({
             path: "/login",
             query: {
