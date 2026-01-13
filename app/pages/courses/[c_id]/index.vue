@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ChevronRight, Home, Edit, Settings, X, Plus, Trash2, Play, BookOpen, Clock, Calendar, Loader2, BarChart3, RotateCcw } from 'lucide-vue-next'
+import { ChevronRight, Home, Edit, Settings, X, Plus, Trash2, Play, BookOpen, Clock, Calendar, Loader2, BarChart3, RotateCcw, UserCog } from 'lucide-vue-next'
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Button } from '@/components/ui/button'
@@ -95,12 +95,19 @@ const isManageModalOpen = ref(false)
 const isEnrollModalOpen = ref(false)
 const isPasswordModalOpen = ref(false)
 const isConfirmEnrollModalOpen = ref(false)
+const isAdminRoleChangeModalOpen = ref(false)
 
 // Enrollment form data
 const enrollmentForm = ref({
   password: '',
   selectedRole: 'STUDENT' as 'STUDENT' | 'INSTRUCTOR' | 'TA'
 })
+
+// Admin role change form
+const adminRoleChangeForm = ref({
+  selectedRole: 'STUDENT' as 'STUDENT' | 'INSTRUCTOR' | 'TA'
+})
+const isChangingAdminRole = ref(false)
 
 const enrollmentDraft = ref<EnrollmentDraftItem[]>([])
 const showEnrollmentConfirm = ref(false)
@@ -647,6 +654,73 @@ watchEffect(() => {
   console.log('User role:', userRole.value)
   console.log('Can manage course:', canManageCourse.value)
 })
+
+// Watch for admin role change modal open to set default value
+watch(isAdminRoleChangeModalOpen, (isOpen) => {
+  if (isOpen && userRole.value) {
+    adminRoleChangeForm.value.selectedRole = userRole.value as 'STUDENT' | 'INSTRUCTOR' | 'TA'
+  }
+})
+
+// Handle admin role change
+const handleAdminRoleChange = async () => {
+  if (isChangingAdminRole.value) return
+  
+  isChangingAdminRole.value = true
+  try {
+    interface AdminRoleChangeResponse {
+      success: boolean
+      message: string
+      enrollment: {
+        u_id: string
+        c_id: string
+        u_role: string
+        enrollmentDate: string
+      }
+    }
+    
+    const response = await $fetch<AdminRoleChangeResponse>(`${backendURL}/v0/enrollments/admin/self/${courseId}`, {
+      method: 'PUT',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: {
+        newRole: adminRoleChangeForm.value.selectedRole
+      }
+    })
+    
+    if (response.success) {
+      toast.success('Enrollment role updated!', {
+        description: `You are now enrolled as ${adminRoleChangeForm.value.selectedRole}.`
+      })
+      
+      // Refresh course data and enrollment status
+      await fetchCourse(courseId)
+      
+      // Update local course role state
+      courseRoleState.value = {
+        ...courseRoleState.value!,
+        role: adminRoleChangeForm.value.selectedRole
+      }
+      
+      // Refresh labs if now can manage
+      if (adminRoleChangeForm.value.selectedRole !== 'STUDENT') {
+        await fetchCourseLabs(courseId)
+      }
+      
+      isAdminRoleChangeModalOpen.value = false
+    }
+  } catch (error) {
+    console.error('Failed to change enrollment role:', error)
+    const message = (error as any)?.data?.message || (error as Error).message || 'Please try again later.'
+    toast.error('Failed to change role', {
+      description: message
+    })
+  } finally {
+    isChangingAdminRole.value = false
+  }
+}
 </script>
 
 <template>
@@ -766,10 +840,21 @@ watchEffect(() => {
                             Enroll in Course
                         </Button>
                     </div>
-                    <div v-else-if="isEnrolled" class="absolute bottom-4 right-4 z-30">
+                    <div v-else-if="isEnrolled" class="absolute bottom-4 right-4 z-30 flex items-center gap-2">
                         <div class="bg-green-100 text-green-800 px-4 py-2 rounded-lg font-medium">
                             ✓ Enrolled as {{ userRole }}
                         </div>
+                        <!-- Admin Role Change Button -->
+                        <Button 
+                            v-if="user?.role === 'ADMIN'" 
+                            variant="secondary" 
+                            size="sm"
+                            class="flex items-center gap-2 bg-amber-100 hover:bg-amber-200 text-amber-800 border-amber-300"
+                            @click="isAdminRoleChangeModalOpen = true"
+                        >
+                            <UserCog class="h-4 w-4" />
+                            <span>Change Role</span>
+                        </Button>
                     </div>
                 </div>
                 
@@ -844,6 +929,65 @@ watchEffect(() => {
                         <div class="flex justify-end space-x-2">
                             <Button variant="outline" @click="isConfirmEnrollModalOpen = false">Cancel</Button>
                             <Button @click="confirmEnrollment">Confirm Enrollment</Button>
+                        </div>
+                    </DialogContent>
+                </Dialog>
+
+                <!-- Admin Role Change Modal -->
+                <Dialog v-model:open="isAdminRoleChangeModalOpen">
+                    <DialogContent class="max-w-md">
+                        <DialogHeader>
+                            <DialogTitle class="flex items-center gap-2">
+                                <UserCog class="h-5 w-5 text-amber-600" />
+                                Change Enrollment Role
+                            </DialogTitle>
+                        </DialogHeader>
+                        <div class="space-y-4">
+                            <p class="text-sm text-muted-foreground">
+                                As a global admin, you can change your enrollment role in this course to test different views and permissions.
+                            </p>
+                            <div class="space-y-2">
+                                <Label for="admin-role-select">Select Role</Label>
+                                <Select v-model="adminRoleChangeForm.selectedRole">
+                                    <SelectTrigger id="admin-role-select">
+                                        <SelectValue placeholder="Select a role" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="STUDENT">
+                                            <div class="flex items-center gap-2">
+                                                <span class="w-2 h-2 rounded-full bg-blue-500"></span>
+                                                Student
+                                            </div>
+                                        </SelectItem>
+                                        <SelectItem value="TA">
+                                            <div class="flex items-center gap-2">
+                                                <span class="w-2 h-2 rounded-full bg-yellow-500"></span>
+                                                Teaching Assistant (TA)
+                                            </div>
+                                        </SelectItem>
+                                        <SelectItem value="INSTRUCTOR">
+                                            <div class="flex items-center gap-2">
+                                                <span class="w-2 h-2 rounded-full bg-green-500"></span>
+                                                Instructor
+                                            </div>
+                                        </SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div class="text-sm text-muted-foreground bg-amber-50 p-3 rounded-lg border border-amber-200">
+                                <strong>Note:</strong> This will change your access level for this course. Changing to Student will hide management features.
+                            </div>
+                        </div>
+                        <div class="flex justify-end space-x-2 pt-4">
+                            <Button variant="outline" @click="isAdminRoleChangeModalOpen = false">Cancel</Button>
+                            <Button 
+                                class="bg-amber-600 hover:bg-amber-700 text-white"
+                                :disabled="isChangingAdminRole || adminRoleChangeForm.selectedRole === userRole"
+                                @click="handleAdminRoleChange"
+                            >
+                                <Loader2 v-if="isChangingAdminRole" class="h-4 w-4 mr-2 animate-spin" />
+                                {{ isChangingAdminRole ? 'Changing...' : 'Change Role' }}
+                            </Button>
                         </div>
                     </DialogContent>
                 </Dialog>

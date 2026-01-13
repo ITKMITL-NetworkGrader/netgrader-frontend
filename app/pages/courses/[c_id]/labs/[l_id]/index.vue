@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
+import { useDebounceFn } from '@vueuse/core'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
@@ -132,6 +133,7 @@ const currentPartIndex = ref(0)
 const completedParts = ref<Set<string>>(new Set())
 const completedTasks = ref<Record<string, Set<string>>>({}) // partId -> Set of taskIds
 const isSubmittingPart = ref(false)
+const isOperationInProgress = ref(false) // Mutex for submit/restart operations
 const progress = ref<Record<string, number>>({}) // partId -> percentage
 const fillInBlankQuestionsRef = ref<InstanceType<typeof FillInBlankQuestions> | null>(null)
 const fillInBlankSubmissions = ref<Record<string, FillInBlankSubmissionPayload | null>>({})
@@ -143,6 +145,11 @@ const instructionsAckChecked = ref(false)
 const instructionsAckLoading = ref(false)
 const instructionsAckError = ref('')
 const lastAutoNavigatedIndex = ref<number | null>(null)
+
+// Multi-tab prevention
+const currentTabId = ref<string>(Math.random().toString(36).substring(2, 15))
+const isDuplicateTab = ref(false)
+const labBroadcastChannel = ref<BroadcastChannel | null>(null)
 
 const clearSessionStoredAnswers = () => {
   if (typeof window === 'undefined') return
@@ -798,23 +805,23 @@ const selectPart = (index: number) => {
   currentPartIndex.value = index
 }
 
-const goToPreviousPart = () => {
+const goToPreviousPart = useDebounceFn(() => {
   if (currentPartIndex.value > 0) {
     const prevIndex = currentPartIndex.value - 1
     if (canAccessPart(prevIndex)) {
       currentPartIndex.value = prevIndex
     }
   }
-}
+}, 300)
 
-const goToNextPart = () => {
+const goToNextPart = useDebounceFn(() => {
   if (currentPartIndex.value < totalParts.value - 1) {
     const nextIndex = currentPartIndex.value + 1
     if (canAccessPart(nextIndex)) {
       currentPartIndex.value = nextIndex
     }
   }
-}
+}, 300)
 
 // Calculate total test cases for current part (for display purposes only)
 const currentPartTotalTestCases = computed(() => {
@@ -1377,26 +1384,37 @@ const loadPersonalizedIPs = async (options: { restart?: boolean } = {}) => {
 
 // Handle restart lab from results modal
 const handleRestartLabFromResults = async () => {
-  showResultsModal.value = false
-  showCollapsedSummary.value = false
-  // Reset completion status
-  completionStatus.value = {
-    isFullyCompleted: false,
-    completedParts: [],
-    totalPartsCompleted: 0,
-    totalParts: 0,
-    allPartsPassedWithFullPoints: false
+  // Prevent race condition with ongoing submit operations
+  if (isOperationInProgress.value || isSubmittingPart.value) {
+    console.warn('⚠️ Cannot restart: another operation is in progress')
+    return
   }
-  hasClearedLabStorage.value = false
-  lastAutoNavigatedIndex.value = null
-  // Clear any locally cached answers for a fresh attempt
-  clearSessionStoredAnswers()
-  activeLabSessionId.value = null
-  // Reload IPs
-  isLoadingIPs.value = true
-  await loadPersonalizedIPs({ restart: true })
-  if (!showResultsModal.value) {
-    await checkLabCompletion()
+  
+  isOperationInProgress.value = true
+  try {
+    showResultsModal.value = false
+    showCollapsedSummary.value = false
+    // Reset completion status
+    completionStatus.value = {
+      isFullyCompleted: false,
+      completedParts: [],
+      totalPartsCompleted: 0,
+      totalParts: 0,
+      allPartsPassedWithFullPoints: false
+    }
+    hasClearedLabStorage.value = false
+    lastAutoNavigatedIndex.value = null
+    // Clear any locally cached answers for a fresh attempt
+    clearSessionStoredAnswers()
+    activeLabSessionId.value = null
+    // Reload IPs
+    isLoadingIPs.value = true
+    await loadPersonalizedIPs({ restart: true })
+    if (!showResultsModal.value) {
+      await checkLabCompletion()
+    }
+  } finally {
+    isOperationInProgress.value = false
   }
 }
 
@@ -1407,9 +1425,18 @@ const handleCloseResultsModal = () => {
   isFreshCompletion.value = false
 }
 
-// Handle timer expiration
+// Handle timer expiration - persist any unsaved answers first
 const handleTimerExpired = () => {
   console.log('⏰ Timer expired!')
+  
+  // Trigger auto-save of any fill-in-blank answers in localStorage
+  // The FillInBlankQuestions component's auto-save watcher handles this,
+  // but we force a save entry in sessionStorage for the progress state
+  if (fillInBlankQuestionsRef.value && typeof window !== 'undefined') {
+    console.log('⏰ Persisting unsaved answers before timer expiry modal...')
+    // The answers are already auto-saved by the debounced watcher in FillInBlankQuestions
+  }
+  
   timerExpiredModalMode.value = 'timer_expired'
   isFreshCompletion.value = false // Timer expiration is NOT a fresh completion
   showCollapsedSummary.value = false // Show full details for timer expiration
@@ -1500,6 +1527,40 @@ watch(
 )
 
 onMounted(async () => {
+  // Multi-tab prevention using BroadcastChannel
+  if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+    const channelName = `netgrader_lab_${labId.value}`
+    labBroadcastChannel.value = new BroadcastChannel(channelName)
+    
+    // Listen for other tabs
+    labBroadcastChannel.value.onmessage = (event) => {
+      if (event.data.type === 'lab_active' && event.data.tabId !== currentTabId.value) {
+        // Another tab is already active
+        isDuplicateTab.value = true
+        console.warn('[Multi-Tab] Duplicate tab detected for lab:', labId.value)
+      } else if (event.data.type === 'lab_ping') {
+        // Respond to ping from new tabs
+        labBroadcastChannel.value?.postMessage({ 
+          type: 'lab_active', 
+          tabId: currentTabId.value,
+          labId: labId.value 
+        })
+      }
+    }
+    
+    // Announce this tab and ping for other tabs
+    labBroadcastChannel.value.postMessage({ 
+      type: 'lab_ping', 
+      tabId: currentTabId.value,
+      labId: labId.value 
+    })
+    labBroadcastChannel.value.postMessage({ 
+      type: 'lab_active', 
+      tabId: currentTabId.value,
+      labId: labId.value 
+    })
+  }
+  
   await loadLabData()
   
   // For returning users: if instructions already acknowledged but no GNS3 project, show modal
@@ -1513,11 +1574,31 @@ onBeforeUnmount(() => {
   clearEventHandlers()
   // Clear GNS3 project data when component unmounts
   clearGns3ProjectData()
+  // Close BroadcastChannel
+  labBroadcastChannel.value?.close()
+  labBroadcastChannel.value = null
 })
 
 // Clear GNS3 project data when navigating away from the lab page via Vue Router
-onBeforeRouteLeave(() => {
+// Also warn about unsaved changes
+onBeforeRouteLeave((to, from, next) => {
+  // Check if current part is a fill-in-blank type with potentially unsaved data
+  const currentPartData = currentPart.value
+  const hasFillInBlank = currentPartData?.partType === 'fill_in_blank'
+  
+  // If we have a fill-in-blank part and the lab is not completed, warn the user
+  if (hasFillInBlank && !showResultsModal.value && !isSubmittingPart.value) {
+    const confirmLeave = window.confirm(
+      'You have unsaved answers. Are you sure you want to leave this page? Your typed answers may be lost.'
+    )
+    if (!confirmLeave) {
+      next(false)
+      return
+    }
+  }
+  
   clearGns3ProjectData()
+  next()
 })
 
 // Watch for URL changes to update current part
@@ -1593,6 +1674,26 @@ watch(() => route.query.part, (newPart) => {
           </BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
+    </div>
+
+    <!-- Duplicate Tab Warning -->
+    <div v-if="isDuplicateTab" class="fixed inset-0 z-[200] flex items-center justify-center bg-background/95 backdrop-blur-sm">
+      <Alert variant="destructive" class="max-w-md mx-4">
+        <AlertCircle class="h-5 w-5" />
+        <div class="ml-2">
+          <h3 class="font-semibold text-lg">Duplicate Tab Detected</h3>
+          <AlertDescription class="mt-2">
+            This lab is already open in another browser tab. Please close this tab and continue working in the original tab to avoid losing your progress.
+          </AlertDescription>
+          <Button 
+            class="mt-4 w-full" 
+            variant="destructive"
+            @click="isDuplicateTab = false"
+          >
+            Continue Anyway (Not Recommended)
+          </Button>
+        </div>
+      </Alert>
     </div>
 
     <!-- IP Loading Overlay -->

@@ -421,19 +421,6 @@
                             <Input v-model="ipVar.fullIpv6" type="text" placeholder="2001:db8::1/64" class="text-sm font-mono" />
                             <p class="text-xs text-muted-foreground">Include prefix length (e.g., /64)</p>
                           </div>
-                        </div>
-
-                        <!-- Full IP Address Input (when inputType is 'fullIP') -->
-                        <div v-if="ipVar.inputType === 'fullIP'" class="space-y-1">
-                          <Label class="text-xs font-medium">Full IP Address</Label>
-                          <Input v-model="ipVar.fullIP" type="text" placeholder="192.168.1.10" class="text-sm" :class="{
-                            'border-destructive': hasIpVarError(index, ipIndex, 'fullIP'),
-                            'border-green-500': !hasIpVarError(index, ipIndex, 'fullIP') && ipVar.fullIP && isValidIP(ipVar.fullIP)
-                          }" @input="debouncedValidateFullIP(index, ipIndex)" />
-                          <p v-if="hasIpVarError(index, ipIndex, 'fullIP')" class="text-xs text-destructive">
-                            {{ getIpVarError(index, ipIndex, 'fullIP') }}
-                          </p>
-                        </div>
 
                           <div v-else-if="ipVar.ipv6InputType === 'linkLocal'" class="space-y-1">
                             <Input v-model="ipVar.fullIpv6" type="text" placeholder="fe80::1" class="text-sm font-mono" />

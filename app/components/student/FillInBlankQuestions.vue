@@ -154,7 +154,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { toast } from 'vue-sonner'
-import { useLocalStorage } from '@vueuse/core'
+import { useLocalStorage, useDebounceFn } from '@vueuse/core'
 import type { UseStorageOptions } from '@vueuse/core'
 import {
   FileQuestion,
@@ -565,6 +565,18 @@ watch(isPassed, (passed) => {
     persistAnswersToStorage()
   }
 })
+
+// Auto-save answers every 3 seconds after changes (debounced)
+const debouncedAutoSave = useDebounceFn(() => {
+  if (!isRestoringFromStorage.value && !hasSubmitted.value) {
+    persistAnswersToStorage()
+    console.debug('[FillInBlank] Auto-saved answers to localStorage')
+  }
+}, 3000)
+
+watch([answers, ipTableAnswers], () => {
+  debouncedAutoSave()
+}, { deep: true })
 
 // Check if answer has changed from previous
 const hasAnswerChanged = (questionId: string): boolean => {

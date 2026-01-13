@@ -589,7 +589,12 @@ const handleCreateLab = async () => {
               isVlanInterface: ipVar.inputType?.startsWith('studentVlan') || false,
               inputType: ipVar.inputType,
               vlanIndex: ipVar.vlanIndex,
-              interfaceOffset: ipVar.interfaceOffset
+              interfaceOffset: ipVar.interfaceOffset,
+              // 🆕 IPv6 Configuration (for dual-stack interfaces)
+              ipv6InputType: ipVar.ipv6InputType || 'none',
+              fullIpv6: ipVar.fullIpv6 || '',
+              ipv6InterfaceId: ipVar.ipv6InterfaceId || '',
+              ipv6VlanIndex: ipVar.ipv6VlanIndex
             }
 
             // Add either hostOffset or fullIp based on inputType

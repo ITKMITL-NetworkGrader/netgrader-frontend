@@ -1190,7 +1190,12 @@ const prepareDeviceForApi = (device: any) => {
         isVlanInterface: Boolean(ipVar.inputType?.startsWith('studentVlan') || ipVar.isVlanInterface),
         inputType: ipVar.inputType,
         vlanIndex: typeof ipVar.vlanIndex === 'number' ? ipVar.vlanIndex : toNumberOrUndefined(ipVar.vlanIndex),
-        interfaceOffset: toNumberOrUndefined(ipVar.interfaceOffset)
+        interfaceOffset: toNumberOrUndefined(ipVar.interfaceOffset),
+        // IPv6 Configuration (for dual-stack interfaces)
+        ipv6InputType: ipVar.ipv6InputType || 'none',
+        fullIpv6: ipVar.fullIpv6 || '',
+        ipv6InterfaceId: ipVar.ipv6InterfaceId || '',
+        ipv6VlanIndex: typeof ipVar.ipv6VlanIndex === 'number' ? ipVar.ipv6VlanIndex : toNumberOrUndefined(ipVar.ipv6VlanIndex)
       }
 
       if (ipVar.inputType === 'fullIP' && ipVar.fullIP) {
@@ -1387,7 +1392,12 @@ const transformBackendDataToWizard = () => {
         vlanIndex: ipVar.vlanIndex,
         interfaceOffset: ipVar.interfaceOffset,
         hostOffset: ipVar.hostOffset,
-        fullIP: ipVar.fullIp
+        fullIP: ipVar.fullIp,
+        // IPv6 Configuration (for dual-stack interfaces)
+        ipv6InputType: ipVar.ipv6InputType || 'none',
+        fullIpv6: ipVar.fullIpv6 || '',
+        ipv6InterfaceId: ipVar.ipv6InterfaceId || '',
+        ipv6VlanIndex: ipVar.ipv6VlanIndex
       })) || [],
       credentials: device.credentials || {
         usernameTemplate: '',
