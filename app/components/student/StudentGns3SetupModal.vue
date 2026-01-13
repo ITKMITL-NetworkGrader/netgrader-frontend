@@ -182,7 +182,7 @@ function handleComplete() {
   }
 
   emit('complete', {
-    serverIp: '10.70.38.8',
+    serverIp: '10.70.38.9',
     serverPort: 80,
     projectId: projectId.value || '',
     projectName: projectName.value || ''
