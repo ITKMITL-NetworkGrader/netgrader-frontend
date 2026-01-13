@@ -832,6 +832,7 @@ const handleAdminRoleChange = async () => {
                         :is-loading="isLoadingLabs"
                         @delete-lab="handleDeleteLab"
                         @delete-exam="handleDeleteLab"
+                        @lab-duplicated="fetchCourseLabs(courseId)"
                     />
 
                     <!-- Enrollment Button (Bottom Right) -->

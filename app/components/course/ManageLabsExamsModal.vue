@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ref } from 'vue'
 import { 
   BookOpen, 
   GraduationCap,
@@ -12,12 +13,14 @@ import {
   Loader2,
   ArrowRight,
   FlaskConical,
-  ClipboardCheck
+  ClipboardCheck,
+  Copy
 } from 'lucide-vue-next'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import DuplicateLabModal from './DuplicateLabModal.vue'
 
 // Types - flexible to accept readonly arrays
 interface Lab {
@@ -47,7 +50,92 @@ const emit = defineEmits<{
   'update:open': [value: boolean]
   'delete-lab': [labId: string, labTitle: string]
   'delete-exam': [examId: string, examTitle: string]
+  'lab-duplicated': []
 }>()
+
+// Duplicate Lab Modal State
+const showDuplicateLabModal = ref(false)
+const selectedLabToDuplicate = ref<Lab | null>(null)
+const availableCourses = ref<{ id: string; title: string }[]>([])
+
+const openDuplicateLabModal = async (lab: Lab) => {
+  selectedLabToDuplicate.value = lab
+  
+  // Fetch courses where user has management permissions (INSTRUCTOR, TA, or ADMIN)
+  try {
+    const config = useRuntimeConfig()
+    
+    // Get user's enrollments with their roles
+    const enrollmentsResponse = await $fetch<{ 
+      success: boolean; 
+      enrollments: Array<{
+        c_id: string;
+        u_role: string;
+      }>
+    }>(
+      `${config.public.backendurl}/v0/enrollments/me`,
+      {
+        method: 'GET',
+        credentials: 'include'
+      }
+    )
+    
+    if (enrollmentsResponse.success && enrollmentsResponse.enrollments) {
+      // Filter for courses where user is INSTRUCTOR or TA
+      const manageableEnrollments = enrollmentsResponse.enrollments
+        .filter(e => e.u_role === 'INSTRUCTOR' || e.u_role === 'TA')
+      
+      // Fetch course details for each manageable enrollment
+      const coursePromises = manageableEnrollments.map(async (enrollment) => {
+        try {
+          const courseResponse = await $fetch<{ course: { _id: string; title: string } }>(
+            `${config.public.backendurl}/v0/courses/${enrollment.c_id}`,
+            {
+              method: 'GET',
+              credentials: 'include'
+            }
+          )
+          if (courseResponse.course) {
+            return {
+              id: enrollment.c_id,
+              title: courseResponse.course.title
+            }
+          }
+        } catch {
+          // Course fetch failed, use ID as fallback
+        }
+        return {
+          id: enrollment.c_id,
+          title: `Course ${enrollment.c_id.substring(0, 8)}...`
+        }
+      })
+      
+      const manageableCourses = await Promise.all(coursePromises)
+      
+      // If current course is not in the list, add it
+      if (!manageableCourses.some(c => c.id === props.courseId)) {
+        manageableCourses.unshift({ id: props.courseId, title: 'Current Course' })
+      }
+      
+      availableCourses.value = manageableCourses
+    } else {
+      // Fallback to current course only
+      availableCourses.value = [{ id: props.courseId, title: 'Current Course' }]
+    }
+  } catch (error) {
+    console.error('Failed to fetch manageable courses:', error)
+    // Fallback to current course only
+    availableCourses.value = [{ id: props.courseId, title: 'Current Course' }]
+  }
+  
+  showDuplicateLabModal.value = true
+}
+
+const handleLabDuplicated = () => {
+  showDuplicateLabModal.value = false
+  selectedLabToDuplicate.value = null
+  emit('lab-duplicated')
+}
 
 // Methods
 const formatDate = (dateString: string) => {
@@ -249,6 +337,16 @@ const handleDeleteExam = (exam: Lab) => {
                 
                 <!-- Actions -->
                 <div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    class="h-9 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300 dark:hover:bg-blue-900/20"
+                    @click="openDuplicateLabModal(lab)"
+                    title="Duplicate lab"
+                  >
+                    <Copy class="h-3.5 w-3.5 mr-1.5" />
+                    Duplicate
+                  </Button>
                   <NuxtLink :to="`/courses/${courseId}/labs/${lab.id}/edit`">
                     <Button variant="outline" size="sm" class="h-9 hover:bg-primary/10 hover:text-primary hover:border-primary/30 dark:hover:bg-primary/20">
                       <Edit class="h-3.5 w-3.5 mr-1.5" />
@@ -409,6 +507,15 @@ const handleDeleteExam = (exam: Lab) => {
       </Tabs>
     </DialogContent>
   </Dialog>
+
+  <!-- Duplicate Lab Modal -->
+  <DuplicateLabModal
+    v-model:open="showDuplicateLabModal"
+    :lab="selectedLabToDuplicate"
+    :current-course-id="courseId"
+    :available-courses="availableCourses"
+    @duplicated="handleLabDuplicated"
+  />
 </template>
 
 <style scoped>

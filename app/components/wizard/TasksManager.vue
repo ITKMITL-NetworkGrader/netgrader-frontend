@@ -74,6 +74,13 @@
                 </Button>
                 <Button
                   variant="ghost"
+                  @click="openDuplicateModal(taskIndex)"
+                  title="Duplicate task"
+                >
+                  <Copy class="w-3 h-3" />
+                </Button>
+                <Button
+                  variant="ghost"
                   class="text-destructive hover:text-destructive"
                   @click="removeTask(taskIndex)"
                 >
@@ -442,6 +449,15 @@
         Total: {{ totalPoints }} points
       </Badge>
     </div>
+
+    <!-- Duplicate Task Modal -->
+    <DuplicateTaskModal
+      v-model:open="showDuplicateModal"
+      :task="selectedTaskToDuplicate"
+      :current-part-id="currentPartId || availableParts[partIndex]?.id || availableParts[partIndex]?.tempId || ''"
+      :available-parts="availableParts.map(p => ({ id: p.id || p.tempId || '', partId: p.partId, title: p.title, order: p.order }))"
+      @duplicate="handleDuplicateTask"
+    />
   </div>
 </template>
 
@@ -455,7 +471,8 @@ import {
   MoveDown,
   ChevronDown,
   Search,
-  Check
+  Check,
+  Copy
 } from 'lucide-vue-next'
 
 // Import utility functions
@@ -485,6 +502,7 @@ import {
 import TestCasesManager from './TestCasesManager.vue'
 import TaskGroupManager from './TaskGroupManager.vue'
 import IpParameterSelector from './IpParameterSelector.vue'
+import DuplicateTaskModal from './DuplicateTaskModal.vue'
 
 // Types
 import type { WizardTask, WizardTaskGroup, Device, TaskTemplate, TestCase } from '@/types/wizard'
@@ -493,6 +511,14 @@ import type { WizardTask, WizardTaskGroup, Device, TaskTemplate, TestCase } from
 import { useTaskValidation } from '@/composables/useTaskValidation'
 
 // Props
+interface Part {
+  id?: string
+  tempId?: string
+  partId?: string
+  title?: string
+  order?: number
+}
+
 interface Props {
   modelValue: WizardTask[]
   taskTemplates: TaskTemplate[]
@@ -502,6 +528,8 @@ interface Props {
     subnetMask?: number
   }>
   partIndex: number
+  currentPartId?: string
+  availableParts?: Part[]
   taskGroups?: WizardTaskGroup[]
   enableTaskGroups?: boolean
   hasSubmissions?: boolean
@@ -514,11 +542,14 @@ interface Emits {
   (e: 'update:task-groups', value: WizardTaskGroup[]): void
   (e: 'updateTotalPoints', totalPoints: number): void
   (e: 'validate', errors: string[]): void
+  (e: 'duplicate-to-part', payload: { task: WizardTask; targetPartId: string; newTaskName: string }): void
 }
 
 const props = withDefaults(defineProps<Props>(), {
   vlans: () => [],
   taskGroups: () => [],
+  availableParts: () => [],
+  currentPartId: '',
   onEditWarning: () => undefined
 })
 const emit = defineEmits<Emits>()
@@ -526,6 +557,11 @@ const emit = defineEmits<Emits>()
 // Local state
 const localTasks = ref<WizardTask[]>([])
 const isUpdatingFromProps = ref(false)
+
+// Duplicate Task Modal State
+const showDuplicateModal = ref(false)
+const selectedTaskToDuplicate = ref<WizardTask | null>(null)
+const selectedTaskIndex = ref<number>(-1)
 
 // Use the new validation composable - provides reactive, template-aware validation
 const validation = useTaskValidation({
@@ -853,6 +889,65 @@ const moveTask = (taskIndex: number, direction: number) => {
 const toggleTaskExpansion = (taskIndex: number) => {
   localTasks.value[taskIndex].isExpanded = !localTasks.value[taskIndex].isExpanded
 }
+
+/**
+ * Open the duplicate task modal
+ */
+const openDuplicateModal = (taskIndex: number) => {
+  const sourceTask = localTasks.value[taskIndex]
+  if (!sourceTask) return
+
+  selectedTaskToDuplicate.value = sourceTask
+  selectedTaskIndex.value = taskIndex
+  showDuplicateModal.value = true
+}
+
+/**
+ * Handle the duplicate event from the modal
+ * Supports both same-part and different-part duplication
+ */
+const handleDuplicateTask = (payload: { newTaskName: string; targetPartId: string }) => {
+  warnIfNeeded()
+  const sourceTask = selectedTaskToDuplicate.value
+  const taskIndex = selectedTaskIndex.value
+  if (!sourceTask || taskIndex < 0) return
+
+  const isSamePart = payload.targetPartId === props.currentPartId || 
+    payload.targetPartId === (props.availableParts[props.partIndex]?.id || props.availableParts[props.partIndex]?.tempId)
+
+  if (isSamePart) {
+    // Duplicate within the same part (inline)
+    const duplicatedTask: WizardTask = {
+      ...JSON.parse(JSON.stringify(sourceTask)),
+      tempId: generateTempId(),
+      taskId: `task_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      name: payload.newTaskName,
+      isExpanded: true,
+      order: localTasks.value.length + 1
+    }
+
+    // Add the duplicated task after the source task
+    localTasks.value.splice(taskIndex + 1, 0, duplicatedTask)
+
+    // Update order for all tasks
+    localTasks.value.forEach((task, index) => {
+      task.order = index + 1
+    })
+  } else {
+    // Duplicate to a different part - emit event to parent
+    emit('duplicate-to-part', {
+      task: JSON.parse(JSON.stringify(sourceTask)),
+      targetPartId: payload.targetPartId,
+      newTaskName: payload.newTaskName
+    })
+  }
+
+  // Close the modal
+  showDuplicateModal.value = false
+  selectedTaskToDuplicate.value = null
+  selectedTaskIndex.value = -1
+}
+
 
 const onTemplateChange = (taskIndex: number, value: string | number | bigint | Record<string, unknown> | null) => {
   if (typeof value === 'string') {

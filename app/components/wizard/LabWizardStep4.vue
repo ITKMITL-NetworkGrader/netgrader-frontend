@@ -612,6 +612,8 @@
                       :devices="devices"
                       :vlans="vlans"
                       :part-index="partIndex"
+                      :current-part-id="part.partId || part.tempId || ''"
+                      :available-parts="localData.map(p => ({ id: p.partId || p.tempId, tempId: p.tempId, partId: p.partId, title: p.title, order: p.order }))"
                       :task-groups="part.task_groups"
                       :enable-task-groups="true"
                       :has-submissions="part.hasSubmissions"
@@ -619,6 +621,7 @@
                       @update-total-points="updatePartTotalPoints(partIndex, $event)"
                       @update:task-groups="updatePartTaskGroups(partIndex, $event)"
                       @validate="handleTasksValidation(partIndex, $event)"
+                      @duplicate-to-part="handleDuplicateTaskToPart"
                     />
                   </div>
                 </CardContent>
@@ -1366,6 +1369,43 @@ const togglePartExpansion = (partIndex: number) => {
 const toggleInstructionsPreview = (partIndex: number) => {
   const part = localData.value[partIndex]
   part.showInstructionsPreview = !part.showInstructionsPreview
+}
+
+/**
+ * Handle task duplication to a different part
+ */
+const handleDuplicateTaskToPart = (payload: { task: any; targetPartId: string; newTaskName: string }) => {
+  const targetPartIndex = localData.value.findIndex(
+    p => (p.partId || p.tempId) === payload.targetPartId
+  )
+  
+  if (targetPartIndex === -1) {
+    console.error('Target part not found:', payload.targetPartId)
+    return
+  }
+  
+  const targetPart = localData.value[targetPartIndex]
+  
+  // Create a new task with a new ID
+  const newTask = {
+    ...payload.task,
+    tempId: `task_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    taskId: `task_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    name: payload.newTaskName,
+    isExpanded: true,
+    order: (targetPart.tasks?.length || 0) + 1
+  }
+  
+  // Add the task to the target part
+  if (!targetPart.tasks) {
+    targetPart.tasks = []
+  }
+  targetPart.tasks.push(newTask)
+  
+  // Update order for all tasks in the target part
+  targetPart.tasks.forEach((task, index) => {
+    task.order = index + 1
+  })
 }
 
 const renderMarkdown = (content: string): string => {
