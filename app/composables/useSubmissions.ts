@@ -281,6 +281,11 @@ export const useSubmissions = () => {
         console.log('[SSE] Connection confirmed:', data.message)
       })
 
+      // DEBUG: Log ALL raw SSE events to see what's actually coming through
+      // eventSource.onmessage = (event) => {
+      //   console.log('[SSE DEBUG] Raw message received (default event):', event.data)
+      // }
+
       // Handle started event
       eventSource.addEventListener('started', (event) => {
         const data = JSON.parse(event.data)
