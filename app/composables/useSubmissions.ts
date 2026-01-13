@@ -18,7 +18,7 @@ export const useSubmissions = () => {
 
   // Check if backend URL is configured
   if (!backendUrl) {
-    console.error('❌ [ERROR] Backend URL is not configured. Please set NUXT_BACKENDURL environment variable.')
+    console.error('[ERROR] Backend URL is not configured. Please set NUXT_BACKENDURL environment variable.')
   }
 
   // Helper to generate unique key for part submission
@@ -85,7 +85,7 @@ export const useSubmissions = () => {
         }))
       }
 
-      console.log('🔄 [DEBUG] Creating submission:', requestData)
+      console.log('[DEBUG] Creating submission:', requestData)
 
       const response = await fetch(`${backendUrl}/v0/submissions/`, {
         method: 'POST',
@@ -130,7 +130,7 @@ export const useSubmissions = () => {
 
       const result = await response.json()
 
-      console.log('✅ [DEBUG] Submission created successfully:', result)
+      console.log('[DEBUG] Submission created successfully:', result)
 
       // Extract jobId from the actual response format
       let jobId: string | undefined
@@ -183,7 +183,7 @@ export const useSubmissions = () => {
       }
 
     } catch (error: any) {
-      console.error('❌ [ERROR] Failed to create submission:', error)
+      console.error('[ERROR] Failed to create submission:', error)
 
       const state = getSubmissionState(labId, partId)
       state.isSubmitting = false
@@ -200,7 +200,7 @@ export const useSubmissions = () => {
   // Fetch submission details
   const fetchSubmission = async (jobId: string): Promise<ISubmission | null> => {
     try {
-      console.log('🔍 [DEBUG] Fetching submission:', jobId)
+      console.log('[DEBUG] Fetching submission:', jobId)
 
       const response = await fetch(`${backendUrl}/v0/submissions/${jobId}`, {
         method: 'GET',
@@ -212,7 +212,7 @@ export const useSubmissions = () => {
 
       if (!response.ok) {
         if (response.status === 404) {
-          console.warn('⚠️ [WARN] Submission not found:', jobId)
+          console.warn('[WARN] Submission not found:', jobId)
           return null
         }
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
@@ -227,12 +227,12 @@ export const useSubmissions = () => {
       // Store in cache
       submissions.value[jobId] = result.data
 
-      console.log('📊 [DEBUG] Fetched submission:', result.data)
+      console.log('[DEBUG] Fetched submission:', result.data)
 
       return result.data
 
     } catch (error: any) {
-      console.error('❌ [ERROR] Failed to fetch submission:', error)
+      console.error('[ERROR] Failed to fetch submission:', error)
       return null
     }
   }
@@ -247,7 +247,7 @@ export const useSubmissions = () => {
       state.sseConnection = null
     }
 
-    console.log('🔌 [DEBUG] Starting SSE connection for submission:', jobId)
+    console.log('[DEBUG] Starting SSE connection for submission:', jobId)
 
     // Flag to track if we've received the completed event
     let completedReceived = false
@@ -258,7 +258,7 @@ export const useSubmissions = () => {
       // Create EventSource for SSE with credentials
       // CRITICAL: The URL must be same-origin OR backend must have proper CORS setup with credentials
       const sseUrl = `${backendUrl}/v0/submissions/${jobId}/stream`
-      console.log('🔌 [DEBUG] Connecting to SSE URL:', sseUrl)
+      console.log('[DEBUG] Connecting to SSE URL:', sseUrl)
 
       const eventSource = new EventSource(sseUrl, {
         withCredentials: true // Include cookies for authentication
@@ -270,19 +270,19 @@ export const useSubmissions = () => {
 
       // Handle connection opened
       eventSource.addEventListener('open', () => {
-        console.log('🟢 [SSE] Connected to grading stream:', jobId)
+        console.log('[SSE] Connected to grading stream:', jobId)
       })
 
       // Handle connected event (initial message)
       eventSource.addEventListener('connected', (event) => {
         const data = JSON.parse(event.data)
-        console.log('🔗 [SSE] Connection confirmed:', data.message)
+        console.log('[SSE] Connection confirmed:', data.message)
       })
 
       // Handle started event
       eventSource.addEventListener('started', (event) => {
         const data = JSON.parse(event.data)
-        console.log('🚀 [SSE] Grading started:', data.message)
+        console.log('[SSE] Grading started:', data.message)
 
         if (state.currentSubmission) {
           state.currentSubmission.status = 'running'
@@ -292,7 +292,7 @@ export const useSubmissions = () => {
       // Handle progress updates
       eventSource.addEventListener('progress', (event) => {
         const progressData = JSON.parse(event.data)
-        console.log(`📊 [SSE] Progress update received:`, {
+        console.log(`[SSE] Progress update received:`, {
           percentage: progressData.percentage,
           message: progressData.message,
           current_test: progressData.current_test,
@@ -333,19 +333,19 @@ export const useSubmissions = () => {
             timestamp: new Date()
           }
           state.currentSubmission.progressHistory.push(newProgress)
-          console.log(`✅ [SSE] Progress added. Status: ${state.currentSubmission.status}, History: ${state.currentSubmission.progressHistory.length}`)
+          console.log(`[SSE] Progress added. Status: ${state.currentSubmission.status}, History: ${state.currentSubmission.progressHistory.length}`)
 
           // 🆕 FALLBACK: If we reach 100%, fetch the final result after a delay
           // This handles cases where the SSE 'completed' event doesn't arrive
           if (progressData.percentage >= 100) {
-            console.log('🎯 [SSE] Reached 100%, setting up fallback result fetch in 2 seconds...')
+            console.log('[SSE] Reached 100%, setting up fallback result fetch in 2 seconds...')
             setTimeout(async () => {
               // Only fetch if we haven't received the completed event yet
               if (state.currentSubmission && state.currentSubmission.status !== 'completed') {
-                console.log('⚠️ [SSE] No completed event received after 2s, fetching result via API...')
+                console.log('[SSE] No completed event received after 2s, fetching result via API...')
                 const submission = await fetchSubmission(jobId)
                 if (submission && submission.status === 'completed' && submission.gradingResult) {
-                  console.log('✅ [FALLBACK] Successfully fetched completed result from API')
+                  console.log('[FALLBACK] Successfully fetched completed result from API')
                   completedReceived = true
                   state.currentSubmission.status = 'completed'
                   state.currentSubmission.completedAt = submission.completedAt
@@ -356,18 +356,18 @@ export const useSubmissions = () => {
             }, 2000)
           }
         } else {
-          console.warn('⚠️ [SSE] No current submission to update!')
+          console.warn('[SSE] No current submission to update!')
         }
       })
 
       // Handle completion
       eventSource.addEventListener('completed', (event) => {
         const resultData = JSON.parse(event.data)
-        console.log(`✅ [SSE] Grading completed: ${resultData.total_points_earned}/${resultData.total_points_possible} points`)
+        console.log(`[SSE] Grading completed: ${resultData.total_points_earned}/${resultData.total_points_possible} points`)
 
         // Mark that we've received the completed event FIRST (before any async operations)
         completedReceived = true
-        console.log('🏁 [SSE] completedReceived flag set to true')
+        console.log('[SSE] completedReceived flag set to true')
 
         // Update submission with final results
         if (state.currentSubmission) {
@@ -386,25 +386,25 @@ export const useSubmissions = () => {
             completed_at: new Date().toISOString(),
             cancelled_reason: null
           }
-          console.log('✅ [SSE] Submission updated with final results')
+          console.log('[SSE] Submission updated with final results')
         }
 
         // CRITICAL FIX: Delay closing the connection to allow any final events to arrive
         // This prevents race condition where connection closes before backend sends all data
-        console.log('⏳ [SSE] Waiting 1 second before closing connection to ensure all events received')
+        console.log('[SSE] Waiting 1 second before closing connection to ensure all events received')
         setTimeout(() => {
-          console.log('🔴 [SSE] Closing connection after delay')
+          console.log('[SSE] Closing connection after delay')
           stopSSE(labId, partId)
         }, 1000)
       })
 
       // Handle errors (single handler, not duplicate)
       eventSource.onerror = (error) => {
-        console.log('⚠️ [SSE] Error event fired, completedReceived:', completedReceived, 'readyState:', eventSource.readyState)
+        console.log('[SSE] Error event fired, completedReceived:', completedReceived, 'readyState:', eventSource.readyState)
 
         // If we already received the completed event, this error is expected (connection closing)
         if (completedReceived) {
-          console.log('ℹ️ [SSE] Connection closed after completion (expected), not reconnecting')
+          console.log('[SSE] Connection closed after completion (expected), not reconnecting')
           stopSSE(labId, partId)
           return
         }
@@ -412,11 +412,11 @@ export const useSubmissions = () => {
         // Check connection state
         // EventSource.CONNECTING = 0, EventSource.OPEN = 1, EventSource.CLOSED = 2
         if (eventSource.readyState === EventSource.CLOSED) {
-          console.error('❌ [SSE] Connection closed unexpectedly before completion')
+          console.error('[SSE] Connection closed unexpectedly before completion')
 
           // Try to reconnect if we haven't exceeded max attempts
           if (connectionAttempts < MAX_RECONNECTION_ATTEMPTS) {
-            console.log(`🔄 [SSE] Attempting reconnection ${connectionAttempts + 1}/${MAX_RECONNECTION_ATTEMPTS}...`)
+            console.log(`[SSE] Attempting reconnection ${connectionAttempts + 1}/${MAX_RECONNECTION_ATTEMPTS}...`)
             stopSSE(labId, partId)
 
             // Wait a bit before reconnecting to avoid hammering the server
@@ -424,22 +424,22 @@ export const useSubmissions = () => {
               startSSE(jobId, labId, partId)
             }, 2000)
           } else {
-            console.log('❌ [SSE] Max reconnection attempts reached, falling back to polling')
+            console.log('[SSE] Max reconnection attempts reached, falling back to polling')
             stopSSE(labId, partId)
             startPolling(jobId, labId, partId)
           }
         } else if (eventSource.readyState === EventSource.CONNECTING) {
-          console.log('🔄 [SSE] Connection is reconnecting automatically...')
+          console.log('[SSE] Connection is reconnecting automatically...')
           // EventSource will try to reconnect automatically, don't do anything
         } else {
-          console.error('❌ [SSE] Unknown error state:', error)
+          console.error('[SSE] Unknown error state:', error)
           stopSSE(labId, partId)
           startPolling(jobId, labId, partId)
         }
       }
 
     } catch (error) {
-      console.error('❌ [SSE] Failed to create EventSource:', error)
+      console.error('[SSE] Failed to create EventSource:', error)
       // Fall back to polling
       startPolling(jobId, labId, partId)
     }
@@ -452,30 +452,30 @@ export const useSubmissions = () => {
     if (state.sseConnection) {
       state.sseConnection.close()
       state.sseConnection = null
-      console.log('🔴 [SSE] Connection closed')
+      console.log('[SSE] Connection closed')
     }
   }
 
   // Start polling for submission progress (fallback for SSE)
   const startPolling = (jobId: string, labId: string, partId: string) => {
-    console.log('🔄 [DEBUG] startPolling() called for job:', jobId)
+    console.log('[DEBUG] startPolling() called for job:', jobId)
 
     const state = getSubmissionState(labId, partId)
 
     // If submission is already in a terminal state, don't start polling
     if (state.currentSubmission && ['completed', 'failed', 'cancelled'].includes(state.currentSubmission.status)) {
-      console.log('ℹ️ [DEBUG] Submission already in terminal state:', state.currentSubmission.status, '- skipping polling')
+      console.log('[DEBUG] Submission already in terminal state:', state.currentSubmission.status, '- skipping polling')
       return
     }
 
     // Clear any existing polling
     if (state.pollingInterval) {
-      console.log('🔄 [DEBUG] Clearing existing polling interval before starting new one')
+      console.log('[DEBUG] Clearing existing polling interval before starting new one')
       clearInterval(state.pollingInterval)
       state.pollingInterval = null
     }
 
-    console.log('🔄 [DEBUG] Starting polling for submission:', jobId, 'Current status:', state.currentSubmission?.status || 'no submission')
+    console.log('[DEBUG] Starting polling for submission:', jobId, 'Current status:', state.currentSubmission?.status || 'no submission')
 
     // Poll immediately first, then set up interval
     const pollSubmission = async () => {
@@ -486,14 +486,14 @@ export const useSubmissions = () => {
 
         // Stop polling if submission is completed, failed, or cancelled
         if (['completed', 'failed', 'cancelled'].includes(submission.status)) {
-          console.log('✅ [DEBUG] Submission finished, stopping polling:', submission.status)
+          console.log('[DEBUG] Submission finished, stopping polling:', submission.status)
           stopPolling(labId, partId)
           stopSSE(labId, partId) // Also close SSE if still open
           return true // Indicates polling should stop
         }
       } else {
         // If we can't fetch the submission, try a few more times before giving up
-        console.warn('⚠️ [WARN] Could not fetch submission, continuing to poll...')
+        console.warn('[WARN] Could not fetch submission, continuing to poll...')
       }
       return false // Continue polling
     }
@@ -511,7 +511,7 @@ export const useSubmissions = () => {
             }
           }
         }, 3000) as any
-        console.log('⏱️ [DEBUG] Polling interval started')
+        console.log('[DEBUG] Polling interval started')
       }
     })
   }
@@ -523,9 +523,9 @@ export const useSubmissions = () => {
     if (state.pollingInterval) {
       clearInterval(state.pollingInterval)
       state.pollingInterval = null
-      console.log('🛑 [DEBUG] Polling stopped. Submission status:', state.currentSubmission?.status || 'no submission')
+      console.log('[DEBUG] Polling stopped. Submission status:', state.currentSubmission?.status || 'no submission')
     } else {
-      console.log('ℹ️ [DEBUG] stopPolling() called but no polling interval was running')
+      console.log('[DEBUG] stopPolling() called but no polling interval was running')
     }
   }
 
@@ -687,7 +687,7 @@ export const useSubmissions = () => {
       return result.success || false
 
     } catch (error: any) {
-      console.error('❌ [ERROR] Failed to cancel submission:', error)
+      console.error('[ERROR] Failed to cancel submission:', error)
       return false
     }
   }
@@ -719,7 +719,7 @@ export const useSubmissions = () => {
     }
   ): Promise<{ success: boolean; submissions?: ISubmission[]; error?: string }> => {
     try {
-      console.log('🔍 [DEBUG] Fetching student submissions:', { studentId, labId, options })
+      console.log('[DEBUG] Fetching student submissions:', { studentId, labId, options })
 
       const params = new URLSearchParams()
       params.append('labId', labId)
@@ -748,7 +748,7 @@ export const useSubmissions = () => {
         throw new Error(result.message || 'Failed to fetch submissions')
       }
 
-      console.log('📊 [DEBUG] Fetched student submissions:', result.data)
+      console.log('[DEBUG] Fetched student submissions:', result.data)
 
       return {
         success: true,
@@ -756,7 +756,7 @@ export const useSubmissions = () => {
       }
 
     } catch (error: any) {
-      console.error('❌ [ERROR] Failed to fetch student submissions:', error)
+      console.error('[ERROR] Failed to fetch student submissions:', error)
       return {
         success: false,
         error: error.message || 'Failed to fetch submissions'

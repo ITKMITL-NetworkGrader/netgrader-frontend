@@ -946,7 +946,7 @@ const submitPartForGrading = async (): Promise<{ success: boolean; isExpired?: b
     )
 
     if (result.success) {
-      console.log('✅ Submission created successfully:', result.jobId)
+      console.log('Submission created successfully:', result.jobId)
       return { success: true }
     } else {
       console.error('❌ Failed to create submission:', result.error)
@@ -1031,7 +1031,7 @@ const fillInBlankActionButtonDisabled = computed(() => {
 const currentGradingStatus = computed(() => {
   if (!currentPart.value) return { status: 'idle', message: 'Ready to submit' }
   const status = getGradingStatus(labId.value, currentPart.value.partId)
-  console.log('🎯 [DEBUG] Current grading status:', status)
+  console.log('[DEBUG] Current grading status:', status)
   return status
 })
 
@@ -1054,7 +1054,7 @@ watch(() => currentGradingStatus.value, async (newStatus) => {
         completedTasks.value[partId].add(task.taskId)
       })
 
-      console.log('✅ Part completed and marked as done:', currentPart.value.partId)
+      console.log('Part completed and marked as done:', currentPart.value.partId)
 
       // Check if ALL parts are now completed to show completion modal
       // Add a small delay so student can see the grading results first
@@ -1252,7 +1252,7 @@ const checkLabCompletion = async () => {
     }
 
     if (!activeLabSessionId.value) {
-      console.log('⏳ [DEBUG] Active lab session not available yet, skipping completion check')
+      console.log('[DEBUG] Active lab session not available yet, skipping completion check')
       return
     }
 
@@ -1351,7 +1351,7 @@ const loadPersonalizedIPs = async (options: { restart?: boolean } = {}) => {
       backendIpMappings.value = result.data.networkConfiguration.ipMappings || {}
       backendVlanMappings.value = result.data.networkConfiguration.vlanMappings || {}
 
-      console.log('✅ [DEBUG] Loaded personalized IPs:', {
+      console.log('[DEBUG] Loaded personalized IPs:', {
         ipMappings: backendIpMappings.value,
         vlanMappings: backendVlanMappings.value
       })
@@ -1457,7 +1457,7 @@ const autoSubmitCurrentPart = async (): Promise<{ success: boolean; submitted: b
   const partType = currentPart.value.partType
   const partTitle = currentPart.value.title
   
-  console.log(`⏰ Auto-submitting part "${partTitle}" (type: ${partType})...`)
+  console.log(`Auto-submitting part "${partTitle}" (type: ${partType})...`)
   
   try {
     if (partType === 'fill_in_blank') {
@@ -1486,11 +1486,11 @@ const autoSubmitCurrentPart = async (): Promise<{ success: boolean; submitted: b
 }
 
 const handleTimerExpired = async () => {
-  console.log('⏰ Timer expired!')
+  console.log('Timer expired!')
   
   // Prevent multiple auto-submit attempts
   if (isAutoSubmitting.value) {
-    console.log('⏰ Auto-submit already in progress, skipping...')
+    console.log('Auto-submit already in progress, skipping...')
     return
   }
   
@@ -1503,7 +1503,7 @@ const handleTimerExpired = async () => {
       : true
     
     if (!isCurrentPartCompleted && currentPart.value) {
-      console.log(`⏰ Current part "${currentPart.value.title}" not completed, attempting auto-submit...`)
+      console.log(`Current part "${currentPart.value.title}" not completed, attempting auto-submit...`)
       
       // Show a toast to inform the user
       toast.info('Time\'s up!', {
@@ -1528,7 +1528,7 @@ const handleTimerExpired = async () => {
         })
       }
     } else {
-      console.log('⏰ Current part already completed or no part selected, skipping auto-submit')
+      console.log('Current part already completed or no part selected, skipping auto-submit')
     }
   } catch (error: any) {
     console.error('⏰ Error during timer expiry handling:', error)
@@ -1548,33 +1548,33 @@ const handleDeadlineExtended = (payload: {
   labTitle?: string
   fields: Array<{ type: 'dueDate' | 'availableUntil'; diffMs: number }>
 }) => {
-  console.log('⏳ [INFO] Lab timer extended:', payload)
+  console.log('[INFO] Lab timer extended:', payload)
 }
 
 // Data Loading
 const loadLabData = async () => {
-  console.log('🚀 [DEBUG] loadLabData started')
-  console.log('🚀 [DEBUG] courseId:', courseId.value)
-  console.log('🚀 [DEBUG] labId:', labId.value)
+  console.log('[DEBUG] loadLabData started')
+  console.log('[DEBUG] courseId:', courseId.value)
+  console.log('[DEBUG] labId:', labId.value)
 
   try {
     // Load course and lab in parallel
-    console.log('🚀 [DEBUG] Loading course and lab...')
+    console.log('[DEBUG] Loading course and lab...')
     await Promise.all([
       fetchCourse(courseId.value),
       fetchLabById(labId.value)
     ])
 
-    console.log('🚀 [DEBUG] Course and lab data loaded')
-    console.log('🚀 [DEBUG] currentLab.value:', currentLab.value)
+    console.log('[DEBUG] Course and lab data loaded')
+    console.log('[DEBUG] currentLab.value:', currentLab.value)
 
     initializeInstructionsState()
 
     // Then load parts data
     if (currentLab.value) {
-      console.log('🚀 [DEBUG] Lab found, fetching parts with labId:', labId.value)
+      console.log('[DEBUG] Lab found, fetching parts with labId:', labId.value)
       const parts = await fetchLabParts(labId.value) // Use labId directly as specified in API
-      console.log('🚀 [DEBUG] Parts fetched:', parts)
+      console.log('[DEBUG] Parts fetched:', parts)
 
       // Load personalized IPs first so we know the active session before checking completion
       await loadPersonalizedIPs()
@@ -1584,7 +1584,7 @@ const loadLabData = async () => {
         await checkLabCompletion()
       }
     } else {
-      console.log('🚀 [DEBUG] No currentLab found, skipping parts fetch')
+      console.log('[DEBUG] No currentLab found, skipping parts fetch')
       isLoadingIPs.value = false
     }
   } catch (err) {

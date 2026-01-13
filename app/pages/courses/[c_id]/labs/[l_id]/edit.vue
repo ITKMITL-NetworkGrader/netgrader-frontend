@@ -1257,7 +1257,7 @@ const loadLabData = async () => {
 
     let fetchedParts: any[] = []
 
-    console.log('🌐 [DEBUG] Parts response structure:', {
+    console.log('[DEBUG] Parts response structure:', {
       hasSuccess: 'success' in partsResponse,
       hasParts: 'parts' in partsResponse,
       success: (partsResponse as any).success,
@@ -1280,9 +1280,9 @@ const loadLabData = async () => {
       throw new Error('Failed to load lab parts')
     }
 
-    console.log(`🌐 [DEBUG] Fetched ${fetchedParts.length} parts from backend`)
+    console.log(`[DEBUG] Fetched ${fetchedParts.length} parts from backend`)
     if (fetchedParts.length > 0) {
-      console.log('🌐 [DEBUG] First part raw data:', {
+      console.log('[DEBUG] First part raw data:', {
         keys: Object.keys(fetchedParts[0]),
         _id: fetchedParts[0]._id,
         id: fetchedParts[0].id,
@@ -1316,7 +1316,7 @@ const loadLabData = async () => {
     // Debug: Log the structure of the first part's _id
     if (deduplicatedParts.length > 0) {
       const firstPart = deduplicatedParts[0]
-      console.log('🔍 [DEBUG] Sample part _id structure:', {
+      console.log('[DEBUG] Sample part _id structure:', {
         _id: firstPart._id,
         _idType: typeof firstPart._id,
         _idConstructorName: firstPart._id?.constructor?.name,
@@ -1333,7 +1333,7 @@ const loadLabData = async () => {
     transformBackendDataToWizard()
     applySubmissionSummaryToParts()
 
-    console.log('✅ Lab data loaded successfully')
+    console.log('Lab data loaded successfully')
 
     initializeValidationState()
 
@@ -1466,7 +1466,7 @@ const transformBackendDataToWizard = () => {
     dueDate: lab.dueDate ? new Date(lab.dueDate) : undefined
   }
 
-  console.log('✅ Data transformed to wizard format')
+  console.log('Data transformed to wizard format')
 }
 
 const initializeValidationState = () => {
@@ -1538,7 +1538,7 @@ const saveDraft = async () => {
     }
     
     const draftKey = `lab-edit-draft-${labId}`
-    console.log(`💾 Saving edit draft with key: ${draftKey}`, draftData)
+    console.log(`Saving edit draft with key: ${draftKey}`, draftData)
     localStorage.setItem(draftKey, JSON.stringify(draftData))
 
     showGlobalMessage('success', 'Draft saved successfully')
@@ -1554,7 +1554,7 @@ const loadDraft = () => {
     const draftData = localStorage.getItem(draftKey)
     if (draftData) {
       const parsed = JSON.parse(draftData)
-      console.log(`📂 Loading edit draft with key: ${draftKey}`, parsed)
+      console.log(`Loading edit draft with key: ${draftKey}`, parsed)
       
       // Restore basic info
       if (parsed.basicInfo) {
@@ -1612,7 +1612,7 @@ const executeLabUpdate = async () => {
   isSubmitting.value = true
 
   try {
-    console.group('🔄 Lab Update Process')
+    console.group('Lab Update Process')
 
     const sanitizedTitle = (wizardData.basicInfo.name || '').trim()
     const sanitizedDescription = sanitizeOptionalString(wizardData.basicInfo.description)
@@ -1661,7 +1661,7 @@ const executeLabUpdate = async () => {
       labData.availableUntil = availableUntil
     }
 
-    console.log('📝 Updating lab...', labData)
+    console.log('Updating lab...', labData)
 
     const labResponse = await $fetch(`${backendURL}/v0/labs/${labId}`, {
       method: 'PUT',
@@ -1676,7 +1676,7 @@ const executeLabUpdate = async () => {
       throw new Error(labResponse.message || 'Failed to update lab')
     }
 
-    console.log('✅ Lab updated successfully')
+    console.log('Lab updated successfully')
 
     const normalizeId = (value: any, debugLabel?: string): string | null => {
       const debug = (msg: string, data?: any) => {
@@ -1752,7 +1752,7 @@ const executeLabUpdate = async () => {
     const originalPartsById = new Map<string, any>()
     const originalPartsByPartId = new Map<string, any>()
 
-    console.log(`🗂️ Building original parts maps from ${originalPartsData.value.length} parts`)
+    console.log(`Building original parts maps from ${originalPartsData.value.length} parts`)
     for (const originalPart of originalPartsData.value) {
       // Backend returns 'id' not '_id', so check both
       const idValue = originalPart?._id || originalPart?.id
@@ -1764,7 +1764,7 @@ const executeLabUpdate = async () => {
         originalPartsByPartId.set(originalPart.partId, originalPart)
       }
     }
-    console.log(`✅ Built maps: ${originalPartsById.size} by _id, ${originalPartsByPartId.size} by partId`)
+    console.log(`Built maps: ${originalPartsById.size} by _id, ${originalPartsByPartId.size} by partId`)
 
     const findOriginalPart = (part: any) => {
       if (!part) return null
@@ -1773,12 +1773,12 @@ const executeLabUpdate = async () => {
       const idValue = part._id || part.id
       const id = normalizeId(idValue, `wizard:${part.partId}`)
       if (id && originalPartsById.has(id)) {
-        console.log(`✅ Found match by _id/id: ${part.partId} (${id})`)
+        console.log(`Found match by _id/id: ${part.partId} (${id})`)
         return originalPartsById.get(id)
       }
 
       if (part.partId && originalPartsByPartId.has(part.partId)) {
-        console.log(`✅ Found match by partId: ${part.partId}`)
+        console.log(`Found match by partId: ${part.partId}`)
         return originalPartsByPartId.get(part.partId)
       }
 
@@ -1794,7 +1794,7 @@ const executeLabUpdate = async () => {
       const originalPart = findOriginalPart(part)
 
       if (!originalPart) {
-        console.log(`➕ Part will be created (no match found): ${part.partId || part.title}`)
+        console.log(`Part will be created (no match found): ${part.partId || part.title}`)
         partsToCreate.push(part)
         continue
       }
@@ -1818,7 +1818,7 @@ const executeLabUpdate = async () => {
         continue
       }
 
-      console.log(`🔄 Part will be updated: ${part.partId} (ID: ${targetId})`)
+      console.log(`Part will be updated: ${part.partId} (ID: ${targetId})`)
       matchedOriginalIds.add(targetId)
 
       // Ensure the working copy retains the original _id/id for future comparisons
@@ -1847,19 +1847,19 @@ const executeLabUpdate = async () => {
       }
       const shouldDelete = !matchedOriginalIds.has(originalId)
       if (shouldDelete) {
-        console.log(`🗑️  Part will be deleted: ${originalPart.partId} (${originalPart.title})`)
+        console.log(`Part will be deleted: ${originalPart.partId} (${originalPart.title})`)
       }
       return shouldDelete
     })
 
-    console.log('📊 Parts summary:', {
+    console.log('Parts summary:', {
       toDelete: partsToDelete.length,
       toCreate: partsToCreate.length,
       toUpdate: partsToUpdate.length
     })
 
     for (const part of partsToDelete) {
-      console.log(`🗑️  Deleting part: ${part.partId}`)
+      console.log(`Deleting part: ${part.partId}`)
       await $fetch(`${backendURL}/v0/parts/${part._id}`, {
         method: 'DELETE',
         credentials: 'include'
@@ -1867,7 +1867,7 @@ const executeLabUpdate = async () => {
     }
 
     for (const part of partsToCreate) {
-      console.log(`➕ Creating new part: ${part.partId}`)
+      console.log(`Creating new part: ${part.partId}`)
       const partData = buildPartData(labId, part)
       await $fetch(`${backendURL}/v0/parts`, {
         method: 'POST',
@@ -1880,10 +1880,10 @@ const executeLabUpdate = async () => {
     }
 
     for (const { part, targetId } of partsToUpdate) {
-      console.log(`🔄 Updating part: ${part.partId}`)
+      console.log(`Updating part: ${part.partId}`)
 
       // Debug: Log the source part data from wizard
-      console.log(`📥 Source part from wizard (${part.partId}):`, {
+      console.log(`Source part from wizard (${part.partId}):`, {
         partType: part.partType,
         questionsCount: part.questions?.length || 0,
         totalPoints: part.totalPoints,
@@ -1894,7 +1894,7 @@ const executeLabUpdate = async () => {
       const partData = buildPartData(labId, part)
 
       // Debug: Log the part data being sent to backend
-      console.log(`📤 Part data for ${part.partId} being sent to backend:`, {
+      console.log(`Part data for ${part.partId} being sent to backend:`, {
         partType: partData.partType,
         questionsCount: partData.questions?.length || 0,
         totalPoints: partData.totalPoints,
@@ -1911,16 +1911,16 @@ const executeLabUpdate = async () => {
         },
         body: partData
       })
-      console.log(`✅ Successfully updated part: ${part.partId}`)
+      console.log(`Successfully updated part: ${part.partId}`)
     }
 
     console.groupEnd()
 
     // Clear draft from localStorage
     const draftKey = `lab-edit-draft-${labId}`
-    console.log(`🧹 Clearing edit draft with key: ${draftKey}`)
+    console.log(`Clearing edit draft with key: ${draftKey}`)
     localStorage.removeItem(draftKey)
-    console.log(`✅ Edit draft cleared. Verifying: ${localStorage.getItem(draftKey) === null ? 'Success' : 'FAILED'}`)
+    console.log(`Edit draft cleared. Verifying: ${localStorage.getItem(draftKey) === null ? 'Success' : 'FAILED'}`)
 
     showGlobalMessage('success', 'Lab updated successfully!')
 
