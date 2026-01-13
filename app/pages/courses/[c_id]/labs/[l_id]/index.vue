@@ -1309,6 +1309,18 @@ const checkLabCompletion = async () => {
         totalPartsCompleted: status.totalPartsCompleted + (instructionsAcknowledged.value ? 1 : 0)
       }
 
+      // CRITICAL FIX: Sync the completedParts Set from submission history
+      // This ensures that when a student returns to the lab, parts that were previously
+      // completed (with full points) are correctly marked as completed, unlocking subsequent parts
+      completedPartIds.forEach(partId => {
+        // Find the actual part to get its id (not partId)
+        const part = actualLabParts.value?.find(p => p.partId === partId)
+        if (part) {
+          completedParts.value.add(part.id)
+          console.log('[DEBUG] Synced completed part from history:', partId, '-> id:', part.id)
+        }
+      })
+
       if (!completionStatus.value.isFullyCompleted) {
         attemptResumeNavigation(result.submissions)
       }
