@@ -306,7 +306,28 @@ const restoreAnswersFromStorage = (payload: FillInBlankStoragePayload | null = s
 
   answers.value = nextAnswers
 
-  if (payload.ipTableAnswers && typeof payload.ipTableAnswers === 'object') {
+  // CRITICAL FIX: Prioritize validatedIpTableAnswers over draft ipTableAnswers
+  // This ensures that when a student returns to the lab after passing a fill-in-blank part,
+  // the validated DHCP and SLAAC answers are loaded into ipTableAnswers.value
+  // so they can be attached to submission payloads for network configuration parts
+  if (payload.validatedIpTableAnswers && typeof payload.validatedIpTableAnswers === 'object') {
+    const nextIpTableAnswers: Record<string, string[][]> = {}
+
+    Object.entries(payload.validatedIpTableAnswers).forEach(([questionId, value]) => {
+      if (Array.isArray(value)) {
+        nextIpTableAnswers[questionId] = JSON.parse(JSON.stringify(value)) as string[][]
+      }
+    })
+
+    ipTableAnswers.value = nextIpTableAnswers
+    lastPersistedIpTableAnswers.value = JSON.parse(JSON.stringify(nextIpTableAnswers))
+    
+    console.log('[FillInBlank] Restored validated IP table answers from localStorage', {
+      questionIds: Object.keys(nextIpTableAnswers),
+      partId: props.partId
+    })
+  } else if (payload.ipTableAnswers && typeof payload.ipTableAnswers === 'object') {
+    // Fallback to draft answers if no validated answers exist
     const nextIpTableAnswers: Record<string, string[][]> = {}
 
     Object.entries(payload.ipTableAnswers).forEach(([questionId, value]) => {
@@ -317,6 +338,11 @@ const restoreAnswersFromStorage = (payload: FillInBlankStoragePayload | null = s
 
     ipTableAnswers.value = nextIpTableAnswers
     lastPersistedIpTableAnswers.value = JSON.parse(JSON.stringify(nextIpTableAnswers))
+    
+    console.log('[FillInBlank] Restored draft IP table answers from localStorage', {
+      questionIds: Object.keys(nextIpTableAnswers),
+      partId: props.partId
+    })
   } else {
     ipTableAnswers.value = {}
     lastPersistedIpTableAnswers.value = {}
