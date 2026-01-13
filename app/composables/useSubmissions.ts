@@ -52,10 +52,10 @@ export const useSubmissions = () => {
       labSessionId?: string | null;
       lecturerRangeAnswers?: LecturerRangeAnswerPayload[];
     }
-  ): Promise<{ success: boolean; jobId?: string; error?: string }> => {
+  ): Promise<{ success: boolean; jobId?: string; error?: string; errorCode?: number; isExpired?: boolean }> => {
     try {
       const state = getSubmissionState(labId, partId)
-      
+
       // Prevent multiple simultaneous submissions
       if (state.isSubmitting) {
         return { success: false, error: 'Submission already in progress' }
@@ -97,17 +97,44 @@ export const useSubmissions = () => {
       })
 
       if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`HTTP ${response.status}: ${errorText}`)
+        // Parse error response to get detailed error message
+        let errorMessage = `HTTP ${response.status}`
+        let errorData: any = null
+
+        try {
+          const errorText = await response.text()
+          try {
+            errorData = JSON.parse(errorText)
+            errorMessage = errorData.message || errorText
+          } catch {
+            errorMessage = errorText || errorMessage
+          }
+        } catch {
+          // Ignore parsing errors
+        }
+
+        const state = getSubmissionState(labId, partId)
+        state.isSubmitting = false
+
+        // Check if this is a "lab expired" error
+        const isExpired = response.status === 403 &&
+          (errorMessage.includes('no longer accepting') || errorMessage.includes('no longer available'))
+
+        return {
+          success: false,
+          error: errorMessage,
+          errorCode: response.status,
+          isExpired
+        }
       }
 
       const result = await response.json()
-      
+
       console.log('✅ [DEBUG] Submission created successfully:', result)
 
       // Extract jobId from the actual response format
       let jobId: string | undefined
-      
+
       if (result.status === 'success' && result.job_id) {
         // Actual backend format: { status: "success", job_id: "...", ... }
         jobId = result.job_id
@@ -119,7 +146,7 @@ export const useSubmissions = () => {
       // Update state
       if (jobId) {
         state.lastSubmissionJobId = jobId
-        
+
         // Create initial submission state to show immediate progress
         state.currentSubmission = {
           jobId: jobId,
@@ -150,20 +177,22 @@ export const useSubmissions = () => {
       }
       state.isSubmitting = false
 
-      return { 
-        success: true, 
-        jobId: jobId 
+      return {
+        success: true,
+        jobId: jobId
       }
 
     } catch (error: any) {
       console.error('❌ [ERROR] Failed to create submission:', error)
-      
+
       const state = getSubmissionState(labId, partId)
       state.isSubmitting = false
-      
-      return { 
-        success: false, 
-        error: error.message || 'Failed to create submission' 
+
+      return {
+        success: false,
+        error: error.message || 'Failed to create submission',
+        errorCode: 0,
+        isExpired: false
       }
     }
   }
@@ -190,7 +219,7 @@ export const useSubmissions = () => {
       }
 
       const result = await response.json()
-      
+
       if (result.status !== 'success' || !result.data) {
         throw new Error(result.message || 'Failed to fetch submission')
       }
@@ -199,7 +228,7 @@ export const useSubmissions = () => {
       submissions.value[jobId] = result.data
 
       console.log('📊 [DEBUG] Fetched submission:', result.data)
-      
+
       return result.data
 
     } catch (error: any) {
@@ -503,7 +532,7 @@ export const useSubmissions = () => {
   // Get grading status display data for UI
   const getGradingStatus = (labId: string, partId: string): GradingStatusDisplay => {
     const state = getSubmissionState(labId, partId)
-    
+
     if (state.isSubmitting) {
       return {
         status: 'submitting',
@@ -631,8 +660,8 @@ export const useSubmissions = () => {
     // Reset the submission to idle state while keeping the actual submission data
     // This allows the user to resubmit if they didn't pass
     if (state.currentSubmission &&
-        state.currentSubmission.gradingResult?.status === 'completed' &&
-        state.currentSubmission.gradingResult.total_points_earned < state.currentSubmission.gradingResult.total_points_possible) {
+      state.currentSubmission.gradingResult?.status === 'completed' &&
+      state.currentSubmission.gradingResult.total_points_earned < state.currentSubmission.gradingResult.total_points_possible) {
       // Only clear if not passed - if passed, keep showing the results
       state.currentSubmission = null
       state.isSubmitting = false
@@ -802,9 +831,9 @@ export const useSubmissions = () => {
 
     const filteredSubmissions = normalizedTarget
       ? submissions.filter(submission => {
-          if (!submission.labSessionId) return false
-          return submission.labSessionId === normalizedTarget
-        })
+        if (!submission.labSessionId) return false
+        return submission.labSessionId === normalizedTarget
+      })
       : submissions
 
     // Group submissions by partId and get the latest (highest attempt)
@@ -826,8 +855,8 @@ export const useSubmissions = () => {
       const submission = latestSubmissionsByPart[part.partId]
 
       if (submission &&
-          submission.status === 'completed' &&
-          submission.gradingResult) {
+        submission.status === 'completed' &&
+        submission.gradingResult) {
 
         const earnedPoints = submission.gradingResult.total_points_earned
         const possiblePoints = submission.gradingResult.total_points_possible

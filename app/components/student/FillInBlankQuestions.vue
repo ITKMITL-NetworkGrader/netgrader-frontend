@@ -721,37 +721,42 @@ const prefillAnswersFromSchema = (schema: any) => {
   persistValidatedAnswersToStorage()
 }
 
-const submitAnswers = async (): Promise<FillInBlankSubmissionResult | null> => {
-  // Validate all regular questions are answered
-  const unansweredRegular = props.questions.filter(q => {
-    if (q.questionType === 'ip_table_questionnaire') return false
-    return !answers.value[q.questionId] || !answers.value[q.questionId].trim()
-  })
+const submitAnswers = async (options?: { forceSubmit?: boolean }): Promise<FillInBlankSubmissionResult | null> => {
+  const forceSubmit = options?.forceSubmit ?? false
+  
+  // Skip validation if forceSubmit is true (used for timer expiry auto-submit)
+  if (!forceSubmit) {
+    // Validate all regular questions are answered
+    const unansweredRegular = props.questions.filter(q => {
+      if (q.questionType === 'ip_table_questionnaire') return false
+      return !answers.value[q.questionId] || !answers.value[q.questionId].trim()
+    })
 
-  if (unansweredRegular.length > 0) {
-    toast.error(`Please answer all questions (${unansweredRegular.length} remaining)`)
-    return null
-  }
+    if (unansweredRegular.length > 0) {
+      toast.error(`Please answer all questions (${unansweredRegular.length} remaining)`)
+      return null
+    }
 
-  // Validate IP table questionnaires
-  let ipTableValidationFailed = false
-  for (const question of props.questions) {
-    if (question.questionType === 'ip_table_questionnaire') {
-      const ipTableRef = ipTableRefs.value[question.questionId]
-      if (ipTableRef && typeof ipTableRef.validate === 'function') {
-        const isValid = ipTableRef.validate()
-        if (!isValid) {
-          ipTableValidationFailed = true
-          toast.error('IP Table Validation Failed', {
-            description: 'Please check all IP addresses in the table and fix any errors.'
-          })
-          break
+    // Validate IP table questionnaires
+    let ipTableValidationFailed = false
+    for (const question of props.questions) {
+      if (question.questionType === 'ip_table_questionnaire') {
+        const ipTableRef = ipTableRefs.value[question.questionId]
+        if (ipTableRef && typeof ipTableRef.validate === 'function') {
+          const isValid = ipTableRef.validate()
+          if (!isValid) {
+            ipTableValidationFailed = true
+            toast.error('IP Table Validation Failed', {
+              description: 'Please check all IP addresses in the table and fix any errors.'
+            })
+            break
+          }
         }
       }
     }
-  }
 
-  if (ipTableValidationFailed) return null
+    if (ipTableValidationFailed) return null
+  }
 
   isSubmitting.value = true
 

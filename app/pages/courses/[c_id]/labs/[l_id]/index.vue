@@ -930,8 +930,8 @@ function handleGns3SetupComplete(config: {
 }
 
 // Grading Submission
-const submitPartForGrading = async () => {
-  if (!currentPart.value) return
+const submitPartForGrading = async (): Promise<{ success: boolean; isExpired?: boolean }> => {
+  if (!currentPart.value) return { success: false }
 
   try {
     const lecturerRangeOverrides = collectLecturerRangeOverrides()
@@ -947,12 +947,33 @@ const submitPartForGrading = async () => {
 
     if (result.success) {
       console.log('✅ Submission created successfully:', result.jobId)
+      return { success: true }
     } else {
       console.error('❌ Failed to create submission:', result.error)
-      // Handle error state - could show toast or alert
+      
+      // Show error toast with specific message for lab expired
+      if (result.isExpired) {
+        toast.error('Lab Expired', {
+          description: 'This lab is no longer accepting submissions. Your time has run out.'
+        })
+      } else if (result.errorCode === 429) {
+        toast.error('Please Wait', {
+          description: result.error || 'Please wait before submitting again.'
+        })
+      } else {
+        toast.error('Submission Failed', {
+          description: result.error || 'Failed to submit. Please try again.'
+        })
+      }
+      
+      return { success: false, isExpired: result.isExpired }
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Error during submission:', error)
+    toast.error('Submission Error', {
+      description: error.message || 'An unexpected error occurred.'
+    })
+    return { success: false }
   }
 }
 
@@ -1425,18 +1446,97 @@ const handleCloseResultsModal = () => {
   isFreshCompletion.value = false
 }
 
-// Handle timer expiration - persist any unsaved answers first
-const handleTimerExpired = () => {
-  console.log('⏰ Timer expired!')
-  
-  // Trigger auto-save of any fill-in-blank answers in localStorage
-  // The FillInBlankQuestions component's auto-save watcher handles this,
-  // but we force a save entry in sessionStorage for the progress state
-  if (fillInBlankQuestionsRef.value && typeof window !== 'undefined') {
-    console.log('⏰ Persisting unsaved answers before timer expiry modal...')
-    // The answers are already auto-saved by the debounced watcher in FillInBlankQuestions
+// Handle timer expiration - auto-submit current part before showing modal
+const isAutoSubmitting = ref(false)
+
+const autoSubmitCurrentPart = async (): Promise<{ success: boolean; submitted: boolean }> => {
+  if (!currentPart.value) {
+    return { success: false, submitted: false }
   }
   
+  const partType = currentPart.value.partType
+  const partTitle = currentPart.value.title
+  
+  console.log(`⏰ Auto-submitting part "${partTitle}" (type: ${partType})...`)
+  
+  try {
+    if (partType === 'fill_in_blank') {
+      // For fill-in-blank parts, use forceSubmit to submit partial answers
+      if (fillInBlankQuestionsRef.value) {
+        const result = await fillInBlankQuestionsRef.value.submitAnswers({ forceSubmit: true })
+        if (result) {
+          handleFillInBlankSubmissionResult(result)
+          return { success: true, submitted: true }
+        }
+        // Even if result is null, we still "submitted" (just nothing to submit)
+        return { success: true, submitted: false }
+      }
+    } else if (partType === 'network_config' || partType === 'dhcp_config') {
+      // For network configuration parts, trigger the grading submission
+      const result = await submitPartForGrading()
+      return { success: result.success, submitted: true }
+    }
+    
+    // For other part types (like instructions), nothing to submit
+    return { success: true, submitted: false }
+  } catch (error: any) {
+    console.error('⏰ Auto-submit failed:', error)
+    return { success: false, submitted: false }
+  }
+}
+
+const handleTimerExpired = async () => {
+  console.log('⏰ Timer expired!')
+  
+  // Prevent multiple auto-submit attempts
+  if (isAutoSubmitting.value) {
+    console.log('⏰ Auto-submit already in progress, skipping...')
+    return
+  }
+  
+  isAutoSubmitting.value = true
+  
+  try {
+    // Check if the current part has not been completed yet
+    const isCurrentPartCompleted = currentPart.value 
+      ? completedParts.value.has(currentPart.value.id)
+      : true
+    
+    if (!isCurrentPartCompleted && currentPart.value) {
+      console.log(`⏰ Current part "${currentPart.value.title}" not completed, attempting auto-submit...`)
+      
+      // Show a toast to inform the user
+      toast.info('Time\'s up!', {
+        description: 'Auto-saving your work before showing results...'
+      })
+      
+      // Auto-submit the current part with a timeout
+      const submitPromise = autoSubmitCurrentPart()
+      const timeoutPromise = new Promise<{ success: boolean; submitted: boolean }>((resolve) => 
+        setTimeout(() => resolve({ success: false, submitted: false }), 3000)
+      )
+      
+      const result = await Promise.race([submitPromise, timeoutPromise])
+      
+      if (result.submitted && result.success) {
+        toast.success('Work Auto-Saved', {
+          description: 'Your answers were submitted before time ran out.'
+        })
+      } else if (result.submitted && !result.success) {
+        toast.warning('Auto-Save Incomplete', {
+          description: 'Some of your work may not have been saved.'
+        })
+      }
+    } else {
+      console.log('⏰ Current part already completed or no part selected, skipping auto-submit')
+    }
+  } catch (error: any) {
+    console.error('⏰ Error during timer expiry handling:', error)
+  } finally {
+    isAutoSubmitting.value = false
+  }
+  
+  // Show the timer expired modal
   timerExpiredModalMode.value = 'timer_expired'
   isFreshCompletion.value = false // Timer expiration is NOT a fresh completion
   showCollapsedSummary.value = false // Show full details for timer expiration
