@@ -109,29 +109,29 @@ export interface ISubmission {
   labId: string;
   partId: string;
   submissionType: 'auto_grading' | 'fill_in_blank' | 'ip_answers';
-  
+
   // Submission Status
   status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
   submittedAt: Date;
   startedAt?: Date;
   completedAt?: Date;
-  
+
   // Grading Results
   gradingResult?: IGradingResult;
 
   // Fill-in-blank summary
   fillInBlankResults?: IFillInBlankResults;
-  
+
   // Progress Tracking
   progressHistory: IProgressUpdate[];
-  
+
   // Additional metadata
   attempt: number;
   ipMappings: Record<string, any>;
   callbackUrl: string;
   labSessionId?: string;
   labAttemptNumber?: number;
-  
+
   // Timestamps
   createdAt: Date;
   updatedAt: Date;
@@ -141,6 +141,7 @@ export interface ISubmission {
 export interface CreateSubmissionRequest {
   lab_id: string;
   part_id: string;
+  project_id: string;
   lab_session_id?: string;
   lecturer_range_answers?: Array<{
     source_part_id: string;

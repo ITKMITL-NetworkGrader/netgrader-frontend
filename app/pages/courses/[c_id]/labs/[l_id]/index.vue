@@ -936,10 +936,25 @@ const submitPartForGrading = async (): Promise<{ success: boolean; isExpired?: b
   try {
     const lecturerRangeOverrides = collectLecturerRangeOverrides()
 
+    // Get projectId from localStorage (GNS3 project config)
+    let projectId = ''
+    try {
+      const saved = localStorage.getItem(GNS3_PROJECT_STORAGE_KEY)
+      if (saved) {
+        const config = JSON.parse(saved)
+        if (config.labId === labId.value && config.projectId) {
+          projectId = config.projectId
+        }
+      }
+    } catch (e) {
+      console.warn('[submitPartForGrading] Failed to get projectId from localStorage:', e)
+    }
+
     const result = await createSubmission(
       labId.value,
       currentPart.value.partId,
       {
+        projectId,
         labSessionId: activeLabSessionId.value ?? undefined,
         lecturerRangeAnswers: lecturerRangeOverrides.length > 0 ? lecturerRangeOverrides : undefined
       }

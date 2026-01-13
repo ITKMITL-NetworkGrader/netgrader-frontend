@@ -49,6 +49,7 @@ export const useSubmissions = () => {
     labId: string,
     partId: string,
     options?: {
+      projectId?: string;
       labSessionId?: string | null;
       lecturerRangeAnswers?: LecturerRangeAnswerPayload[];
     }
@@ -65,7 +66,8 @@ export const useSubmissions = () => {
 
       const requestData: CreateSubmissionRequest = {
         lab_id: labId,
-        part_id: partId
+        part_id: partId,
+        project_id: options?.projectId || ''
       }
 
       if (options?.labSessionId) {
