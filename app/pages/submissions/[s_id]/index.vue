@@ -226,7 +226,7 @@ onMounted(() => {
           <BreadcrumbItem>
             <NuxtLink
               v-if="courseId && labId"
-              :to="`/courses/${courseId}/labs/${labId}/status`"
+              :to="`/courses/${courseId}/labs/${labId}`"
               class="hover:text-primary transition-colors"
             >
               {{ labTitle }}
@@ -238,13 +238,13 @@ onMounted(() => {
           </BreadcrumbSeparator>
           <BreadcrumbItem>
             <NuxtLink
-              v-if="courseId && labId && studentId"
-              :to="`/courses/${courseId}/labs/${labId}/students/${studentId}`"
+              v-if="courseId && labId"
+              :to="`/courses/${courseId}/labs/${labId}/submissions`"
               class="hover:text-primary transition-colors"
             >
-              {{ studentId }}
+              Submissions
             </NuxtLink>
-            <span v-else class="text-muted-foreground">{{ studentId }}</span>
+            <span v-else class="text-muted-foreground">Submissions</span>
           </BreadcrumbItem>
           <BreadcrumbSeparator>
             <ChevronRight class="h-4 w-4" />

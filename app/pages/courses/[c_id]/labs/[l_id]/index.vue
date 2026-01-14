@@ -27,7 +27,9 @@ import {
   RotateCcw,
   Info,
   Loader2,
-  Send
+  Send,
+  History,
+  ExternalLink
 } from 'lucide-vue-next'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -1881,10 +1883,27 @@ watch(() => route.query.part, (newPart) => {
               </div>
             </div>
             <div class="flex-1 min-w-0">
-              <h2 class="font-bold text-xl truncate text-foreground">{{ currentLab.title }}</h2>
-              <p v-if="currentLab.description" class="text-sm text-muted-foreground line-clamp-2 mt-1 leading-relaxed">
-                {{ currentLab.description }}
-              </p>
+              <div class="flex items-start justify-between">
+                <div>
+                  <h2 class="font-bold text-xl truncate text-foreground">{{ currentLab.title }}</h2>
+                  <p v-if="currentLab.description" class="text-sm text-muted-foreground line-clamp-2 mt-1 leading-relaxed">
+                    {{ currentLab.description }}
+                  </p>
+                </div>
+                <!-- View Submissions Button (opens in new tab) -->
+                <a
+                  :href="`/courses/${courseId}/labs/${labId}/submissions`"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="flex-shrink-0 ml-2"
+                >
+                  <Button variant="outline" size="sm" class="flex items-center space-x-1" title="View Submission History (New Tab)">
+                    <History class="w-4 h-4" />
+                    <span class="hidden sm:inline">History</span>
+                    <ExternalLink class="w-3 h-3 ml-1" />
+                  </Button>
+                </a>
+              </div>
             </div>
           </div>
 

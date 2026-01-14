@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ChevronRight, Home, Edit, Settings, X, Plus, Trash2, Play, BookOpen, Clock, Calendar, Loader2, BarChart3, RotateCcw, UserCog } from 'lucide-vue-next'
+import { ChevronRight, Home, Edit, Settings, X, Plus, Trash2, Play, BookOpen, Clock, Calendar, Loader2, BarChart3, RotateCcw, UserCog, History } from 'lucide-vue-next'
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Button } from '@/components/ui/button'
@@ -1078,7 +1078,16 @@ const handleAdminRoleChange = async () => {
                                                         </div>
                                                     </div>
                                                 </div>
-                                                <div class="flex-shrink-0 ml-4">
+                                                <div class="flex-shrink-0 ml-4 flex items-center space-x-2">
+                                                    <!-- View Submissions button (students only) -->
+                                                    <NuxtLink
+                                                      v-if="isLabAvailable(lab) && !canManageCourse"
+                                                      :to="`/courses/${courseId}/labs/${lab.id}/submissions`"
+                                                    >
+                                                        <Button variant="outline" size="icon" class="h-10 w-10" title="View Submissions">
+                                                            <History class="w-4 h-4" />
+                                                        </Button>
+                                                    </NuxtLink>
                                                     <NuxtLink
                                                       v-if="isLabAvailable(lab)"
                                                       :to="canManageCourse ? `/courses/${courseId}/labs/${lab.id}/status` : `/courses/${courseId}/labs/${lab.id}`"
