@@ -45,7 +45,7 @@
       </div>
 
       <!-- Content - Scrollable -->
-      <ScrollArea class="flex-1 p-6">
+      <ScrollArea class="flex-1 min-h-0 overflow-y-auto p-6">
         <!-- Collapsed Summary (when initiallyCollapsed is true and not expanded) -->
         <div v-if="!isExpanded && mode === 'results'" class="text-center py-8">
           <Award class="w-20 h-20 mx-auto text-green-500 mb-4" />
