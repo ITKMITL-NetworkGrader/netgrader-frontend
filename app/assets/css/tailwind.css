@@ -15,6 +15,58 @@
   }
 }
 
+/* Modal animation - emerge from click position with spring effect */
+/* Uses CSS custom properties --modal-offset-x and --modal-offset-y for origin */
+@keyframes modal-enter {
+  0% {
+    opacity: 0;
+    transform: translate(var(--modal-offset-x, 0px), var(--modal-offset-y, 0px)) scale(0.7);
+  }
+
+  60% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1.03);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+}
+
+@keyframes modal-exit {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(var(--modal-offset-x, 0px), var(--modal-offset-y, 0px)) scale(0.85);
+  }
+}
+
+/* Overlay animation - simple fade */
+@keyframes overlay-enter {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes overlay-exit {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}
+
 @layer utilities {
   .animation-delay-100 {
     animation-delay: 100ms;
@@ -174,6 +226,7 @@
     from {
       height: 0;
     }
+
     to {
       height: var(--reka-accordion-content-height);
     }
@@ -183,6 +236,7 @@
     from {
       height: var(--reka-accordion-content-height);
     }
+
     to {
       height: 0;
     }
