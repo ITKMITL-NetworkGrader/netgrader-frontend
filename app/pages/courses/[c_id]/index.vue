@@ -1084,8 +1084,9 @@ const handleAdminRoleChange = async () => {
                                                       v-if="isLabAvailable(lab) && !canManageCourse"
                                                       :to="`/courses/${courseId}/labs/${lab.id}/submissions`"
                                                     >
-                                                        <Button variant="outline" size="icon" class="h-10 w-10" title="View Submissions">
+                                                        <Button variant="outline" size="icon" class="w-full px-4" title="View Submissions">
                                                             <History class="w-4 h-4" />
+                                                            Submissions
                                                         </Button>
                                                     </NuxtLink>
                                                     <NuxtLink

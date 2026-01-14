@@ -1899,7 +1899,7 @@ watch(() => route.query.part, (newPart) => {
                 >
                   <Button variant="outline" size="sm" class="flex items-center space-x-1" title="View Submission History (New Tab)">
                     <History class="w-4 h-4" />
-                    <span class="hidden sm:inline">History</span>
+                    <span class="hidden sm:inline">Submissions</span>
                     <ExternalLink class="w-3 h-3 ml-1" />
                   </Button>
                 </a>
