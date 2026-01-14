@@ -276,10 +276,10 @@ onMounted(() => {
                 <div class="flex items-center justify-between w-full pr-4">
                   <div class="flex items-center space-x-3">
                     <div class="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                      <span class="text-sm font-semibold text-primary">{{ index + 1 }}</span>
+                      <span class="text-sm font-semibold text-primary">{{ partHistory.partOrder ?? (index + 1) }}</span>
                     </div>
                     <div class="text-left">
-                      <div class="font-semibold">Part {{ index + 1 }}: {{ partHistory.partId }}</div>
+                      <div class="font-semibold">Part {{ partHistory.partOrder ?? (index + 1) }}: {{ partHistory.partTitle || partHistory.partId }}</div>
                       <div class="text-sm text-muted-foreground">
                         {{ partHistory.submissionHistory.length }} {{ partHistory.submissionHistory.length === 1 ? 'attempt' : 'attempts' }}
                       </div>

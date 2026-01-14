@@ -14,6 +14,7 @@ export interface SubmissionAttempt {
 
 export interface PartSubmissionHistory {
   partId: string
+  partOrder?: number
   partTitle?: string
   submissionHistory: SubmissionAttempt[]
 }
