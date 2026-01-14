@@ -79,7 +79,7 @@ const isCourseInstructor = computed(() => currentCourseEnrollment.value?.role ==
 const isCourseTA = computed(() => currentCourseEnrollment.value?.role === 'TA')
 
 const DEFAULT_BANNER_PLACEHOLDER = '/placeholder.avif'
-const ACCEPTED_BANNER_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+const ACCEPTED_BANNER_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
 const MAX_BANNER_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
 
 const bannerFileInput = ref<HTMLInputElement | null>(null)
@@ -433,7 +433,7 @@ const handleFileChange = async (event: Event) => {
 
   if (!ACCEPTED_BANNER_TYPES.includes(file.type)) {
     toast.error('Unsupported file type', {
-      description: 'Please upload a JPEG, PNG, or WebP image.'
+      description: 'Please upload a JPEG, PNG, WebP, or GIF image.'
     })
     resetInput()
     return

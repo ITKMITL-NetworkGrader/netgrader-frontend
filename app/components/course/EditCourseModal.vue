@@ -308,7 +308,7 @@ const handleToggleRemoval = (userId: string) => {
                   <div v-else class="flex flex-col items-center gap-2 text-muted-foreground group-hover:text-primary transition-colors">
                     <Upload class="h-8 w-8" />
                     <span class="text-sm font-medium">Drop image or click to upload</span>
-                    <span class="text-xs">JPEG, PNG, WebP up to 10MB</span>
+                    <span class="text-xs">JPEG, PNG, WebP, GIF up to 10MB</span>
                   </div>
                 </div>
               </div>
