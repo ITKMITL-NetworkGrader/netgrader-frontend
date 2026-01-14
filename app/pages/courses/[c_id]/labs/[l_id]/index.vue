@@ -58,6 +58,7 @@ type FillInBlankSubmissionPayload = {
   totalPointsEarned: number
   totalPoints: number
   passed: boolean
+  ipTableAnswers?: Record<string, string[][]>  // Answers from database
   submission?: {
     id?: string
     attempt?: number
@@ -65,6 +66,7 @@ type FillInBlankSubmissionPayload = {
     submittedAt?: string
   }
 }
+
 
 type StoredFillInBlankPayload = {
   answers?: Record<string, string>
@@ -1137,6 +1139,14 @@ const toFillInBlankSubmissionPayload = (submission: ISubmission): FillInBlankSub
     pointsEarned: question.pointsEarned
   }))
 
+  // NEW: Extract ipTableAnswers from questions (stored in database from previous submissions)
+  const ipTableAnswers: Record<string, string[][]> = {}
+  questions.forEach(q => {
+    if (q.ipTableAnswers && Array.isArray(q.ipTableAnswers) && q.ipTableAnswers.length > 0) {
+      ipTableAnswers[q.questionId] = q.ipTableAnswers
+    }
+  })
+
   const submittedAt = submission.submittedAt
   const submittedAtString = submittedAt instanceof Date
     ? submittedAt.toISOString()
@@ -1149,6 +1159,7 @@ const toFillInBlankSubmissionPayload = (submission: ISubmission): FillInBlankSub
     totalPointsEarned,
     totalPoints,
     passed,
+    ipTableAnswers, // Include answers from database
     submission: {
       id: submission.jobId,
       attempt: submission.attempt,
@@ -1157,6 +1168,7 @@ const toFillInBlankSubmissionPayload = (submission: ISubmission): FillInBlankSub
     }
   }
 }
+
 
 const syncFillInBlankSubmissionsFromHistory = (submissions: ISubmission[]) => {
   if (!Array.isArray(submissions) || !submissions.length) {

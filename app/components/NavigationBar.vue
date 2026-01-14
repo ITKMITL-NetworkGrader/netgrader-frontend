@@ -27,6 +27,23 @@ onMounted(() => {
 
 const logout = async () => {
     try {
+        // Clear fill-in-blank localStorage data on logout
+        if (typeof window !== 'undefined') {
+            const keysToRemove: string[] = []
+            for (let i = 0; i < window.localStorage.length; i++) {
+                const key = window.localStorage.key(i)
+                if (key && key.startsWith('fillin:')) {
+                    keysToRemove.push(key)
+                }
+            }
+            keysToRemove.forEach(key => {
+                try { window.localStorage.removeItem(key) } catch { /* no-op */ }
+            })
+            // Also clear session marker so next login starts fresh
+            try { window.sessionStorage.removeItem('fillin:session:active') } catch { /* no-op */ }
+            console.log('[Logout] Cleared fill-in-blank localStorage data')
+        }
+
         await $fetch(`${backendUrl}/v0/auth/logout`, {
             method: 'POST',
             credentials: 'include',
@@ -45,6 +62,7 @@ const logout = async () => {
         console.error('Logout failed:', error)
     }
 }
+
 
 // Check if user is actually authenticated (not just a string "false")
 const isAuthenticated = computed(() => {

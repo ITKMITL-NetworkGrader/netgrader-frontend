@@ -190,6 +190,7 @@ interface FillInBlankSubmissionResult {
   totalPointsEarned: number
   totalPoints: number
   passed: boolean
+  ipTableAnswers?: Record<string, string[][]>  // Answers from database
   submission?: {
     id?: string
     attempt?: number
@@ -467,6 +468,18 @@ const applySubmissionResult = (result: FillInBlankSubmissionResult | null) => {
     results.value[res.questionId] = res
   })
 
+  // NEW: Load ipTableAnswers from database if the submission passed
+  if (result.passed && result.ipTableAnswers) {
+    Object.entries(result.ipTableAnswers).forEach(([questionId, answers]) => {
+      if (Array.isArray(answers) && answers.length > 0) {
+        ipTableAnswers.value[questionId] = JSON.parse(JSON.stringify(answers))
+        console.log('[FillInBlank] Loaded IP table answers from database for question:', questionId)
+      }
+    })
+    // Also update lastPersistedIpTableAnswers so changes can be detected
+    lastPersistedIpTableAnswers.value = JSON.parse(JSON.stringify(ipTableAnswers.value))
+  }
+
   if (result.passed) {
     persistAnswersToStorage()
   }
@@ -488,11 +501,32 @@ const ensureSessionMarker = () => {
   const markerExists = window.sessionStorage.getItem(SESSION_MARKER_KEY)
 
   if (!markerExists) {
+    // CRITICAL FIX: Only clear DRAFT answers, NOT validated answers from passed submissions
+    // This ensures students don't lose their validated DHCP/SLAAC answers when they close
+    // and reopen their browser
     const keysToRemove: string[] = []
     for (let index = 0; index < window.localStorage.length; index += 1) {
       const key = window.localStorage.key(index)
       if (key && key.startsWith(LOCAL_STORAGE_PREFIX)) {
-        keysToRemove.push(key)
+        try {
+          const rawValue = window.localStorage.getItem(key)
+          if (rawValue) {
+            const payload = JSON.parse(rawValue) as FillInBlankStoragePayload
+            // Only remove if there are NO validated answers
+            // If validatedIpTableAnswers exists, this was a passed submission and should be preserved
+            if (!payload.validatedIpTableAnswers || Object.keys(payload.validatedIpTableAnswers).length === 0) {
+              keysToRemove.push(key)
+              console.log('[FillInBlank] Marking draft answers for removal:', key)
+            } else {
+              console.log('[FillInBlank] Preserving validated answers:', key)
+            }
+          } else {
+            keysToRemove.push(key)
+          }
+        } catch {
+          // If we can't parse, it's likely corrupted, so remove it
+          keysToRemove.push(key)
+        }
       }
     }
 
@@ -504,11 +538,15 @@ const ensureSessionMarker = () => {
       }
     })
 
-    clearStoredAnswers()
+    // Only clear current storage if we removed the current key
+    if (keysToRemove.includes(storageKey.value)) {
+      clearStoredAnswers()
+    }
   }
 
   window.sessionStorage.setItem(SESSION_MARKER_KEY, 'active')
 }
+
 
 // Check if in update mode
 const isUpdateMode = computed(() => route.query.mode === 'update')
