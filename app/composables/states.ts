@@ -1,47 +1,49 @@
 // Legacy play types - consider removing if not needed
 interface PlayNode {
-    id: string;
-    type: string;
+  id: string;
+  type: string;
 }
 
 interface Connection {
-    id: string;
-    source: string;
-    target: string;
+  id: string;
+  source: string;
+  target: string;
 }
 
 export interface User {
-    u_id: string;
-    fullName: string;
-    role: "STUDENT" | "INSTRUCTOR" | "ADMIN"; // Global Role
-    lastLogin?: string;
-    iat?: number;
-    exp?: number;
+  u_id: string;
+  fullName: string;
+  role: "STUDENT" | "INSTRUCTOR" | "ADMIN"; // Global Role
+  profilePicture?: string; // Presigned URL to profile picture
+  bio?: string; // User bio (max 500 chars)
+  lastLogin?: string;
+  iat?: number;
+  exp?: number;
 }
 
 export interface CourseRole {
-    courseId: string;
-    isEnrolled: boolean;
-    role: "STUDENT" | "INSTRUCTOR" | "TA"; // Course Role
-    enrollmentDate: string;
+  courseId: string;
+  isEnrolled: boolean;
+  role: "STUDENT" | "INSTRUCTOR" | "TA"; // Course Role
+  enrollmentDate: string;
 }
 
 export interface Enrollment {
-    u_id: string;
-    c_id: string;
-    u_role: "STUDENT" | "INSTRUCTOR" | "TA";
-    enrollmentDate: string;
-    fullName: string;
+  u_id: string;
+  c_id: string;
+  u_role: "STUDENT" | "INSTRUCTOR" | "TA";
+  enrollmentDate: string;
+  fullName: string;
 }
 
 export interface NavBar {
-    isOpen: boolean;
+  isOpen: boolean;
 }
 
 export interface PlayState {
-    nodes: PlayNode[]
-    connections: Connection[]
-    selectedNodeId: string | null
+  nodes: PlayNode[]
+  connections: Connection[]
+  selectedNodeId: string | null
 }
 
 export const useUserState = () =>
@@ -53,7 +55,7 @@ export const useCourseRoleState = () =>
 export const useNavBarState = () =>
   useState<NavBar | undefined | null>("navbar-state", () => {
     return { isOpen: false };
-});
+  });
 
 export const usePlayState = (playId?: string) => {
   const stateKey = `play-state-${playId || 'default'}`

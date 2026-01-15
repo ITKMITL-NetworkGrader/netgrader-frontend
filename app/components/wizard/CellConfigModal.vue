@@ -128,6 +128,8 @@
                 <SelectItem value="ipv6_address">IPv6 Interface Address</SelectItem>
                 <SelectItem value="ipv6_link_local">IPv6 Link-Local</SelectItem>
                 <SelectItem value="ipv6_slaac">IPv6 SLAAC (Student Updatable)</SelectItem>
+                <SelectItem value="ipv6_prefix_length">IPv6 Prefix Length (/64, /48, etc.)</SelectItem>
+                <SelectItem value="device_interface_ipv6">Device Interface IPv6</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -318,6 +320,63 @@
             </div>
           </div>
 
+          <!-- Device Selector (for device interface IPv6) -->
+          <div
+            v-if="localCell.calculatedAnswer?.calculationType === 'device_interface_ipv6'"
+            class="space-y-4"
+          >
+            <div class="space-y-2">
+              <Label>Select Device</Label>
+              <Select
+                v-model="localCell.calculatedAnswer.deviceId"
+                @update:modelValue="handleDeviceChange"
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select device..." />
+                </SelectTrigger>
+                <SelectContent class="z-[250]">
+                  <SelectItem
+                    v-for="device in devices"
+                    :key="device.deviceId"
+                    :value="device.deviceId"
+                  >
+                    {{ device.deviceId }}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div class="space-y-2">
+              <Label>Select Interface</Label>
+              <Select
+                v-model="localCell.calculatedAnswer.interfaceName"
+                :disabled="!localCell.calculatedAnswer.deviceId"
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select interface..." />
+                </SelectTrigger>
+                <SelectContent class="z-[250]">
+                  <SelectItem
+                    v-for="iface in getDeviceInterfaces(localCell.calculatedAnswer?.deviceId)"
+                    :key="iface.name"
+                    :value="iface.name"
+                  >
+                    {{ iface.name }}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <Alert>
+              <Info class="w-4 h-4" />
+              <AlertDescription class="text-sm">
+                <div class="font-semibold mb-1">Device Interface IPv6</div>
+                <div>Fetches the IPv6 address configured in Step 3 (Device Configuration) for this interface.</div>
+                <div class="mt-2 text-muted-foreground">Works with static IPv6, link-local, and VLAN-based IPv6 configurations.</div>
+              </AlertDescription>
+            </Alert>
+          </div>
+
           <!-- IPv6 SLAAC Info (for SLAAC type) -->
           <div
             v-if="localCell.calculatedAnswer?.calculationType === 'ipv6_slaac'"
@@ -335,15 +394,16 @@
 
           <!-- IPv6 Info (for other IPv6 types) -->
           <div
-            v-if="isIpv6CalculationType && localCell.calculatedAnswer?.calculationType !== 'ipv6_slaac'"
+            v-if="isIpv6CalculationType && !['ipv6_slaac', 'device_interface_ipv6'].includes(localCell.calculatedAnswer?.calculationType || '')"
             class="space-y-2"
           >
             <Alert>
               <Info class="w-4 h-4" />
               <AlertDescription class="text-sm">
                 <div v-if="localCell.calculatedAnswer?.calculationType === 'ipv6_network_prefix'">The IPv6 network prefix is calculated based on the lab's IPv6 configuration.</div>
-                <div v-else-if="localCell.calculatedAnswer?.calculationType === 'ipv6_address'">The IPv6 address is calculated based on interface and student ID.</div>
+                <div v-else-if="localCell.calculatedAnswer?.calculationType === 'ipv6_address'">The IPv6 address (without prefix length) is calculated based on interface and student ID.</div>
                 <div v-else-if="localCell.calculatedAnswer?.calculationType === 'ipv6_link_local'">Link-local addresses (fe80::/10) are auto-configured on each interface.</div>
+                <div v-else-if="localCell.calculatedAnswer?.calculationType === 'ipv6_prefix_length'">Returns the prefix length (e.g., /64) for IPv6 subnets.</div>
               </AlertDescription>
             </Alert>
           </div>
@@ -493,7 +553,8 @@ const requiresVlanSelection = (calcType: CalculationType | undefined): boolean =
     // IPv6 types that require VLAN selection
     'ipv6_network_prefix',
     'ipv6_address',
-    'ipv6_slaac'
+    'ipv6_slaac',
+    'ipv6_prefix_length'
   ].includes(calcType)
 }
 
@@ -505,7 +566,9 @@ const isIpv6CalculationType = computed(() => {
     'ipv6_address',
     'ipv6_interface_id',
     'ipv6_link_local',
-    'ipv6_slaac'
+    'ipv6_slaac',
+    'ipv6_prefix_length',
+    'device_interface_ipv6'
   ].includes(calcType)
 })
 
@@ -729,6 +792,9 @@ const handleCalculationTypeChange = (newType: CalculationType) => {
   } else if (newType === 'device_interface_ip') {
     localCell.value.calculatedAnswer.deviceId = ''
     localCell.value.calculatedAnswer.interfaceName = ''
+  } else if (newType === 'device_interface_ipv6') {
+    localCell.value.calculatedAnswer.deviceId = ''
+    localCell.value.calculatedAnswer.interfaceName = ''
   }
 }
 
@@ -794,8 +860,13 @@ const isValid = computed(() => {
         if (rangeValidationError.value) return false
       }
 
-      // Check device interface
+      // Check device interface (IPv4)
       if (calc.calculationType === 'device_interface_ip') {
+        if (!calc.deviceId || !calc.interfaceName) return false
+      }
+
+      // Check device interface (IPv6)
+      if (calc.calculationType === 'device_interface_ipv6') {
         if (!calc.deviceId || !calc.interfaceName) return false
       }
 

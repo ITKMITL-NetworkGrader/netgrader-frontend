@@ -119,7 +119,9 @@ export type CalculationType =
   | 'ipv6_address'
   | 'ipv6_interface_id'
   | 'ipv6_link_local'
-  | 'ipv6_slaac';
+  | 'ipv6_slaac'
+  | 'ipv6_prefix_length'
+  | 'device_interface_ipv6';
 
 export interface CalculatedAnswer {
   calculationType: CalculationType;

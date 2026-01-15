@@ -12,6 +12,9 @@ const mobileMenuOpen = ref(false)
 const config = useRuntimeConfig()
 const backendUrl = config.public.backendurl
 
+// Profile fallback image
+const PROFILE_FALLBACK = '/profile_fallback.jpg'
+
 // Timer state from composable
 const { timerState } = useNavbarTimer()
 const { emitTimerExpired, emitDeadlineExtended } = useNavbarTimerEvents()
@@ -186,9 +189,19 @@ watch(() => route.path, () => {
                         class="flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
                         :class="{ 'bg-accent text-accent-foreground': dropdownOpen }"
                     >
-                        <div class="w-6 h-6 rounded-full bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center text-primary-foreground text-xs font-semibold">
-                        {{ userState?.fullName?.[0] || '?' }}
-                        </div>
+                        <img
+                          v-if="userState?.profilePicture"
+                          :src="userState.profilePicture"
+                          :alt="userState?.fullName || 'Profile'"
+                          class="w-8 h-8 rounded-full object-cover"
+                          @error="(e: Event) => (e.target as HTMLImageElement).src = PROFILE_FALLBACK"
+                        />
+                        <img
+                          v-else
+                          :src="PROFILE_FALLBACK"
+                          alt="Profile"
+                          class="w-8 h-8 rounded-full object-cover"
+                        />
                         <span class="font-bai-jamjuree hidden lg:inline">
                         {{ userState?.fullName || 'User' }}
                         </span>
@@ -198,10 +211,10 @@ watch(() => route.path, () => {
                     <DropdownMenuContent class="w-56" align="end">
                     <div class="px-3 py-2 text-sm">
                         <p class="font-medium">{{ userState?.fullName || 'User' }}</p>
-                        <p class="text-muted-foreground text-xs">{{ userState?.u_id }}</p>
+                        <p class="text-muted-foreground text-xs">{{ userState?.u_id }} · {{ userState?.role || 'Student' }}</p>
                     </div>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem class="cursor-pointer">
+                    <DropdownMenuItem class="cursor-pointer" @click="navigateTo('/profile')">
                         <Icon name="lucide:user" class="w-4 h-4 mr-2" />
                         Profile
                     </DropdownMenuItem>
@@ -277,9 +290,19 @@ watch(() => route.path, () => {
                     </div>
                     <div v-else class="space-y-3">
                     <div class="flex items-center gap-3">
-                        <div class="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center text-primary-foreground text-sm font-semibold">
-                        {{ userState?.fullName?.[0] || '?' }}
-                        </div>
+                        <img
+                          v-if="userState?.profilePicture"
+                          :src="userState.profilePicture"
+                          :alt="userState?.fullName || 'Profile'"
+                          class="w-8 h-8 rounded-full object-cover"
+                          @error="(e: Event) => (e.target as HTMLImageElement).src = PROFILE_FALLBACK"
+                        />
+                        <img
+                          v-else
+                          :src="PROFILE_FALLBACK"
+                          alt="Profile"
+                          class="w-8 h-8 rounded-full object-cover"
+                        />
                         <div class="min-w-0 flex-1">
                         <p class="font-medium text-sm font-bai-jamjuree truncate">
                             {{ userState?.fullName || 'User' }}
@@ -288,10 +311,12 @@ watch(() => route.path, () => {
                         </div>
                     </div>
                     <div class="flex gap-2">
-                        <Button variant="ghost" size="sm" class="flex-1">
-                        <Icon name="lucide:user" class="w-4 h-4 mr-2" />
-                        Profile
-                        </Button>
+                        <NuxtLink to="/profile" class="flex-1">
+                          <Button variant="ghost" size="sm" class="w-full">
+                          <Icon name="lucide:user" class="w-4 h-4 mr-2" />
+                          Profile
+                          </Button>
+                        </NuxtLink>
                         <Button 
                         variant="ghost" 
                         size="sm" 

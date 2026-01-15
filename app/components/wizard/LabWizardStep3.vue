@@ -434,7 +434,7 @@
                             </div>
                             <div class="flex items-center gap-2">
                               <span class="text-xs text-muted-foreground">Interface ID:</span>
-                              <Input v-model.number="ipVar.ipv6InterfaceId" type="text" placeholder="1" class="text-sm w-16 h-7 font-mono" />
+                              <Input v-model="ipVar.ipv6InterfaceId" type="text" placeholder="1" class="text-sm w-16 h-7 font-mono" />
                             </div>
                             <input type="hidden" v-model="ipVar.ipv6VlanIndex" />
                           </div>
