@@ -401,6 +401,7 @@ const isLoadingIPs = ref(true)
 const ipLoadingStatus = ref('Gathering your IP addresses...')
 const backendIpMappings = ref<Record<string, { ip: string; vlan: number | null }>>({})
 const backendVlanMappings = ref<Record<string, number>>({})
+const backendVlanSubnets = ref<Record<number, { baseNetwork: string; subnetMask: number }>>({})
 const activeLabSessionId = ref<string | null>(null)
 const showResultsModal = ref(false)
 const timerExpiredModalMode = ref<'results' | 'timer_expired' | 'unavailable'>('results')
@@ -627,17 +628,14 @@ const variableReferenceTable = computed(() => {
   currentLab.value.network.vlanConfiguration.vlans.forEach((vlan, index) => {
     if (index >= 10) return // Only support up to 10 VLANs (A-J)
 
-    // Find a sample IP from backend mappings for this VLAN to calculate CIDR
-    const sampleIp = Object.entries(backendIpMappings.value).find(([key, mapping]) => {
-      const ipVar = currentLab.value?.network.devices
-        ?.flatMap(d => d.ipVariables)
-        .find(v => key === `${currentLab.value.network.devices.find(dev => dev.ipVariables.includes(v))?.deviceId}.${v.name}`)
-      return mapping.vlan !== null && ipVar?.vlanIndex === index
-    })
+    // Use direct VLAN mapping from backend (fixes VLAN C+ showing hyphens)
+    const vlanId = backendVlanMappings.value[`vlan${index}`]
+      ?? (isLoadingIPs.value ? 'Loading...' : '-')
 
-    const vlanId = sampleIp?.[1]?.vlan ?? (isLoadingIPs.value ? 'Loading...' : '-')
-    const cidrValue = sampleIp?.[1]?.ip
-      ? calculateNetworkAddress(sampleIp[1].ip, vlan.subnetMask)
+    // Use direct subnet info from backend for CIDR calculation
+    const subnetInfo = backendVlanSubnets.value[index]
+    const cidrValue = subnetInfo
+      ? `${subnetInfo.baseNetwork}/${subnetInfo.subnetMask}`
       : (isLoadingIPs.value ? 'Loading...' : '-')
 
     variables.push({
@@ -1391,10 +1389,12 @@ const loadPersonalizedIPs = async (options: { restart?: boolean } = {}) => {
       // Store IP mappings from backend
       backendIpMappings.value = result.data.networkConfiguration.ipMappings || {}
       backendVlanMappings.value = result.data.networkConfiguration.vlanMappings || {}
+      backendVlanSubnets.value = result.data.networkConfiguration.vlanSubnets || {}
 
       console.log('[DEBUG] Loaded personalized IPs:', {
         ipMappings: backendIpMappings.value,
-        vlanMappings: backendVlanMappings.value
+        vlanMappings: backendVlanMappings.value,
+        vlanSubnets: backendVlanSubnets.value
       })
 
       if (result.data.session) {

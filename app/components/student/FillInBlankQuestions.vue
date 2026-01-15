@@ -242,6 +242,7 @@ const results = ref<Record<string, AnswerResult>>({})
 const isSubmitting = ref(false)
 const hasSubmitted = ref(Boolean(props.initialSubmissionResult))
 const isRestoringFromStorage = ref(false)
+const isPersistingToStorage = ref(false)
 
 const resolvedUserId = computed(() => userState.value?.u_id || null)
 
@@ -366,6 +367,8 @@ const restoreAnswersFromStorage = (payload: FillInBlankStoragePayload | null = s
 
 watch(storedPayload, payload => {
   if (typeof window === 'undefined') return
+  // Skip restore if we're currently persisting to avoid circular reset
+  if (isPersistingToStorage.value) return
 
   if (payload) {
     restoreAnswersFromStorage(payload)
@@ -389,6 +392,7 @@ const persistAnswersToStorage = () => {
   if (typeof window === 'undefined') return
   if (isRestoringFromStorage.value) return
 
+  isPersistingToStorage.value = true
   const sanitized = sanitizeLecturerRangeAnswersForStorage()
 
   const payload: FillInBlankStoragePayload = {
@@ -407,6 +411,11 @@ const persistAnswersToStorage = () => {
     lastPersistedIpTableAnswers.value = JSON.parse(JSON.stringify(sanitized))
   } catch (error) {
     console.warn('Failed to persist answers to local storage:', error)
+  } finally {
+    // Reset flag after a tick to ensure watcher doesn't trigger
+    requestAnimationFrame(() => {
+      isPersistingToStorage.value = false
+    })
   }
 
   if (primaryStorageKey.value && primaryStorageKey.value !== fallbackStorageKey.value) {

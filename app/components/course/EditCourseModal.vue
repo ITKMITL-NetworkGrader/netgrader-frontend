@@ -40,6 +40,7 @@ interface Enrollment {
   u_role: CourseRoleOption
   enrollmentDate: string
   fullName?: string
+  profilePicture?: string
 }
 
 interface EnrollmentDraftItem extends Enrollment {
@@ -428,8 +429,15 @@ const handleToggleRemoval = (userId: string) => {
                   >
                     <TableCell>
                       <div class="flex items-center gap-3">
-                        <div class="h-9 w-9 rounded-full avatar-gradient flex items-center justify-center text-white text-sm font-semibold">
-                          {{ (student.fullName || 'U')[0].toUpperCase() }}
+                        <img
+                          v-if="student.profilePicture"
+                          :src="student.profilePicture"
+                          :alt="student.fullName || 'Profile'"
+                          class="h-9 w-9 rounded-full object-cover"
+                          @error="(e: Event) => (e.target as HTMLElement).style.display = 'none'"
+                        />
+                        <div v-else class="h-9 w-9 rounded-full avatar-gradient flex items-center justify-center text-white text-sm font-semibold">
+                          {{ (student.fullName ?? 'U')[0].toUpperCase() }}
                         </div>
                         <div>
                           <p class="font-medium text-sm">{{ student.fullName || 'Unknown' }}</p>

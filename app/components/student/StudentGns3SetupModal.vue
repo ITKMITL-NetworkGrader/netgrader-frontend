@@ -217,7 +217,12 @@ watch(() => props.open, (open) => {
 
 <template>
   <Dialog :open="open" @update:open="$emit('update:open', $event)">
-    <DialogContent class="max-w-md" :closable="currentStep === 'complete' || currentStep === 'error'">
+    <DialogContent 
+      class="max-w-md" 
+      :closable="false"
+      @interact-outside.prevent
+      @escape-key-down.prevent
+    >
       <DialogHeader>
         <DialogTitle class="text-foreground flex items-center gap-2">
           <Server class="h-5 w-5 text-primary" />

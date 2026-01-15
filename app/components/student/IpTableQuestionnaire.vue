@@ -387,7 +387,22 @@ const isCellInputDisabled = (rowIndex: number, colIndex: number): boolean => {
   }
 
   // Allow lecturer-defined range and SLAAC cells to remain editable even in readonly mode
-  return !isLecturerRangeEditableCell(rowIndex, colIndex) && !isSlaacEditableCell(rowIndex, colIndex)
+  const isLecturerRange = isLecturerRangeEditableCell(rowIndex, colIndex)
+  const isSlaac = isSlaacEditableCell(rowIndex, colIndex)
+  const result = !isLecturerRange && !isSlaac
+
+  // Debug logging for SLAAC cells
+  if (cell.answerType === 'calculated' && cell.calculatedAnswer) {
+    console.log(`[IpTableQuestionnaire] Cell (${rowIndex}, ${colIndex}) disabled check:`, {
+      calculationType: cell.calculatedAnswer.calculationType,
+      isLecturerRange,
+      isSlaac,
+      readonly: props.readonly,
+      isDisabled: result
+    })
+  }
+
+  return result
 }
 
 // Expose validation method for parent component
