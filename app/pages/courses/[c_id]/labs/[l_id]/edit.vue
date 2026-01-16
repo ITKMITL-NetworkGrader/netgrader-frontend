@@ -1450,7 +1450,18 @@ const transformBackendDataToWizard = () => {
         points: task.points,
         groupId: task.group_id
       })) || [],
-      task_groups: part.task_groups || [],
+      task_groups: (part.task_groups || []).map((group: any) => ({
+        tempId: group.tempId || `temp_group_${group.group_id || Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        group_id: group.group_id,
+        title: group.title,
+        description: group.description,
+        group_type: group.group_type,
+        points: group.points,
+        continue_on_failure: group.continue_on_failure,
+        timeout_seconds: group.timeout_seconds,
+        taskIds: group.taskIds || [],
+        isExpanded: group.isExpanded !== false
+      })),
       questions: part.questions || [],
       prerequisites: part.prerequisites || [],
       totalPoints: part.totalPoints,
