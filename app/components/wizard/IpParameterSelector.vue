@@ -151,13 +151,6 @@ const ipVariableOptions = computed(() => {
       // Skip management interfaces
       if (ipVar.isManagementInterface) continue
 
-      // When ipv6Only is true, only include interfaces with IPv6 configured
-      if (props.ipv6Only) {
-        if (!ipVar.ipv6InputType || ipVar.ipv6InputType === 'none') {
-          continue
-        }
-      }
-
       const label = `${device.deviceId}.${ipVar.name}`
       const value = label // Store as "deviceId.variableName"
       let description = `${device.deviceId} - ${ipVar.name}`
@@ -166,9 +159,14 @@ const ipVariableOptions = computed(() => {
         description += ` (${ipVar.interface})`
       }
 
-      // Add input type information based on ipv6Only flag
-      if (props.ipv6Only && ipVar.ipv6InputType) {
-        description += ` - ${ipVar.ipv6InputType}`
+      // Add input type information
+      // For ipv6Only mode, prioritize showing IPv6 config info if available
+      if (props.ipv6Only) {
+        if (ipVar.ipv6InputType && ipVar.ipv6InputType !== 'none') {
+          description += ` - IPv6: ${ipVar.ipv6InputType}`
+        } else if (ipVar.inputType) {
+          description += ` - ${ipVar.inputType}`
+        }
       } else if (ipVar.inputType) {
         description += ` - ${ipVar.inputType}`
       }
@@ -239,7 +237,9 @@ const handleVariableChange = (value: string) => {
   selectedVariable.value = value
 
   // Wrap the IP variable with {{}} for backend
-  const wrappedValue = value ? `{{${value}}}` : ''
+  // For IPv6 mode, add :ipv6 suffix to indicate IPv6 resolution
+  const suffix = props.ipv6Only ? ':ipv6' : ''
+  const wrappedValue = value ? `{{${value}${suffix}}}` : ''
   updateModelValue(wrappedValue)
 
   // Reset typing state after a short delay
@@ -321,11 +321,12 @@ const parseCurrentValue = (value: string) => {
   }
 
   // Check if value is wrapped with {{}} - indicating it's an IP variable
-  const wrappedPattern = /^\{\{(.+)\}\}$/
+  // Support both {{device.var}} and {{device.var:ipv6}} formats
+  const wrappedPattern = /^\{\{(.+?)(:ipv6)?\}\}$/
   const wrappedMatch = value.match(wrappedPattern)
 
   if (wrappedMatch) {
-    // It's a wrapped IP variable - extract the inner value
+    // It's a wrapped IP variable - extract the inner value (without :ipv6 suffix)
     const innerValue = wrappedMatch[1]
 
     // Check if it's a valid variable option

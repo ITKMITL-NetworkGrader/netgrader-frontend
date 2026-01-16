@@ -937,6 +937,10 @@ const submitPartForGrading = async (): Promise<{ success: boolean; isExpired?: b
 
   try {
     const lecturerRangeOverrides = collectLecturerRangeOverrides()
+    const slaacOverrides = collectSlaacOverrides()
+    
+    // Combine both DHCP (lecturer range) and SLAAC IPv6 overrides
+    const allOverrides = [...lecturerRangeOverrides, ...slaacOverrides]
 
     // Get projectId from localStorage (GNS3 project config)
     let projectId = ''
@@ -958,7 +962,7 @@ const submitPartForGrading = async (): Promise<{ success: boolean; isExpired?: b
       {
         projectId,
         labSessionId: activeLabSessionId.value ?? undefined,
-        lecturerRangeAnswers: lecturerRangeOverrides.length > 0 ? lecturerRangeOverrides : undefined
+        lecturerRangeAnswers: allOverrides.length > 0 ? allOverrides : undefined
       }
     )
 
