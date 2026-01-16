@@ -121,6 +121,7 @@ interface Props {
   required?: boolean
   hasError?: boolean
   errorMessage?: string
+  ipv6Only?: boolean // When true, only show interfaces with IPv6 configured
 }
 
 interface Emits {
@@ -147,6 +148,16 @@ const ipVariableOptions = computed(() => {
 
   for (const device of props.devices) {
     for (const ipVar of device.ipVariables) {
+      // Skip management interfaces
+      if (ipVar.isManagementInterface) continue
+
+      // When ipv6Only is true, only include interfaces with IPv6 configured
+      if (props.ipv6Only) {
+        if (!ipVar.ipv6InputType || ipVar.ipv6InputType === 'none') {
+          continue
+        }
+      }
+
       const label = `${device.deviceId}.${ipVar.name}`
       const value = label // Store as "deviceId.variableName"
       let description = `${device.deviceId} - ${ipVar.name}`
@@ -155,8 +166,10 @@ const ipVariableOptions = computed(() => {
         description += ` (${ipVar.interface})`
       }
 
-      // Add input type information
-      if (ipVar.inputType) {
+      // Add input type information based on ipv6Only flag
+      if (props.ipv6Only && ipVar.ipv6InputType) {
+        description += ` - ${ipVar.ipv6InputType}`
+      } else if (ipVar.inputType) {
         description += ` - ${ipVar.inputType}`
       }
 

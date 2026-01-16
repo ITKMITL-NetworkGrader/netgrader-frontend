@@ -23,9 +23,9 @@ export interface ValidationResult {
 
 // Enum definitions from documentation
 export const CONNECTION_TYPES = ['netmiko', 'napalm', 'ssh', 'command'] as const
-export const DATA_TYPES = ['string', 'integer', 'float', 'boolean', 'ip_address', 'domain_name', 'cidr'] as const
+export const DATA_TYPES = ['string', 'integer', 'float', 'boolean', 'ip_address', 'ipv6_address', 'domain_name', 'cidr'] as const
 export const ACTION_TYPES = ['netmiko_send_command', 'napalm_get', 'ping', 'parse_output', 'custom_script'] as const
-export const CONDITION_TYPES = ['equals', 'contains', 'greater_than', 'less_than', 'regex', 'exists'] as const
+export const CONDITION_TYPES = ['equals', 'contains', 'greater_than', 'less_than', 'regex', 'exists', 'not_equals'] as const
 export const PARSER_TYPES = ['regex', 'textfsm', 'jinja'] as const
 
 type ConnectionType = typeof CONNECTION_TYPES[number]

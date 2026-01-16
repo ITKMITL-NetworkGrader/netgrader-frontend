@@ -202,9 +202,9 @@ export function useTaskValidation(options: UseTaskValidationOptions): UseTaskVal
                     errors.executionDevice = `Selected device '${task.executionDevice}' does not exist`
                 }
 
-                // Points validation
-                if (!task.points || task.points <= 0) {
-                    errors.points = 'Task points must be greater than 0'
+                // Points validation - allow 0 or positive values
+                if (task.points === undefined || task.points === null || task.points < 0) {
+                    errors.points = 'Task points must be 0 or greater'
                 }
 
                 // Target devices validation
@@ -335,7 +335,7 @@ export function useTaskValidation(options: UseTaskValidationOptions): UseTaskVal
                     task.name?.length > 0 &&
                     task.templateId?.length > 0 &&
                     task.executionDevice?.length > 0 &&
-                    (task.points ?? 0) > 0 &&
+                    (task.points ?? -1) >= 0 &&
                     hasRequiredTestCases &&
                     !hasTaskErrors(taskIndex).value
             }))

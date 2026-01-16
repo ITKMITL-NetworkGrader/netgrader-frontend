@@ -235,6 +235,19 @@
                         @update:model-value="value => setTaskParameter(taskIndex, param.name, value)"
                       />
 
+                      <!-- IPv6 Address Parameter - Use specialized component with IPv6 filtering -->
+                      <IpParameterSelector
+                        v-else-if="param.type === 'ipv6_address'"
+                        :model-value="task.parameters[param.name] || ''"
+                        :param-name="param.name"
+                        :devices="devices"
+                        :required="param.required"
+                        :has-error="hasParameterError(taskIndex, param.name)"
+                        :error-message="getParameterError(taskIndex, param.name)"
+                        :ipv6-only="true"
+                        @update:model-value="value => setTaskParameter(taskIndex, param.name, value)"
+                      />
+
                       <!-- Interface string parameter with VLAN picker -->
                       <div v-else-if="param.type === 'int_string'" class="space-y-2">
                         <Popover
@@ -319,7 +332,7 @@
                       />
 
                       <!-- Error message only for non-IP address parameters -->
-                      <p v-if="param.type !== 'ip_address' && hasParameterError(taskIndex, param.name)" class="text-xs text-destructive">
+                      <p v-if="param.type !== 'ip_address' && param.type !== 'ipv6_address' && hasParameterError(taskIndex, param.name)" class="text-xs text-destructive">
                         {{ getParameterError(taskIndex, param.name) }}
                       </p>
                     </div>
