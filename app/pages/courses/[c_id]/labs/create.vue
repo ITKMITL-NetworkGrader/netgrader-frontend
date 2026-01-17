@@ -106,7 +106,7 @@
 
             <!-- Step 4: Parts & Tasks Management -->
             <LabWizardStep4 v-if="currentStep === 4" v-model="wizardData.parts" :devices="wizardData.devices"
-              :vlans="wizardData.networkConfig.vlans" :validation="validation.step4"
+              :vlans="effectiveVlans" :validation="validation.step4"
               @validate="handleStepValidation(4, $event)" />
 
             <!-- Step 5: Schedule & Publishing -->
@@ -329,6 +329,26 @@ const validation = ref<StepValidation>({
   step4: { isValid: false, errors: [] },
   step5: { isValid: true, errors: [] }, // Step 5 is optional
   step6: { isValid: false, errors: [] }
+})
+
+// Computed property to get VLANs based on mode (handles Large Subnet Mode subVlans)
+const effectiveVlans = computed(() => {
+  const mode = wizardData.networkConfig.mode
+  if (mode === 'large_subnet') {
+    // In Large Subnet Mode, VLANs are stored as subVlans in largeSubnetConfig
+    const subVlans = wizardData.networkConfig.largeSubnetConfig?.subVlans || []
+    return subVlans.map((sv, idx) => ({
+      id: sv.id,
+      name: sv.name,
+      baseNetwork: '', // Sub-VLANs don't have baseNetwork - calculated per student
+      subnetMask: sv.subnetSize,
+      subnetIndex: sv.subnetIndex,
+      isStudentGenerated: true,
+      isSubVlan: true // Flag to indicate this is from Large Subnet Mode
+    }))
+  }
+  // For other modes, return regular vlans
+  return wizardData.networkConfig.vlans || []
 })
 
 // Global message state
