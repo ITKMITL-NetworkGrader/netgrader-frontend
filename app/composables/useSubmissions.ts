@@ -52,6 +52,7 @@ export const useSubmissions = () => {
       projectId?: string;
       labSessionId?: string | null;
       lecturerRangeAnswers?: LecturerRangeAnswerPayload[];
+      slaacAnswers?: LecturerRangeAnswerPayload[];
     }
   ): Promise<{ success: boolean; jobId?: string; error?: string; errorCode?: number; isExpired?: boolean }> => {
     try {
@@ -86,6 +87,20 @@ export const useSubmissions = () => {
           vlan_index: answer.vlanIndex
         }))
       }
+
+      if (options?.slaacAnswers && options.slaacAnswers.length > 0) {
+        requestData.slaac_answers = options.slaacAnswers.map(answer => ({
+          source_part_id: answer.sourcePartId,
+          question_id: answer.questionId,
+          row_index: answer.rowIndex,
+          col_index: answer.colIndex,
+          answer: answer.answer,
+          device_id: answer.deviceId,
+          interface_name: answer.interfaceName,
+          vlan_index: answer.vlanIndex
+        }))
+      }
+
 
       console.log('[DEBUG] Creating submission:', requestData)
 

@@ -153,6 +153,16 @@ export interface CreateSubmissionRequest {
     interface_name?: string;
     vlan_index?: number;
   }>;
+  slaac_answers?: Array<{
+    source_part_id: string;
+    question_id: string;
+    row_index: number;
+    col_index: number;
+    answer: string;
+    device_id?: string;
+    interface_name?: string;
+    vlan_index?: number;
+  }>;
 }
 
 export interface CreateSubmissionResponse {
