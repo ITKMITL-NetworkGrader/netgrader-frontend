@@ -42,21 +42,23 @@
       </div>
 
       <!-- VLAN Networks -->
-      <div v-if="networkConfig.vlans && networkConfig.vlans.length > 0" class="space-y-2">
+      <div v-if="availableVlans.length > 0" class="space-y-2">
         <div class="flex items-center space-x-2">
           <div class="h-5 w-5 bg-purple-500 rounded flex items-center justify-center">
-            <span class="text-white text-xs font-bold">{{ networkConfig.vlans.length }}</span>
+            <span class="text-white text-xs font-bold">{{ availableVlans.length }}</span>
           </div>
-          <span class="font-medium">VLAN Networks ({{ networkConfig.vlans.length }}):</span>
+          <span class="font-medium">
+            {{ isLargeSubnetMode ? 'Sub-VLANs' : 'VLAN Networks' }} ({{ availableVlans.length }}):
+          </span>
+          <Badge v-if="isLargeSubnetMode" variant="outline" class="text-xs">Large Subnet Mode</Badge>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-2 ml-7">
-          <div v-for="(vlan, index) in networkConfig.vlans" :key="vlan.id || index" class="flex items-center space-x-2">
+          <div v-for="(vlan, index) in availableVlans" :key="vlan.id || index" class="flex items-center space-x-2">
             <div class="text-xs bg-background px-2 py-1 rounded border">
-              {{ vlan.calculationMultiplier !== undefined ? getVlanDisplayId(vlan, index) : `VLAN
-              ${getVlanDisplayId(vlan, index)}` }}
+              {{ isLargeSubnetMode ? vlan.name : (vlan.calculationMultiplier !== undefined ? getVlanDisplayId(vlan, index) : `VLAN ${getVlanDisplayId(vlan, index)}`) }}
             </div>
             <code class="bg-background px-2 py-1 rounded text-xs">
-              {{ vlan.baseNetwork }}/{{ vlan.subnetMask }}
+              {{ isLargeSubnetMode ? `/${vlan.subnetMask} (Block ${vlan.subnetIndex})` : `${vlan.baseNetwork}/${vlan.subnetMask}` }}
             </code>
             <span v-if="vlan.isStudentGenerated" class="text-xs text-muted-foreground">
               (Student Generated)
@@ -271,6 +273,9 @@
                               <SelectValue>
                                 <template v-if="ipVar.inputType === 'fullIP'">Full IP Address</template>
                                 <template v-else-if="ipVar.inputType === 'studentManagement'">Student Management IP</template>
+                                <template v-else-if="ipVar.inputType?.startsWith('subVlan')">
+                                  {{ getSubVlanName(ipVar.inputType) }} IP
+                                </template>
                                 <template v-else-if="ipVar.inputType?.startsWith('studentVlan') && !ipVar.inputType?.startsWith('studentVlan6_')">
                                   {{ getVlanNumberFromInputType(ipVar.inputType) }} IP
                                 </template>
@@ -307,13 +312,16 @@
                                   </div>
                                 </SelectItemText>
                               </SelectItem>
-                              <SelectItem v-for="(vlan, vlanIndex) in networkConfig.vlans" :key="`vlan-${vlanIndex}`"
-                                :value="`studentVlan${vlanIndex}`">
+                              <SelectItem v-for="(vlan, vlanIndex) in availableVlans" :key="`vlan-${vlanIndex}`"
+                                :value="isLargeSubnetMode ? `subVlan${vlanIndex}` : `studentVlan${vlanIndex}`">
                                 <SelectItemText>
                                   <div class="flex flex-col space-y-1">
-                                    <div class="font-medium">{{ vlan.calculationMultiplier !== undefined ?
-                                      getVlanDisplayId(vlan, vlanIndex) : `Student VLAN ${getVlanDisplayId(vlan, vlanIndex)}` }} IP</div>
-                                    <div class="text-xs text-muted-foreground">{{ vlan.baseNetwork }}/{{ vlan.subnetMask }}</div>
+                                    <div class="font-medium">
+                                      {{ isLargeSubnetMode ? `${vlan.name} IP` : (vlan.calculationMultiplier !== undefined ? getVlanDisplayId(vlan, vlanIndex) : `Student VLAN ${getVlanDisplayId(vlan, vlanIndex)}`) }} {{ !isLargeSubnetMode ? 'IP' : '' }}
+                                    </div>
+                                    <div class="text-xs text-muted-foreground">
+                                      {{ isLargeSubnetMode ? `/${vlan.subnetMask} (Block ${vlan.subnetIndex})` : `${vlan.baseNetwork}/${vlan.subnetMask}` }}
+                                    </div>
                                   </div>
                                 </SelectItemText>
                               </SelectItem>
@@ -351,6 +359,22 @@
                             <input type="hidden" v-model="ipVar.vlanIndex" />
                           </div>
 
+                          <!-- Sub-VLAN Configuration (Large Subnet Mode) -->
+                          <div v-else-if="ipVar.inputType?.startsWith('subVlan') && !ipVar.inputType?.startsWith('subVlan6_')" class="space-y-2">
+                            <div class="p-2 bg-emerald-50 dark:bg-emerald-950 rounded text-xs text-emerald-700 dark:text-emerald-300">
+                              <div class="font-medium">{{ getSubVlanName(ipVar.inputType) }} (Large Subnet Mode)</div>
+                              <div>Students calculate IP from their assigned subnet block</div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                              <span class="text-xs text-muted-foreground">Host Offset:</span>
+                              <Input v-model.number="ipVar.interfaceOffset" type="number" :min="1"
+                                placeholder="1" class="text-sm w-16 h-7"
+                                @input="validateIpVariable(index, ipIndex, 'interfaceOffset')" />
+                              <span class="text-xs text-emerald-600 dark:text-emerald-400">Host .{{ ipVar.interfaceOffset || 1 }} in sub-VLAN block</span>
+                            </div>
+                            <input type="hidden" v-model="ipVar.vlanIndex" />
+                          </div>
+
                           <div v-else-if="ipVar.inputType === 'none' || !ipVar.inputType" class="p-2 bg-muted/50 rounded text-xs text-muted-foreground">
                             No IPv4 address for this interface
                           </div>
@@ -371,6 +395,9 @@
                                 <template v-else-if="ipVar.ipv6InputType === 'linkLocal'">Link-Local</template>
                                 <template v-else-if="ipVar.ipv6InputType?.startsWith('studentVlan6_')">
                                   VLAN {{ String.fromCharCode(65 + parseInt(ipVar.ipv6InputType.replace('studentVlan6_', ''), 10)) }} IPv6
+                                </template>
+                                <template v-else-if="ipVar.ipv6InputType?.startsWith('subVlan6_')">
+                                  {{ getSubVlanName('subVlan' + ipVar.ipv6InputType.replace('subVlan6_', '')) }} IPv6
                                 </template>
                                 <template v-else-if="ipVar.ipv6InputType === 'none' || !ipVar.ipv6InputType">
                                   No IPv6
@@ -413,6 +440,19 @@
                                   </SelectItemText>
                                 </SelectItem>
                               </template>
+                              <!-- Large Subnet Mode Sub-VLAN IPv6 Options -->
+                              <template v-if="isLargeSubnetMode && hasIpv6Enabled">
+                                <template v-for="(subVlan, subIndex) in networkConfig.largeSubnetConfig?.subVlans" :key="`subvlan6-${subIndex}`">
+                                  <SelectItem :value="`subVlan6_${subIndex}`">
+                                    <SelectItemText>
+                                      <div class="flex flex-col space-y-1">
+                                        <div class="font-medium">{{ subVlan.name }} IPv6</div>
+                                        <div class="text-xs text-muted-foreground">Auto-generated from template (Sub-VLAN)</div>
+                                      </div>
+                                    </SelectItemText>
+                                  </SelectItem>
+                                </template>
+                              </template>
                             </SelectContent>
                           </Select>
 
@@ -431,6 +471,19 @@
                             <div class="p-2 bg-indigo-100 rounded text-xs text-indigo-700">
                               <div class="font-medium">Student VLAN IPv6</div>
                               <div>Template: 2001:&lt;X&gt;:&lt;Y&gt;:&lt;VLAN&gt;::&lt;offset&gt;/64</div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                              <span class="text-xs text-muted-foreground">Interface ID:</span>
+                              <Input v-model="ipVar.ipv6InterfaceId" type="text" placeholder="1" class="text-sm w-16 h-7 font-mono" />
+                            </div>
+                            <input type="hidden" v-model="ipVar.ipv6VlanIndex" />
+                          </div>
+
+                          <!-- Large Subnet Mode Sub-VLAN IPv6 Configuration -->
+                          <div v-else-if="ipVar.ipv6InputType?.startsWith('subVlan6_')" class="space-y-2">
+                            <div class="p-2 bg-emerald-100 dark:bg-emerald-950 rounded text-xs text-emerald-700 dark:text-emerald-300">
+                              <div class="font-medium">Sub-VLAN IPv6 (Large Subnet Mode)</div>
+                              <div>Template: 2001:&lt;X&gt;:&lt;Y&gt;:&lt;SubVLAN_ID&gt;::&lt;offset&gt;/64</div>
                             </div>
                             <div class="flex items-center gap-2">
                               <span class="text-xs text-muted-foreground">Interface ID:</span>
@@ -628,7 +681,7 @@ interface Props {
   networkConfig: {
     managementNetwork: string
     managementSubnetMask: number
-    mode: 'fixed_vlan' | 'lecturer_group' | 'calculated_vlan' | ''
+    mode: 'fixed_vlan' | 'lecturer_group' | 'calculated_vlan' | 'large_subnet' | ''
     allocationStrategy: 'student_id_based' | 'group_based'
     vlanCount: number
     vlans: Array<{
@@ -644,6 +697,19 @@ interface Props {
       ipv6Enabled?: boolean
       ipv6VlanAlphabet?: string
     }>
+    // Large Subnet Mode Configuration
+    largeSubnetConfig?: {
+      privateNetworkPool: '10.0.0.0/8' | '172.16.0.0/12' | '192.168.0.0/16'
+      studentSubnetSize: number
+      subVlans: Array<{
+        id: string
+        name: string
+        subnetSize: number
+        subnetIndex: number
+        vlanIdRandomized: boolean
+        fixedVlanId?: number
+      }>
+    }
     // IPv6 Global Configuration
     ipv6Config?: {
       enabled: boolean
@@ -758,24 +824,69 @@ const hasIpv6Enabled = computed(() => {
   return props.networkConfig.ipv6Config?.enabled === true
 })
 
+// Computed property to check if Large Subnet mode is active
+const isLargeSubnetMode = computed(() => {
+  return props.networkConfig.mode === 'large_subnet'
+})
+
+// Computed property to provide a unified list of VLANs for interface selection
+// For large_subnet mode, maps subVlans to a compatible format
+const availableVlans = computed(() => {
+  if (isLargeSubnetMode.value && props.networkConfig.largeSubnetConfig?.subVlans) {
+    // Map subVlans to a format compatible with regular vlans for display
+    return props.networkConfig.largeSubnetConfig.subVlans.map((subVlan, index) => ({
+      id: subVlan.id,
+      name: subVlan.name,
+      baseNetwork: 'Student Calculated', // Will be calculated per student
+      subnetMask: subVlan.subnetSize,
+      subnetIndex: subVlan.subnetIndex,
+      isStudentGenerated: true,
+      isSubVlan: true, // Flag to identify this as a sub-VLAN
+      vlanIdRandomized: subVlan.vlanIdRandomized,
+      fixedVlanId: subVlan.fixedVlanId,
+      originalIndex: index
+    }))
+  }
+  return props.networkConfig.vlans || []
+})
+
 // Handler for IPv6 input type changes in dual-stack mode
 const onIpv6InputTypeChange = (deviceIndex: number, ipIndex: number, ipv6InputType: unknown) => {
   const ipVar = localData.value[deviceIndex]?.ipVariables[ipIndex]
   if (!ipVar) return
   
-  const inputType = ipv6InputType as string
+  // Safety check: ignore null/undefined values (can happen when Select is cleared)
+  if (ipv6InputType === null || ipv6InputType === undefined) {
+    console.log('[IPv6 Handler] Received null/undefined value, ignoring')
+    return
+  }
+  
+  const inputType = String(ipv6InputType)
   ipVar.ipv6InputType = inputType as typeof ipVar.ipv6InputType
+  
+  console.log('[IPv6 Handler] Setting ipv6InputType to:', inputType)
   
   // Initialize default values for the selected IPv6 mode
   if (inputType === 'fullIPv6' || inputType === 'linkLocal') {
     if (!ipVar.fullIpv6) {
       ipVar.fullIpv6 = ''
     }
+  } else if (inputType?.startsWith('subVlan6_')) {
+    // Handle Large Subnet Mode sub-VLAN IPv6
+    const subVlanIndexMatch = inputType.match(/subVlan6_(\d+)/)
+    if (subVlanIndexMatch) {
+      ipVar.ipv6VlanIndex = parseInt(subVlanIndexMatch[1])
+      // Note: inputType.startsWith('subVlan6_') can be checked to identify sub-VLAN IPv6
+      if (!ipVar.ipv6InterfaceId) {
+        ipVar.ipv6InterfaceId = '1' // Default interface ID
+      }
+    }
   } else if (inputType?.startsWith('studentVlan6_')) {
     // Extract VLAN index from input type
     const vlanIndexMatch = inputType.match(/studentVlan6_(\d+)/)
     if (vlanIndexMatch) {
       ipVar.ipv6VlanIndex = parseInt(vlanIndexMatch[1])
+      delete (ipVar as any).isSubVlanIpv6  // Clear sub-VLAN flag
       if (!ipVar.ipv6InterfaceId) {
         ipVar.ipv6InterfaceId = '1' // Default interface ID
       }
@@ -1131,6 +1242,18 @@ const onInputTypeChange = (deviceIndex: number, ipIndex: number, inputType: stri
     ipVar.isManagementInterface = true  // Mark for backend management IP generation
     delete ipVar.interfaceOffset
     delete ipVar.vlanIndex
+  } else if (inputType.startsWith('subVlan')) {
+    // Initialize interface offset for Large Subnet Mode sub-VLAN
+    if (!ipVar.interfaceOffset) {
+      ipVar.interfaceOffset = 1
+    }
+    // Extract sub-VLAN index from inputType (e.g., 'subVlan0' -> 0)
+    const subVlanIndex = parseInt(inputType.replace('subVlan', ''), 10)
+    ipVar.vlanIndex = subVlanIndex
+    ipVar.isStudentGenerated = true
+    ipVar.isSubVlan = true  // Flag to indicate this is a sub-VLAN from large_subnet mode
+    ipVar.readonly = true
+    delete ipVar.isManagementInterface
   } else if (inputType.startsWith('studentVlan')) {
     // Initialize interface offset and VLAN index for VLAN IP
     if (!ipVar.interfaceOffset) {
@@ -1411,6 +1534,21 @@ const getVlanNumberFromInputType = (inputType: string): string => {
     return vlan.calculationMultiplier !== undefined
       ? getVlanDisplayId(vlan, vlanIndex)
       : `Student VLAN ${getVlanDisplayId(vlan, vlanIndex)}`
+  }
+  return '?'
+}
+
+// Get sub-VLAN name for Large Subnet Mode
+const getSubVlanName = (inputType: string): string => {
+  // Extract sub-VLAN index from "subVlan0", "subVlan1", etc.
+  const match = inputType.match(/subVlan(\d+)/)
+  if (match) {
+    const subVlanIndex = parseInt(match[1])
+    const subVlan = props.networkConfig.largeSubnetConfig?.subVlans?.[subVlanIndex]
+    if (subVlan) {
+      return subVlan.name
+    }
+    return `Sub-VLAN ${subVlanIndex + 1}`
   }
   return '?'
 }

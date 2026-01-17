@@ -70,6 +70,12 @@ export type PartType = 'fill_in_blank' | 'network_config';
 export type QuestionType = 'network_address' | 'first_usable_ip' | 'last_usable_ip' |
   'broadcast_address' | 'subnet_mask' | 'ip_address' | 'number' |
   'custom_text' | 'ip_table_questionnaire' |
+  // Subnet Calculation Types (for Large Subnet Mode)
+  'cidr_notation' |              // Full CIDR notation (e.g., "10.0.2.0/26")
+  'wildcard_mask' |              // Wildcard/inverse mask (e.g., "0.0.0.63")
+  'subnet_calculation_network' | // Network address from subnet calculation
+  'subnet_prefix_length' |       // Just the prefix length (e.g., "26")
+  'dotted_subnet_mask' |         // Dotted decimal subnet mask (e.g., "255.255.255.192")
   // IPv6 Question Types
   'ipv6_network_prefix' | 'ipv6_address' | 'ipv6_link_local' |
   'ipv6_global_unicast' | 'ipv6_prefix_length' | 'ipv6_slaac_address';
@@ -114,6 +120,12 @@ export type CalculationType =
   | 'vlan_lecturer_range'        // Lecturer-defined IP range (any IP in range is valid)
   | 'device_interface_ip'        // From device.interface
   | 'vlan_id'                    // The VLAN ID itself
+  // Subnet Calculation Types (for Large Subnet Mode)
+  | 'subnet_calculation_network' // Network address from subnet calculation
+  | 'dotted_subnet_mask'         // Dotted decimal subnet mask (e.g., 255.255.255.192)
+  | 'subnet_prefix_length'       // Just the prefix length (e.g., 26)
+  | 'cidr_notation'              // Full CIDR notation (e.g., 10.0.2.0/26)
+  | 'wildcard_mask'              // Wildcard/inverse mask (e.g., 0.0.0.63)
   // IPv6 Calculation Types
   | 'ipv6_network_prefix'
   | 'ipv6_address'

@@ -352,31 +352,42 @@
         </div>
       </div>
 
-      <!-- VLAN Mode Selection (Disabled - Forced to Calculated VLAN) -->
+      <!-- VLAN Mode Selection -->
       <div class="space-y-2">
         <Label class="text-sm font-medium">
           VLAN Configuration Mode <span class="text-destructive">*</span>
         </Label>
-        <Select v-model="localData.mode" disabled>
+        <Select v-model="localData.mode" @update:modelValue="handleModeChange">
           <SelectTrigger
-            class="border-green-500 bg-muted/50"
+            :class="{
+              'border-green-500': localData.mode,
+              'border-muted': !localData.mode
+            }"
           >
-            <SelectValue>
-              Calculated VLAN (Examination)
+            <SelectValue placeholder="Select mode...">
+              {{ getModeDisplayName(localData.mode) }}
             </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="calculated_vlan">
               <div class="flex flex-col space-y-1">
                 <div class="font-medium">Calculated VLAN (Examination)</div>
-                <div class="text-xs text-muted-foreground">Algorithm-generated VLAN numbers</div>
+                <div class="text-xs text-muted-foreground">Algorithm-generated VLAN numbers based on student ID</div>
+              </div>
+            </SelectItem>
+            <SelectItem value="large_subnet">
+              <div class="flex flex-col space-y-1">
+                <div class="font-medium">Large Subnet (Subnet Calculation)</div>
+                <div class="text-xs text-muted-foreground">Students receive a large subnet to divide into smaller subnets</div>
               </div>
             </SelectItem>
           </SelectContent>
         </Select>
         <div class="flex items-center space-x-2 text-xs text-muted-foreground">
           <Info class="w-3 h-3" />
-          <span>This mode is currently locked to Calculated VLAN (Examination) mode.</span>
+          <span v-if="localData.mode === 'calculated_vlan'">VLANs and IPs calculated from student ID automatically.</span>
+          <span v-else-if="localData.mode === 'large_subnet'">Students must calculate sub-subnets from their assigned large network.</span>
+          <span v-else>Select a mode to configure VLAN settings.</span>
         </div>
       </div>
 
@@ -403,8 +414,201 @@
         </div>
       </div>
 
-      <!-- VLAN Count Selection -->
-      <div v-if="localData.mode" class="space-y-2">
+      <!-- Large Subnet Mode Configuration -->
+      <div v-if="localData.mode === 'large_subnet'" class="space-y-4 p-4 border-2 border-purple-200 bg-purple-50/30 rounded-lg">
+        <div class="flex items-center gap-2 mb-4">
+          <Network class="w-5 h-5 text-purple-600" />
+          <h3 class="font-semibold text-purple-800">Large Subnet Configuration</h3>
+        </div>
+
+        <!-- Private Network Pool Selection -->
+        <div class="space-y-2">
+          <Label class="text-sm font-medium">
+            Private Network Pool <span class="text-destructive">*</span>
+          </Label>
+          <Select v-model="localData.largeSubnetConfig!.privateNetworkPool">
+            <SelectTrigger>
+              <SelectValue placeholder="Select pool..." />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="10.0.0.0/8">10.0.0.0/8 (Class A - 16M addresses)</SelectItem>
+              <SelectItem value="172.16.0.0/12">172.16.0.0/12 (Class B - 1M addresses)</SelectItem>
+              <SelectItem value="192.168.0.0/16">192.168.0.0/16 (Class C - 65K addresses)</SelectItem>
+            </SelectContent>
+          </Select>
+          <div class="text-xs text-muted-foreground">
+            Students will be assigned unique subnets from this pool
+          </div>
+        </div>
+
+        <!-- Student Subnet Size -->
+        <div class="space-y-2">
+          <Label class="text-sm font-medium">
+            Student Subnet Size <span class="text-destructive">*</span>
+          </Label>
+          <Select v-model="localData.largeSubnetConfig!.studentSubnetSize">
+            <SelectTrigger class="w-48">
+              <SelectValue placeholder="Select size..." />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem v-for="size in availableStudentSubnetSizes" :key="size" :value="size">
+                /{{ size }} ({{ getHostCount(size) }} hosts)
+              </SelectItem>
+            </SelectContent>
+          </Select>
+          <div class="text-xs text-muted-foreground">
+            Each student receives a unique /{{ localData.largeSubnetConfig?.studentSubnetSize || 23 }} subnet from the pool
+          </div>
+        </div>
+
+        <!-- Sub-VLANs Configuration -->
+        <div class="space-y-3">
+          <div class="flex items-center justify-between">
+            <Label class="text-sm font-medium">Sub-VLANs (within student subnet)</Label>
+            <Button
+              variant="outline"
+              size="sm"
+              @click="addSubVlan"
+              v-if="localData.largeSubnetConfig && localData.largeSubnetConfig.subVlans.length < 10"
+            >
+              <Plus class="w-4 h-4 mr-2" />
+              Add Sub-VLAN
+            </Button>
+          </div>
+
+          <div class="grid gap-3">
+            <Card
+              v-for="(subVlan, index) in localData.largeSubnetConfig?.subVlans"
+              :key="subVlan.id"
+              class="border-2 border-purple-100 bg-purple-25/30"
+            >
+              <CardContent class="pt-4">
+                <div class="flex items-center justify-between mb-3">
+                  <span class="font-medium text-sm">Sub-VLAN {{ index + 1 }}</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    @click="removeSubVlan(index)"
+                    v-if="localData.largeSubnetConfig && localData.largeSubnetConfig.subVlans.length > 1"
+                  >
+                    <Trash2 class="w-4 h-4 text-destructive" />
+                  </Button>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                  <!-- Name -->
+                  <div class="space-y-1">
+                    <Label class="text-xs">Name</Label>
+                    <Input v-model="subVlan.name" placeholder="e.g., Sales VLAN" />
+                  </div>
+
+                  <!-- Subnet Size -->
+                  <div class="space-y-1">
+                    <Label class="text-xs">Subnet Size</Label>
+                    <Select v-model="subVlan.subnetSize">
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem v-for="size in availableSubVlanSizes" :key="size" :value="size">
+                          /{{ size }} ({{ getHostCount(size) }} hosts)
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <!-- Subnet Index -->
+                  <div class="space-y-1">
+                    <Label class="text-xs">Subnet Index (1-based)</Label>
+                    <Input v-model.number="subVlan.subnetIndex" type="number" :min="1" :max="255" />
+                  </div>
+
+                  <!-- VLAN ID Randomized -->
+                  <div class="space-y-1">
+                    <Label class="text-xs">VLAN ID</Label>
+                    <div class="flex items-center gap-2">
+                      <Switch v-model="subVlan.vlanIdRandomized" />
+                      <span class="text-xs text-muted-foreground">
+                        {{ subVlan.vlanIdRandomized ? 'Randomized (2-4094)' : 'Fixed' }}
+                      </span>
+                    </div>
+                  </div>
+
+                  <!-- Fixed VLAN ID (if not randomized) -->
+                  <div v-if="!subVlan.vlanIdRandomized" class="space-y-1">
+                    <Label class="text-xs">Fixed VLAN ID</Label>
+                    <Input v-model.number="subVlan.fixedVlanId" type="number" :min="2" :max="4094" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Alert class="bg-amber-50 border-amber-200">
+            <AlertTriangle class="w-4 h-4 text-amber-600" />
+            <AlertDescription class="text-amber-800 text-sm">
+              Students will see their allocated large subnet and VLAN IDs but NOT the calculated sub-subnets. They must perform the subnet calculations themselves.
+            </AlertDescription>
+          </Alert>
+
+          <!-- Subnet Address Preview -->
+          <div class="mt-4 space-y-3 p-4 border-2 border-blue-200 bg-blue-50/30 rounded-lg">
+            <div class="flex items-center gap-2">
+              <Calculator class="w-4 h-4 text-blue-600" />
+              <h4 class="font-medium text-blue-800">Address Range Preview</h4>
+            </div>
+
+            <div class="flex items-center gap-3">
+              <Label class="text-xs whitespace-nowrap">Preview Subnet Index:</Label>
+              <Input
+                v-model.number="previewSubnetIndex"
+                type="number"
+                :min="0"
+                :max="getMaxSubnetIndex()"
+                class="w-24 h-8 text-sm"
+                placeholder="0"
+              />
+              <span class="text-xs text-muted-foreground">
+                (0 - {{ getMaxSubnetIndex() }})
+              </span>
+            </div>
+
+            <!-- Preview Result -->
+            <div class="space-y-2">
+              <!-- Large Subnet Preview -->
+              <div class="p-3 bg-blue-100 rounded border border-blue-200">
+                <div class="text-xs font-medium text-blue-700 mb-1">Student's Large Subnet:</div>
+                <div class="font-mono text-sm text-blue-900">
+                  {{ getPreviewLargeSubnetNetwork() }}/{{ localData.largeSubnetConfig?.studentSubnetSize }}
+                </div>
+              </div>
+
+              <!-- Sub-VLAN Previews -->
+              <div v-for="(subVlan, index) in localData.largeSubnetConfig?.subVlans" :key="subVlan.id" 
+                class="p-3 bg-purple-50 rounded border border-purple-200">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <div class="text-xs font-medium text-purple-700">{{ subVlan.name || `Sub-VLAN ${index + 1}` }}:</div>
+                    <div class="font-mono text-sm text-purple-900">
+                      {{ getPreviewSubVlanNetwork(subVlan.subnetIndex, subVlan.subnetSize) }}/{{ subVlan.subnetSize }}
+                    </div>
+                  </div>
+                  <Badge variant="outline" class="text-xs bg-purple-100 border-purple-300 text-purple-700">
+                    Block #{{ subVlan.subnetIndex }}
+                  </Badge>
+                </div>
+              </div>
+            </div>
+
+            <p class="text-xs text-blue-600">
+              💡 Try different subnet indices to see how addresses are calculated for students.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- VLAN Count Selection (only for non-large_subnet modes) -->
+      <div v-if="localData.mode && localData.mode !== 'large_subnet'" class="space-y-2">
         <Label class="text-sm font-medium">
           Number of VLANs <span class="text-destructive">*</span>
         </Label>
@@ -420,8 +624,8 @@
         </Select>
       </div>
 
-      <!-- VLAN Configuration Cards -->
-      <div v-if="localData.mode && localData.vlanCount" class="space-y-4">
+      <!-- VLAN Configuration Cards (only for non-large_subnet modes) -->
+      <div v-if="localData.mode && localData.mode !== 'large_subnet' && localData.vlanCount" class="space-y-4">
         <div class="flex items-center justify-between">
           <Label class="text-sm font-medium">VLAN Configuration</Label>
           <Button
@@ -625,7 +829,7 @@
       </div>
 
       <!-- Preview Section -->
-      <div v-if="localData.vlans.length > 0" class="space-y-4">
+      <div v-if="localData.vlans.length > 0 || (localData.mode === 'large_subnet' && localData.largeSubnetConfig?.subVlans?.length)" class="space-y-4">
         <Label class="text-sm font-medium">Student IP Preview</Label>
         <Card class="bg-accent/30">
           <CardHeader class="pb-3">
@@ -634,6 +838,7 @@
                 <Eye class="w-4 h-4 mr-2" />
                 Preview Student IP
               </CardTitle>
+              <Badge v-if="localData.mode === 'large_subnet'" variant="outline" class="text-xs">Large Subnet Mode</Badge>
             </div>
             <div class="flex items-center gap-2 mt-3">
               <Label class="text-sm text-muted-foreground whitespace-nowrap">Student ID:</Label>
@@ -652,28 +857,67 @@
           </CardHeader>
           <CardContent>
             <div class="space-y-3">
-              <div
-                v-for="(vlan, index) in localData.vlans"
-                :key="index"
-                class="p-3 bg-background rounded border"
-              >
-                <div class="flex items-center justify-between mb-2">
-                  <span class="font-medium text-sm">
-                    VLAN {{ index + 1 }}
-                  </span>
-                  <div class="flex items-center gap-2">
-                    <span class="text-xs text-muted-foreground">
-                      {{ getVlanDisplay(vlan, index) }}
+              <!-- Regular VLANs Preview -->
+              <template v-if="localData.mode !== 'large_subnet'">
+                <div
+                  v-for="(vlan, index) in localData.vlans"
+                  :key="index"
+                  class="p-3 bg-background rounded border"
+                >
+                  <div class="flex items-center justify-between mb-2">
+                    <span class="font-medium text-sm">
+                      VLAN {{ index + 1 }}
                     </span>
-                    <Badge v-if="vlan.subnetIndex !== undefined" variant="secondary" class="text-xs">
-                      Block {{ vlan.subnetIndex }}
-                    </Badge>
+                    <div class="flex items-center gap-2">
+                      <span class="text-xs text-muted-foreground">
+                        {{ getVlanDisplay(vlan, index) }}
+                      </span>
+                      <Badge v-if="vlan.subnetIndex !== undefined" variant="secondary" class="text-xs">
+                        Block {{ vlan.subnetIndex }}
+                      </Badge>
+                    </div>
+                  </div>
+                  <code class="text-sm text-primary">
+                    {{ generatePreviewIP(vlan) }}
+                  </code>
+                </div>
+              </template>
+              <!-- Large Subnet Mode Sub-VLANs Preview -->
+              <template v-else-if="localData.largeSubnetConfig?.subVlans">
+                <div class="p-3 bg-blue-50 dark:bg-blue-950/30 rounded border border-blue-200 dark:border-blue-800 mb-3">
+                  <div class="flex items-center gap-2 mb-2">
+                    <Info class="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                    <span class="text-sm font-medium text-blue-700 dark:text-blue-300">Large Subnet Assignment</span>
+                  </div>
+                  <div class="text-xs text-blue-600 dark:text-blue-400 space-y-1">
+                    <div>Private Network Pool: {{ localData.largeSubnetConfig.privateNetworkPool }}</div>
+                    <div>Student Subnet Size: /{{ localData.largeSubnetConfig.studentSubnetSize }}</div>
+                    <div>Student receives a unique large subnet based on their ID</div>
                   </div>
                 </div>
-                <code class="text-sm text-primary">
-                  {{ generatePreviewIP(vlan) }}
-                </code>
-              </div>
+                <div
+                  v-for="(subVlan, index) in localData.largeSubnetConfig.subVlans"
+                  :key="subVlan.id"
+                  class="p-3 bg-background rounded border"
+                >
+                  <div class="flex items-center justify-between mb-2">
+                    <span class="font-medium text-sm">
+                      {{ subVlan.name }}
+                    </span>
+                    <div class="flex items-center gap-2">
+                      <Badge variant="secondary" class="text-xs">
+                        /{{ subVlan.subnetSize }}
+                      </Badge>
+                      <Badge variant="outline" class="text-xs">
+                        Block {{ subVlan.subnetIndex }}
+                      </Badge>
+                    </div>
+                  </div>
+                  <div class="text-xs text-muted-foreground">
+                    Students must calculate this sub-subnet from their assigned large network
+                  </div>
+                </div>
+              </template>
             </div>
           </CardContent>
         </Card>
@@ -755,14 +999,33 @@ interface VlanConfig {
   ipv6SubnetId?: string       // Custom subnet ID for template (e.g., "141")
 }
 
+// Sub-VLAN Configuration for Large Subnet Mode
+interface SubVlanConfig {
+  id: string
+  name: string
+  subnetSize: number          // e.g., 26 for /26
+  subnetIndex: number         // Which subnet block within the large subnet (1-based)
+  vlanIdRandomized: boolean   // true = random 2-4096, false = fixed
+  fixedVlanId?: number        // Only if vlanIdRandomized = false
+}
+
+// Large Subnet Configuration
+interface LargeSubnetConfig {
+  privateNetworkPool: '10.0.0.0/8' | '172.16.0.0/12' | '192.168.0.0/16'
+  studentSubnetSize: number   // e.g., 23 for /23
+  subVlans: SubVlanConfig[]
+}
+
 interface NetworkConfig {
   managementNetwork: string
   managementSubnetMask: number
-  mode: 'fixed_vlan' | 'lecturer_group' | 'calculated_vlan' | ''
+  mode: 'fixed_vlan' | 'lecturer_group' | 'calculated_vlan' | 'large_subnet' | ''
   allocationStrategy: 'student_id_based' | 'group_based'
   vlanCount: number
   vlans: VlanConfig[]
   exemptIpRanges: IpRange[]
+  // Large Subnet Mode Configuration
+  largeSubnetConfig?: LargeSubnetConfig
   // IPv6 Template Configuration
   ipv6Config?: {
     enabled: boolean
@@ -796,12 +1059,12 @@ interface Emits {
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
-// Local state - FORCED: mode=calculated_vlan, allocationStrategy=student_id_based
+// Local state - default mode=calculated_vlan if not set, allocationStrategy=student_id_based
 const localData = ref<NetworkConfig>({
   ...props.modelValue,
   managementNetwork: props.modelValue.managementNetwork || '10.0.0.0',
   managementSubnetMask: props.modelValue.managementSubnetMask || 24,
-  mode: 'calculated_vlan', // FORCED: Only Calculated VLAN mode is currently supported
+  mode: props.modelValue.mode || 'calculated_vlan', // Default to calculated_vlan if not specified
   allocationStrategy: 'student_id_based', // FORCED: Only Student ID Based allocation is currently supported
   vlanCount: props.modelValue.vlanCount || 1,
   vlans: props.modelValue.vlans || [],
@@ -818,6 +1081,120 @@ const isUpdatingFromProps = ref(false)
 
 // Preview student ID state
 const previewStudentId = ref(65070232)
+
+// Preview subnet index for Large Subnet Mode
+const previewSubnetIndex = ref(0)
+
+// Get max subnet index based on pool and student subnet size
+const getMaxSubnetIndex = (): number => {
+  const config = localData.value.largeSubnetConfig
+  if (!config) return 0
+  
+  const poolPrefixes: Record<string, number> = {
+    '10.0.0.0/8': 8,
+    '172.16.0.0/12': 12,
+    '192.168.0.0/16': 16
+  }
+  
+  const poolPrefix = poolPrefixes[config.privateNetworkPool] || 8
+  const studentSubnetSize = config.studentSubnetSize || 23
+  
+  // Number of possible student subnets = 2^(studentSubnetSize - poolPrefix)
+  const totalSubnets = Math.pow(2, studentSubnetSize - poolPrefix)
+  return totalSubnets - 1
+}
+
+// Get pool base address as number
+const getPoolBaseAddress = (pool: string): number => {
+  const bases: Record<string, number> = {
+    '10.0.0.0/8': 0x0A000000,      // 10.0.0.0
+    '172.16.0.0/12': 0xAC100000,   // 172.16.0.0
+    '192.168.0.0/16': 0xC0A80000   // 192.168.0.0
+  }
+  return bases[pool] || 0x0A000000
+}
+
+// Convert number to IP string
+const numberToIp = (num: number): string => {
+  return [
+    (num >>> 24) & 0xFF,
+    (num >>> 16) & 0xFF,
+    (num >>> 8) & 0xFF,
+    num & 0xFF
+  ].join('.')
+}
+
+// Calculate network address for the student's large subnet
+const getPreviewLargeSubnetNetwork = (): string => {
+  const config = localData.value.largeSubnetConfig
+  if (!config) return '0.0.0.0'
+  
+  const baseAddress = getPoolBaseAddress(config.privateNetworkPool)
+  const studentSubnetSize = config.studentSubnetSize || 23
+  const subnetSize = Math.pow(2, 32 - studentSubnetSize)
+  
+  const index = previewSubnetIndex.value || 0
+  const networkNum = baseAddress + (index * subnetSize)
+  
+  return numberToIp(networkNum)
+}
+
+// Calculate network address for a sub-VLAN within the student's large subnet
+const getPreviewSubVlanNetwork = (subVlanIndex: number, subVlanSize: number): string => {
+  const config = localData.value.largeSubnetConfig
+  if (!config) return '0.0.0.0'
+  
+  // First get the student's large subnet network address
+  const baseAddress = getPoolBaseAddress(config.privateNetworkPool)
+  const studentSubnetSize = config.studentSubnetSize || 23
+  const studentSubnetBlockSize = Math.pow(2, 32 - studentSubnetSize)
+  
+  const index = previewSubnetIndex.value || 0
+  const studentNetworkNum = baseAddress + (index * studentSubnetBlockSize)
+  
+  // Calculate sub-VLAN block size and offset
+  const subVlanBlockSize = Math.pow(2, 32 - subVlanSize)
+  const subVlanOffset = (subVlanIndex - 1) * subVlanBlockSize
+  
+  const subVlanNetworkNum = studentNetworkNum + subVlanOffset
+  
+  return numberToIp(subVlanNetworkNum)
+}
+
+// Handle mode change side effects (called after v-model updates)
+const handleModeChange = () => {
+  const newMode = localData.value.mode
+  console.log('[LabWizardStep2] Mode changed to', newMode)
+  
+  if (newMode === 'large_subnet') {
+    // Initialize Large Subnet Mode configuration
+    if (!localData.value.largeSubnetConfig) {
+      localData.value.largeSubnetConfig = {
+        privateNetworkPool: '10.0.0.0/8',
+        studentSubnetSize: 23,
+        subVlans: [{
+          id: generateSubVlanId(),
+          name: 'VLAN 1',
+          subnetSize: 26,
+          subnetIndex: 1,
+          vlanIdRandomized: true
+        }]
+      }
+    }
+    // Clear regular VLANs when switching to large_subnet mode
+    localData.value.vlans = []
+    localData.value.vlanCount = 0
+  } else {
+    // Clear Large Subnet config when switching to other modes
+    localData.value.largeSubnetConfig = undefined
+    // Only initialize VLANs if empty
+    if (localData.value.vlans.length === 0) {
+      localData.value.vlanCount = 1
+      localData.value.vlans = [createDefaultVlan(newMode, 0)]
+    }
+  }
+  validateAllFields()
+}
 
 // IPv6 enabled computed property for v-model binding (Switch component)
 const ipv6Enabled = computed({
@@ -973,8 +1350,57 @@ const getModeDisplayText = (mode: string) => {
     case 'fixed_vlan': return 'Fixed VLAN (Beginning Course)'
     case 'lecturer_group': return 'Lecturer VLAN + Group (Advanced Course)'
     case 'calculated_vlan': return 'Calculated VLAN (Examination)'
+    case 'large_subnet': return 'Large Subnet (Subnet Calculation)'
     default: return ''
   }
+}
+
+// Mode display name for selector (compact version)
+const getModeDisplayName = (mode: string): string => {
+  switch (mode) {
+    case 'fixed_vlan': return 'Fixed VLAN'
+    case 'lecturer_group': return 'Lecturer Group VLAN'
+    case 'calculated_vlan': return 'Calculated VLAN (Examination)'
+    case 'large_subnet': return 'Large Subnet (Subnet Calculation)'
+    default: return 'Select mode...'
+  }
+}
+
+// Generate unique Sub-VLAN ID
+const generateSubVlanId = (): string => {
+  return `subvlan_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+}
+
+// Available subnet sizes for student subnet (based on pool)
+const availableStudentSubnetSizes = computed(() => {
+  const pool = localData.value.largeSubnetConfig?.privateNetworkPool
+  const minPrefix = pool === '10.0.0.0/8' ? 9 : pool === '172.16.0.0/12' ? 13 : 17
+  return Array.from({ length: 31 - minPrefix }, (_, i) => minPrefix + i) // e.g., 9-30 for /8 pool
+})
+
+// Available sub-VLAN sizes (must be smaller than student subnet)
+const availableSubVlanSizes = computed(() => {
+  const studentSize = localData.value.largeSubnetConfig?.studentSubnetSize || 23
+  return Array.from({ length: 31 - studentSize }, (_, i) => studentSize + 1 + i) // studentSize+1 to 30
+})
+
+// Add sub-VLAN to Large Subnet config
+const addSubVlan = () => {
+  if (!localData.value.largeSubnetConfig) return
+  const index = localData.value.largeSubnetConfig.subVlans.length
+  localData.value.largeSubnetConfig.subVlans.push({
+    id: generateSubVlanId(),
+    name: `VLAN ${index + 1}`,
+    subnetSize: 26,
+    subnetIndex: index + 1,
+    vlanIdRandomized: true
+  })
+}
+
+// Remove sub-VLAN from Large Subnet config
+const removeSubVlan = (index: number) => {
+  if (!localData.value.largeSubnetConfig || localData.value.largeSubnetConfig.subVlans.length <= 1) return
+  localData.value.largeSubnetConfig.subVlans.splice(index, 1)
 }
 
 const generateVlanId = (): string => {
@@ -1025,11 +1451,35 @@ const createDefaultVlan = (mode: string, index: number): VlanConfig => {
   }
 }
 
-const onModeChange = () => {
-  // Reset VLANs when mode changes
-  localData.value.vlans = []
-  localData.value.vlanCount = 1
-  addVlan()
+const onModeChange = (newMode?: typeof localData.value.mode) => {
+  const mode = newMode || localData.value.mode
+  
+  if (mode === 'large_subnet') {
+    // Initialize Large Subnet Mode configuration
+    if (!localData.value.largeSubnetConfig) {
+      localData.value.largeSubnetConfig = {
+        privateNetworkPool: '10.0.0.0/8',
+        studentSubnetSize: 23,
+        subVlans: [{
+          id: generateSubVlanId(),
+          name: 'VLAN 1',
+          subnetSize: 26,
+          subnetIndex: 1,
+          vlanIdRandomized: true
+        }]
+      }
+    }
+    // Clear regular VLANs when switching to large_subnet mode
+    localData.value.vlans = []
+    localData.value.vlanCount = 0
+  } else {
+    // Clear Large Subnet config when switching away
+    localData.value.largeSubnetConfig = undefined
+    // Reset VLANs when mode changes
+    localData.value.vlans = []
+    localData.value.vlanCount = 1
+    addVlan()
+  }
   validateAllFields()
 }
 
@@ -1357,10 +1807,42 @@ const validateAllFields = () => {
     fieldErrors.value.allocationStrategy = 'Invalid allocation strategy'
   }
 
-  // Validate VLANs
-  if (localData.value.mode && localData.value.vlans.length === 0) {
+  // Validate VLANs (mode-specific)
+  if (localData.value.mode === 'large_subnet') {
+    // For large_subnet mode, validate subVlans in largeSubnetConfig
+    if (!localData.value.largeSubnetConfig) {
+      fieldErrors.value.vlans = 'Large subnet configuration is required'
+    } else if (!localData.value.largeSubnetConfig.subVlans || 
+               localData.value.largeSubnetConfig.subVlans.length === 0) {
+      fieldErrors.value.vlans = 'At least one sub-VLAN is required'
+    } else {
+      delete fieldErrors.value.vlans
+      // Validate each sub-VLAN
+      localData.value.largeSubnetConfig.subVlans.forEach((subVlan, index) => {
+        // Validate sub-VLAN name
+        if (!subVlan.name || !subVlan.name.trim()) {
+          fieldErrors.value[`subvlan_${index}_name`] = 'Sub-VLAN name is required'
+        } else {
+          delete fieldErrors.value[`subvlan_${index}_name`]
+        }
+        // Validate subnet size
+        if (!subVlan.subnetSize || subVlan.subnetSize < 1 || subVlan.subnetSize > 32) {
+          fieldErrors.value[`subvlan_${index}_subnetSize`] = 'Invalid subnet size (1-32)'
+        } else {
+          delete fieldErrors.value[`subvlan_${index}_subnetSize`]
+        }
+        // Validate subnet index
+        if (!subVlan.subnetIndex || subVlan.subnetIndex < 1) {
+          fieldErrors.value[`subvlan_${index}_subnetIndex`] = 'Subnet index must be >= 1'
+        } else {
+          delete fieldErrors.value[`subvlan_${index}_subnetIndex`]
+        }
+      })
+    }
+  } else if (localData.value.mode && localData.value.vlans.length === 0) {
     fieldErrors.value.vlans = 'At least one VLAN is required'
   } else {
+    delete fieldErrors.value.vlans
     localData.value.vlans.forEach((_, index) => {
       validateVlan(index)
     })
@@ -1493,8 +1975,8 @@ watch(
     isUpdatingFromProps.value = true
     localData.value = {
       ...newValue,
-      // FORCED: Only Calculated VLAN and Student ID Based are currently supported
-      mode: 'calculated_vlan',
+      // Use mode from props or default to calculated_vlan
+      mode: newValue.mode || 'calculated_vlan',
       allocationStrategy: 'student_id_based',
       // Preserve ipv6Config with fallback for edit mode
       ipv6Config: newValue.ipv6Config || {
@@ -1515,8 +1997,8 @@ watch(
 
 // Lifecycle
 onMounted(() => {
-  // Force mode to calculated_vlan if not already set or if empty
-  if (localData.value.mode !== 'calculated_vlan') {
+  // Use mode from props or default to calculated_vlan if empty
+  if (!localData.value.mode) {
     localData.value.mode = 'calculated_vlan'
   }
   // Force allocationStrategy to student_id_based if not already set

@@ -133,6 +133,67 @@
       </div>
     </div>
 
+    <!-- Large Subnet Mode Configuration (for subnet calculation exercises) -->
+    <div v-if="backendLargeSubnetInfo" class="personalized-config mb-6">
+      <div class="bg-purple-50 border-2 border-purple-200 rounded-lg p-4">
+        <div class="flex items-center mb-3">
+          <span class="text-purple-600 text-xl">🧮</span>
+          <h3 class="font-semibold text-purple-800 ml-2">Your Subnet Calculation Exercise</h3>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <!-- Allocated Large Subnet -->
+          <div class="bg-white p-4 rounded border border-purple-200">
+            <div class="text-sm font-medium text-purple-800 mb-2">Your Assigned Network</div>
+            <div class="space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="text-sm text-gray-600">Network Address:</span>
+                <code class="bg-purple-100 text-purple-900 px-2 py-1 rounded font-mono text-lg">
+                  {{ backendLargeSubnetInfo.allocatedSubnet }}
+                </code>
+              </div>
+              <div class="text-xs text-gray-500">
+                This is your large subnet. You must divide it into the required sub-VLANs.
+              </div>
+            </div>
+          </div>
+
+          <!-- Assigned VLAN IDs -->
+          <div class="bg-white p-4 rounded border border-purple-200">
+            <div class="text-sm font-medium text-purple-800 mb-2">Your VLAN IDs</div>
+            <div class="flex flex-wrap gap-2">
+              <span
+                v-for="(subVlan, idx) in backendLargeSubnetInfo.subVlans"
+                :key="idx"
+                class="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-purple-100 text-purple-800 text-sm"
+              >
+                <span class="font-medium">{{ subVlan.name }}:</span>
+                <span class="font-mono font-bold">{{ subVlan.vlanId }}</span>
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sub-VLAN Requirements (what students need to calculate) -->
+        <div class="mt-4 p-3 bg-amber-50 border border-amber-200 rounded">
+          <div class="text-sm font-medium text-amber-800 mb-2">Required Sub-VLANs to Configure:</div>
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+            <div
+              v-for="(subVlan, idx) in backendLargeSubnetInfo.subVlans"
+              :key="idx"
+              class="text-xs bg-white p-2 rounded border border-amber-100"
+            >
+              <span class="font-medium text-amber-900">{{ subVlan.name }}:</span>
+              <span class="text-amber-700 ml-1">/{{ subVlan.subnetSize }} subnet at index {{ subVlan.subnetIndex }}</span>
+            </div>
+          </div>
+          <div class="mt-2 text-xs text-amber-700">
+            <strong>Note:</strong> You must calculate the actual network addresses for each sub-VLAN based on your assigned large subnet.
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Part 0 · Student Instructions -->
     <div class="instructions-part mb-6">
       <div class="bg-card border border-border rounded-lg p-6">
@@ -362,6 +423,20 @@ const hasGns3Project = ref(false)
 // Backend IP Mappings (from POST /v0/labs/:id/start)
 const backendIpMappings = ref<Record<string, { ip: string; vlan: number | null }>>({})
 const backendVlanMappings = ref<Record<string, number>>({})
+
+// Large Subnet Mode allocation (from backend - for subnet calculation exercises)
+const backendLargeSubnetInfo = ref<{
+  allocatedSubnet: string       // e.g., "10.0.2.0/23"
+  networkAddress: string        // e.g., "10.0.2.0"
+  subnetMask: number            // e.g., 23
+  randomizedVlanIds: number[]   // e.g., [247, 1892]
+  subVlans: Array<{
+    name: string
+    subnetSize: number
+    subnetIndex: number
+    vlanId: number
+  }>
+} | null>(null)
 
 type TaskParameterValue = string | number | boolean | null | undefined
 

@@ -123,6 +123,12 @@
                 </SelectItem>
                 <SelectItem value="device_interface_ip">Device Interface IP</SelectItem>
                 <SelectItem value="vlan_id">VLAN ID</SelectItem>
+                <!-- Subnet Calculation Types (for Large Subnet Mode) -->
+                <SelectItem value="subnet_calculation_network">Subnet Network Address (Sub-VLAN)</SelectItem>
+                <SelectItem value="dotted_subnet_mask">Dotted Subnet Mask (e.g., 255.255.255.192)</SelectItem>
+                <SelectItem value="subnet_prefix_length">Subnet Prefix Length (e.g., /26)</SelectItem>
+                <SelectItem value="cidr_notation">CIDR Notation (e.g., 10.0.2.0/26)</SelectItem>
+                <SelectItem value="wildcard_mask">Wildcard Mask (e.g., 0.0.0.63)</SelectItem>
                 <!-- IPv6 Calculation Types -->
                 <SelectItem value="ipv6_network_prefix">IPv6 Network Prefix</SelectItem>
                 <SelectItem value="ipv6_address">IPv6 Interface Address</SelectItem>
@@ -392,6 +398,37 @@
             </Alert>
           </div>
 
+          <!-- Subnet Calculation Info (for Large Subnet Mode types) -->
+          <div
+            v-if="isSubnetCalculationType"
+            class="space-y-2"
+          >
+            <Alert class="bg-purple-50 border-purple-200">
+              <Info class="w-4 h-4 text-purple-600" />
+              <AlertDescription class="text-sm text-purple-800">
+                <div class="font-semibold mb-1">Large Subnet Mode - Student Calculation Required</div>
+                <div v-if="localCell.calculatedAnswer?.calculationType === 'subnet_calculation_network'">
+                  The student must calculate the network address for the selected sub-VLAN within their allocated large subnet.
+                </div>
+                <div v-else-if="localCell.calculatedAnswer?.calculationType === 'dotted_subnet_mask'">
+                  The student must provide the subnet mask in dotted decimal format (e.g., 255.255.255.192 for /26).
+                </div>
+                <div v-else-if="localCell.calculatedAnswer?.calculationType === 'subnet_prefix_length'">
+                  The student must provide the prefix length (e.g., /26 or just 26).
+                </div>
+                <div v-else-if="localCell.calculatedAnswer?.calculationType === 'cidr_notation'">
+                  The student must provide the full CIDR notation (e.g., 10.0.2.0/26) for the sub-VLAN.
+                </div>
+                <div v-else-if="localCell.calculatedAnswer?.calculationType === 'wildcard_mask'">
+                  The student must provide the wildcard/inverse mask (e.g., 0.0.0.63 for /26).
+                </div>
+                <div class="mt-2 text-muted-foreground">
+                  The answer is validated against the student's allocated subnet and the selected VLAN's configuration.
+                </div>
+              </AlertDescription>
+            </Alert>
+          </div>
+
           <!-- IPv6 Info (for other IPv6 types) -->
           <div
             v-if="isIpv6CalculationType && !['ipv6_slaac', 'device_interface_ipv6'].includes(localCell.calculatedAnswer?.calculationType || '')"
@@ -550,6 +587,12 @@ const requiresVlanSelection = (calcType: CalculationType | undefined): boolean =
     'vlan_lecturer_offset',
     'vlan_lecturer_range',
     'vlan_id',
+    // Subnet Calculation Types (for Large Subnet Mode)
+    'subnet_calculation_network',
+    'dotted_subnet_mask',
+    'subnet_prefix_length',
+    'cidr_notation',
+    'wildcard_mask',
     // IPv6 types that require VLAN selection
     'ipv6_network_prefix',
     'ipv6_address',
@@ -557,6 +600,18 @@ const requiresVlanSelection = (calcType: CalculationType | undefined): boolean =
     'ipv6_prefix_length'
   ].includes(calcType)
 }
+
+// Check if current type is a subnet calculation type (for Large Subnet Mode)
+const isSubnetCalculationType = computed(() => {
+  const calcType = localCell.value.calculatedAnswer?.calculationType
+  return calcType && [
+    'subnet_calculation_network',
+    'dotted_subnet_mask',
+    'subnet_prefix_length',
+    'cidr_notation',
+    'wildcard_mask'
+  ].includes(calcType)
+})
 
 // Check if current type is an IPv6 calculation
 const isIpv6CalculationType = computed(() => {

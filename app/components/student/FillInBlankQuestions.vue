@@ -679,7 +679,13 @@ const getPlaceholderForType = (type: string): string => {
     'subnet_mask': '24',
     'ip_address': '192.168.1.1',
     'number': '0',
-    'custom_text': 'Type your answer here'
+    'custom_text': 'Type your answer here',
+    // Subnet Calculation Types (Large Subnet Mode)
+    'cidr_notation': '10.0.2.0/26',
+    'wildcard_mask': '0.0.0.63',
+    'subnet_calculation_network': '10.0.2.0',
+    'subnet_prefix_length': '26',
+    'dotted_subnet_mask': '255.255.255.192'
   }
   return placeholders[type] || 'Type your answer here'
 }
