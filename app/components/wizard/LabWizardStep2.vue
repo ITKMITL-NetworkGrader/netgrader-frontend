@@ -1085,6 +1085,75 @@ const previewStudentId = ref(65070232)
 // Preview subnet index for Large Subnet Mode
 const previewSubnetIndex = ref(0)
 
+/**
+ * Normalize largeSubnetConfig to handle both old and new field names
+ * Old format: { baseNetwork, cidr, studentSubnetCidr, subVlans: [{ name, cidr }] }
+ * New format: { privateNetworkPool, studentSubnetSize, subVlans: [{ id, name, subnetSize }] }
+ */
+const normalizeLargeSubnetConfig = (config: any): LargeSubnetConfig | undefined => {
+  if (!config) return undefined
+
+  // Check if already normalized (has new fields)
+  if (config.privateNetworkPool && config.studentSubnetSize) {
+    // Normalize subVlans
+    const subVlans = (config.subVlans || []).map((sv: any, idx: number) => ({
+      id: sv.id || `subvlan-${idx}`,
+      name: sv.name || `Sub-VLAN ${idx + 1}`,
+      subnetSize: sv.subnetSize ?? sv.cidr ?? 26,
+      subnetIndex: sv.subnetIndex ?? (idx + 1),
+      vlanIdRandomized: sv.vlanIdRandomized ?? true,
+      fixedVlanId: sv.fixedVlanId
+    }))
+    return { ...config, subVlans }
+  }
+
+  // Infer privateNetworkPool from baseNetwork
+  let privateNetworkPool: '10.0.0.0/8' | '172.16.0.0/12' | '192.168.0.0/16' | undefined
+  if (config.baseNetwork) {
+    const baseNetwork = String(config.baseNetwork).toLowerCase()
+    if (baseNetwork.startsWith('10.')) {
+      privateNetworkPool = '10.0.0.0/8'
+    } else if (baseNetwork.startsWith('172.')) {
+      privateNetworkPool = '172.16.0.0/12'
+    } else if (baseNetwork.startsWith('192.168.')) {
+      privateNetworkPool = '192.168.0.0/16'
+    }
+  }
+
+  if (!privateNetworkPool) {
+    // Default to 172.16.0.0/12 if cannot determine
+    privateNetworkPool = '172.16.0.0/12'
+  }
+
+  const studentSubnetSize = config.studentSubnetSize ?? config.studentSubnetCidr ?? config.cidr ?? 22
+
+  const subVlans = (config.subVlans || []).map((sv: any, idx: number) => ({
+    id: sv.id || `subvlan-${idx}`,
+    name: sv.name || `Sub-VLAN ${idx + 1}`,
+    subnetSize: sv.subnetSize ?? sv.cidr ?? 26,
+    subnetIndex: sv.subnetIndex ?? (idx + 1),
+    vlanIdRandomized: sv.vlanIdRandomized ?? true,
+    fixedVlanId: sv.fixedVlanId
+  }))
+
+  return {
+    privateNetworkPool,
+    studentSubnetSize,
+    subVlans
+  }
+}
+
+// On mounted, normalize largeSubnetConfig if present with old field names
+onMounted(() => {
+  if (localData.value.mode === 'large_subnet' && localData.value.largeSubnetConfig) {
+    const normalized = normalizeLargeSubnetConfig(localData.value.largeSubnetConfig)
+    if (normalized) {
+      localData.value.largeSubnetConfig = normalized
+      console.log('[LabWizardStep2] Normalized largeSubnetConfig:', normalized)
+    }
+  }
+})
+
 // Get max subnet index based on pool and student subnet size
 const getMaxSubnetIndex = (): number => {
   const config = localData.value.largeSubnetConfig
@@ -1812,6 +1881,10 @@ const validateAllFields = () => {
     // For large_subnet mode, validate subVlans in largeSubnetConfig
     if (!localData.value.largeSubnetConfig) {
       fieldErrors.value.vlans = 'Large subnet configuration is required'
+    } else if (!localData.value.largeSubnetConfig.privateNetworkPool) {
+      fieldErrors.value.vlans = 'Private network pool is required for large subnet mode'
+    } else if (!localData.value.largeSubnetConfig.studentSubnetSize) {
+      fieldErrors.value.vlans = 'Student subnet size is required for large subnet mode'
     } else if (!localData.value.largeSubnetConfig.subVlans || 
                localData.value.largeSubnetConfig.subVlans.length === 0) {
       fieldErrors.value.vlans = 'At least one sub-VLAN is required'

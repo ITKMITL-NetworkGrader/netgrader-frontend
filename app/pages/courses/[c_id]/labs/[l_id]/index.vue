@@ -29,7 +29,8 @@ import {
   Loader2,
   Send,
   History,
-  ExternalLink
+  ExternalLink,
+  Network
 } from 'lucide-vue-next'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -402,6 +403,18 @@ const ipLoadingStatus = ref('Gathering your IP addresses...')
 const backendIpMappings = ref<Record<string, { ip: string; vlan: number | null }>>({})
 const backendVlanMappings = ref<Record<string, number>>({})
 const backendVlanSubnets = ref<Record<number, { baseNetwork: string; subnetMask: number }>>({})
+const backendLargeSubnetInfo = ref<{
+  allocatedSubnet: string;
+  networkAddress: string;
+  subnetMask: number;
+  randomizedVlanIds: number[];
+  subVlans: Array<{
+    name: string;
+    subnetSize: number;
+    subnetIndex: number;
+    vlanId: number;
+  }>;
+} | null>(null)
 const activeLabSessionId = ref<string | null>(null)
 const showResultsModal = ref(false)
 const timerExpiredModalMode = ref<'results' | 'timer_expired' | 'unavailable'>('results')
@@ -647,6 +660,31 @@ const variableReferenceTable = computed(() => {
   })
 
   return variables
+})
+
+// Check if current lab is in Large Subnet Mode
+const isLargeSubnetMode = computed(() => {
+  return currentLab.value?.network?.vlanConfiguration?.mode === 'large_subnet'
+})
+
+// Large Subnet Reference Table - Shows allocated subnet and sub-VLAN mappings
+const largeSubnetReferenceTable = computed(() => {
+  if (!isLargeSubnetMode.value || !backendLargeSubnetInfo.value) return null
+
+  const vlanLetters = 'ABCDEFGHIJ'.split('')
+  const info = backendLargeSubnetInfo.value
+
+  return {
+    allocatedSubnet: info.allocatedSubnet || '-',
+    networkAddress: info.networkAddress || '-',
+    subnetMask: info.subnetMask || 0,
+    subVlans: info.subVlans?.map((sv, idx) => ({
+      vlanVariable: `VLAN ${vlanLetters[idx] || idx}`,
+      name: sv.name,
+      vlanId: sv.vlanId,
+      subnetIndex: sv.subnetIndex
+    })) || []
+  }
 })
 
 // Device Management Table - Only shows Device and Management IP
@@ -1392,11 +1430,20 @@ const loadPersonalizedIPs = async (options: { restart?: boolean } = {}) => {
       backendIpMappings.value = result.data.networkConfiguration.ipMappings || {}
       backendVlanMappings.value = result.data.networkConfiguration.vlanMappings || {}
       backendVlanSubnets.value = result.data.networkConfiguration.vlanSubnets || {}
+      
+      // Store Large Subnet Info for Large Subnet Mode
+      if (result.data.networkConfiguration.largeSubnetInfo) {
+        backendLargeSubnetInfo.value = result.data.networkConfiguration.largeSubnetInfo
+        console.log('[DEBUG] Large Subnet Info:', backendLargeSubnetInfo.value)
+      } else {
+        backendLargeSubnetInfo.value = null
+      }
 
       console.log('[DEBUG] Loaded personalized IPs:', {
         ipMappings: backendIpMappings.value,
         vlanMappings: backendVlanMappings.value,
-        vlanSubnets: backendVlanSubnets.value
+        vlanSubnets: backendVlanSubnets.value,
+        largeSubnetInfo: backendLargeSubnetInfo.value
       })
 
       if (result.data.session) {
@@ -2115,8 +2162,57 @@ watch(() => route.query.part, (newPart) => {
             </Card>
 
             <template v-else>
-              <!-- Variable Reference Table (VLAN A-J, CIDR Q-Z) -->
-              <Card v-if="variableReferenceTable.length > 0" class="shadow-sm">
+              <!-- Large Subnet Mode - Your Network Allocation -->
+              <Card v-if="largeSubnetReferenceTable" class="shadow-sm border-primary/20">
+                <CardHeader class="pb-4">
+                  <CardTitle class="flex items-center space-x-3 text-xl">
+                    <div class="p-2 bg-primary/10 rounded-lg">
+                      <Network class="w-5 h-5 text-primary" />
+                    </div>
+                    <span>Your Network Allocation</span>
+                  </CardTitle>
+                  <p class="text-sm text-muted-foreground mt-1">
+                    Your unique subnet and VLAN assignments for this lab
+                  </p>
+                </CardHeader>
+                <CardContent class="space-y-4">
+                  <!-- Allocated Subnet Info -->
+                  <div class="flex flex-col sm:flex-row gap-4 p-4 bg-muted/40 rounded-lg border border-primary/10">
+                    <div class="flex-1 space-y-1">
+                      <span class="text-xs font-medium text-muted-foreground uppercase tracking-wide">Allocated Subnet</span>
+                      <p class="font-mono text-lg font-semibold text-primary">{{ largeSubnetReferenceTable.allocatedSubnet }}</p>
+                    </div>
+                    <div class="flex-1 space-y-1">
+                      <span class="text-xs font-medium text-muted-foreground uppercase tracking-wide">Network Address</span>
+                      <p class="font-mono text-lg font-semibold">{{ largeSubnetReferenceTable.networkAddress }}</p>
+                    </div>
+                  </div>
+
+                  <!-- Sub-VLAN Mappings Table -->
+                  <div v-if="largeSubnetReferenceTable.subVlans.length > 0" class="rounded-lg border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow class="bg-muted/30">
+                          <TableHead class="font-semibold">Variable</TableHead>
+                          <TableHead class="font-semibold">Name</TableHead>
+                          <TableHead class="font-semibold text-right">VLAN ID</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        <TableRow v-for="(subVlan, index) in largeSubnetReferenceTable.subVlans" :key="`subvlan-${index}`"
+                          class="hover:bg-muted/30 transition-colors cursor-pointer">
+                          <TableCell class="font-mono font-semibold text-primary">{{ subVlan.vlanVariable }}</TableCell>
+                          <TableCell class="text-sm">{{ subVlan.name }}</TableCell>
+                          <TableCell class="font-mono text-sm text-right font-medium">{{ subVlan.vlanId }}</TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <!-- Variable Reference Table (VLAN A-J, CIDR Q-Z) - For non-Large Subnet Mode -->
+              <Card v-else-if="variableReferenceTable.length > 0" class="shadow-sm">
                 <CardHeader class="pb-4">
                   <CardTitle class="flex items-center space-x-3 text-xl">
                     <div class="p-2 bg-purple-100 rounded-lg">

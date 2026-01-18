@@ -537,12 +537,12 @@ const effectiveVlans = computed(() => {
   if (mode === 'large_subnet') {
     // In Large Subnet Mode, VLANs are stored as subVlans in largeSubnetConfig
     const subVlans = wizardData.networkConfig.largeSubnetConfig?.subVlans || []
-    return subVlans.map((sv, idx) => ({
-      id: sv.id,
-      name: sv.name,
+    return subVlans.map((sv: any, idx: number) => ({
+      id: sv.id || `subvlan-${idx}`, // Use existing ID or generate
+      name: sv.name || `Sub-VLAN ${idx + 1}`,
       baseNetwork: '', // Sub-VLANs don't have baseNetwork - calculated per student
-      subnetMask: sv.subnetSize,
-      subnetIndex: sv.subnetIndex,
+      subnetMask: sv.subnetSize || 24, // Use subnetSize field
+      subnetIndex: sv.subnetIndex ?? idx,
       isStudentGenerated: true,
       isSubVlan: true // Flag to indicate this is from Large Subnet Mode
     }))
