@@ -331,7 +331,7 @@ export interface LabWizardData {
   networkConfig: {
     managementNetwork: string;
     managementSubnetMask: number;
-    mode: 'fixed_vlan' | 'lecturer_group' | 'calculated_vlan' | '';
+    mode: 'fixed_vlan' | 'lecturer_group' | 'calculated_vlan' | 'large_subnet' | '';
     allocationStrategy: 'student_id_based' | 'group_based';
     vlanCount: number;
     vlans: Array<{
@@ -349,6 +349,20 @@ export interface LabWizardData {
       ipv6SubnetId?: string;       // Custom subnet ID for template (e.g., "141")
     }>;
     exemptIpRanges: IpRange[];  // IPs to exclude from Management IP assignment
+    // Large Subnet Mode Configuration
+    largeSubnetConfig?: {
+      privateNetworkPool: '10.0.0.0/8' | '172.16.0.0/12' | '192.168.0.0/16';
+      studentSubnetSize: number;  // e.g., 23 for /23
+      subVlans: Array<{
+        id: string;
+        name: string;
+        subnetSize: number;       // e.g., 24, 25, 26
+        subnetIndex: number;      // 0-based index within student's subnet
+        vlanIdRandomized?: boolean;
+        fixedVlanId?: number;
+        ipv6Enabled?: boolean;
+      }>;
+    };
     // IPv6 Template Configuration
     ipv6Config?: {
       enabled: boolean;            // Master toggle for IPv6

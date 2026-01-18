@@ -1387,6 +1387,8 @@ const transformBackendDataToWizard = () => {
       mode: lab.network.vlanConfiguration?.mode || 'fixed',
       vlanCount: lab.network.vlanConfiguration?.vlanCount || 1,
       vlans: lab.network.vlanConfiguration?.vlans || [],
+      // Load Large Subnet Mode Configuration
+      largeSubnetConfig: lab.network.vlanConfiguration?.largeSubnetConfig,
       // Load IPv6 Configuration
       ipv6Config: lab.network.ipv6Config || {
         enabled: false,
@@ -1669,7 +1671,11 @@ const executeLabUpdate = async () => {
         vlanConfiguration: {
           mode: wizardData.networkConfig.mode,
           vlanCount: wizardData.networkConfig.vlanCount,
-          vlans: wizardData.networkConfig.vlans.map(prepareVlanForApi)
+          vlans: wizardData.networkConfig.vlans.map(prepareVlanForApi),
+          // Include Large Subnet Mode Configuration when applicable
+          ...(wizardData.networkConfig.mode === 'large_subnet' && wizardData.networkConfig.largeSubnetConfig ? {
+            largeSubnetConfig: wizardData.networkConfig.largeSubnetConfig
+          } : {})
         },
         // IPv6 Template Configuration
         ipv6Config: wizardData.networkConfig.ipv6Config ? {

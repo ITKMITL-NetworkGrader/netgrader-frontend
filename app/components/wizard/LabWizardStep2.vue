@@ -1005,8 +1005,9 @@ interface SubVlanConfig {
   name: string
   subnetSize: number          // e.g., 26 for /26
   subnetIndex: number         // Which subnet block within the large subnet (1-based)
-  vlanIdRandomized: boolean   // true = random 2-4096, false = fixed
+  vlanIdRandomized?: boolean  // true = random 2-4096, false = fixed (optional, defaults to true)
   fixedVlanId?: number        // Only if vlanIdRandomized = false
+  ipv6Enabled?: boolean       // Whether IPv6 is enabled for this sub-VLAN
 }
 
 // Large Subnet Configuration
