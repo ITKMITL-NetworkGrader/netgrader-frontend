@@ -452,7 +452,8 @@
           <Input
             v-model.number="localCell.points"
             type="number"
-            :min="localCell.cellType === 'input' ? 1 : 0"
+            :min="localCell.cellType === 'input' ? 0.01 : 0"
+            step="0.01"
             :disabled="localCell.cellType !== 'input'"
             placeholder="1"
           />
@@ -753,7 +754,7 @@ const handleCellTypeChange = (newType: CellType) => {
   // Set default configuration based on cell type
   if (newType === 'input') {
     // Restore scoring defaults for input cells
-    if (!localCell.value.points || localCell.value.points < 1) {
+    if (!localCell.value.points || localCell.value.points < 0.01) {
       localCell.value.points = 1
     }
     localCell.value.autoCalculated = Boolean(localCell.value.autoCalculated)
