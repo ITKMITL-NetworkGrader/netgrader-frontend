@@ -1718,7 +1718,8 @@ watch(
 
 onMounted(async () => {
   // Multi-tab prevention using BroadcastChannel
-  if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+  // Only apply for students - lecturers/TAs/admins can have multiple tabs
+  if (typeof window !== 'undefined' && 'BroadcastChannel' in window && !canManageCurrentCourse.value) {
     const channelName = `netgrader_lab_${labId.value}`
     labBroadcastChannel.value = new BroadcastChannel(channelName)
     
