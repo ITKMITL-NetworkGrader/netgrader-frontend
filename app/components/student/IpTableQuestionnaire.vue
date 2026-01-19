@@ -80,13 +80,13 @@
                     @input="onCellInput(rowIndex, colIndex)"
                   />
 
-                  <!-- Lecturer Range Hint (for DHCP pool cells) -->
+                  <!-- Lecturer Range Hint (for DHCP pool cells)
                   <div
                     v-if="getLecturerRange(rowIndex, colIndex)"
                     class="mt-1 text-xs text-blue-600 dark:text-blue-400"
                   >
                     Valid range: {{ getLecturerRange(rowIndex, colIndex) }}
-                  </div>
+                  </div> -->
                 </div>
               </div>
             </td>
