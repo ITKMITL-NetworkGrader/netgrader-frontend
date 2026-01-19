@@ -432,7 +432,7 @@ function normalizeTableData(data: IpTableQuestionnaire): IpTableQuestionnaire {
       if (cellType === 'input') {
         normalizedCell.answerType = normalizedCell.answerType || 'calculated'
         normalizedCell.points =
-          typeof normalizedCell.points === 'number' && normalizedCell.points >= 1
+          typeof normalizedCell.points === 'number' && normalizedCell.points >= 0.01
             ? normalizedCell.points
             : 1
         normalizedCell.autoCalculated = Boolean(normalizedCell.autoCalculated)
@@ -713,8 +713,8 @@ const validate = (options: { includeCellErrors?: boolean } = {}) => {
             }
           }
 
-          if (!cell.points || cell.points < 1) {
-            errors.push(`Cell [${rowIdx + 1}, ${colIdx + 1}]: Points must be at least 1`)
+          if (!cell.points || cell.points < 0.01) {
+            errors.push(`Cell [${rowIdx + 1}, ${colIdx + 1}]: Points must be at least 0.01`)
           }
         }
       })
