@@ -155,14 +155,14 @@
                 <NumberTicker
                   :value="results?.total_points_earned || 0"
                   :duration="2000"
-                  :decimal-places="0"
+                  :decimal-places="hasDecimalPoints ? 2 : 0"
                   direction="up"
                   class="text-white"
                 />
               </div>
               <div class="text-3xl text-white/60">/</div>
               <div class="text-3xl font-semibold text-white/90">
-                {{ results?.total_points_possible || 0 }}
+                {{ formatPoints(results?.total_points_possible || 0) }}
               </div>
             </div>
             <div class="text-white/70 text-xs mt-2">points</div>
@@ -312,6 +312,20 @@ const isPassed = computed(() => {
   }
   return false
 })
+
+// Check if points have decimal values
+const hasDecimalPoints = computed(() => {
+  if (!props.results) return false
+  const earned = props.results.total_points_earned
+  const possible = props.results.total_points_possible
+  return earned % 1 !== 0 || possible % 1 !== 0
+})
+
+// Format points - show decimals only if needed
+const formatPoints = (value: number): string => {
+  if (value % 1 === 0) return value.toString()
+  return value.toFixed(2).replace(/\.?0+$/, '') // Remove trailing zeros
+}
 
 const isDisabled = computed(() => {
   return props.disabled || 
