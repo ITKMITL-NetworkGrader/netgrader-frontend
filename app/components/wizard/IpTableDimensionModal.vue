@@ -22,11 +22,11 @@
             v-model.number="localRowCount"
             type="number"
             min="1"
-            max="10"
-            placeholder="Enter row count (1-10)"
+            max="20"
+            placeholder="Enter row count (1-20)"
             :class="{
               'border-destructive': errors.rowCount,
-              'border-green-500': !errors.rowCount && localRowCount >= 1 && localRowCount <= 10
+              'border-green-500': !errors.rowCount && localRowCount >= 1 && localRowCount <= 20
             }"
             @blur="validateRowCount"
           />
@@ -48,11 +48,11 @@
             v-model.number="localColumnCount"
             type="number"
             min="1"
-            max="10"
-            placeholder="Enter column count (1-10)"
+            max="20"
+            placeholder="Enter column count (1-20)"
             :class="{
               'border-destructive': errors.columnCount,
-              'border-green-500': !errors.columnCount && localColumnCount >= 1 && localColumnCount <= 10
+              'border-green-500': !errors.columnCount && localColumnCount >= 1 && localColumnCount <= 20
             }"
             @blur="validateColumnCount"
           />
@@ -138,8 +138,8 @@ const validateRowCount = () => {
     errors.value.rowCount = 'Row count must be at least 1'
     return false
   }
-  if (localRowCount.value > 10) {
-    errors.value.rowCount = 'Row count cannot exceed 10'
+  if (localRowCount.value > 20) {
+    errors.value.rowCount = 'Row count cannot exceed 20'
     return false
   }
   delete errors.value.rowCount
@@ -155,8 +155,8 @@ const validateColumnCount = () => {
     errors.value.columnCount = 'Column count must be at least 1'
     return false
   }
-  if (localColumnCount.value > 10) {
-    errors.value.columnCount = 'Column count cannot exceed 10'
+  if (localColumnCount.value > 20) {
+    errors.value.columnCount = 'Column count cannot exceed 20'
     return false
   }
   delete errors.value.columnCount

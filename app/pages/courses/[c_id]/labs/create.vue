@@ -749,7 +749,8 @@ const handleCreateLab = async () => {
             caseSensitive: question.caseSensitive,
             trimWhitespace: question.trimWhitespace,
             // 🆕 ADDED: IP Table Questionnaire data for advanced IP table questions
-            ipTableQuestionnaire: question.ipTableQuestionnaire
+            // Only send when questionType is 'ip_table_questionnaire' to avoid sending empty objects
+            ipTableQuestionnaire: question.questionType === 'ip_table_questionnaire' && question.ipTableQuestionnaire
               ? {
                 tableId: question.ipTableQuestionnaire.tableId,
                 rowCount: question.ipTableQuestionnaire.rowCount,
