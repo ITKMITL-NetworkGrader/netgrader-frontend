@@ -587,7 +587,11 @@ const handleCreateLab = async () => {
             ipv6Enabled: vlan.ipv6Enabled || false,
             ipv6VlanAlphabet: vlan.ipv6VlanAlphabet || '',
             ipv6SubnetId: vlan.ipv6SubnetId || ''
-          }))
+          })),
+          // 🆕 ADDED: Include Large Subnet Mode Configuration when applicable
+          ...(wizardData.networkConfig.mode === 'large_subnet' && wizardData.networkConfig.largeSubnetConfig ? {
+            largeSubnetConfig: wizardData.networkConfig.largeSubnetConfig
+          } : {})
         },
         // IPv6 Template Configuration
         ipv6Config: wizardData.networkConfig.ipv6Config ? {
