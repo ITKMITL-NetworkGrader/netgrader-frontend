@@ -14,7 +14,9 @@ import {
   Clock,
   Loader2,
   Server,
-  Info
+  Info,
+  Filter,
+  ChevronLeft
 } from 'lucide-vue-next'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -24,6 +26,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Button } from '@/components/ui/button'
 
 import { useCourseLabs, type LabPart } from '@/composables/useCourseLabs'
 import { useCourse } from '@/composables/useCourse'
@@ -49,6 +53,13 @@ const labParts = ref<LabPart[]>([])
 const ipStats = ref<LabIPStats | null>(null)
 const assignedIps = ref<AssignedIP[]>([])
 const pollingInterval = ref<NodeJS.Timeout | null>(null)
+
+// Progress filter options
+const progressFilter = ref<string>('all')
+
+// Pagination state
+const currentPage = ref(1)
+const itemsPerPage = 20
 
 // Computed
 const courseTitle = computed(() => currentCourse.value?.title || `Course ${courseId.value}`)
@@ -284,22 +295,96 @@ const getPartZeroBadgeClasses = (status: PartZeroStatus | null) => {
   }
 }
 
-// Filtered submissions based on search
+// Filtered submissions based on search and progress filter
 const filteredSubmissions = computed(() => {
-  if (!searchQuery.value.trim()) {
-    return submissionsData.value
+  let filtered = submissionsData.value
+
+  // Apply search filter
+  if (searchQuery.value.trim()) {
+    const query = searchQuery.value.toLowerCase()
+    filtered = filtered.filter(submission => {
+      return (
+        submission.studentId.toLowerCase().includes(query) ||
+        submission.studentName.toLowerCase().includes(query)
+      )
+    })
   }
 
-  const query = searchQuery.value.toLowerCase()
-  return submissionsData.value.filter(submission => {
-    return (
-      submission.studentId.toLowerCase().includes(query) ||
-      submission.studentName.toLowerCase().includes(query)
-    )
-  })
+  // Apply progress filter
+  if (progressFilter.value !== 'all') {
+    filtered = filtered.filter(submission => {
+      const progress = buildSubmissionProgress(submission)
+      
+      if (progressFilter.value === 'completed') {
+        return progress.isFullyCompleted
+      }
+      if (progressFilter.value === 'in-progress') {
+        return !progress.isFullyCompleted && (progress.actualCompleted ?? 0) > 0
+      }
+      if (progressFilter.value === 'not-started') {
+        return (progress.actualCompleted ?? 0) === 0 && !progress.isCurrentlyInPartZero
+      }
+      if (progressFilter.value === 'part0') {
+        return progress.isCurrentlyInPartZero
+      }
+      // Check for specific part passed (e.g., 'part-1', 'part-2')
+      const partMatch = progressFilter.value.match(/^part-(\d+)$/)
+      if (partMatch) {
+        const partNum = parseInt(partMatch[1], 10)
+        return (progress.actualCompleted ?? 0) >= partNum
+      }
+      return true
+    })
+  }
+
+  return filtered
 })
 
-// Sorted by Student ID
+// Progress filter options based on lab parts
+const progressFilterOptions = computed(() => {
+  const options = [
+    { value: 'all', label: 'All Students' },
+    { value: 'completed', label: 'Fully Completed' },
+    { value: 'in-progress', label: 'In Progress' },
+    { value: 'not-started', label: 'Not Started' }
+  ]
+  
+  if (hasPartZero.value) {
+    options.push({ value: 'part0', label: 'On Part 0' })
+  }
+  
+  // Add options for each part
+  const partCount = actualLabPartCount.value
+  for (let i = 1; i <= partCount; i++) {
+    options.push({ value: `part-${i}`, label: `Part ${i}+ Passed` })
+  }
+  
+  return options
+})
+
+// Reset page when filter changes
+watch([searchQuery, progressFilter], () => {
+  currentPage.value = 1
+})
+
+// Total pages
+const totalPages = computed(() => Math.ceil(filteredSubmissions.value.length / itemsPerPage))
+
+// Sorted and paginated submissions
+const paginatedSubmissions = computed<SubmissionWithProgress[]>(() => {
+  const sorted = [...filteredSubmissions.value]
+    .sort((a, b) => a.studentId.localeCompare(b.studentId))
+    .map(submission => ({
+      ...submission,
+      _progress: buildSubmissionProgress(submission)
+    }))
+  
+  const start = (currentPage.value - 1) * itemsPerPage
+  const end = start + itemsPerPage
+  return sorted.slice(start, end)
+})
+
+// All sorted submissions (for display count)
 const sortedSubmissions = computed<SubmissionWithProgress[]>(() => {
   return [...filteredSubmissions.value]
     .sort((a, b) => a.studentId.localeCompare(b.studentId))
@@ -308,6 +393,16 @@ const sortedSubmissions = computed<SubmissionWithProgress[]>(() => {
       _progress: buildSubmissionProgress(submission)
     }))
 })
+
+// Pagination controls
+const goToPage = (page: number) => {
+  if (page >= 1 && page <= totalPages.value) {
+    currentPage.value = page
+  }
+}
+
+const prevPage = () => goToPage(currentPage.value - 1)
+const nextPage = () => goToPage(currentPage.value + 1)
 
 // Get status badge variant
 const getStatusBadge = (status: string) => {
@@ -517,15 +612,32 @@ onUnmounted(() => {
               </div>
             </CardHeader>
             <CardContent>
-              <!-- Search Bar -->
-              <div class="mb-6">
-                <div class="relative">
+              <!-- Search Bar and Filter -->
+              <div class="mb-6 flex flex-col sm:flex-row gap-4">
+                <div class="relative flex-1">
                   <Search class="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
                     v-model="searchQuery"
                     placeholder="Search by Student ID or Student Name..."
                     class="pl-10"
                   />
+                </div>
+                <div class="w-full sm:w-[200px]">
+                  <Select v-model="progressFilter">
+                    <SelectTrigger>
+                      <Filter class="w-4 h-4 mr-2 text-muted-foreground" />
+                      <SelectValue placeholder="Filter by progress" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem
+                        v-for="option in progressFilterOptions"
+                        :key="option.value"
+                        :value="option.value"
+                      >
+                        {{ option.label }}
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
@@ -543,7 +655,7 @@ onUnmounted(() => {
                   </TableHeader>
                   <TableBody>
                     <NuxtLink
-                      v-for="submission in sortedSubmissions"
+                      v-for="submission in paginatedSubmissions"
                       :key="submission.studentId"
                       :to="`/courses/${courseId}/labs/${labId}/students/${submission.studentId}`"
                       custom
@@ -575,10 +687,7 @@ onUnmounted(() => {
                                 v-if="submission._progress.includesPartZero"
                                 class="relative"
                               >
-                                <div
-                                  v-if="submission._progress.partZeroStatus === 'current'"
-                                  class="absolute inset-0 rounded-full bg-yellow-300 animate-ping opacity-60"
-                                />
+                                <!-- Part 0 badge without ping effect -->
                                 <Badge
                                   variant="outline"
                                   class="px-2 py-0 text-[11px] font-medium border"
@@ -646,12 +755,12 @@ onUnmounted(() => {
                     </NuxtLink>
 
                     <!-- Empty State -->
-                    <TableRow v-if="sortedSubmissions.length === 0">
+                    <TableRow v-if="paginatedSubmissions.length === 0">
                       <TableCell colspan="5" class="text-center py-12">
                         <div class="flex flex-col items-center space-y-3">
                           <AlertCircle class="w-12 h-12 text-muted-foreground/50" />
                           <p class="text-muted-foreground">
-                            {{ searchQuery ? 'No submissions found matching your search' : 'No submissions yet' }}
+                            {{ searchQuery || progressFilter !== 'all' ? 'No students found matching your filters' : 'No submissions yet' }}
                           </p>
                         </div>
                       </TableCell>
@@ -660,10 +769,43 @@ onUnmounted(() => {
                 </Table>
               </div>
 
-              <!-- Footer Info -->
-              <div class="mt-4 text-sm text-muted-foreground flex items-center space-x-1">
-                <Info class="w-4 h-4" />
-                <span>Showing {{ sortedSubmissions.length }} {{ sortedSubmissions.length === 1 ? 'student' : 'students' }}</span>
+              <!-- Footer with Pagination -->
+              <div class="mt-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div class="text-sm text-muted-foreground flex items-center space-x-1">
+                  <Info class="w-4 h-4" />
+                  <span>
+                    Showing {{ paginatedSubmissions.length }} of {{ sortedSubmissions.length }} 
+                    {{ sortedSubmissions.length === 1 ? 'student' : 'students' }}
+                    <span v-if="progressFilter !== 'all'" class="text-primary">(filtered)</span>
+                  </span>
+                </div>
+                
+                <!-- Pagination Controls -->
+                <div v-if="totalPages > 1" class="flex items-center space-x-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    :disabled="currentPage === 1"
+                    @click="prevPage"
+                  >
+                    <ChevronLeft class="w-4 h-4" />
+                    <span class="hidden sm:inline ml-1">Previous</span>
+                  </Button>
+                  
+                  <div class="text-sm text-muted-foreground px-2">
+                    Page {{ currentPage }} of {{ totalPages }}
+                  </div>
+                  
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    :disabled="currentPage === totalPages"
+                    @click="nextPage"
+                  >
+                    <span class="hidden sm:inline mr-1">Next</span>
+                    <ChevronRight class="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
