@@ -14,7 +14,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { 
   CheckCircle2, 
-  XCircle, 
+  XCircle,
+  X,
   Server, 
   User, 
   FolderOpen, 
@@ -223,7 +224,16 @@ watch(() => props.open, (open) => {
       @interact-outside.prevent
       @escape-key-down.prevent
     >
-      <DialogHeader>
+      <DialogHeader class="relative">
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          class="absolute right-0 top-0 h-8 w-8 rounded-full opacity-70 hover:opacity-100"
+          @click="$emit('update:open', false)"
+        >
+          <X class="h-4 w-4" />
+          <span class="sr-only">Close</span>
+        </Button>
         <DialogTitle class="text-foreground flex items-center gap-2">
           <Server class="h-5 w-5 text-primary" />
           GNS3 Lab Setup
