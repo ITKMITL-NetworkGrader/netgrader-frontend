@@ -1717,8 +1717,10 @@ watch(
 )
 
 onMounted(async () => {
-  // Multi-tab prevention using BroadcastChannel
-  // Only apply for students - lecturers/TAs/admins can have multiple tabs
+  // DISABLED: Multi-tab prevention using BroadcastChannel
+  // This feature was causing issues where IP Table answers were wiped when students
+  // accidentally opened duplicate tabs. Disabled until a better solution is implemented.
+  /*
   if (typeof window !== 'undefined' && 'BroadcastChannel' in window && !canManageCurrentCourse.value) {
     const channelName = `netgrader_lab_${labId.value}`
     labBroadcastChannel.value = new BroadcastChannel(channelName)
@@ -1751,6 +1753,7 @@ onMounted(async () => {
       labId: labId.value 
     })
   }
+  */
   
   await loadLabData()
   
