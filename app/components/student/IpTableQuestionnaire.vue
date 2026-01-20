@@ -331,7 +331,7 @@ const onCellInput = () => {
 
 // Get cell input class based on validation state
 const getCellInputClass = (rowIndex: number, colIndex: number): string => {
-  const hasValue = cellValues.value[rowIndex][colIndex]?.trim() !== ''
+  const hasValue = cellValues.value[rowIndex]?.[colIndex]?.trim() !== ''
 
   const baseClasses = 'focus:outline-none focus:ring-2'
 
