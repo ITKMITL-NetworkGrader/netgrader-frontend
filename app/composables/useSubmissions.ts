@@ -876,16 +876,26 @@ export const useSubmissions = () => {
     labParts.forEach(part => {
       const submission = latestSubmissionsByPart[part.partId]
 
-      if (submission &&
-        submission.status === 'completed' &&
-        submission.gradingResult) {
+      if (submission && submission.status === 'completed') {
+        // Check for network config parts (gradingResult)
+        if (submission.gradingResult) {
+          const earnedPoints = submission.gradingResult.total_points_earned
+          const possiblePoints = submission.gradingResult.total_points_possible
 
-        const earnedPoints = submission.gradingResult.total_points_earned
-        const possiblePoints = submission.gradingResult.total_points_possible
+          // Part is completed if student earned full points
+          if (earnedPoints === possiblePoints && possiblePoints > 0) {
+            completedParts.push(part.partId)
+          }
+        }
+        // Check for fill-in-blank parts (fillInBlankResults) - e.g., IP Table
+        else if (submission.fillInBlankResults) {
+          const earnedPoints = submission.fillInBlankResults.totalPointsEarned
+          const possiblePoints = submission.fillInBlankResults.totalPoints
 
-        // Part is completed if student earned full points
-        if (earnedPoints === possiblePoints) {
-          completedParts.push(part.partId)
+          // Part is completed if student earned full points
+          if (earnedPoints === possiblePoints && possiblePoints > 0) {
+            completedParts.push(part.partId)
+          }
         }
       }
     })
