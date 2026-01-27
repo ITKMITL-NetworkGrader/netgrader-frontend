@@ -10,6 +10,11 @@ export interface SubmissionAttempt {
   startedAt: Date | string | null
   completedAt: Date | string | null
   submissionType?: 'auto_grading' | 'fill_in_blank' | 'ip_answers'
+  // Late penalty fields
+  isLate?: boolean
+  originalScore?: number
+  adjustedScore?: number
+  latePenaltyPercent?: number
 }
 
 export interface PartSubmissionHistory {

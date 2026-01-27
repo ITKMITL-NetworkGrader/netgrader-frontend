@@ -10,6 +10,7 @@ import {
   Award,
   TrendingUp,
   AlertCircle,
+  AlertTriangle,
   Calendar,
   CheckCircle2,
   XCircle,
@@ -334,10 +335,26 @@ onMounted(() => {
                                     {{ getStatusBadge(attempt.status, attempt.score, attempt.totalPoints).label }}
                                   </Badge>
                                 </div>
-                                <span class="font-mono font-semibold">{{ attempt.score }}/{{ attempt.totalPoints }}</span>
-                                <span class="text-sm text-muted-foreground">
-                                  ({{ attempt.totalPoints > 0 ? Math.round((attempt.score / attempt.totalPoints) * 100) : 0 }}%)
-                                </span>
+                                <!-- LATE Badge -->
+                                <Badge
+                                  v-if="attempt.isLate"
+                                  class="bg-amber-500 hover:bg-amber-600 text-white"
+                                >
+                                  <AlertTriangle class="w-3 h-3 mr-1" />
+                                  LATE
+                                </Badge>
+                                <!-- Score Display with penalty breakdown for late submissions -->
+                                <template v-if="attempt.isLate">
+                                  <span class="font-mono text-muted-foreground line-through">{{ attempt.originalScore }}</span>
+                                  <span class="font-mono font-semibold text-amber-600">→ {{ attempt.adjustedScore }}/{{ attempt.totalPoints }}</span>
+                                  <span class="text-xs text-amber-600">(-{{ attempt.latePenaltyPercent }}%)</span>
+                                </template>
+                                <template v-else>
+                                  <span class="font-mono font-semibold">{{ attempt.score }}/{{ attempt.totalPoints }}</span>
+                                  <span class="text-sm text-muted-foreground">
+                                    ({{ attempt.totalPoints > 0 ? Math.round((attempt.score / attempt.totalPoints) * 100) : 0 }}%)
+                                  </span>
+                                </template>
                               </div>
                               <div class="flex items-center space-x-4 text-xs text-muted-foreground">
                                 <div class="flex items-center space-x-1">

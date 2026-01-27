@@ -16,7 +16,9 @@ import {
   Server,
   Info,
   Filter,
-  ChevronLeft
+  ChevronLeft,
+  FileSpreadsheet,
+  Download
 } from 'lucide-vue-next'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -53,6 +55,12 @@ const labParts = ref<LabPart[]>([])
 const ipStats = ref<LabIPStats | null>(null)
 const assignedIps = ref<AssignedIP[]>([])
 const pollingInterval = ref<NodeJS.Timeout | null>(null)
+
+// Score Export state
+const exportAsOfDate = ref<string>('')
+const exportData = ref<Array<{ studentId: string; studentName: string; currentScore: number; fullLabScore: number; isLate: boolean }>>([])
+const isExporting = ref(false)
+const exportError = ref<string | null>(null)
 
 // Progress filter options
 const progressFilter = ref<string>('all')
@@ -513,6 +521,80 @@ onMounted(() => {
 onUnmounted(() => {
   stopPolling()
 })
+
+// Score Export Functions
+const fetchExportData = async () => {
+  isExporting.value = true
+  exportError.value = null
+  
+  try {
+    const config = useRuntimeConfig()
+    const backendURL = config.public.backendurl
+    
+    // Build query string
+    const params = new URLSearchParams()
+    if (exportAsOfDate.value) {
+      // Convert local datetime to ISO string
+      const localDate = new Date(exportAsOfDate.value)
+      params.set('asOfDate', localDate.toISOString())
+    }
+    
+    const response = await $fetch<{
+      status: string
+      data?: Array<{ studentId: string; studentName: string; currentScore: number; fullLabScore: number; isLate: boolean }>
+      message?: string
+    }>(`${backendURL}/v0/submissions/lab/${labId.value}/export?${params.toString()}`, {
+      method: 'GET',
+      credentials: 'include'
+    })
+    
+    if (response.status === 'success' && response.data) {
+      exportData.value = response.data
+    } else {
+      exportError.value = response.message || 'Failed to fetch export data'
+    }
+  } catch (err: any) {
+    console.error('Error fetching export data:', err)
+    exportError.value = err.message || 'An error occurred while fetching export data'
+  } finally {
+    isExporting.value = false
+  }
+}
+
+const exportToExcel = async () => {
+  if (exportData.value.length === 0) return
+  
+  try {
+    // Dynamic import of xlsx
+    const XLSX = await import('xlsx')
+    
+    // Prepare data for export
+    const worksheetData = exportData.value.map(row => ({
+      'Student ID': row.studentId,
+      'Name': row.studentName,
+      'Score': row.currentScore,
+      'Full Score': row.fullLabScore,
+      'Late Submission': row.isLate ? 'Yes' : 'No'
+    }))
+    
+    // Create worksheet and workbook
+    const worksheet = XLSX.utils.json_to_sheet(worksheetData)
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Lab Scores')
+    
+    // Generate filename
+    const dateStr = exportAsOfDate.value 
+      ? new Date(exportAsOfDate.value).toISOString().split('T')[0]
+      : new Date().toISOString().split('T')[0]
+    const filename = `lab-scores-${labId.value}-${dateStr}.xlsx`
+    
+    // Download file
+    XLSX.writeFile(workbook, filename)
+  } catch (err: any) {
+    console.error('Error exporting to Excel:', err)
+    exportError.value = 'Failed to export to Excel: ' + err.message
+  }
+}
 </script>
 
 <template>
@@ -580,7 +662,7 @@ onUnmounted(() => {
 
       <!-- Tabs -->
       <Tabs v-model="activeTab" default-value="submissions" class="w-full">
-        <TabsList class="grid w-full grid-cols-2">
+        <TabsList class="grid w-full grid-cols-3">
           <TabsTrigger value="submissions" class="flex items-center space-x-2">
             <Users class="w-4 h-4" />
             <span>Submissions</span>
@@ -588,6 +670,10 @@ onUnmounted(() => {
           <TabsTrigger value="ip-assignment" class="flex items-center space-x-2">
             <Network class="w-4 h-4" />
             <span>IP Assignment</span>
+          </TabsTrigger>
+          <TabsTrigger value="score-export" class="flex items-center space-x-2">
+            <FileSpreadsheet class="w-4 h-4" />
+            <span>Score Export</span>
           </TabsTrigger>
         </TabsList>
 
@@ -919,6 +1005,94 @@ onUnmounted(() => {
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        <!-- Score Export Tab -->
+        <TabsContent value="score-export" class="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle class="flex items-center space-x-2">
+                <FileSpreadsheet class="w-5 h-5" />
+                <span>Export Student Scores</span>
+              </CardTitle>
+              <CardDescription>
+                Export student scores as of a specific date and time. Useful for generating grade reports at a specific point in time.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div class="space-y-6">
+                <!-- Date/Time Picker -->
+                <div class="flex flex-col sm:flex-row gap-4 items-start sm:items-end">
+                  <div class="flex-1 space-y-2">
+                    <label for="export-date" class="text-sm font-medium">As of Date & Time</label>
+                    <input
+                      id="export-date"
+                      v-model="exportAsOfDate"
+                      type="datetime-local"
+                      class="w-full px-3 py-2 border rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                    <p class="text-xs text-muted-foreground">Leave empty to use current date/time</p>
+                  </div>
+                  <Button
+                    :disabled="isExporting"
+                    class="flex items-center space-x-2"
+                    @click="fetchExportData"
+                  >
+                    <Loader2 v-if="isExporting" class="w-4 h-4 animate-spin" />
+                    <Search v-else class="w-4 h-4" />
+                    <span>{{ isExporting ? 'Loading...' : 'Preview' }}</span>
+                  </Button>
+                  <Button
+                    :disabled="isExporting || exportData.length === 0"
+                    variant="default"
+                    class="flex items-center space-x-2 bg-green-600 hover:bg-green-700"
+                    @click="exportToExcel"
+                  >
+                    <Download class="w-4 h-4" />
+                    <span>Export to Excel</span>
+                  </Button>
+                </div>
+
+                <!-- Error Alert -->
+                <Alert v-if="exportError" variant="destructive">
+                  <AlertCircle class="w-4 h-4" />
+                  <AlertDescription>{{ exportError }}</AlertDescription>
+                </Alert>
+
+                <!-- Preview Table -->
+                <div v-if="exportData.length > 0" class="border rounded-lg overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow class="bg-muted/50">
+                        <TableHead>Student ID</TableHead>
+                        <TableHead>Name</TableHead>
+                        <TableHead class="text-right">Score</TableHead>
+                        <TableHead class="text-right">Full Score</TableHead>
+                        <TableHead class="text-center">Late</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      <TableRow v-for="row in exportData" :key="row.studentId" class="hover:bg-muted/30">
+                        <TableCell class="font-mono text-sm">{{ row.studentId }}</TableCell>
+                        <TableCell class="font-medium">{{ row.studentName }}</TableCell>
+                        <TableCell class="text-right font-mono">{{ row.currentScore }}</TableCell>
+                        <TableCell class="text-right font-mono text-muted-foreground">{{ row.fullLabScore }}</TableCell>
+                        <TableCell class="text-center">
+                          <Badge v-if="row.isLate" class="bg-amber-500 text-white">LATE</Badge>
+                          <span v-else class="text-muted-foreground">-</span>
+                        </TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </div>
+
+                <div v-else-if="!isExporting" class="text-center py-12">
+                  <FileSpreadsheet class="w-12 h-12 mx-auto text-muted-foreground/50 mb-3" />
+                  <p class="text-muted-foreground">Click "Preview" to load student scores</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>

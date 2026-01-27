@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   XCircle,
   AlertCircle,
+  AlertTriangle,
   Clock,
   FileText,
   History,
@@ -402,19 +403,37 @@ onMounted(() => {
                         </div>
                         <Separator orientation="vertical" class="h-10" />
                         <div>
-                          <div class="font-mono text-lg">
-                            {{ submission.score }}/{{ submission.totalPoints }}
-                          </div>
-                          <div class="text-xs text-muted-foreground">Points</div>
+                          <template v-if="submission.isLate">
+                            <div class="flex items-center space-x-1 font-mono text-lg">
+                              <span class="text-muted-foreground line-through">{{ submission.originalScore }}</span>
+                              <span class="text-amber-600">→ {{ submission.adjustedScore }}</span>
+                            </div>
+                            <div class="text-xs text-amber-600">(-{{ submission.latePenaltyPercent }}%)</div>
+                          </template>
+                          <template v-else>
+                            <div class="font-mono text-lg">
+                              {{ submission.score }}/{{ submission.totalPoints }}
+                            </div>
+                            <div class="text-xs text-muted-foreground">Points</div>
+                          </template>
                         </div>
                         <Separator orientation="vertical" class="h-10" />
                         <div>
-                          <Badge 
-                            :variant="getStatusBadge(submission.status, submission.score, submission.totalPoints).variant"
-                            :class="getStatusBadge(submission.status, submission.score, submission.totalPoints).class"
-                          >
-                            {{ getStatusBadge(submission.status, submission.score, submission.totalPoints).label }}
-                          </Badge>
+                          <div class="flex items-center space-x-1">
+                            <Badge 
+                              :variant="getStatusBadge(submission.status, submission.score, submission.totalPoints).variant"
+                              :class="getStatusBadge(submission.status, submission.score, submission.totalPoints).class"
+                            >
+                              {{ getStatusBadge(submission.status, submission.score, submission.totalPoints).label }}
+                            </Badge>
+                            <Badge
+                              v-if="submission.isLate"
+                              class="bg-amber-500 hover:bg-amber-600 text-white"
+                            >
+                              <AlertTriangle class="w-3 h-3 mr-1" />
+                              LATE
+                            </Badge>
+                          </div>
                           <div class="text-xs text-muted-foreground mt-1">
                             {{ submission.submissionType?.replace(/_/g, ' ') || 'auto grading' }}
                           </div>
