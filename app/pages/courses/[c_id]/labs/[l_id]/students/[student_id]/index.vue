@@ -90,11 +90,13 @@ const overallStats = computed(() => {
   }
 })
 
-// Get best attempt for a part
+// Get best attempt for a part (by adjusted score to account for late penalties)
 const getBestAttempt = (partHistory: any[]) => {
   return partHistory.reduce((best, current) => {
-    if (current.score > best.score) return current
-    if (current.score === best.score && current.attempt > best.attempt) return current
+    const currentScore = current.adjustedScore ?? current.score
+    const bestScore = best.adjustedScore ?? best.score
+    if (currentScore > bestScore) return current
+    if (currentScore === bestScore && current.attempt > best.attempt) return current
     return best
   }, partHistory[0])
 }
@@ -293,7 +295,7 @@ onMounted(() => {
                   <div class="flex items-center space-x-3">
                     <!-- Best Score Badge -->
                     <Badge variant="outline" class="font-mono">
-                      Best: {{ getBestAttempt(partHistory.submissionHistory).score }}/{{ getBestAttempt(partHistory.submissionHistory).totalPoints }}
+                      Best: {{ getBestAttempt(partHistory.submissionHistory).adjustedScore ?? getBestAttempt(partHistory.submissionHistory).score }}/{{ getBestAttempt(partHistory.submissionHistory).totalPoints }}
                     </Badge>
                   </div>
                 </div>
