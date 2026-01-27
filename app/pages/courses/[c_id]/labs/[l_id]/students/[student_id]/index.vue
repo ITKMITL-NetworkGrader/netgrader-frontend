@@ -59,13 +59,17 @@ const overallStats = computed(() => {
   )
 
   const completedParts = submissionHistory.value.filter(
-    part => part.submissionHistory.some(attempt => attempt.status === 'completed' && attempt.score === attempt.totalPoints)
+    part => part.submissionHistory.some(attempt => {
+      const effectiveScore = attempt.adjustedScore ?? attempt.score
+      return attempt.status === 'completed' && effectiveScore === attempt.totalPoints
+    })
   ).length
 
   const totalParts = submissionHistory.value.length
 
   const totalScore = submissionHistory.value.reduce((sum, part) => {
-    const bestScore = Math.max(...part.submissionHistory.map(a => a.score), 0)
+    // Use adjustedScore (after late penalty) if available, otherwise use regular score
+    const bestScore = Math.max(...part.submissionHistory.map(a => a.adjustedScore ?? a.score), 0)
     return sum + bestScore
   }, 0)
 

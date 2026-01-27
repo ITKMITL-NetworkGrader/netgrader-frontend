@@ -1022,35 +1022,37 @@ const exportToExcel = async () => {
             <CardContent>
               <div class="space-y-6">
                 <!-- Date/Time Picker -->
-                <div class="flex flex-col sm:flex-row gap-4 items-start sm:items-end">
-                  <div class="flex-1 space-y-2">
-                    <label for="export-date" class="text-sm font-medium">As of Date & Time</label>
-                    <input
-                      id="export-date"
-                      v-model="exportAsOfDate"
-                      type="datetime-local"
-                      class="w-full px-3 py-2 border rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                    />
-                    <p class="text-xs text-muted-foreground">Leave empty to use current date/time</p>
+                <div class="space-y-2">
+                  <label for="export-date" class="text-sm font-medium">As of Date & Time</label>
+                  <div class="flex flex-col sm:flex-row gap-4 items-stretch sm:items-center">
+                    <div class="flex-1">
+                      <input
+                        id="export-date"
+                        v-model="exportAsOfDate"
+                        type="datetime-local"
+                        class="w-full px-3 py-2 border rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                    </div>
+                    <Button
+                      :disabled="isExporting"
+                      class="flex items-center space-x-2"
+                      @click="fetchExportData"
+                    >
+                      <Loader2 v-if="isExporting" class="w-4 h-4 animate-spin" />
+                      <Search v-else class="w-4 h-4" />
+                      <span>{{ isExporting ? 'Loading...' : 'Preview' }}</span>
+                    </Button>
+                    <Button
+                      :disabled="isExporting || exportData.length === 0"
+                      variant="default"
+                      class="flex items-center space-x-2 bg-green-600 hover:bg-green-700"
+                      @click="exportToExcel"
+                    >
+                      <Download class="w-4 h-4" />
+                      <span>Export to Excel</span>
+                    </Button>
                   </div>
-                  <Button
-                    :disabled="isExporting"
-                    class="flex items-center space-x-2"
-                    @click="fetchExportData"
-                  >
-                    <Loader2 v-if="isExporting" class="w-4 h-4 animate-spin" />
-                    <Search v-else class="w-4 h-4" />
-                    <span>{{ isExporting ? 'Loading...' : 'Preview' }}</span>
-                  </Button>
-                  <Button
-                    :disabled="isExporting || exportData.length === 0"
-                    variant="default"
-                    class="flex items-center space-x-2 bg-green-600 hover:bg-green-700"
-                    @click="exportToExcel"
-                  >
-                    <Download class="w-4 h-4" />
-                    <span>Export to Excel</span>
-                  </Button>
+                  <p class="text-xs text-muted-foreground">Leave empty to use current date/time</p>
                 </div>
 
                 <!-- Error Alert -->
