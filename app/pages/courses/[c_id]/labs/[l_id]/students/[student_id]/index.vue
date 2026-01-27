@@ -67,10 +67,16 @@ const overallStats = computed(() => {
 
   const totalParts = submissionHistory.value.length
 
+  // Use the LATEST attempt's adjusted score for each part (not best score)
   const totalScore = submissionHistory.value.reduce((sum, part) => {
-    // Use adjustedScore (after late penalty) if available, otherwise use regular score
-    const bestScore = Math.max(...part.submissionHistory.map(a => a.adjustedScore ?? a.score), 0)
-    return sum + bestScore
+    if (part.submissionHistory.length === 0) return sum
+    // Get the latest attempt (highest attempt number)
+    const latestAttempt = part.submissionHistory.reduce((latest, current) => 
+      current.attempt > latest.attempt ? current : latest
+    , part.submissionHistory[0])
+    if (!latestAttempt) return sum
+    const score = latestAttempt.adjustedScore ?? latestAttempt.score ?? 0
+    return sum + score
   }, 0)
 
   const totalPossiblePoints = submissionHistory.value.reduce((sum, part) => {
@@ -90,15 +96,12 @@ const overallStats = computed(() => {
   }
 })
 
-// Get best attempt for a part (by adjusted score to account for late penalties)
-const getBestAttempt = (partHistory: any[]) => {
-  return partHistory.reduce((best, current) => {
-    const currentScore = current.adjustedScore ?? current.score
-    const bestScore = best.adjustedScore ?? best.score
-    if (currentScore > bestScore) return current
-    if (currentScore === bestScore && current.attempt > best.attempt) return current
-    return best
-  }, partHistory[0])
+// Get the latest attempt for a part (highest attempt number)
+const getLatestAttempt = (partHistory: any[]) => {
+  if (!partHistory || partHistory.length === 0) return null
+  return partHistory.reduce((latest, current) => 
+    current.attempt > latest.attempt ? current : latest
+  , partHistory[0])
 }
 
 // Load data
@@ -293,9 +296,9 @@ onMounted(() => {
                     </div>
                   </div>
                   <div class="flex items-center space-x-3">
-                    <!-- Best Score Badge -->
+                    <!-- Latest Score Badge -->
                     <Badge variant="outline" class="font-mono">
-                      Best: {{ getBestAttempt(partHistory.submissionHistory).adjustedScore ?? getBestAttempt(partHistory.submissionHistory).score }}/{{ getBestAttempt(partHistory.submissionHistory).totalPoints }}
+                      Latest: {{ getLatestAttempt(partHistory.submissionHistory)?.adjustedScore ?? getLatestAttempt(partHistory.submissionHistory)?.score ?? 0 }}/{{ getLatestAttempt(partHistory.submissionHistory)?.totalPoints ?? 0 }}
                     </Badge>
                   </div>
                 </div>
