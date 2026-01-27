@@ -45,6 +45,7 @@
               :tableData="question.ipTableQuestionnaire"
               v-model="ipTableAnswers[question.questionId]"
               :readonly="hasSubmitted && isPassed && !isUpdateMode"
+              :isPassed="isPassed"
             />
           </div>
 

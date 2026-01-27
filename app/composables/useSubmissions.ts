@@ -847,6 +847,8 @@ export const useSubmissions = () => {
     totalPartsCompleted: number
     totalParts: number
     allPartsPassedWithFullPoints: boolean
+    currentPointsEarned: number  // NEW: Total points earned including partial
+    totalPointsPossible: number  // NEW: Total points possible
   } => {
     const targetSessionId = options?.labSessionId ?? null
     const normalizedTarget = targetSessionId ? targetSessionId.toString() : null
@@ -870,10 +872,13 @@ export const useSubmissions = () => {
       }
     })
 
-    // Check which parts are completed with full points
+    // Check which parts are completed with full points AND calculate current points
     const completedParts: string[] = []
+    let currentPointsEarned = 0
+    let totalPointsPossible = 0
 
     labParts.forEach(part => {
+      totalPointsPossible += part.totalPoints || 0
       const submission = latestSubmissionsByPart[part.partId]
 
       if (submission && submission.status === 'completed') {
@@ -881,6 +886,9 @@ export const useSubmissions = () => {
         if (submission.gradingResult) {
           const earnedPoints = submission.gradingResult.total_points_earned
           const possiblePoints = submission.gradingResult.total_points_possible
+
+          // Add to current points (even if partial!)
+          currentPointsEarned += earnedPoints || 0
 
           // Part is completed if student earned full points
           if (earnedPoints === possiblePoints && possiblePoints > 0) {
@@ -891,6 +899,9 @@ export const useSubmissions = () => {
         else if (submission.fillInBlankResults) {
           const earnedPoints = submission.fillInBlankResults.totalPointsEarned
           const possiblePoints = submission.fillInBlankResults.totalPoints
+
+          // Add to current points (even if partial!)
+          currentPointsEarned += earnedPoints || 0
 
           // Part is completed if student earned full points
           if (earnedPoints === possiblePoints && possiblePoints > 0) {
@@ -910,7 +921,9 @@ export const useSubmissions = () => {
       completedParts,
       totalPartsCompleted,
       totalParts,
-      allPartsPassedWithFullPoints
+      allPartsPassedWithFullPoints,
+      currentPointsEarned,
+      totalPointsPossible
     }
   }
 

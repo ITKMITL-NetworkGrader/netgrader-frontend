@@ -69,16 +69,31 @@
                 </div>
 
                 <!-- Input Cell -->
-                <div v-else>
+                <div v-else class="flex items-center gap-2">
                   <input
                     v-model="cellValues[rowIndex][colIndex]"
                     type="text"
                     :placeholder="getCellPlaceholder(rowIndex, colIndex)"
                     :disabled="isCellInputDisabled(rowIndex, colIndex)"
-                    class="w-full px-3 py-2 text-sm border rounded-md transition-colors"
+                    class="flex-1 px-3 py-2 text-sm border rounded-md transition-colors"
                     :class="getCellInputClass(rowIndex, colIndex)"
                     @input="onCellInput(rowIndex, colIndex)"
                   />
+
+                  <!-- Copy Button (appears after part is passed) -->
+                  <button
+                    v-if="props.isPassed && cellValues[rowIndex]?.[colIndex]?.trim()"
+                    type="button"
+                    class="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                    :title="`Copy ${cellValues[rowIndex][colIndex]}`"
+                    @click="copyToClipboard(cellValues[rowIndex][colIndex], rowIndex, colIndex)"
+                  >
+                    <Check
+                      v-if="copiedCell === `${rowIndex}-${colIndex}`"
+                      class="w-4 h-4 text-green-500"
+                    />
+                    <Copy v-else class="w-4 h-4" />
+                  </button>
 
                   <!-- Lecturer Range Hint (for DHCP pool cells)
                   <div
@@ -109,6 +124,8 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
+import { Copy, Check } from 'lucide-vue-next'
+import { toast } from 'vue-sonner'
 
 interface Column {
   columnId: string
@@ -161,11 +178,13 @@ interface Props {
   tableData: IpTableData
   modelValue?: string[][] // Student's answers
   readonly?: boolean
+  isPassed?: boolean // NEW: Show copy buttons when part is passed
 }
 
 const props = withDefaults(defineProps<Props>(), {
   modelValue: () => [],
-  readonly: false
+  readonly: false,
+  isPassed: false
 })
 
 const emit = defineEmits<{
@@ -195,6 +214,30 @@ const initializeCellValues = () => {
 }
 
 initializeCellValues()
+
+// Copy to clipboard functionality
+const copiedCell = ref<string | null>(null)
+
+const copyToClipboard = async (value: string, rowIndex: number, colIndex: number) => {
+  try {
+    await navigator.clipboard.writeText(value)
+    copiedCell.value = `${rowIndex}-${colIndex}`
+    toast.success('Copied to clipboard', {
+      description: value,
+      duration: 2000
+    })
+    // Reset copy indicator after 2 seconds
+    setTimeout(() => {
+      if (copiedCell.value === `${rowIndex}-${colIndex}`) {
+        copiedCell.value = null
+      }
+    }, 2000)
+  } catch (err) {
+    toast.error('Failed to copy', {
+      description: 'Please copy manually'
+    })
+  }
+}
 
 // Keep local state in sync when parent model changes (e.g., restored from storage)
 watch(() => props.modelValue, (newValue) => {

@@ -30,7 +30,9 @@ import {
   Send,
   History,
   ExternalLink,
-  Network
+  Network,
+  Copy,
+  Check
 } from 'lucide-vue-next'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -43,6 +45,7 @@ import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Label } from '@/components/ui/label'
 import { useCourseLabs, type Lab, type LabPart, type LabTask, type TaskGroup } from '@/composables/useCourseLabs'
 import { useCourse } from '@/composables/useCourse'
@@ -426,7 +429,9 @@ const completionStatus = ref({
   completedParts: [] as string[],
   totalPartsCompleted: 0,
   totalParts: 0,
-  allPartsPassedWithFullPoints: false
+  allPartsPassedWithFullPoints: false,
+  currentPointsEarned: 0,   // NEW: Actual points earned (including partial)
+  totalPointsPossible: 0    // NEW: Total points possible
 })
 const hasClearedLabStorage = ref(false)
 
@@ -434,6 +439,28 @@ const hasClearedLabStorage = ref(false)
 const showGns3SetupModal = ref(false)
 const hasGns3Project = ref(false)
 const GNS3_PROJECT_STORAGE_KEY = 'netgrader_gns3_project'
+
+// Copy to clipboard state and function
+const copiedValue = ref<string | null>(null)
+const copyToClipboard = async (value: string, label?: string) => {
+  try {
+    await navigator.clipboard.writeText(value)
+    copiedValue.value = value
+    toast.success('Copied to clipboard', {
+      description: label || value,
+      duration: 2000
+    })
+    setTimeout(() => {
+      if (copiedValue.value === value) {
+        copiedValue.value = null
+      }
+    }, 2000)
+  } catch (err) {
+    toast.error('Failed to copy', {
+      description: 'Please copy manually'
+    })
+  }
+}
 
 // Clear GNS3 project data from localStorage when navigating away from the lab page
 const clearGns3ProjectData = () => {
@@ -566,19 +593,22 @@ const isFillInBlankPart = computed(() => currentPart.value?.partType === 'fill_i
 const totalParts = computed(() => currentLabParts.value?.length || 0)
 const completedPartsCount = computed(() => completedParts.value.size)
 
-const overallProgress = computed(() => {
-  if (totalParts.value === 0) return 0
-  return Math.round((completedPartsCount.value / totalParts.value) * 100)
+// Progress calculation EXCLUDES Part 0 per user request (avoids student confusion)
+const actualPartsCount = computed(() => actualLabParts.value?.length || 0)
+const completedActualPartsCount = computed(() => {
+  // Count only non-Part0 completed parts from completionStatus
+  return completionStatus.value.totalPartsCompleted
 })
 
+const overallProgress = computed(() => {
+  if (actualPartsCount.value === 0) return 0
+  return Math.round((completedActualPartsCount.value / actualPartsCount.value) * 100)
+})
+
+// Points calculation uses current achieved points (including partial from grading)
 const totalPointsEarned = computed(() => {
-  let earned = 0
-  actualLabParts.value?.forEach(part => {
-    if (completedParts.value.has(part.id)) {
-      earned += part.totalPoints || 0
-    }
-  })
-  return earned
+  // Use the current points from completionStatus which includes partial points
+  return completionStatus.value.currentPointsEarned
 })
 
 const totalPointsAvailable = computed(() => {
@@ -1054,14 +1084,14 @@ const handleFillInBlankSubmissionResult = (result: FillInBlankSubmissionPayload)
     if (!completedTasks.value[partId]) {
       completedTasks.value[partId] = new Set()
     }
-
-    // There may be no discrete tasks for fill-in-the-blank parts, but ensure the set exists
-    setTimeout(async () => {
-      await checkLabCompletion()
-    }, 2000)
   } else {
     completedParts.value.delete(partId)
   }
+
+  // Always refresh points after submission (including partial points)
+  setTimeout(async () => {
+    await checkLabCompletion()
+  }, 2000)
 }
 
 const handleFillInBlankSubmit = async () => {
@@ -1112,13 +1142,13 @@ watch(() => currentGradingStatus.value, async (newStatus) => {
       })
 
       console.log('Part completed and marked as done:', currentPart.value.partId)
-
-      // Check if ALL parts are now completed to show completion modal
-      // Add a small delay so student can see the grading results first
-      setTimeout(async () => {
-        await checkLabCompletion()
-      }, 2000)
     }
+
+    // Always refresh points after any submission (including partial points)
+    // Add a small delay so student can see the grading results first
+    setTimeout(async () => {
+      await checkLabCompletion()
+    }, 2000)
   }
 })
 
@@ -1357,8 +1387,10 @@ const checkLabCompletion = async () => {
         ...status,
         isFullyCompleted: status.isFullyCompleted && instructionsAcknowledged.value,
         completedParts: Array.from(completedPartIds),
-        totalParts: status.totalParts + 1,
-        totalPartsCompleted: status.totalPartsCompleted + (instructionsAcknowledged.value ? 1 : 0)
+        // Progress now EXCLUDES Part 0 per user request (avoids student confusion)
+        // Part 0 (Instructions) is handled separately via instructionsAcknowledged
+        currentPointsEarned: status.currentPointsEarned,
+        totalPointsPossible: status.totalPointsPossible
       }
 
       // CRITICAL FIX: Sync the completedParts Set from submission history
@@ -1466,7 +1498,9 @@ const loadPersonalizedIPs = async (options: { restart?: boolean } = {}) => {
             completedParts: [],
             totalPartsCompleted: 0,
             totalParts: 0,
-            allPartsPassedWithFullPoints: false
+            allPartsPassedWithFullPoints: false,
+            currentPointsEarned: 0,
+            totalPointsPossible: 0
           }
         }
       } else {
@@ -1511,7 +1545,9 @@ const handleRestartLabFromResults = async () => {
       completedParts: [],
       totalPartsCompleted: 0,
       totalParts: 0,
-      allPartsPassedWithFullPoints: false
+      allPartsPassedWithFullPoints: false,
+      currentPointsEarned: 0,
+      totalPointsPossible: 0
     }
     hasClearedLabStorage.value = false
     lastAutoNavigatedIndex.value = null
@@ -1934,10 +1970,10 @@ watch(() => route.query.part, (newPart) => {
     </div>
 
     <!-- Main Lab Interface -->
-    <div v-else-if="currentLab && currentLabParts && currentLabParts.length > 0" class="flex min-h-[calc(100vh-80px)]">
+    <div v-else-if="currentLab && currentLabParts && currentLabParts.length > 0" class="flex flex-col lg:flex-row min-h-[calc(100vh-80px)]">
       <!-- Right Sidebar - Part Navigation (30%) -->
       <div v-if="!shouldHideStudentContent"
-        class="w-[30%] min-w-[380px] max-w-[420px] border-r bg-card/30 backdrop-blur-sm flex flex-col">
+        class="hidden lg:flex w-full lg:w-[30%] lg:min-w-[380px] lg:max-w-[420px] border-r bg-card/30 backdrop-blur-sm flex-col">
         <!-- Lab Header -->
         <div class="p-6 border-b bg-card/80 backdrop-blur-sm">
           <div class="flex items-start space-x-4">
@@ -2075,10 +2111,10 @@ watch(() => route.query.part, (newPart) => {
         </div>
       </div>
 
-      <!-- Main Content Area (70%) -->
-      <div class="flex-1 flex flex-col bg-background" v-if="!shouldHideStudentContent">
+      <!-- Main Content Area (70% on desktop, 100% on mobile) -->
+      <div class="flex-1 flex flex-col bg-background w-full lg:w-[70%]" v-if="!shouldHideStudentContent">
         <!-- Current Part Header -->
-        <div v-if="currentPart" class="border-b bg-card/50 backdrop-blur-sm p-6">
+        <div v-if="currentPart" class="border-b bg-card/50 backdrop-blur-sm p-4 md:p-6">
           <div class="flex items-center justify-between mb-4">
             <div class="flex-1">
               <h1 class="text-3xl font-bold text-foreground">
@@ -2136,8 +2172,8 @@ watch(() => route.query.part, (newPart) => {
             <Card v-if="currentPart.isPartZero" class="shadow-sm border-emerald-200 bg-emerald-50/60">
               <CardHeader class="pb-3">
                 <CardTitle class="flex items-center space-x-3 text-lg text-emerald-800">
-                  <div class="p-2 bg-emerald-100 rounded-lg">
-                    <CheckCircle class="w-5 h-5 text-emerald-700" />
+                  <div class="p-2 bg-primary/10 rounded-lg">
+                    <CheckCircle class="w-5 h-5 text-primary" />
                   </div>
                   <span>Confirm you understand the instructions</span>
                 </CardTitle>
@@ -2157,7 +2193,7 @@ watch(() => route.query.part, (newPart) => {
                     {{ instructionsAckError }}
                   </p>
 
-                  <div v-if="instructionsAcknowledged" class="flex items-center gap-2 text-xs text-emerald-700">
+                  <div v-if="instructionsAcknowledged" class="flex items-center gap-2 text-xs text-primary">
                     <CheckCircle class="w-4 h-4" />
                     <span>Acknowledged {{ instructionsAcknowledgedLabel }}</span>
                   </div>
@@ -2219,8 +2255,8 @@ watch(() => route.query.part, (newPart) => {
               <Card v-else-if="variableReferenceTable.length > 0" class="shadow-sm">
                 <CardHeader class="pb-4">
                   <CardTitle class="flex items-center space-x-3 text-xl">
-                    <div class="p-2 bg-purple-100 rounded-lg">
-                      <BookOpen class="w-5 h-5 text-purple-600" />
+                    <div class="p-2 bg-secondary/10 rounded-lg">
+                      <BookOpen class="w-5 h-5 text-secondary-foreground" />
                     </div>
                     <span>Network Variables</span>
                   </CardTitle>
@@ -2239,10 +2275,10 @@ watch(() => route.query.part, (newPart) => {
                       <TableBody>
                         <TableRow v-for="(variable, index) in variableReferenceTable" :key="`variable-${index}`"
                           class="hover:bg-muted/30">
-                          <TableCell class="font-mono font-semibold text-purple-600">{{ variable.vlanVariable }}
+                          <TableCell class="font-mono font-semibold text-secondary-foreground">{{ variable.vlanVariable }}
                           </TableCell>
                           <TableCell class="font-mono text-sm">{{ variable.vlanValue }}</TableCell>
-                          <TableCell class="font-mono font-semibold text-purple-600">{{ variable.cidrVariable }}
+                          <TableCell class="font-mono font-semibold text-secondary-foreground">{{ variable.cidrVariable }}
                           </TableCell>
                           <TableCell class="font-mono text-sm">{{ variable.cidrValue }}</TableCell>
                         </TableRow>
@@ -2256,8 +2292,8 @@ watch(() => route.query.part, (newPart) => {
               <Card v-if="deviceManagementTable.length > 0" class="shadow-sm">
                 <CardHeader class="pb-4">
                   <CardTitle class="flex items-center space-x-3 text-xl">
-                    <div class="p-2 bg-blue-100 rounded-lg">
-                      <Server class="w-5 h-5 text-blue-600" />
+                    <div class="p-2 bg-accent rounded-lg">
+                      <Server class="w-5 h-5 text-accent-foreground" />
                     </div>
                     <span>Your Devices</span>
                   </CardTitle>
@@ -2273,9 +2309,22 @@ watch(() => route.query.part, (newPart) => {
                       </TableHeader>
                       <TableBody>
                         <TableRow v-for="(device, index) in deviceManagementTable" :key="`device-${index}`"
-                          class="hover:bg-muted/30">
+                          class="hover:bg-muted/30 group">
                           <TableCell class="font-medium">{{ device.deviceDisplay }}</TableCell>
-                          <TableCell class="font-mono text-sm text-blue-600">{{ device.managementIp }}</TableCell>
+                          <TableCell class="font-mono text-sm text-primary">
+                            <div class="flex items-center justify-between gap-2">
+                              <span>{{ device.managementIp }}</span>
+                              <button
+                                type="button"
+                                class="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors opacity-0 group-hover:opacity-100"
+                                :title="`Copy ${device.managementIp}`"
+                                @click.stop="copyToClipboard(device.managementIp, device.deviceDisplay)"
+                              >
+                                <Check v-if="copiedValue === device.managementIp" class="w-4 h-4 text-green-500" />
+                                <Copy v-else class="w-4 h-4" />
+                              </button>
+                            </div>
+                          </TableCell>
                         </TableRow>
                       </TableBody>
                     </Table>
