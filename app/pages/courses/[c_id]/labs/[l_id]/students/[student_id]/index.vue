@@ -60,22 +60,30 @@ const overallStats = computed(() => {
 
   const completedParts = submissionHistory.value.filter(
     part => part.submissionHistory.some(attempt => {
-      const effectiveScore = attempt.adjustedScore ?? attempt.score
-      return attempt.status === 'completed' && effectiveScore === attempt.totalPoints
+      // A part is completed if ANY attempt achieved full original points
+      return attempt.status === 'completed' && attempt.score === attempt.totalPoints
     })
   ).length
 
   const totalParts = submissionHistory.value.length
 
-  // Use the LATEST attempt's adjusted score for each part (not best score)
+  // Use the BEST effective score for each part (considering penalties)
+  // adjustedScore already includes late penalty from backend
   const totalScore = submissionHistory.value.reduce((sum, part) => {
     if (part.submissionHistory.length === 0) return sum
-    // Get the latest attempt (highest attempt number)
-    const latestAttempt = part.submissionHistory.reduce((latest, current) => 
-      current.attempt > latest.attempt ? current : latest
-    , part.submissionHistory[0])
-    if (!latestAttempt) return sum
-    const score = latestAttempt.adjustedScore ?? latestAttempt.score ?? 0
+    
+    // Find the attempt with the highest effective score (adjustedScore or score)
+    const bestAttempt = part.submissionHistory.reduce((best, current) => {
+      if (current.status !== 'completed') return best
+      if (!best || best.status !== 'completed') return current
+      
+      const currentScore = current.adjustedScore ?? current.score ?? 0
+      const bestScore = best.adjustedScore ?? best.score ?? 0
+      return currentScore > bestScore ? current : best
+    }, null as any)
+    
+    if (!bestAttempt) return sum
+    const score = bestAttempt.adjustedScore ?? bestAttempt.score ?? 0
     return sum + score
   }, 0)
 
@@ -96,12 +104,25 @@ const overallStats = computed(() => {
   }
 })
 
-// Get the latest attempt for a part (highest attempt number)
-const getLatestAttempt = (partHistory: any[]) => {
+// Get the best attempt for a part (highest effective score)
+const getBestAttempt = (partHistory: any[]) => {
   if (!partHistory || partHistory.length === 0) return null
-  return partHistory.reduce((latest, current) => 
-    current.attempt > latest.attempt ? current : latest
-  , partHistory[0])
+  
+  // Filter to only completed attempts
+  const completedAttempts = partHistory.filter(a => a.status === 'completed')
+  if (completedAttempts.length === 0) {
+    // Return the latest attempt if none are completed
+    return partHistory.reduce((latest, current) => 
+      current.attempt > latest.attempt ? current : latest
+    , partHistory[0])
+  }
+  
+  // Find the attempt with the highest effective score
+  return completedAttempts.reduce((best, current) => {
+    const currentScore = current.adjustedScore ?? current.score ?? 0
+    const bestScore = best.adjustedScore ?? best.score ?? 0
+    return currentScore > bestScore ? current : best
+  }, completedAttempts[0])
 }
 
 // Load data
@@ -296,9 +317,9 @@ onMounted(() => {
                     </div>
                   </div>
                   <div class="flex items-center space-x-3">
-                    <!-- Latest Score Badge -->
+                    <!-- Best Score Badge -->
                     <Badge variant="outline" class="font-mono">
-                      Latest: {{ getLatestAttempt(partHistory.submissionHistory)?.adjustedScore ?? getLatestAttempt(partHistory.submissionHistory)?.score ?? 0 }}/{{ getLatestAttempt(partHistory.submissionHistory)?.totalPoints ?? 0 }}
+                      Best: {{ getBestAttempt(partHistory.submissionHistory)?.adjustedScore ?? getBestAttempt(partHistory.submissionHistory)?.score ?? 0 }}/{{ getBestAttempt(partHistory.submissionHistory)?.totalPoints ?? 0 }}
                     </Badge>
                   </div>
                 </div>

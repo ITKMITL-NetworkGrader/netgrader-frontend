@@ -1167,8 +1167,15 @@ watch(() => currentGradingStatus.value, async (newStatus) => {
     return
   }
   if (newStatus.status === 'completed' && newStatus.results && currentPart.value) {
-    // Mark part as completed if grading was successful and got full points
-    if (newStatus.results.total_points_earned === newStatus.results.total_points_possible) {
+    // Determine if passed:
+    // - For late submissions, use originallyPassed (checks original score before penalty)
+    // - For on-time submissions, compare displayed scores
+    const isPassed = newStatus.isLate 
+      ? newStatus.originallyPassed 
+      : newStatus.results.total_points_earned === newStatus.results.total_points_possible
+    
+    // Mark part as completed if grading was successful and got full points (original)
+    if (isPassed) {
       completedParts.value.add(currentPart.value.id)
 
       // Mark all tasks in this part as completed
