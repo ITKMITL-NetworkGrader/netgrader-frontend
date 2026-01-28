@@ -146,10 +146,17 @@
           </div>
         </div>
 
+        <!-- Late Penalty Banner -->
+        <div v-if="isLate" class="bg-amber-500/90 px-4 py-2 flex items-center justify-center gap-2">
+          <AlertCircle class="w-4 h-4 text-white" />
+          <span class="text-white text-sm font-semibold">LATE SUBMISSION</span>
+          <span class="text-white/90 text-xs">(-{{ latePenaltyPercent }}% penalty applied)</span>
+        </div>
+
         <!-- Score Display with Number Ticker -->
         <div class="p-6 bg-white/10 backdrop-blur-sm">
           <div class="text-center">
-            <div class="text-white/80 text-sm font-medium mb-2">Your Score</div>
+            <div class="text-white/80 text-sm font-medium mb-2">Your Score{{ isLate ? ' (After Penalty)' : '' }}</div>
             <div class="flex items-center justify-center space-x-2">
               <div class="text-5xl font-bold text-white">
                 <NumberTicker
@@ -241,6 +248,9 @@ interface Props {
   error?: string
   disabled?: boolean
   totalTestCases?: number  // Frontend-calculated total test cases for display
+  isLate?: boolean  // Whether the submission is late and has penalty applied
+  latePenaltyPercent?: number  // e.g., 50 for 50% penalty
+  originallyPassed?: boolean  // Whether the student passed with original score (before penalty)
 }
 
 interface Emits {
@@ -250,7 +260,10 @@ interface Emits {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  disabled: false
+  disabled: false,
+  isLate: false,
+  latePenaltyPercent: 50,
+  originallyPassed: undefined
 })
 
 const emit = defineEmits<Emits>()
@@ -308,6 +321,10 @@ watch(() => props.results, (newResults) => {
 
 const isPassed = computed(() => {
   if (props.status === 'completed' && props.results) {
+    // For late submissions, use originallyPassed prop if provided
+    if (props.isLate && props.originallyPassed !== undefined) {
+      return props.originallyPassed
+    }
     return props.results.total_points_earned === props.results.total_points_possible
   }
   return false

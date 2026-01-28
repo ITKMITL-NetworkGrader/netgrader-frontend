@@ -121,6 +121,7 @@ const {
 const {
   createSubmission,
   getGradingStatus,
+  getSubmissionState,
   toggleProgressDetails,
   clearGradingResults,
   fetchStudentSubmissions,
@@ -1114,12 +1115,50 @@ const fillInBlankActionButtonDisabled = computed(() => {
   return fillInBlankQuestionsRef.value?.isSubmitting?.value ?? false
 })
 
-// Get current grading status for display
+// Get current grading status for display (with late penalty applied)
 const currentGradingStatus = computed(() => {
-  if (!currentPart.value) return { status: 'idle', message: 'Ready to submit' }
+  if (!currentPart.value) return { status: 'idle', message: 'Ready to submit', isLate: false }
   const status = getGradingStatus(labId.value, currentPart.value.partId)
   console.log('[DEBUG] Current grading status:', status)
-  return status
+  
+  // Apply late penalty to results if applicable
+  if (status.status === 'completed' && status.results && currentLab.value?.dueDate) {
+    const submissionState = getSubmissionState(labId.value, currentPart.value.partId)
+    const submittedAt = submissionState.currentSubmission?.submittedAt
+    
+    if (submittedAt) {
+      const submittedDate = new Date(submittedAt)
+      const dueDate = new Date(currentLab.value.dueDate)
+      const availableUntil = currentLab.value.availableUntil ? new Date(currentLab.value.availableUntil) : null
+      
+      // Check if late submission (after dueDate but before availableUntil)
+      if (submittedDate > dueDate && (!availableUntil || submittedDate <= availableUntil)) {
+        const penaltyMultiplier = 0.5 // 50% penalty
+        const adjustedPoints = Math.round(status.results.total_points_earned * penaltyMultiplier * 100) / 100
+        
+        console.log('[DEBUG] Late penalty applied:', {
+          original: status.results.total_points_earned,
+          adjusted: adjustedPoints,
+          submittedAt: submittedDate.toISOString(),
+          dueDate: dueDate.toISOString()
+        })
+        
+        const originallyPassed = status.results.total_points_earned === status.results.total_points_possible
+        
+        return {
+          ...status,
+          isLate: true,
+          originallyPassed,
+          results: {
+            ...status.results,
+            total_points_earned: adjustedPoints
+          }
+        }
+      }
+    }
+  }
+  
+  return { ...status, isLate: false }
 })
 
 // Watch for completed submissions to update part completion status
@@ -2439,7 +2478,9 @@ watch(() => route.query.part, (newPart) => {
                   <!-- Grading Progress Component -->
                   <GradingProgress :status="currentGradingStatus.status" :progress="currentGradingStatus.progress"
                     :results="currentGradingStatus.results" :error="currentGradingStatus.error"
-                    :total-test-cases="currentPartTotalTestCases" @submit="submitPartForGrading"
+                    :total-test-cases="currentPartTotalTestCases" :is-late="currentGradingStatus.isLate"
+                    :originally-passed="currentGradingStatus.originallyPassed"
+                    @submit="submitPartForGrading"
                     @toggle-details="toggleProgressDetails(labId, currentPart.partId)"
                     @close-results="clearGradingResults(labId, currentPart.partId)" />
                 </template>
