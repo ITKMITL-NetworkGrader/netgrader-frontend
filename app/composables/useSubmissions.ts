@@ -840,6 +840,8 @@ export const useSubmissions = () => {
     labParts: Array<{ partId: string; totalPoints: number }>,
     options?: {
       labSessionId?: string | null;
+      dueDate?: Date | string | null;
+      availableUntil?: Date | string | null;
     }
   ): {
     isFullyCompleted: boolean
@@ -847,11 +849,31 @@ export const useSubmissions = () => {
     totalPartsCompleted: number
     totalParts: number
     allPartsPassedWithFullPoints: boolean
-    currentPointsEarned: number  // NEW: Total points earned including partial
-    totalPointsPossible: number  // NEW: Total points possible
+    currentPointsEarned: number  // Total points earned including partial (with late penalty)
+    totalPointsPossible: number  // Total points possible
   } => {
     const targetSessionId = options?.labSessionId ?? null
     const normalizedTarget = targetSessionId ? targetSessionId.toString() : null
+
+    // Helper function to calculate late penalty (same logic as backend)
+    const calculateLatePenalty = (submittedAt: Date | string | null): { isLate: boolean; penaltyMultiplier: number } => {
+      if (!submittedAt || !options?.dueDate) {
+        return { isLate: false, penaltyMultiplier: 1.0 }
+      }
+
+      const submittedDate = new Date(submittedAt)
+      const dueDate = new Date(options.dueDate)
+      const availableUntil = options.availableUntil ? new Date(options.availableUntil) : null
+
+      // If submitted after dueDate but before availableUntil (or no availableUntil), it's late
+      if (submittedDate > dueDate) {
+        if (!availableUntil || submittedDate <= availableUntil) {
+          return { isLate: true, penaltyMultiplier: 0.5 } // 50% penalty
+        }
+      }
+
+      return { isLate: false, penaltyMultiplier: 1.0 }
+    }
 
     const filteredSubmissions = normalizedTarget
       ? submissions.filter(submission => {
@@ -882,15 +904,20 @@ export const useSubmissions = () => {
       const submission = latestSubmissionsByPart[part.partId]
 
       if (submission && submission.status === 'completed') {
+        // Calculate late penalty for this submission
+        const { penaltyMultiplier } = calculateLatePenalty(submission.submittedAt)
+
         // Check for network config parts (gradingResult)
         if (submission.gradingResult) {
           const earnedPoints = submission.gradingResult.total_points_earned
           const possiblePoints = submission.gradingResult.total_points_possible
 
-          // Add to current points (even if partial!)
-          currentPointsEarned += earnedPoints || 0
+          // Apply late penalty to points for display (rounded to 2 decimal places)
+          const adjustedPoints = Math.round(earnedPoints * penaltyMultiplier * 100) / 100
+          currentPointsEarned += adjustedPoints || 0
 
-          // Part is completed if student earned full points
+          // Part is completed if student earned full ORIGINAL points (not penalized)
+          // This allows late submissions to still unlock next parts
           if (earnedPoints === possiblePoints && possiblePoints > 0) {
             completedParts.push(part.partId)
           }
@@ -900,10 +927,11 @@ export const useSubmissions = () => {
           const earnedPoints = submission.fillInBlankResults.totalPointsEarned
           const possiblePoints = submission.fillInBlankResults.totalPoints
 
-          // Add to current points (even if partial!)
-          currentPointsEarned += earnedPoints || 0
+          // Apply late penalty to points for display (rounded to 2 decimal places)
+          const adjustedPoints = Math.round(earnedPoints * penaltyMultiplier * 100) / 100
+          currentPointsEarned += adjustedPoints || 0
 
-          // Part is completed if student earned full points
+          // Part is completed if student earned full ORIGINAL points (not penalized)
           if (earnedPoints === possiblePoints && possiblePoints > 0) {
             completedParts.push(part.partId)
           }

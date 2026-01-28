@@ -1375,7 +1375,11 @@ const checkLabCompletion = async () => {
       const status = checkLabCompletionStatus(
         result.submissions,
         labParts,
-        { labSessionId: activeLabSessionId.value }
+        { 
+          labSessionId: activeLabSessionId.value,
+          dueDate: currentLab.value?.dueDate,
+          availableUntil: currentLab.value?.availableUntil
+        }
       )
 
       const completedPartIds = new Set(status.completedParts)

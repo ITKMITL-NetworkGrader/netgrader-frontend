@@ -869,7 +869,11 @@ async function checkLabCompletion() {
       completionStatus.value = checkLabCompletionStatus(
         result.submissions,
         labParts,
-        { labSessionId: sessionId ?? null }
+        { 
+          labSessionId: sessionId ?? null,
+          dueDate: props.labData.dueDate,
+          availableUntil: props.labData.availableUntil
+        }
       )
 
       // Show completion prompt if lab is fully completed
