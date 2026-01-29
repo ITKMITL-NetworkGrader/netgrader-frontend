@@ -883,15 +883,89 @@ export const useSubmissions = () => {
       })
       : submissions
 
-    // Group submissions by partId and get the latest (highest attempt)
-    const latestSubmissionsByPart: Record<string, ISubmission> = {}
+    // Group submissions by partId
+    const submissionsByPart: Record<string, ISubmission[]> = {}
 
     filteredSubmissions.forEach(submission => {
       const partId = submission.partId
-      const existing = latestSubmissionsByPart[partId]
+      if (!submissionsByPart[partId]) {
+        submissionsByPart[partId] = []
+      }
+      submissionsByPart[partId].push(submission)
+    })
 
-      if (!existing || submission.attempt > existing.attempt) {
-        latestSubmissionsByPart[partId] = submission
+    // Helper to get effective score for a submission (with late penalty if applicable)
+    const getEffectiveScore = (submission: ISubmission): {
+      originalScore: number;
+      effectiveScore: number;
+      possiblePoints: number;
+      isLate: boolean;
+      isPassed: boolean;
+    } => {
+      if (submission.status !== 'completed') {
+        return { originalScore: 0, effectiveScore: 0, possiblePoints: 0, isLate: false, isPassed: false }
+      }
+
+      const { isLate, penaltyMultiplier } = calculateLatePenalty(submission.submittedAt)
+
+      let originalScore = 0
+      let possiblePoints = 0
+
+      // Check for network config parts (gradingResult)
+      if (submission.gradingResult) {
+        originalScore = submission.gradingResult.total_points_earned
+        possiblePoints = submission.gradingResult.total_points_possible
+      }
+      // Check for fill-in-blank parts (fillInBlankResults) - e.g., IP Table
+      else if (submission.fillInBlankResults) {
+        originalScore = submission.fillInBlankResults.totalPointsEarned
+        possiblePoints = submission.fillInBlankResults.totalPoints
+      }
+
+      const effectiveScore = Math.round(originalScore * penaltyMultiplier * 100) / 100
+      const isPassed = originalScore === possiblePoints && possiblePoints > 0
+
+      return { originalScore, effectiveScore, possiblePoints, isLate, isPassed }
+    }
+
+    // Find the best submission for each part (highest effective score)
+    // Also track if any submission passed (for part completion/unlocking)
+    const bestSubmissionsByPart: Record<string, {
+      submission: ISubmission;
+      effectiveScore: number;
+      possiblePoints: number;
+      anyPassed: boolean;
+    }> = {}
+
+    Object.entries(submissionsByPart).forEach(([partId, partSubmissions]) => {
+      let bestEffectiveScore = -1
+      let bestSubmission: ISubmission | null = null
+      let bestPossiblePoints = 0
+      let anyPassed = false
+
+      partSubmissions.forEach(submission => {
+        const scoreInfo = getEffectiveScore(submission)
+
+        // Track if any attempt passed (for unlocking next parts)
+        if (scoreInfo.isPassed) {
+          anyPassed = true
+        }
+
+        // Pick the submission with highest effective score
+        if (scoreInfo.effectiveScore > bestEffectiveScore) {
+          bestEffectiveScore = scoreInfo.effectiveScore
+          bestSubmission = submission
+          bestPossiblePoints = scoreInfo.possiblePoints
+        }
+      })
+
+      if (bestSubmission) {
+        bestSubmissionsByPart[partId] = {
+          submission: bestSubmission,
+          effectiveScore: bestEffectiveScore,
+          possiblePoints: bestPossiblePoints,
+          anyPassed
+        }
       }
     })
 
@@ -902,40 +976,16 @@ export const useSubmissions = () => {
 
     labParts.forEach(part => {
       totalPointsPossible += part.totalPoints || 0
-      const submission = latestSubmissionsByPart[part.partId]
+      const bestForPart = bestSubmissionsByPart[part.partId]
 
-      if (submission && submission.status === 'completed') {
-        // Calculate late penalty for this submission
-        const { penaltyMultiplier } = calculateLatePenalty(submission.submittedAt)
+      if (bestForPart) {
+        // Add the best effective score for this part
+        currentPointsEarned += bestForPart.effectiveScore || 0
 
-        // Check for network config parts (gradingResult)
-        if (submission.gradingResult) {
-          const earnedPoints = submission.gradingResult.total_points_earned
-          const possiblePoints = submission.gradingResult.total_points_possible
-
-          // Apply late penalty to points for display (rounded to 2 decimal places)
-          const adjustedPoints = Math.round(earnedPoints * penaltyMultiplier * 100) / 100
-          currentPointsEarned += adjustedPoints || 0
-
-          // Part is completed if student earned full ORIGINAL points (not penalized)
-          // This allows late submissions to still unlock next parts
-          if (earnedPoints === possiblePoints && possiblePoints > 0) {
-            completedParts.push(part.partId)
-          }
-        }
-        // Check for fill-in-blank parts (fillInBlankResults) - e.g., IP Table
-        else if (submission.fillInBlankResults) {
-          const earnedPoints = submission.fillInBlankResults.totalPointsEarned
-          const possiblePoints = submission.fillInBlankResults.totalPoints
-
-          // Apply late penalty to points for display (rounded to 2 decimal places)
-          const adjustedPoints = Math.round(earnedPoints * penaltyMultiplier * 100) / 100
-          currentPointsEarned += adjustedPoints || 0
-
-          // Part is completed if student earned full ORIGINAL points (not penalized)
-          if (earnedPoints === possiblePoints && possiblePoints > 0) {
-            completedParts.push(part.partId)
-          }
+        // Part is considered completed if ANY attempt achieved full original points
+        // This allows late submissions to still unlock next parts
+        if (bestForPart.anyPassed) {
+          completedParts.push(part.partId)
         }
       }
     })
