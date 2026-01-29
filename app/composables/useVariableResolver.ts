@@ -2,7 +2,7 @@ import type { ExamConfiguration } from '~/types/lab'
 
 export const useVariableResolver = () => {
   const { memoize } = usePerformanceOptimization()
-  
+
   // Memoized variable resolution cache
   const variableCache = new Map<string, string>()
   // Memoized variable resolution for better performance
@@ -27,7 +27,7 @@ export const useVariableResolver = () => {
     // Replace other custom variables with proper type handling
     Object.entries(variables).forEach(([key, value]) => {
       const regex = new RegExp(`\\{${key}\\}`, 'g')
-      
+
       // Handle different value types appropriately
       let resolvedValue: string
       if (typeof value === 'object' && value !== null) {
@@ -37,12 +37,12 @@ export const useVariableResolver = () => {
       } else {
         resolvedValue = value.toString()
       }
-      
+
       resolved = resolved.replace(regex, resolvedValue)
     })
 
     return resolved
-  }, (template, variables, studentId, groupNumber) => 
+  }, (template, variables, studentId, groupNumber) =>
     `${template}-${JSON.stringify(variables)}-${studentId || ''}-${groupNumber || ''}`
   )
 
@@ -226,13 +226,13 @@ export const useVariableResolver = () => {
     const subnetParts = studentConfig.ipv4Subnet.split('/')
     const [networkBase] = subnetParts
     const [octet1, octet2, octet3, octet4] = networkBase.split('.').map(Number)
-    
+
     // Calculate additional networking values
     const subnetSize = 64 // /26 subnet = 64 addresses
     const usableHosts = subnetSize - 2 // Subtract network and broadcast
     const gatewayOffset = 1 // First usable IP as gateway
     const lastHostOffset = usableHosts // Last usable IP
-    
+
     // Enhanced IPv6 calculations
     const ipv6Parts = studentConfig.ipv6Subnet.split('::/')
     const ipv6Base = ipv6Parts[0]
@@ -242,23 +242,23 @@ export const useVariableResolver = () => {
     const examVariables = {
       // Basic student info
       student_id: studentConfig.studentId,
-      
+
       // VLAN configuration (personalized per student)
       vlan1: studentConfig.vlan1,
       vlan2: studentConfig.vlan2,
-      
+
       // IPv4/IPv6 configuration (unique per student)
       ipv4_subnet: studentConfig.ipv4Subnet,
       ipv6_subnet: studentConfig.ipv6Subnet,
-      
+
       // Interface configuration (personalized)
       out_interface_ipv4: studentConfig.outInterfaceIpv4,
       out_interface_ipv6: studentConfig.outInterfaceIpv6,
-      
+
       // Calculated values from student ID algorithm
       dec2,
       dec3,
-      
+
       // Detailed networking from generated answers (student-specific)
       network_address: studentConfig.generatedAnswers?.networking?.ipv4?.networkAddress || `${octet1}.${octet2}.${octet3}.${octet4}`,
       broadcast_address: studentConfig.generatedAnswers?.networking?.ipv4?.broadcastAddress || `${octet1}.${octet2}.${octet3}.${octet4 + subnetSize - 1}`,
@@ -266,59 +266,59 @@ export const useVariableResolver = () => {
       last_usable: studentConfig.generatedAnswers?.networking?.ipv4?.lastUsable || `${octet1}.${octet2}.${octet3}.${octet4 + lastHostOffset}`,
       subnet_mask: studentConfig.generatedAnswers?.networking?.ipv4?.subnetMask || '255.255.255.192',
       prefix_length: studentConfig.generatedAnswers?.networking?.ipv6?.prefixLength || prefixLength,
-      
+
       // Static routes (personalized per student)
       static_routes: studentConfig.generatedAnswers?.routing?.staticRoutes || [],
-      
+
       // Access control lists (personalized per student)
       access_lists: studentConfig.generatedAnswers?.security?.accessLists || [],
-      
+
       // Additional computed networking values for enhanced personalization
       gateway_ipv4: `${octet1}.${octet2}.${octet3}.${octet4 + gatewayOffset}`, // First usable IP as gateway
       last_host_ipv4: `${octet1}.${octet2}.${octet3}.${octet4 + lastHostOffset}`, // Last usable IP
       network_id: `${octet1}.${octet2}.${octet3}.${octet4}`, // Network ID
       wildcard_mask: '0.0.0.63', // Wildcard mask for /26
-      
+
       // VLAN names and descriptions (personalized)
       vlan1_name: `VLAN_${studentConfig.vlan1}`,
       vlan2_name: `VLAN_${studentConfig.vlan2}`,
       vlan1_description: `Student ${studentConfig.studentId} VLAN 1`,
       vlan2_description: `Student ${studentConfig.studentId} VLAN 2`,
-      
+
       // Interface names (personalized)
       interface_vlan1: `Vlan${studentConfig.vlan1}`,
       interface_vlan2: `Vlan${studentConfig.vlan2}`,
       interface_g0_0: `GigabitEthernet0/0`,
       interface_g0_1: `GigabitEthernet0/1`,
-      
+
       // Router configuration snippets (personalized)
       router_id: `${dec2}.${dec3}.1.1`,
       ospf_area: Math.floor(dec2 / 10),
       ospf_process_id: 1,
-      
+
       // Enhanced IPv6 variables
       ipv6_network: `${ipv6Base}::`,
       ipv6_gateway: `${ipv6Base}::1`,
       ipv6_first_host: `${ipv6Base}::2`,
-      
+
       // Subnet calculation helpers
       subnet_size: subnetSize,
       usable_hosts: usableHosts,
       host_bits: 6, // /26 = 6 host bits
       network_bits: 26,
-      
+
       // Student-specific identifiers for unique configurations
       student_hash: generateStudentHash(studentConfig.studentId),
       config_version: '1.0',
       generation_timestamp: new Date().toISOString(),
-      
+
       // Personalized naming conventions
       hostname: `R${student_id % 1000}`,
       domain_name: `student${student_id}.netgrader.local`,
-      
+
       // Additional custom variables from play configuration
       ...additionalVariables,
-      
+
       // Student-specific variables from config
       ...(studentConfig.variables || {})
     }
@@ -486,7 +486,7 @@ export const useVariableResolver = () => {
     if (expectedAnswers?.routing?.staticRoutes && answers.static_routes) {
       const expectedRoutes = expectedAnswers.routing.staticRoutes
       const providedRoutes = Array.isArray(answers.static_routes) ? answers.static_routes : [answers.static_routes]
-      
+
       expectedRoutes.forEach((expectedRoute: string, index: number) => {
         totalAnswers++
         if (providedRoutes[index] === expectedRoute) {
@@ -501,7 +501,7 @@ export const useVariableResolver = () => {
     if (expectedAnswers?.security?.accessLists && answers.access_lists) {
       const expectedACLs = expectedAnswers.security.accessLists
       const providedACLs = Array.isArray(answers.access_lists) ? answers.access_lists : [answers.access_lists]
-      
+
       expectedACLs.forEach((expectedACL: string, index: number) => {
         totalAnswers++
         if (providedACLs[index] === expectedACL) {
@@ -528,7 +528,7 @@ export const useVariableResolver = () => {
   ): Record<string, any> => {
     // Create grading context with personalized variables for exam mode
     const { resolvedVariables } = resolveExamVariables('', studentConfig, playVariables)
-    
+
     return {
       mode: 'exam',
       studentId: studentConfig.studentId,
@@ -572,17 +572,17 @@ export const useVariableResolver = () => {
       ipv6_subnet: studentConfig.ipv6Subnet,
       out_interface_ipv4: studentConfig.outInterfaceIpv4,
       out_interface_ipv6: studentConfig.outInterfaceIpv6,
-      
+
       // Detailed networking answers
       ...studentConfig.generatedAnswers?.networking?.ipv4,
       ...studentConfig.generatedAnswers?.networking?.ipv6,
-      
+
       // Routing answers
       static_routes: studentConfig.generatedAnswers?.routing?.staticRoutes,
-      
+
       // Security answers
       access_lists: studentConfig.generatedAnswers?.security?.accessLists,
-      
+
       // Additional computed values
       variables: studentConfig.variables || {}
     }
@@ -594,43 +594,43 @@ export const useVariableResolver = () => {
     expectedVariables: string[]
   ): { isValid: boolean; errors: string[]; resolvedVariables: Record<string, any> } => {
     const errors: string[] = []
-    
+
     try {
       // Resolve variables for the student
       const { resolvedContent, resolvedVariables } = resolveExamVariables(template, studentConfig)
-      
+
       // Check if all expected variables were resolved
       expectedVariables.forEach(variable => {
         if (!resolvedVariables[variable] || resolvedVariables[variable] === '') {
           errors.push(`Variable {${variable}} was not resolved or is empty`)
         }
       })
-      
+
       // Check if template still contains unresolved variables
       const unresolvedVariables = extractVariablesFromTemplate(resolvedContent)
       if (unresolvedVariables.length > 0) {
         errors.push(`Template contains unresolved variables: ${unresolvedVariables.map(v => `{${v}}`).join(', ')}`)
       }
-      
+
       // Validate that personalized values are unique and correct
       const student_id = Number(studentConfig.studentId)
       const expectedDec2 = Math.floor((student_id / 1000000 - 61) * 10 + (student_id % 1000) / 250)
       const expectedDec3 = Math.floor((student_id % 1000) % 250)
-      
+
       if (resolvedVariables.dec2 !== expectedDec2) {
         errors.push(`Incorrect dec2 calculation: expected ${expectedDec2}, got ${resolvedVariables.dec2}`)
       }
-      
+
       if (resolvedVariables.dec3 !== expectedDec3) {
         errors.push(`Incorrect dec3 calculation: expected ${expectedDec3}, got ${resolvedVariables.dec3}`)
       }
-      
+
       // Validate IPv4 subnet format
       const expectedSubnet = `172.${expectedDec2}.${expectedDec3}.64/26`
       if (resolvedVariables.ipv4_subnet !== expectedSubnet) {
         errors.push(`Incorrect IPv4 subnet: expected ${expectedSubnet}, got ${resolvedVariables.ipv4_subnet}`)
       }
-      
+
       return {
         isValid: errors.length === 0,
         errors,
@@ -651,7 +651,7 @@ export const useVariableResolver = () => {
   ): Record<string, any> => {
     // Generate a preview of all personalized variables for debugging/validation
     const { resolvedVariables } = resolveExamVariables('', studentConfig)
-    
+
     return {
       studentInfo: {
         studentId: studentConfig.studentId,

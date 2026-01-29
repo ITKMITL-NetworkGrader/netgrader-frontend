@@ -478,32 +478,36 @@ const applySubmissionResult = (result: FillInBlankSubmissionResult | null) => {
     results.value[res.questionId] = res
   })
 
-  // NEW: Load ipTableAnswers from database if the submission passed
-  if (result.passed && result.ipTableAnswers) {
+  // FIXED: Load ipTableAnswers from database REGARDLESS of pass/fail status
+  // Students should always see their submitted answers when resuming
+  // The "passed" check was incorrectly preventing answer display for failed submissions
+  if (result.ipTableAnswers) {
     Object.entries(result.ipTableAnswers).forEach(([questionId, answers]) => {
       if (Array.isArray(answers) && answers.length > 0) {
         ipTableAnswers.value[questionId] = JSON.parse(JSON.stringify(answers))
-        console.log('[FillInBlank] Loaded IP table answers from database for question:', questionId)
       }
     })
     // Also update lastPersistedIpTableAnswers so changes can be detected
     lastPersistedIpTableAnswers.value = JSON.parse(JSON.stringify(ipTableAnswers.value))
   }
 
+  // Only persist to localStorage as "validated" if the submission passed
   if (result.passed) {
     persistAnswersToStorage()
   }
 }
 
-if (props.initialSubmissionResult) {
-  applySubmissionResult(props.initialSubmissionResult)
-}
+// NOTE: Moved to onMounted to ensure proper execution order
+// The initial call was causing database answers to be overwritten by restoreAnswersFromStorage
+// if (props.initialSubmissionResult) {
+//   applySubmissionResult(props.initialSubmissionResult)
+// }
 
-watch(() => props.initialSubmissionResult, (newResult) => {
+watch(() => props.initialSubmissionResult, (newResult, oldResult) => {
   if (newResult) {
     applySubmissionResult(newResult)
   }
-})
+}, { immediate: true })
 
 const ensureSessionMarker = () => {
   if (typeof window === 'undefined') return
@@ -724,6 +728,14 @@ onMounted(async () => {
 
   // Restore any saved answers from local storage before fetching backend data
   restoreAnswersFromStorage()
+
+  // CRITICAL FIX: Apply initialSubmissionResult AFTER restoring from storage
+  // This ensures database answers take precedence over localStorage (which might be empty)
+  // The previous order was: applySubmissionResult (sync) -> onMounted -> restoreAnswersFromStorage
+  // which would overwrite database answers with localStorage data
+  if (props.initialSubmissionResult) {
+    applySubmissionResult(props.initialSubmissionResult)
+  }
 
   if (isUpdateMode.value) {
     await loadExistingSchema()

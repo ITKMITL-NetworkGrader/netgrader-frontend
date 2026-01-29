@@ -745,6 +745,7 @@ export const useSubmissions = () => {
 
       const params = new URLSearchParams()
       params.append('labId', labId)
+      params.append('limit', '1000000')
       if (options?.labSessionId) {
         params.append('labSessionId', options.labSessionId)
       }
