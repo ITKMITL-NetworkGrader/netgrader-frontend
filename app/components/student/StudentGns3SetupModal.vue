@@ -158,6 +158,17 @@ async function runSetup() {
       projectId.value = response.projectId || null
       projectName.value = response.projectName || null
       currentStep.value = 'complete'
+      
+      // Save to localStorage immediately after setup completes
+      // This ensures persistence even if user closes modal without clicking Done
+      if (response.projectName && response.projectId) {
+        localStorage.setItem(GNS3_PROJECT_STORAGE_KEY, JSON.stringify({
+          labId: props.labId,
+          projectId: response.projectId,
+          projectName: response.projectName,
+          timestamp: Date.now()
+        }))
+      }
     } else {
       throw new Error(response.error || 'Setup failed')
     }
