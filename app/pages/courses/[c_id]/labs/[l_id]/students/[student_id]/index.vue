@@ -27,6 +27,7 @@ import { Progress } from '@/components/ui/progress'
 import { useCourseLabs } from '@/composables/useCourseLabs'
 import { useCourse } from '@/composables/useCourse'
 import { useStudentSubmissionHistory } from '@/composables/useStudentSubmissionHistory'
+import { applyLatePenalty, calculateStats, type PenalizedPartHistory, type LabPenaltyConfig } from '@/composables/useLatePenaltyCalculation'
 
 const route = useRoute()
 
@@ -51,57 +52,21 @@ const {
 const courseTitle = computed(() => currentCourse.value?.title || `Course ${courseId.value}`)
 const labTitle = computed(() => currentLab.value?.title || 'Lab')
 
-// Calculate overall statistics
+// Lab configuration for penalty calculation
+const labPenaltyConfig = computed<LabPenaltyConfig>(() => ({
+  dueDate: currentLab.value?.dueDate,
+  availableUntil: currentLab.value?.availableUntil,
+  latePenaltyPercent: (currentLab.value as any)?.latePenaltyPercent
+}))
+
+// Apply late penalty using shared utility
+const submissionHistoryWithIncrementalPenalty = computed<PenalizedPartHistory[]>(() => {
+  return applyLatePenalty(submissionHistory.value, labPenaltyConfig.value)
+})
+
+// Calculate overall statistics using shared utility
 const overallStats = computed(() => {
-  const totalAttempts = submissionHistory.value.reduce(
-    (sum, part) => sum + part.submissionHistory.length,
-    0
-  )
-
-  const completedParts = submissionHistory.value.filter(
-    part => part.submissionHistory.some(attempt => {
-      // A part is completed if ANY attempt achieved full original points
-      return attempt.status === 'completed' && attempt.score === attempt.totalPoints
-    })
-  ).length
-
-  const totalParts = submissionHistory.value.length
-
-  // Use the BEST effective score for each part (considering penalties)
-  // adjustedScore already includes late penalty from backend
-  const totalScore = submissionHistory.value.reduce((sum, part) => {
-    if (part.submissionHistory.length === 0) return sum
-    
-    // Find the attempt with the highest effective score (adjustedScore or score)
-    const bestAttempt = part.submissionHistory.reduce((best, current) => {
-      if (current.status !== 'completed') return best
-      if (!best || best.status !== 'completed') return current
-      
-      const currentScore = current.adjustedScore ?? current.score ?? 0
-      const bestScore = best.adjustedScore ?? best.score ?? 0
-      return currentScore > bestScore ? current : best
-    }, null as any)
-    
-    if (!bestAttempt) return sum
-    const score = bestAttempt.adjustedScore ?? bestAttempt.score ?? 0
-    return sum + score
-  }, 0)
-
-  const totalPossiblePoints = submissionHistory.value.reduce((sum, part) => {
-    const maxPoints = part.submissionHistory[0]?.totalPoints || 0
-    return sum + maxPoints
-  }, 0)
-
-  const progressPercentage = totalPossiblePoints > 0 ? (totalScore / totalPossiblePoints) * 100 : 0
-
-  return {
-    totalAttempts,
-    completedParts,
-    totalParts,
-    totalScore,
-    totalPossiblePoints,
-    progressPercentage: Math.round(progressPercentage)
-  }
+  return calculateStats(submissionHistoryWithIncrementalPenalty.value)
 })
 
 // Get the best attempt for a part (highest effective score)
@@ -253,7 +218,7 @@ onMounted(() => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div class="text-3xl font-bold">{{ overallStats.completedParts }}/{{ overallStats.totalParts }}</div>
+            <div class="text-3xl font-bold">{{ overallStats.partsCompleted }}/{{ overallStats.totalParts }}</div>
           </CardContent>
         </Card>
 
@@ -297,9 +262,9 @@ onMounted(() => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Accordion type="multiple" class="w-full" v-if="submissionHistory.length > 0">
+          <Accordion type="multiple" class="w-full" v-if="submissionHistoryWithIncrementalPenalty.length > 0">
             <AccordionItem
-              v-for="(partHistory, index) in submissionHistory"
+              v-for="(partHistory, index) in submissionHistoryWithIncrementalPenalty"
               :key="partHistory.partId"
               :value="`part-${index}`"
             >
@@ -378,6 +343,10 @@ onMounted(() => {
                                   <span class="font-mono text-muted-foreground line-through">{{ attempt.originalScore }}</span>
                                   <span class="font-mono font-semibold text-amber-600">→ {{ attempt.adjustedScore }}/{{ attempt.totalPoints }}</span>
                                   <span class="text-xs text-amber-600">(-{{ attempt.latePenaltyPercent }}%)</span>
+                                  <!-- Detailed penalty breakdown -->
+                                  <span class="text-xs text-muted-foreground ml-2" :title="`Base: ${attempt.bestScoreBeforeDue} + Improvement: ${attempt.penalizedImprovement} = ${attempt.adjustedScore}`">
+                                    ({{ attempt.bestScoreBeforeDue }} + {{ attempt.penalizedImprovement }})
+                                  </span>
                                 </template>
                                 <template v-else>
                                   <span class="font-mono font-semibold">{{ attempt.score }}/{{ attempt.totalPoints }}</span>
