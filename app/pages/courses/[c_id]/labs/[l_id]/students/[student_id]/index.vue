@@ -339,7 +339,7 @@ onMounted(() => {
                                   LATE
                                 </Badge>
                                 <!-- Score Display with penalty breakdown for late submissions -->
-                                <template v-if="attempt.isLate">
+                                <template v-if="attempt.isLate && attempt.status === 'completed' && attempt.adjustedScore !== undefined">
                                   <span class="font-mono text-muted-foreground line-through">{{ attempt.originalScore }}</span>
                                   <span class="font-mono font-semibold text-amber-600">→ {{ attempt.adjustedScore }}/{{ attempt.totalPoints }}</span>
                                   <span class="text-xs text-amber-600">(-{{ attempt.latePenaltyPercent }}%)</span>

@@ -301,7 +301,7 @@ onMounted(() => {
           <Card>
             <CardContent class="p-4">
               <div class="text-2xl font-bold text-green-600">{{ stats.passedAttempts }}</div>
-              <div class="text-sm text-muted-foreground">Passed</div>
+              <div class="text-sm text-muted-foreground">Passed (Part 0 Included)</div>
             </CardContent>
           </Card>
           <Card>
@@ -405,7 +405,7 @@ onMounted(() => {
                         </div>
                         <Separator orientation="vertical" class="h-10" />
                         <div>
-                          <template v-if="submission.isLate">
+                          <template v-if="submission.isLate && submission.status === 'completed' && submission.adjustedScore !== undefined">
                             <div class="flex items-center space-x-1 font-mono text-lg">
                               <span class="text-muted-foreground line-through">{{ submission.originalScore }}</span>
                               <span class="text-amber-600 font-semibold">→ {{ submission.adjustedScore }}/{{ submission.totalPoints }}</span>
@@ -413,7 +413,7 @@ onMounted(() => {
                             <div class="text-xs text-amber-600">
                               Late: -{{ submission.latePenaltyPercent }}% on improvement
                             </div>
-                            <div class="text-xs text-muted-foreground mt-0.5" v-if="submission.bestScoreBeforeDue !== undefined">
+                            <div class="text-xs text-muted-foreground mt-0.5" v-if="submission.bestScoreBeforeDue !== undefined && submission.penalizedImprovement !== undefined">
                               ({{ submission.bestScoreBeforeDue }} + {{ submission.penalizedImprovement }} after penalty)
                             </div>
                           </template>
