@@ -1117,9 +1117,12 @@ const fillInBlankActionButtonDisabled = computed(() => {
 
 // Get current grading status for display (with late penalty applied)
 const currentGradingStatus = computed(() => {
-  if (!currentPart.value) return { status: 'idle', message: 'Ready to submit', isLate: false }
+  if (!currentPart.value) return { status: 'idle', message: 'Ready to submit', isLate: false, latePenaltyPercent: 50 }
   const status = getGradingStatus(labId.value, currentPart.value.partId)
   console.log('[DEBUG] Current grading status:', status)
+  
+  // Get configurable penalty percentage from lab (default 50%)
+  const labLatePenaltyPercent = currentLab.value?.latePenaltyPercent ?? 50
   
   // Apply late penalty to results if applicable
   if (status.status === 'completed' && status.results && currentLab.value?.dueDate) {
@@ -1133,12 +1136,15 @@ const currentGradingStatus = computed(() => {
       
       // Check if late submission (after dueDate but before availableUntil)
       if (submittedDate > dueDate && (!availableUntil || submittedDate <= availableUntil)) {
-        const penaltyMultiplier = 0.5 // 50% penalty
+        // Use configurable penalty percentage
+        const effectivePenalty = Math.max(0, Math.min(100, labLatePenaltyPercent))
+        const penaltyMultiplier = (100 - effectivePenalty) / 100
         const adjustedPoints = Math.round(status.results.total_points_earned * penaltyMultiplier * 100) / 100
         
         console.log('[DEBUG] Late penalty applied:', {
           original: status.results.total_points_earned,
           adjusted: adjustedPoints,
+          penaltyPercent: effectivePenalty,
           submittedAt: submittedDate.toISOString(),
           dueDate: dueDate.toISOString()
         })
@@ -1148,6 +1154,7 @@ const currentGradingStatus = computed(() => {
         return {
           ...status,
           isLate: true,
+          latePenaltyPercent: effectivePenalty,
           originallyPassed,
           results: {
             ...status.results,
@@ -1158,7 +1165,7 @@ const currentGradingStatus = computed(() => {
     }
   }
   
-  return { ...status, isLate: false }
+  return { ...status, isLate: false, latePenaltyPercent: labLatePenaltyPercent }
 })
 
 // Watch for completed submissions to update part completion status
@@ -1424,7 +1431,8 @@ const checkLabCompletion = async () => {
         { 
           labSessionId: activeLabSessionId.value,
           dueDate: currentLab.value?.dueDate,
-          availableUntil: currentLab.value?.availableUntil
+          availableUntil: currentLab.value?.availableUntil,
+          latePenaltyPercent: currentLab.value?.latePenaltyPercent
         }
       )
 
@@ -2486,6 +2494,7 @@ watch(() => route.query.part, (newPart) => {
                   <GradingProgress :status="currentGradingStatus.status" :progress="currentGradingStatus.progress"
                     :results="currentGradingStatus.results" :error="currentGradingStatus.error"
                     :total-test-cases="currentPartTotalTestCases" :is-late="currentGradingStatus.isLate"
+                    :late-penalty-percent="currentGradingStatus.latePenaltyPercent"
                     :originally-passed="currentGradingStatus.originallyPassed"
                     @submit="submitPartForGrading"
                     @toggle-details="toggleProgressDetails(labId, currentPart.partId)"

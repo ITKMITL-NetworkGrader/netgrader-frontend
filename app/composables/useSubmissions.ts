@@ -843,6 +843,7 @@ export const useSubmissions = () => {
       labSessionId?: string | null;
       dueDate?: Date | string | null;
       availableUntil?: Date | string | null;
+      latePenaltyPercent?: number;  // 0-100, default 50
     }
   ): {
     isFullyCompleted: boolean
@@ -855,6 +856,7 @@ export const useSubmissions = () => {
   } => {
     const targetSessionId = options?.labSessionId ?? null
     const normalizedTarget = targetSessionId ? targetSessionId.toString() : null
+    const labLatePenaltyPercent = options?.latePenaltyPercent ?? 50
 
     // Helper function to calculate late penalty (same logic as backend)
     const calculateLatePenalty = (submittedAt: Date | string | null): { isLate: boolean; penaltyMultiplier: number } => {
@@ -869,7 +871,10 @@ export const useSubmissions = () => {
       // If submitted after dueDate but before availableUntil (or no availableUntil), it's late
       if (submittedDate > dueDate) {
         if (!availableUntil || submittedDate <= availableUntil) {
-          return { isLate: true, penaltyMultiplier: 0.5 } // 50% penalty
+          // Use configurable penalty percentage
+          const effectivePenalty = Math.max(0, Math.min(100, labLatePenaltyPercent))
+          const penaltyMultiplier = (100 - effectivePenalty) / 100
+          return { isLate: true, penaltyMultiplier }
         }
       }
 

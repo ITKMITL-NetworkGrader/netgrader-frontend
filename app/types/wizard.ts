@@ -392,6 +392,7 @@ export interface LabWizardData {
     availableFrom?: Date;
     availableUntil?: Date;
     dueDate?: Date;
+    latePenaltyPercent?: number;  // 0-100, default 50 - percentage of score reduction for late submissions
   };
 
   // Course context (provided)
