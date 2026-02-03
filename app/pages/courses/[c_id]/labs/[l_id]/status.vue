@@ -58,9 +58,56 @@ const pollingInterval = ref<NodeJS.Timeout | null>(null)
 
 // Score Export state
 const exportAsOfDate = ref<string>('')
-const exportData = ref<Array<{ studentId: string; studentName: string; currentScore: number; fullLabScore: number; isLate: boolean }>>([])
+const exportData = ref<Array<{ 
+  studentId: string
+  studentName: string
+  currentScore: number
+  fullLabScore: number
+  isLate: boolean
+  isCompleted: boolean
+  partsCompleted: number
+  totalParts: number
+}>>([])
 const isExporting = ref(false)
 const exportError = ref<string | null>(null)
+
+// Export column configuration
+interface ExportColumn {
+  key: string
+  label: string
+  excelHeader: string
+  visible: boolean
+  align?: 'left' | 'right' | 'center'
+  formatter?: (value: any) => string
+}
+
+const exportColumns = ref<ExportColumn[]>([
+  { key: 'studentId', label: 'Student ID', excelHeader: 'Student ID', visible: true, align: 'left' },
+  { key: 'studentName', label: 'Name', excelHeader: 'Name', visible: true, align: 'left' },
+  { key: 'currentScore', label: 'Score', excelHeader: 'Score', visible: true, align: 'right' },
+  { key: 'fullLabScore', label: 'Full Score', excelHeader: 'Full Score', visible: true, align: 'right' },
+  { key: 'isLate', label: 'Late', excelHeader: 'Late Submission', visible: true, align: 'center', formatter: (v) => v ? 'Yes' : 'No' },
+  { key: 'isCompleted', label: 'Completed', excelHeader: 'Completed', visible: false, align: 'center', formatter: (v) => v ? 'Yes' : 'No' },
+  { key: 'partsCompleted', label: 'Parts Done', excelHeader: 'Parts Completed', visible: false, align: 'right' },
+  { key: 'totalParts', label: 'Total Parts', excelHeader: 'Total Parts', visible: false, align: 'right' },
+])
+
+const visibleColumns = computed(() => exportColumns.value.filter(col => col.visible))
+
+const toggleColumn = (key: string) => {
+  const col = exportColumns.value.find(c => c.key === key)
+  if (col) {
+    col.visible = !col.visible
+  }
+}
+
+const getCellValue = (row: any, column: ExportColumn): string => {
+  const value = row[column.key]
+  if (column.formatter) {
+    return column.formatter(value)
+  }
+  return String(value ?? '')
+}
 
 // Progress filter options
 const progressFilter = ref<string>('all')
@@ -541,7 +588,16 @@ const fetchExportData = async () => {
     
     const response = await $fetch<{
       status: string
-      data?: Array<{ studentId: string; studentName: string; currentScore: number; fullLabScore: number; isLate: boolean }>
+      data?: Array<{ 
+        studentId: string
+        studentName: string
+        currentScore: number
+        fullLabScore: number
+        isLate: boolean
+        isCompleted: boolean
+        partsCompleted: number
+        totalParts: number
+      }>
       message?: string
     }>(`${backendURL}/v0/submissions/lab/${labId.value}/export?${params.toString()}`, {
       method: 'GET',
@@ -568,14 +624,15 @@ const exportToExcel = async () => {
     // Dynamic import of xlsx
     const XLSX = await import('xlsx')
     
-    // Prepare data for export
-    const worksheetData = exportData.value.map(row => ({
-      'Student ID': row.studentId,
-      'Name': row.studentName,
-      'Score': row.currentScore,
-      'Full Score': row.fullLabScore,
-      'Late Submission': row.isLate ? 'Yes' : 'No'
-    }))
+    // Prepare data for export based on visible columns
+    const worksheetData = exportData.value.map(row => {
+      const rowData: Record<string, any> = {}
+      for (const col of visibleColumns.value) {
+        const value = row[col.key as keyof typeof row]
+        rowData[col.excelHeader] = col.formatter ? col.formatter(value) : value
+      }
+      return rowData
+    })
     
     // Create worksheet and workbook
     const worksheet = XLSX.utils.json_to_sheet(worksheetData)
@@ -1055,6 +1112,26 @@ const exportToExcel = async () => {
                   <p class="text-xs text-muted-foreground">Leave empty to use current date/time</p>
                 </div>
 
+                <!-- Column Selection -->
+                <div class="space-y-2">
+                  <label class="text-sm font-medium">Columns to Export</label>
+                  <div class="flex flex-wrap gap-2">
+                    <button
+                      v-for="col in exportColumns"
+                      :key="col.key"
+                      type="button"
+                      class="px-3 py-1.5 text-sm rounded-md border transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                      :class="col.visible 
+                        ? 'bg-primary text-primary-foreground border-primary hover:bg-primary/90' 
+                        : 'bg-background text-muted-foreground border-border hover:bg-muted hover:text-foreground'"
+                      @click="toggleColumn(col.key)"
+                    >
+                      {{ col.label }}
+                    </button>
+                  </div>
+                  <p class="text-xs text-muted-foreground">Click to toggle columns. Selected columns will appear in preview and Excel export.</p>
+                </div>
+
                 <!-- Error Alert -->
                 <Alert v-if="exportError" variant="destructive">
                   <AlertCircle class="w-4 h-4" />
@@ -1062,26 +1139,46 @@ const exportToExcel = async () => {
                 </Alert>
 
                 <!-- Preview Table -->
-                <div v-if="exportData.length > 0" class="border rounded-lg overflow-hidden">
+                <div v-if="exportData.length > 0" class="border rounded-lg overflow-hidden overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow class="bg-muted/50">
-                        <TableHead>Student ID</TableHead>
-                        <TableHead>Name</TableHead>
-                        <TableHead class="text-right">Score</TableHead>
-                        <TableHead class="text-right">Full Score</TableHead>
-                        <TableHead class="text-center">Late</TableHead>
+                        <TableHead 
+                          v-for="col in visibleColumns" 
+                          :key="col.key"
+                          :class="{
+                            'text-right': col.align === 'right',
+                            'text-center': col.align === 'center'
+                          }"
+                        >
+                          {{ col.label }}
+                        </TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       <TableRow v-for="row in exportData" :key="row.studentId" class="hover:bg-muted/30">
-                        <TableCell class="font-mono text-sm">{{ row.studentId }}</TableCell>
-                        <TableCell class="font-medium">{{ row.studentName }}</TableCell>
-                        <TableCell class="text-right font-mono">{{ row.currentScore }}</TableCell>
-                        <TableCell class="text-right font-mono text-muted-foreground">{{ row.fullLabScore }}</TableCell>
-                        <TableCell class="text-center">
-                          <Badge v-if="row.isLate" class="bg-amber-500 text-white">LATE</Badge>
-                          <span v-else class="text-muted-foreground">-</span>
+                        <TableCell 
+                          v-for="col in visibleColumns" 
+                          :key="col.key"
+                          :class="{
+                            'font-mono text-sm': col.key === 'studentId' || col.key === 'currentScore' || col.key === 'fullLabScore' || col.key === 'partsCompleted' || col.key === 'totalParts',
+                            'font-medium': col.key === 'studentName',
+                            'text-right': col.align === 'right',
+                            'text-center': col.align === 'center',
+                            'text-muted-foreground': col.key === 'fullLabScore' || col.key === 'totalParts'
+                          }"
+                        >
+                          <template v-if="col.key === 'isLate'">
+                            <Badge v-if="row.isLate" class="bg-amber-500 text-white">LATE</Badge>
+                            <span v-else class="text-muted-foreground">-</span>
+                          </template>
+                          <template v-else-if="col.key === 'isCompleted'">
+                            <Badge v-if="row.isCompleted" class="bg-green-500 text-white">YES</Badge>
+                            <span v-else class="text-muted-foreground">No</span>
+                          </template>
+                          <template v-else>
+                            {{ getCellValue(row, col) }}
+                          </template>
                         </TableCell>
                       </TableRow>
                     </TableBody>
