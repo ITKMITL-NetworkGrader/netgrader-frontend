@@ -20,7 +20,7 @@ import {
   ChevronsRight
 } from 'lucide-vue-next'
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -32,6 +32,7 @@ import { useStudentSubmissionHistory, type PartSubmissionHistory, type Submissio
 import { useCourseLabs } from '@/composables/useCourseLabs'
 import { useCourse } from '@/composables/useCourse'
 import { useUserState } from '@/composables/states'
+import { applyLatePenalty, calculateStats, type PenalizedPartHistory, type LabPenaltyConfig } from '@/composables/useLatePenaltyCalculation'
 
 const route = useRoute()
 
@@ -44,7 +45,7 @@ const userState = useUserState()
 const studentId = computed(() => userState.value?.u_id || '')
 
 // Composables
-const { currentLab, fetchLabById } = useCourseLabs()
+const { currentLab, fetchLabById, fetchLabParts, currentLabParts } = useCourseLabs()
 const { currentCourse, fetchCourse } = useCourse()
 const {
   isLoading,
@@ -64,11 +65,11 @@ const expandedParts = ref<Record<string, boolean>>({})
 const courseTitle = computed(() => currentCourse.value?.title || 'Course')
 const labTitle = computed(() => currentLab.value?.title || 'Lab')
 
-// Flatten all submissions for pagination
+// Flatten all submissions for pagination (using penalty-adjusted data)
 const allSubmissions = computed(() => {
   const submissions: Array<SubmissionAttempt & { partId: string; partTitle?: string }> = []
   
-  submissionHistory.value.forEach(part => {
+  submissionHistoryWithPenalty.value.forEach(part => {
     part.submissionHistory.forEach(attempt => {
       submissions.push({
         ...attempt,
@@ -96,31 +97,31 @@ const paginatedSubmissions = computed(() => {
   return allSubmissions.value.slice(start, end)
 })
 
-// Stats computation
+// Lab configuration for penalty calculation
+const labPenaltyConfig = computed<LabPenaltyConfig>(() => ({
+  dueDate: currentLab.value?.dueDate,
+  availableUntil: currentLab.value?.availableUntil,
+  latePenaltyPercent: (currentLab.value as any)?.latePenaltyPercent
+}))
+
+// Apply late penalty using shared utility
+const submissionHistoryWithPenalty = computed<PenalizedPartHistory[]>(() => {
+  return applyLatePenalty(submissionHistory.value, labPenaltyConfig.value)
+})
+
+// Stats using shared calculation utility
 const stats = computed(() => {
-  let totalAttempts = 0
-  let passedAttempts = 0
-  let partsCompleted = 0
+  // Get total possible points from actual lab parts fetched via fetchLabParts
+  const totalPossiblePoints = currentLabParts.value.reduce((sum: number, part: any) => {
+    return sum + (part.totalPoints || 0)
+  }, 0)
   
-  submissionHistory.value.forEach(part => {
-    totalAttempts += part.submissionHistory.length
-    
-    const hasPassed = part.submissionHistory.some(
-      attempt => attempt.status === 'completed' && attempt.score === attempt.totalPoints
-    )
-    if (hasPassed) {
-      partsCompleted++
-      passedAttempts += part.submissionHistory.filter(
-        a => a.status === 'completed' && a.score === a.totalPoints
-      ).length
-    }
-  })
+  const baseStats = calculateStats(submissionHistoryWithPenalty.value, totalPossiblePoints || undefined)
   
+  // Override totalParts to use lab parts if available
   return {
-    totalAttempts,
-    passedAttempts,
-    partsCompleted,
-    totalParts: submissionHistory.value.length
+    ...baseStats,
+    totalParts: currentLabParts.value.length || baseStats.totalParts
   }
 })
 
@@ -167,11 +168,12 @@ const loadData = async () => {
   }
   
   try {
-    // Fetch course and lab info for breadcrumb
+    // Fetch course, lab info, and lab parts
     await Promise.all([
       fetchLabById(labId.value),
       fetchCourse(courseId.value),
-      fetchStudentSubmissionHistory(labId.value, studentId.value)
+      fetchStudentSubmissionHistory(labId.value, studentId.value),
+      fetchLabParts(labId.value)
     ])
     
     // Auto-expand the first part
@@ -299,26 +301,26 @@ onMounted(() => {
           <Card>
             <CardContent class="p-4">
               <div class="text-2xl font-bold text-green-600">{{ stats.passedAttempts }}</div>
-              <div class="text-sm text-muted-foreground">Passed</div>
+              <div class="text-sm text-muted-foreground">Passed (Part 0 Included)</div>
             </CardContent>
           </Card>
           <Card>
             <CardContent class="p-4">
-              <div class="text-2xl font-bold text-blue-600">{{ stats.partsCompleted }}</div>
+              <div class="text-2xl font-bold text-blue-600">{{ stats.partsCompleted }}/{{ stats.totalParts }}</div>
               <div class="text-sm text-muted-foreground">Parts Completed</div>
             </CardContent>
           </Card>
-          <Card>
+          <Card class="bg-gradient-to-r from-primary/5 to-primary/10">
             <CardContent class="p-4">
-              <div class="text-2xl font-bold">{{ stats.totalParts }}</div>
-              <div class="text-sm text-muted-foreground">Total Parts</div>
+              <div class="text-2xl font-bold text-primary">{{ stats.totalScore }}/{{ stats.totalPossiblePoints }}</div>
+              <div class="text-sm text-muted-foreground">Total Score (Best per Part)</div>
             </CardContent>
           </Card>
         </div>
       </div>
 
       <!-- No Submissions State -->
-      <div v-if="submissionHistory.length === 0" class="text-center py-16">
+      <div v-if="submissionHistoryWithPenalty.length === 0" class="text-center py-16">
         <div class="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
           <FileText class="w-8 h-8 text-muted-foreground" />
         </div>
@@ -342,7 +344,7 @@ onMounted(() => {
 
         <div class="space-y-3">
           <Card
-            v-for="part in submissionHistory"
+            v-for="part in submissionHistoryWithPenalty"
             :key="part.partId"
             class="overflow-hidden"
           >
@@ -354,12 +356,12 @@ onMounted(() => {
                 <div class="flex items-center space-x-3">
                   <div 
                     class="w-10 h-10 rounded-lg flex items-center justify-center"
-                    :class="part.submissionHistory.some(s => s.status === 'completed' && s.score === s.totalPoints)
+                    :class="part.isPartCompleted
                       ? 'bg-green-100 text-green-600'
                       : 'bg-muted text-muted-foreground'"
                   >
                     <component 
-                      :is="part.submissionHistory.some(s => s.status === 'completed' && s.score === s.totalPoints) ? CheckCircle2 : FileText"
+                      :is="part.isPartCompleted ? CheckCircle2 : FileText"
                       class="w-5 h-5"
                     />
                   </div>
@@ -372,7 +374,7 @@ onMounted(() => {
                 </div>
                 <div class="flex items-center space-x-3">
                   <Badge 
-                    v-if="part.submissionHistory.some(s => s.status === 'completed' && s.score === s.totalPoints)"
+                    v-if="part.isPartCompleted"
                     class="bg-green-500 text-white"
                   >
                     Completed
@@ -403,12 +405,17 @@ onMounted(() => {
                         </div>
                         <Separator orientation="vertical" class="h-10" />
                         <div>
-                          <template v-if="submission.isLate">
+                          <template v-if="submission.isLate && submission.status === 'completed' && submission.adjustedScore !== undefined">
                             <div class="flex items-center space-x-1 font-mono text-lg">
                               <span class="text-muted-foreground line-through">{{ submission.originalScore }}</span>
-                              <span class="text-amber-600">→ {{ submission.adjustedScore }}</span>
+                              <span class="text-amber-600 font-semibold">→ {{ submission.adjustedScore }}/{{ submission.totalPoints }}</span>
                             </div>
-                            <div class="text-xs text-amber-600">(-{{ submission.latePenaltyPercent }}%)</div>
+                            <div class="text-xs text-amber-600">
+                              Late: -{{ submission.latePenaltyPercent }}% on improvement
+                            </div>
+                            <div class="text-xs text-muted-foreground mt-0.5" v-if="submission.bestScoreBeforeDue !== undefined && submission.penalizedImprovement !== undefined">
+                              ({{ submission.bestScoreBeforeDue }} + {{ submission.penalizedImprovement }} after penalty)
+                            </div>
                           </template>
                           <template v-else>
                             <div class="font-mono text-lg">

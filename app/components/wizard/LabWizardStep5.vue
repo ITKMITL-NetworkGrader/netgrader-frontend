@@ -110,6 +110,40 @@
             <Info class="w-4 h-4" />
             <span>Student submissions will be due by this date and time</span>
           </div>
+
+          <!-- Late Penalty Configuration -->
+          <div class="mt-4 p-4 bg-muted/30 rounded-lg space-y-3">
+            <Label class="text-sm font-medium flex items-center">
+              <AlertTriangle class="w-4 h-4 mr-2 text-amber-500" />
+              Late Submission Penalty
+            </Label>
+            <div class="flex items-center gap-4">
+              <Slider
+                v-model="latePenaltySliderValue"
+                :min="0"
+                :max="100"
+                :step="5"
+                class="flex-1"
+                @update:model-value="onLatePenaltySliderChange"
+              />
+              <div class="flex items-center gap-1">
+                <Input
+                  v-model.number="latePenaltyPercent"
+                  type="number"
+                  :min="0"
+                  :max="100"
+                  class="w-16 text-center"
+                  @input="onLatePenaltyInputChange"
+                />
+                <span class="text-sm text-muted-foreground">%</span>
+              </div>
+            </div>
+            <p class="text-sm text-muted-foreground">
+              Students submitting after the due date will receive 
+              <span class="font-medium text-foreground">{{ 100 - latePenaltyPercent }}%</span> 
+              of their earned score
+            </p>
+          </div>
         </div>
       </div>
 
@@ -275,6 +309,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { DatePicker } from '@/components/ui/date-picker'
 import { TimePicker } from '@/components/ui/time-picker'
+import { Slider } from '@/components/ui/slider'
+import { Input } from '@/components/ui/input'
 
 // Types
 import type { ValidationResult } from '@/types/wizard'
@@ -285,6 +321,7 @@ interface Props {
     availableFrom?: Date
     availableUntil?: Date
     dueDate?: Date
+    latePenaltyPercent?: number  // 0-100, default 50
   }
   validation?: ValidationResult
 }
@@ -307,6 +344,11 @@ const isUpdatingFromProps = ref(false)
 const enableAvailableFrom = ref(false)
 const enableDueDate = ref(false)
 const enableAvailableUntil = ref(false)
+
+// Late penalty controls
+const latePenaltyPercent = ref(props.modelValue.latePenaltyPercent ?? 50)
+// Slider expects number[] - convert between scalar and array
+const latePenaltySliderValue = ref([latePenaltyPercent.value])
 
 // Date/time inputs
 const availableFromDateObj = ref<Date>()
@@ -434,6 +476,11 @@ const toggleDueDate = (checked: boolean | 'indeterminate') => {
     }
     updateDueDate()
   }
+  // Reset penalty to default when disabling due date
+  if (!isChecked) {
+    latePenaltyPercent.value = 50
+    latePenaltySliderValue.value = [50]
+  }
   validateStep()
 }
 
@@ -538,6 +585,9 @@ const initializeFromExistingData = () => {
     enableDueDate.value = true
     const date = new Date(props.modelValue.dueDate)
     dueDateDateObj.value = date
+    // Initialize late penalty from props
+    latePenaltyPercent.value = props.modelValue.latePenaltyPercent ?? 50
+    latePenaltySliderValue.value = [latePenaltyPercent.value]
     dueDateTime.value = date.toTimeString().slice(0, 5)
   }
 
@@ -550,6 +600,22 @@ const initializeFromExistingData = () => {
 }
 
 // Watchers
+// Handler for slider change - keep in sync with input
+const onLatePenaltySliderChange = (value: number[] | undefined) => {
+  if (!value || value.length === 0) return
+  latePenaltyPercent.value = value[0]
+  localData.value.latePenaltyPercent = value[0]
+}
+
+// Handler for input change - keep in sync with slider
+const onLatePenaltyInputChange = () => {
+  // Clamp value to 0-100
+  const clamped = Math.max(0, Math.min(100, latePenaltyPercent.value || 0))
+  latePenaltyPercent.value = clamped
+  latePenaltySliderValue.value = [clamped]
+  localData.value.latePenaltyPercent = clamped
+}
+
 watch(
   localData,
   (newValue) => {

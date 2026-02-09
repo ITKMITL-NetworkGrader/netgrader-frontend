@@ -29,6 +29,7 @@ export interface Lab {
   availableFrom?: string | Date
   dueDate?: string | Date
   availableUntil?: string | Date
+  latePenaltyPercent?: number  // 0-100, default 50 - percentage of score reduction for late submissions
 }
 
 export interface Device {
@@ -160,7 +161,7 @@ export const useCourseLabs = () => {
   const fetchCourseLabs = async (courseId: string) => {
     isLoading.value = true
     error.value = null
-    
+
     try {
       const response = await $fetch<CourseLabsResponse>(`${backendURL}/v0/labs/course/${courseId}`, {
         method: 'GET',
@@ -218,7 +219,7 @@ export const useCourseLabs = () => {
     console.log('🔍 [DEBUG] fetchLabParts called with labId:', labId)
     console.log('🔍 [DEBUG] Backend URL:', backendURL)
     console.log('🔍 [DEBUG] Full API URL:', `${backendURL}/v0/parts/lab/${labId}`)
-    
+
     isLoadingParts.value = true
     error.value = null
 
@@ -241,7 +242,7 @@ export const useCourseLabs = () => {
       // Format 1: { success: true, data: { parts: [...], pagination: {...} } }
       // Format 2: { parts: [...], pagination: {...} }
       let parts: LabPart[] = []
-      
+
       if ('success' in response && response.success && 'data' in response) {
         // Standard API response format
         console.log('🔍 [DEBUG] Using standard API response format')
@@ -261,16 +262,16 @@ export const useCourseLabs = () => {
 
       // Sort parts by order to ensure correct sequence
       const sortedParts = parts.sort((a, b) => a.order - b.order)
-      
+
       // Recalculate totalPoints for each part considering task groups
       const partsWithCorrectPoints = sortedParts.map(part => ({
         ...part,
         totalPoints: calculatePartTotalPoints(part)
       }))
-      
+
       console.log('🔍 [DEBUG] Sorted parts with corrected points:', partsWithCorrectPoints)
       console.log('🔍 [DEBUG] Parts count:', partsWithCorrectPoints.length)
-      
+
       allLabParts.value = partsWithCorrectPoints
       currentLabParts.value = partsWithCorrectPoints.filter(part => !part.isVirtual)
       return partsWithCorrectPoints
@@ -282,7 +283,7 @@ export const useCourseLabs = () => {
       console.error('🔍 [DEBUG] Error status:', err.status)
       console.error('🔍 [DEBUG] Error statusCode:', err.statusCode)
       console.error('🔍 [DEBUG] Full error object:', JSON.stringify(err, null, 2))
-      
+
       error.value = err.message || 'Failed to fetch lab parts'
       currentLabParts.value = []
       allLabParts.value = []

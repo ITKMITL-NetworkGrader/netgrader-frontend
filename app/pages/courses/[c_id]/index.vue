@@ -1028,7 +1028,7 @@ const handleAdminRoleChange = async () => {
                                         :key="lab.id"
                                         :class="[
                                           'hover:shadow-md transition-shadow duration-200 border-l-4',
-                                          isLabAvailable(lab) ? 'border-l-primary/50' : 'border-l-gray-300 opacity-60'
+                                          (isLabAvailable(lab) || canManageCourse) ? 'border-l-primary/50' : 'border-l-gray-300 opacity-60'
                                         ]"
                                     >
                                         <CardContent class="p-2">
@@ -1090,7 +1090,7 @@ const handleAdminRoleChange = async () => {
                                                         </Button>
                                                     </NuxtLink>
                                                     <NuxtLink
-                                                      v-if="isLabAvailable(lab)"
+                                                      v-if="isLabAvailable(lab) || canManageCourse"
                                                       :to="canManageCourse ? `/courses/${courseId}/labs/${lab.id}/status` : `/courses/${courseId}/labs/${lab.id}`"
                                                     >
                                                         <Button class="bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-white shadow-sm">

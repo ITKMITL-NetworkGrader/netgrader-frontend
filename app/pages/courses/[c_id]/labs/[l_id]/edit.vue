@@ -1496,7 +1496,8 @@ const transformBackendDataToWizard = () => {
   wizardData.schedule = {
     availableFrom: lab.availableFrom ? new Date(lab.availableFrom) : undefined,
     availableUntil: lab.availableUntil ? new Date(lab.availableUntil) : undefined,
-    dueDate: lab.dueDate ? new Date(lab.dueDate) : undefined
+    dueDate: lab.dueDate ? new Date(lab.dueDate) : undefined,
+    latePenaltyPercent: lab.latePenaltyPercent ?? 50
   }
 
   console.log('Data transformed to wizard format')
@@ -1564,7 +1565,8 @@ const saveDraft = async () => {
       schedule: {
         availableFrom: wizardData.schedule.availableFrom?.toISOString?.() || wizardData.schedule.availableFrom || null,
         availableUntil: wizardData.schedule.availableUntil?.toISOString?.() || wizardData.schedule.availableUntil || null,
-        dueDate: wizardData.schedule.dueDate?.toISOString?.() || wizardData.schedule.dueDate || null
+        dueDate: wizardData.schedule.dueDate?.toISOString?.() || wizardData.schedule.dueDate || null,
+        latePenaltyPercent: wizardData.schedule.latePenaltyPercent ?? 50
       },
       currentStep: currentStep.value,
       lastSaved: new Date().toISOString()
@@ -1620,6 +1622,7 @@ const loadDraft = () => {
         wizardData.schedule.availableFrom = parsed.schedule.availableFrom ? new Date(parsed.schedule.availableFrom) : undefined
         wizardData.schedule.availableUntil = parsed.schedule.availableUntil ? new Date(parsed.schedule.availableUntil) : undefined
         wizardData.schedule.dueDate = parsed.schedule.dueDate ? new Date(parsed.schedule.dueDate) : undefined
+        wizardData.schedule.latePenaltyPercent = parsed.schedule.latePenaltyPercent ?? 50
       }
       
       // Restore current step
@@ -1690,6 +1693,8 @@ const executeLabUpdate = async () => {
 
     if (dueDate) {
       labData.dueDate = dueDate
+      // Include late penalty when dueDate is set
+      labData.latePenaltyPercent = wizardData.schedule.latePenaltyPercent ?? 50
     }
     if (availableFrom) {
       labData.availableFrom = availableFrom
