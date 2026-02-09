@@ -9,6 +9,7 @@ const { canAccessManagePage } = useRoleGuard()
 const route = useRoute()
 const dropdownOpen = ref(false)
 const mobileMenuOpen = ref(false)
+const chatSlideoverOpen = ref(false)
 const config = useRuntimeConfig()
 const backendUrl = config.public.backendurl
 
@@ -156,6 +157,17 @@ watch(() => route.path, () => {
 
                 <!-- User section -->
                 <div class="flex items-center gap-3 ml-4 pl-4 border-l border-border/30">
+                <!-- AI Chat button -->
+                <button
+                    v-if="isAuthenticated"
+                    @click="chatSlideoverOpen = true"
+                    class="p-2 rounded-md hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground transition-colors flex items-center gap-2"
+                    title="AI Assistant"
+                >
+                    <span class="text-lg">🤖</span>
+                    <span class="hidden lg:inline text-sm">AI Chat</span>
+                </button>
+
                 <!-- Theme toggle button -->
                 <!-- <button
                     class="p-2 rounded-md hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground transition-colors"
@@ -311,6 +323,16 @@ watch(() => route.path, () => {
                         </div>
                     </div>
                     <div class="flex gap-2">
+                        <!-- AI Chat button -->
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          class="flex-1" 
+                          @click="chatSlideoverOpen = true; mobileMenuOpen = false"
+                        >
+                          <span class="text-base mr-2">🤖</span>
+                          AI Chat
+                        </Button>
                         <NuxtLink to="/profile" class="flex-1">
                           <Button variant="ghost" size="sm" class="w-full">
                           <Icon name="lucide:user" class="w-4 h-4 mr-2" />
@@ -333,6 +355,9 @@ watch(() => route.path, () => {
             </div>
             </Transition>
         </nav>
+
+        <!-- AI Chat Slideover -->
+        <ChatSlideover v-model:open="chatSlideoverOpen" />
     </div>
 </template>
 

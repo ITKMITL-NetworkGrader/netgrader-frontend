@@ -39,12 +39,20 @@
         <h1 class="text-4xl font-bold mb-2">Lab Bank</h1>
         <p class="text-xl text-muted-foreground">Manage and create laboratory exercises for your course</p>
       </div>
-      <NuxtLink :to="`/courses/${courseId}/labs/create`">
-        <Button class="flex items-center space-x-2">
-          <Plus class="w-4 h-4" />
-          <span>Create Lab</span>
-        </Button>
-      </NuxtLink>
+      <div class="flex items-center gap-3">
+        <NuxtLink :to="`/courses/${courseId}/labs/chat`">
+          <Button variant="outline" class="flex items-center space-x-2 bg-gradient-to-r from-blue-500/10 to-purple-500/10 border-blue-500/30 hover:border-blue-500/50">
+            <span class="text-lg">🤖</span>
+            <span>สร้างด้วย AI</span>
+          </Button>
+        </NuxtLink>
+        <NuxtLink :to="`/courses/${courseId}/labs/create`">
+          <Button class="flex items-center space-x-2">
+            <Plus class="w-4 h-4" />
+            <span>Create Lab</span>
+          </Button>
+        </NuxtLink>
+      </div>
     </div>
 
     <!-- Content -->
