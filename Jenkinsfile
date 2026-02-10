@@ -2,50 +2,46 @@ pipeline {
     agent any
     
     environment {
-        IMAGE_NAME = 'netgrader-frontend'
-        CONTAINER_NAME = 'netgrader-frontend'
-        DOCKER_NETWORK = 'netgrader-container_netgrader-network'
-        PORT_MAPPING = '80:80'
+        FRONTEND_DIR = '/home/netgrader/netgrader/netgrader-frontend'
+        COMPOSE_DIR = '/home/netgrader/netgrader/netgrader-container'
+        SERVICE_NAME = 'frontend'
     }
     
     stages {
-        stage('Checkout') {
-            steps {
-                echo "Checking out code from GitHub..."
-                checkout scm
-            }
-        }
-        
-        stage('Build Docker Image') {
+        stage('Pull Latest Code') {
             steps {
                 script {
-                    echo "Building Docker image: ${IMAGE_NAME}"
-                    sh "docker build -t ${IMAGE_NAME} ."
+                    echo "[GIT] Updating ${FRONTEND_DIR}..."
+                    dir(FRONTEND_DIR) {
+                        sh 'git reset --hard HEAD'
+                        sh 'git pull origin main'
+                    }
                 }
             }
         }
         
-        stage('Stop Old Container') {
+        stage('Check Environment File') {
             steps {
                 script {
-                    echo "Stopping and removing old container if exists..."
-                    sh "docker rm -f ${CONTAINER_NAME} || true"
+                    if (!fileExists("${FRONTEND_DIR}/.env")) {
+                        error("❌ .env file not found in ${FRONTEND_DIR}")
+                    }
+                    echo "✅ Environment file exists"
                 }
             }
         }
         
-        stage('Deploy New Container') {
+        stage('Rebuild & Deploy Frontend') {
             steps {
                 script {
-                    echo "Deploying new container..."
-                    sh """
-                        docker run -d \
-                            -p ${PORT_MAPPING} \
-                            --name ${CONTAINER_NAME} \
-                            --network ${DOCKER_NETWORK} \
-                            --restart unless-stopped \
-                            ${IMAGE_NAME}
-                    """
+                    echo "[DOCKER] Rebuilding and restarting ${SERVICE_NAME} service..."
+                    dir(COMPOSE_DIR) {
+                        sh """
+                            docker compose build ${SERVICE_NAME} && \
+                            docker compose down ${SERVICE_NAME} && \
+                            docker compose up -d ${SERVICE_NAME}
+                        """
+                    }
                 }
             }
         }
@@ -53,17 +49,19 @@ pipeline {
         stage('Verify Deployment') {
             steps {
                 script {
-                    echo "Verifying container is running..."
-                    sh "docker ps | grep ${CONTAINER_NAME}"
+                    echo "[DOCKER] Verifying ${SERVICE_NAME} is running..."
+                    dir(COMPOSE_DIR) {
+                        sh "docker compose ps ${SERVICE_NAME}"
+                    }
                 }
             }
         }
         
-        stage('Clean Up') {
+        stage('Cleanup') {
             steps {
                 script {
-                    echo "Cleaning up unused Docker images..."
-                    sh "docker image prune -f"
+                    echo "[DOCKER] Cleaning up unused images..."
+                    sh 'docker image prune -f'
                 }
             }
         }
@@ -71,10 +69,17 @@ pipeline {
     
     post {
         success {
-            echo "Deployment successful! Container ${CONTAINER_NAME} is running."
+            echo "=========================================="
+            echo "✅ Frontend deployed successfully!"
+            echo "=========================================="
         }
         failure {
-            echo "Deployment failed. Check the logs above for details."
+            echo "=========================================="
+            echo "❌ Deployment failed! Check logs below:"
+            echo "=========================================="
+            dir(env.COMPOSE_DIR) {
+                sh "docker compose logs ${SERVICE_NAME} --tail=100"
+            }
         }
     }
 }
