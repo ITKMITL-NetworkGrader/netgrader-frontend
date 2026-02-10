@@ -12,10 +12,9 @@ pipeline {
             steps {
                 script {
                     echo "[GIT] Updating ${FRONTEND_DIR}..."
-                    dir(FRONTEND_DIR) {
-                        sh 'git reset --hard HEAD'
-                        sh 'git pull origin main'
-                    }
+                    sh """
+                        sudo -u netgrader bash -c 'cd ${FRONTEND_DIR} && git reset --hard HEAD && git pull origin main'
+                    """
                 }
             }
         }
@@ -23,10 +22,10 @@ pipeline {
         stage('Check Environment File') {
             steps {
                 script {
-                    if (!fileExists("${FRONTEND_DIR}/.env")) {
-                        error("❌ .env file not found in ${FRONTEND_DIR}")
-                    }
-                    echo "✅ Environment file exists"
+                    echo "[CHECK] Verifying .env file exists..."
+                    sh """
+                        sudo -u netgrader test -f ${FRONTEND_DIR}/.env && echo '✅ Environment file exists' || exit 1
+                    """
                 }
             }
         }
@@ -35,13 +34,9 @@ pipeline {
             steps {
                 script {
                     echo "[DOCKER] Rebuilding and restarting ${SERVICE_NAME} service..."
-                    dir(COMPOSE_DIR) {
-                        sh """
-                            docker compose build ${SERVICE_NAME} && \
-                            docker compose down ${SERVICE_NAME} && \
-                            docker compose up -d ${SERVICE_NAME}
-                        """
-                    }
+                    sh """
+                        sudo -u netgrader bash -c 'cd ${COMPOSE_DIR} && docker compose build ${SERVICE_NAME} && docker compose down ${SERVICE_NAME} && docker compose up -d ${SERVICE_NAME}'
+                    """
                 }
             }
         }
@@ -50,9 +45,9 @@ pipeline {
             steps {
                 script {
                     echo "[DOCKER] Verifying ${SERVICE_NAME} is running..."
-                    dir(COMPOSE_DIR) {
-                        sh "docker compose ps ${SERVICE_NAME}"
-                    }
+                    sh """
+                        sudo -u netgrader bash -c 'cd ${COMPOSE_DIR} && docker compose ps ${SERVICE_NAME}'
+                    """
                 }
             }
         }
@@ -77,9 +72,9 @@ pipeline {
             echo "=========================================="
             echo "❌ Deployment failed! Check logs below:"
             echo "=========================================="
-            dir(env.COMPOSE_DIR) {
-                sh "docker compose logs ${SERVICE_NAME} --tail=100"
-            }
+            sh """
+                sudo -u netgrader bash -c 'cd ${COMPOSE_DIR} && docker compose logs ${SERVICE_NAME} --tail=100' || true
+            """
         }
     }
 }
