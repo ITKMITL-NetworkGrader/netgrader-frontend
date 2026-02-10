@@ -1,11 +1,11 @@
 <script setup lang="ts">
-// import { onMounted, ref, computed  } from 'vue'
-// import { ChevronRight, Home, Lock } from 'lucide-vue-next'
-// import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card'
-// import { Button } from '@/components/ui/button'
-// import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
-// import { useColorMode } from "@vueuse/core";
-// import ParticlesBg from '@/components/ui/particles-bg/ParticlesBg.vue'
+import { onMounted, ref, computed  } from 'vue'
+import { ChevronRight, Home, Lock } from 'lucide-vue-next'
+import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
+import { useColorMode } from "@vueuse/core";
+import ParticlesBg from '@/components/ui/particles-bg/ParticlesBg.vue'
 
 const isDark = computed(() => useColorMode().value == "dark");
 
