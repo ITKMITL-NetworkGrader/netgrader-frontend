@@ -1,18 +1,18 @@
 <script setup lang="ts">
-// import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue'
-// import {
-//   CheckCircle,
-//   Users,
-//   Shield,
-//   BarChart,
-//   Maximize2,
-//   Minimize2,
-//   X
-// } from 'lucide-vue-next'
+import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue'
+import {
+  CheckCircle,
+  Users,
+  Shield,
+  BarChart,
+  Maximize2,
+  Minimize2,
+  X
+} from 'lucide-vue-next'
 
-// // Import Vue-Bits components
-// import FaultyTerminal from '@/components/bits/FaultyTerminal/FaultyTerminal.vue'
-// import AsciiText from '@/components/bits/AsciiText/AsciiText.vue'
+// Import Vue-Bits components
+import FaultyTerminal from '@/components/bits/FaultyTerminal/FaultyTerminal.vue'
+import AsciiText from '@/components/bits/AsciiText/AsciiText.vue'
 
 // Terminal state
 const prompt = 'Router(config)# '
