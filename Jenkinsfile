@@ -1,6 +1,10 @@
 pipeline {
     agent any
     
+    triggers {
+        pollSCM('* * * * *')  // Poll GitHub every minute
+    }
+    
     environment {
         FRONTEND_DIR = '/home/netgrader/netgrader/netgrader-frontend'
         COMPOSE_DIR = '/home/netgrader/netgrader/netgrader-container'
@@ -10,6 +14,22 @@ pipeline {
     }
     
     stages {
+        stage('Detect Changes') {
+            steps {
+                script {
+                    echo "[SCM] Checking out code to Jenkins workspace for change detection..."
+                    checkout scm
+                    
+                    def gitCommit = sh(
+                        script: 'git rev-parse HEAD',
+                        returnStdout: true
+                    ).trim()
+                    
+                    echo "📝 Current commit: ${gitCommit}"
+                    echo "📝 Commit message: ${sh(script: 'git log -1 --pretty=%B', returnStdout: true).trim()}"
+                }
+            }
+        }
         stage('Backup Current Image') {
             steps {
                 script {
