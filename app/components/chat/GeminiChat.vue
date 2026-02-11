@@ -286,10 +286,20 @@ const isListStep = computed(() => {
         </button>
       </div>
 
-      <!-- ====== COURSE LIST BUBBLE ====== -->
-      <div v-if="wizardState.step === 'course_list'" class="flex justify-start">
-        <div class="max-w-[85%] bg-gray-100 dark:bg-gray-800 rounded-2xl rounded-tl-sm px-4 py-3">
-          <p class="text-sm font-semibold text-gray-900 dark:text-white mb-3">Select a Course</p>
+      <!-- ====== COURSE LIST (as bot message) ====== -->
+      <div v-if="wizardState.step === 'course_list'" class="flex gap-3 p-4 bg-white dark:bg-gray-900">
+        <!-- Bot Avatar -->
+        <div class="flex-shrink-0 w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+          <svg class="w-4 h-4 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+          </svg>
+        </div>
+        <!-- Content -->
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 mb-2">
+            <span class="text-sm font-medium text-gray-900 dark:text-gray-100">Gemini</span>
+          </div>
+          <p class="text-sm text-gray-700 dark:text-gray-300 mb-3">Please select a course to work with, or create a new one.</p>
 
           <button
             @click="handleCreateCourse"
@@ -313,7 +323,7 @@ const isListStep = computed(() => {
             <div
               v-for="course in wizardCourses"
               :key="course.id"
-              class="group relative p-3 bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-blue-400 dark:hover:border-blue-500 transition-colors"
+              class="group relative p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-blue-400 dark:hover:border-blue-500 transition-colors"
             >
               <div class="flex items-center justify-between">
                 <div class="flex-1 min-w-0 pr-2">
@@ -332,7 +342,6 @@ const isListStep = computed(() => {
                   </button>
                 </div>
               </div>
-              <!-- Delete confirm -->
               <div v-if="deleteConfirmItem?.type === 'course' && deleteConfirmItem?.id === course.id" class="mt-2 p-2 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
                 <p class="text-xs text-red-600 dark:text-red-400 mb-2">Delete this course? This cannot be undone.</p>
                 <div class="flex gap-2">
@@ -345,10 +354,18 @@ const isListStep = computed(() => {
         </div>
       </div>
 
-      <!-- ====== LAB LIST BUBBLE ====== -->
-      <div v-else-if="wizardState.step === 'lab_list'" class="flex justify-start">
-        <div class="max-w-[85%] bg-gray-100 dark:bg-gray-800 rounded-2xl rounded-tl-sm px-4 py-3">
-          <p class="text-sm font-semibold text-gray-900 dark:text-white mb-3">Select a Lab</p>
+      <!-- ====== LAB LIST (as bot message) ====== -->
+      <div v-else-if="wizardState.step === 'lab_list'" class="flex gap-3 p-4 bg-white dark:bg-gray-900">
+        <div class="flex-shrink-0 w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+          <svg class="w-4 h-4 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+          </svg>
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 mb-2">
+            <span class="text-sm font-medium text-gray-900 dark:text-gray-100">Gemini</span>
+          </div>
+          <p class="text-sm text-gray-700 dark:text-gray-300 mb-3">Select a lab from the list below, or create a new one.</p>
 
           <button
             @click="handleCreateLab"
@@ -372,7 +389,7 @@ const isListStep = computed(() => {
             <div
               v-for="lab in wizardLabs"
               :key="lab.id"
-              class="group relative p-3 bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-green-400 dark:hover:border-green-500 transition-colors"
+              class="group relative p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-green-400 dark:hover:border-green-500 transition-colors"
             >
               <div class="flex items-center justify-between">
                 <div class="flex-1 min-w-0 pr-2">
@@ -403,10 +420,18 @@ const isListStep = computed(() => {
         </div>
       </div>
 
-      <!-- ====== PART LIST BUBBLE ====== -->
-      <div v-else-if="wizardState.step === 'part_list'" class="flex justify-start">
-        <div class="max-w-[85%] bg-gray-100 dark:bg-gray-800 rounded-2xl rounded-tl-sm px-4 py-3">
-          <p class="text-sm font-semibold text-gray-900 dark:text-white mb-3">Select a Part</p>
+      <!-- ====== PART LIST (as bot message) ====== -->
+      <div v-else-if="wizardState.step === 'part_list'" class="flex gap-3 p-4 bg-white dark:bg-gray-900">
+        <div class="flex-shrink-0 w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+          <svg class="w-4 h-4 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+          </svg>
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 mb-2">
+            <span class="text-sm font-medium text-gray-900 dark:text-gray-100">Gemini</span>
+          </div>
+          <p class="text-sm text-gray-700 dark:text-gray-300 mb-3">Select a part to edit, or create a new one.</p>
 
           <button
             @click="handleCreatePart"
@@ -430,7 +455,7 @@ const isListStep = computed(() => {
             <div
               v-for="part in wizardParts"
               :key="part.id"
-              class="group relative p-3 bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-purple-400 dark:hover:border-purple-500 transition-colors"
+              class="group relative p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-purple-400 dark:hover:border-purple-500 transition-colors"
             >
               <div class="flex items-center justify-between">
                 <div class="flex-1 min-w-0 pr-2">
