@@ -23,6 +23,7 @@ interface ChatMessage {
 
 interface ChatSession {
     sessionId: string;
+    title: string;
     status: 'active' | 'expired';
     currentContext: {
         courseId?: string;
@@ -31,6 +32,7 @@ interface ChatSession {
     };
     wizardState?: WizardState;
     lastMessageAt: Date;
+    createdAt?: Date;
 }
 
 interface WizardState {
@@ -66,26 +68,29 @@ interface WizardPart {
     createdAt: Date;
 }
 
+// ============================================================================
+// Shared state (singleton) -- all components using useGeminiChat() share these
+// ============================================================================
+const session = ref<ChatSession | null>(null);
+const sessionList = ref<ChatSession[]>([]);
+const messages = ref<ChatMessage[]>([]);
+const isLoading = ref(false);
+const isStreaming = ref(false);
+const error = ref<string | null>(null);
+const streamingText = ref('');
+
+// Wizard State
+const wizardState = ref<WizardState>({ step: 'course_list' });
+const wizardCourses = ref<WizardCourse[]>([]);
+const wizardLabs = ref<WizardLab[]>([]);
+const wizardParts = ref<WizardPart[]>([]);
+
 export function useGeminiChat() {
-    const session = ref<ChatSession | null>(null);
-    const sessionList = ref<ChatSession[]>([]);
-    const messages = ref<ChatMessage[]>([]);
-    const isLoading = ref(false);
-    const isStreaming = ref(false);
-    const error = ref<string | null>(null);
-    const streamingText = ref('');
-
-    // Wizard State
-    const wizardState = ref<WizardState>({ step: 'course_list' });
-    const wizardCourses = ref<WizardCourse[]>([]);
-    const wizardLabs = ref<WizardLab[]>([]);
-    const wizardParts = ref<WizardPart[]>([]);
-
     const config = useRuntimeConfig();
     const apiBase = `${config.public.backendurl}/v0`;
 
     // Create new session
-    const createSession = async (): Promise<boolean> => {
+    const createSession = async (title?: string): Promise<boolean> => {
         isLoading.value = true;
         error.value = null;
 
@@ -98,7 +103,7 @@ export function useGeminiChat() {
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: {}
+                    body: { title: title || undefined }
                 }
             );
 
@@ -178,7 +183,12 @@ export function useGeminiChat() {
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ message })
+                    body: JSON.stringify({
+                        message,
+                        courseId: wizardState.value.courseId,
+                        labId: wizardState.value.labId,
+                        partId: wizardState.value.partId
+                    })
                 }
             );
 
@@ -343,12 +353,40 @@ export function useGeminiChat() {
         // Don't delete session, just clear local state
         session.value = null;
         messages.value = [];
+        wizardState.value = { step: 'course_list' };
+    };
+
+    // Delete session from database
+    const deleteSession = async (sessionId: string): Promise<boolean> => {
+        try {
+            await $fetch(
+                `${apiBase}/gemini/chat/${sessionId}`,
+                {
+                    method: 'DELETE',
+                    credentials: 'include'
+                }
+            );
+
+            // If the deleted session was the active one, clear it
+            if (session.value?.sessionId === sessionId) {
+                session.value = null;
+                messages.value = [];
+                wizardState.value = { step: 'course_list' };
+            }
+
+            // Refresh session list
+            await listSessions();
+            return true;
+        } catch (err: any) {
+            console.error('Failed to delete session:', err);
+            return false;
+        }
     };
 
     // List all sessions for current user
     const listSessions = async (): Promise<void> => {
         try {
-            const response = await $fetch<{ success: boolean; data?: ChatSession[] }>(
+            const response = await $fetch<{ success: boolean; data?: { sessions: ChatSession[] } }>(
                 `${apiBase}/gemini/chat`,
                 {
                     method: 'GET',
@@ -356,8 +394,8 @@ export function useGeminiChat() {
                 }
             );
 
-            if (response.success && response.data) {
-                sessionList.value = response.data.map(s => ({
+            if (response.success && response.data?.sessions) {
+                sessionList.value = response.data.sessions.map(s => ({
                     ...s,
                     lastMessageAt: new Date(s.lastMessageAt)
                 }));
@@ -441,15 +479,20 @@ export function useGeminiChat() {
     };
 
     const fetchCourses = async (): Promise<void> => {
-        if (!session.value?.sessionId) return;
         isLoading.value = true;
         try {
-            const response = await $fetch<{ success: boolean; data?: WizardCourse[] }>(
-                `${apiBase}/gemini/chat/${session.value.sessionId}/wizard/courses`,
+            const response = await $fetch<{ courses: any[] }>(
+                `${apiBase}/courses/created`,
                 { credentials: 'include' }
             );
-            if (response.success && response.data) {
-                wizardCourses.value = response.data;
+            if (response.courses) {
+                wizardCourses.value = response.courses.map((c: any) => ({
+                    id: c._id?.toString() || c.id,
+                    title: c.title,
+                    description: c.description,
+                    visibility: c.visibility,
+                    createdAt: c.createdAt
+                }));
             }
         } catch (err: any) {
             error.value = err.message || 'Failed to fetch courses';
@@ -459,15 +502,26 @@ export function useGeminiChat() {
     };
 
     const fetchLabs = async (): Promise<void> => {
-        if (!session.value?.sessionId) return;
+        const courseId = wizardState.value.courseId;
+        if (!courseId) return;
         isLoading.value = true;
         try {
-            const response = await $fetch<{ success: boolean; data?: WizardLab[] }>(
-                `${apiBase}/gemini/chat/${session.value.sessionId}/wizard/labs`,
-                { credentials: 'include' }
+            const response = await $fetch<{ success: boolean; data: { labs: any[]; total: number } }>(
+                `${apiBase}/labs`,
+                {
+                    credentials: 'include',
+                    query: { courseId, limit: '100' }
+                }
             );
-            if (response.success && response.data) {
-                wizardLabs.value = response.data;
+            if (response.success && response.data?.labs) {
+                wizardLabs.value = response.data.labs.map((lab: any) => ({
+                    id: lab._id?.toString() || lab.id,
+                    title: lab.title,
+                    description: lab.description,
+                    type: lab.type || 'lab',
+                    status: lab.status,
+                    createdAt: lab.createdAt
+                }));
             }
         } catch (err: any) {
             error.value = err.message || 'Failed to fetch labs';
@@ -477,15 +531,24 @@ export function useGeminiChat() {
     };
 
     const fetchParts = async (): Promise<void> => {
-        if (!session.value?.sessionId) return;
+        const labId = wizardState.value.labId;
+        if (!labId) return;
         isLoading.value = true;
         try {
-            const response = await $fetch<{ success: boolean; data?: WizardPart[] }>(
-                `${apiBase}/gemini/chat/${session.value.sessionId}/wizard/parts`,
+            const response = await $fetch<{ parts: any[] }>(
+                `${apiBase}/parts/lab/${labId}`,
                 { credentials: 'include' }
             );
-            if (response.success && response.data) {
-                wizardParts.value = response.data;
+            if (response.parts) {
+                wizardParts.value = response.parts
+                    .filter((part: any) => !part.isVirtual)
+                    .map((part: any) => ({
+                        id: part._id?.toString() || part.id,
+                        title: part.title,
+                        description: part.description,
+                        order: part.order,
+                        createdAt: part.createdAt
+                    }));
             }
         } catch (err: any) {
             error.value = err.message || 'Failed to fetch parts';
@@ -577,6 +640,7 @@ export function useGeminiChat() {
         confirmDraft,
         rejectDraft,
         closeSession,
+        deleteSession,
         listSessions,
         selectSession,
 
