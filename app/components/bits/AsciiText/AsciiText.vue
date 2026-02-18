@@ -17,7 +17,7 @@ interface AsciiTextProps {
 const props = withDefaults(defineProps<AsciiTextProps>(), {
   text: 'David!',
   asciiFontSize: 8,
-  textFontSize: 200,
+  textFontSize: 180,
   textColor: '#fdf9f3',
   planeBaseHeight: 8,
   enableWaves: true,

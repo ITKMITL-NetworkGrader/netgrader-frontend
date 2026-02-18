@@ -332,7 +332,7 @@ const terminalWindowClasses = computed(() => {
         <!-- AsciiText Title (keep pointer events for its own interaction) -->
         <div class="relative w-full max-w-4xl h-48 md:h-64 lg:h-80 mb-8 pointer-events-auto">
           <AsciiText
-            text="NetGrader"
+            text="PizzaTime"
             :asciiFontSize="10"
             :textFontSize="180"
             textColor="#ffffff"

@@ -593,6 +593,11 @@ export function useGeminiChat() {
             );
             if (response.success && response.data) {
                 wizardState.value = response.data;
+
+                // Fetch new messages after part create (context injection adds messages)
+                if (target === 'part' && action === 'create') {
+                    await fetchHistory();
+                }
             }
         } catch (err: any) {
             error.value = err.message || 'Failed to set action';

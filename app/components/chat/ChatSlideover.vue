@@ -3,7 +3,7 @@
  * ChatSlideover.vue - Slideover chat panel accessible from NavBar
  * Flow: List sessions -> Select or Create (with naming) -> Chat with messages
  */
-import GeminiChat from './GeminiChat.vue';
+// import GeminiChat from './GeminiChat.vue';
 
 const props = defineProps<{
   open: boolean;
@@ -204,7 +204,7 @@ onMounted(() => {
           <button
             @click="close"
             class="p-2 hover:bg-blue-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-            title="Close"
+            title="Close Chat"
           >
             <svg class="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -300,7 +300,9 @@ onMounted(() => {
                     </span>
                   </div>
                   <div class="text-xs text-muted-foreground mt-1 pl-6">
-                    {{ formatDate(s.lastMessageAt) }}
+                    {{ new Date(s.lastMessageAt).toLocaleString('en-GB', {
+                      hour12: false
+                    }) }}
                   </div>
                 </div>
 
@@ -379,7 +381,7 @@ onMounted(() => {
 
         <!-- Chat Content -->
         <div class="flex-1 overflow-hidden">
-          <GeminiChat v-if="session" :show-header="false" class="h-full" />
+          <ChatGeminiChat v-if="session" :show-header="false" class="h-full" />
         </div>
       </template>
     </div>
