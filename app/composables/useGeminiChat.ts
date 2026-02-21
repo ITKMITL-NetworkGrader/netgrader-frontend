@@ -90,12 +90,21 @@ export function useGeminiChat() {
     const apiBase = `${config.public.backendurl}/v0`;
 
     // Create new session
-    const createSession = async (title?: string): Promise<boolean> => {
+    const createSession = async (
+        title?: string,
+        contextOptions?: {
+            contextType?: 'course' | 'lab' | 'part';
+            action?: 'create' | 'edit';
+            courseId?: string;
+            labId?: string;
+            partId?: string;
+        }
+    ): Promise<boolean> => {
         isLoading.value = true;
         error.value = null;
 
         try {
-            const response = await $fetch<{ success: boolean; data?: ChatSession; message?: string }>(
+            const response = await $fetch<{ success: boolean; data?: ChatSession & { wizardState?: WizardState }; message?: string }>(
                 `${apiBase}/gemini/chat`,
                 {
                     method: 'POST',
@@ -103,12 +112,25 @@ export function useGeminiChat() {
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: { title: title || undefined }
+                    body: {
+                        title: title || undefined,
+                        ...(contextOptions?.contextType && {
+                            contextType: contextOptions.contextType,
+                            action: contextOptions.action,
+                            courseId: contextOptions.courseId,
+                            labId: contextOptions.labId,
+                            partId: contextOptions.partId
+                        })
+                    }
                 }
             );
 
             if (response.success && response.data) {
                 session.value = response.data;
+                // Set wizardState from server response
+                if (response.data.wizardState) {
+                    wizardState.value = response.data.wizardState;
+                }
                 // Fetch initial messages (welcome message)
                 await fetchHistory();
                 return true;

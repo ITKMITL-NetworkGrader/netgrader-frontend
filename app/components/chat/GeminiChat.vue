@@ -1,8 +1,8 @@
 <script setup lang="ts">
 /**
  * GeminiChat.vue - Main chat container
- * Always renders as chat view. Wizard lists (Course/Lab/Part) appear
- * as bot message bubbles at the bottom of the message stream.
+ * Always renders as chat view with AI mode active.
+ * Context (Course/Lab/Part) is selected at session creation time.
  */
 import ChatMessage from './ChatMessage.vue';
 
@@ -25,22 +25,11 @@ const {
   closeSession,
   // Wizard
   wizardState,
-  wizardCourses,
-  wizardLabs,
-  wizardParts,
-  fetchWizardState,
-  fetchCourses,
-  fetchLabs,
-  fetchParts,
-  selectItem,
-  setWizardAction,
-  navigateBack,
   isInAIMode
 } = useGeminiChat();
 
 const inputMessage = ref('');
 const messagesContainer = ref<HTMLElement | null>(null);
-const deleteConfirmItem = ref<{ type: string; id: string } | null>(null);
 
 // Auto-scroll to bottom
 const scrollToBottom = () => {
@@ -52,30 +41,6 @@ const scrollToBottom = () => {
 };
 
 watch(messages, scrollToBottom, { deep: true });
-watch(wizardCourses, scrollToBottom, { deep: true });
-watch(wizardLabs, scrollToBottom, { deep: true });
-watch(wizardParts, scrollToBottom, { deep: true });
-
-// Load wizard data when session or step changes
-watch(
-  [() => session.value, () => wizardState.value.step],
-  async ([currentSession, step]) => {
-    if (!currentSession) return;
-
-    switch (step) {
-      case 'course_list':
-        await fetchCourses();
-        break;
-      case 'lab_list':
-        await fetchLabs();
-        break;
-      case 'part_list':
-        await fetchParts();
-        break;
-    }
-  },
-  { immediate: true }
-);
 
 // Handle send
 const handleSend = async () => {
@@ -100,77 +65,6 @@ const handleReject = async (messageId: string) => {
   await rejectDraft(messageId);
 };
 
-// Wizard: Enter
-const handleEnterCourse = async (id: string) => {
-  await selectItem('course', id);
-  await fetchLabs();
-};
-
-const handleEnterLab = async (id: string) => {
-  await selectItem('lab', id);
-};
-
-const handleEnterPart = async (id: string) => {
-  await selectItem('part', id);
-};
-
-// Wizard: Create
-const handleCreateCourse = () => setWizardAction('course', 'create');
-const handleCreateLab = () => setWizardAction('lab', 'create');
-const handleCreatePart = () => setWizardAction('part', 'create');
-
-// Wizard: Edit
-const handleEditCourse = (id: string) => {
-  selectItem('course', id);
-  setWizardAction('course', 'edit');
-};
-
-const handleEditLab = (id: string) => {
-  selectItem('lab', id);
-  setWizardAction('lab', 'edit');
-};
-
-const handleEditPart = (id: string) => {
-  selectItem('part', id);
-  setWizardAction('part', 'edit');
-};
-
-// Wizard: Delete
-const handleDeleteClick = (type: string, id: string) => {
-  deleteConfirmItem.value = { type, id };
-};
-
-const handleDeleteConfirm = async () => {
-  if (!deleteConfirmItem.value) return;
-  const { type, id } = deleteConfirmItem.value;
-  const config = useRuntimeConfig();
-  const apiBase = `${config.public.backendurl}/v0`;
-
-  try {
-    if (type === 'course') {
-      await $fetch(`${apiBase}/courses/${id}`, { method: 'DELETE', credentials: 'include' });
-      await fetchCourses();
-    } else if (type === 'lab') {
-      await $fetch(`${apiBase}/labs/${id}`, { method: 'DELETE', credentials: 'include' });
-      await fetchLabs();
-    } else if (type === 'part') {
-      await $fetch(`${apiBase}/parts/${id}`, { method: 'DELETE', credentials: 'include' });
-      await fetchParts();
-    }
-  } catch (err: any) {
-    console.error(`Failed to delete ${type}:`, err);
-  }
-  deleteConfirmItem.value = null;
-};
-
-const handleDeleteCancel = () => {
-  deleteConfirmItem.value = null;
-};
-
-const handleBack = async () => {
-  await navigateBack();
-};
-
 // Step labels
 const stepLabel = computed(() => {
   const labels: Record<string, string> = {
@@ -186,10 +80,6 @@ const stepLabel = computed(() => {
     'part_edit': 'Edit Part'
   };
   return labels[wizardState.value.step] || 'Chat';
-});
-
-const isListStep = computed(() => {
-  return ['course_list', 'lab_list', 'part_list'].includes(wizardState.value.step);
 });
 </script>
 
@@ -232,13 +122,13 @@ const isListStep = computed(() => {
     </div>
 
     <!-- ============================================================ -->
-    <!-- Main Content: Always chat view -->
+    <!-- Main Content: Messages -->
     <!-- ============================================================ -->
     <div 
       ref="messagesContainer"
       class="flex-1 overflow-y-auto p-4 space-y-4"
     >
-      <!-- Chat messages (always shown) -->
+      <!-- Chat messages -->
       <TransitionGroup name="message" tag="div" class="space-y-4">
         <ChatMessage
           v-for="msg in messages"
@@ -256,236 +146,19 @@ const isListStep = computed(() => {
         />
       </TransitionGroup>
 
-      <!-- ============================================================ -->
-      <!-- Wizard bubble: appended AFTER messages as a bot message -->
-      <!-- ============================================================ -->
-
-      <!-- Back pill (for lab_list, part_list, and AI modes) -->
-      <div v-if="wizardState.step !== 'course_list' && !isInAIMode" class="flex justify-start">
-        <button
-          @click="handleBack"
-          class="flex items-center gap-1.5 px-3 py-1.5 text-xs text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 bg-gray-100 dark:bg-gray-800 rounded-full transition-colors"
-        >
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+      <!-- Empty state when no messages -->
+      <div v-if="messages.length === 0 && !isLoading" class="flex items-center justify-center h-full">
+        <div class="text-center text-gray-400 dark:text-gray-500">
+          <svg class="w-12 h-12 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
           </svg>
-          {{ wizardState.step === 'lab_list' ? 'Back to Courses' : wizardState.step === 'part_list' ? 'Back to Labs' : 'Back' }}
-        </button>
-      </div>
-
-      <!-- Back pill for AI mode -->
-      <div v-if="isInAIMode" class="flex justify-start">
-        <button
-          @click="handleBack"
-          class="flex items-center gap-1.5 px-3 py-1.5 text-xs text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 bg-gray-100 dark:bg-gray-800 rounded-full transition-colors"
-        >
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-          </svg>
-          Back
-        </button>
-      </div>
-
-      <!-- ====== COURSE LIST (as bot message) ====== -->
-      <div v-if="wizardState.step === 'course_list'" class="flex gap-3 p-4 bg-white dark:bg-gray-900">
-        <!-- Bot Avatar -->
-        <div class="flex-shrink-0 w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
-          <svg class="w-4 h-4 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-          </svg>
-        </div>
-        <!-- Content -->
-        <div class="flex-1 min-w-0">
-          <div class="flex items-center gap-2 mb-2">
-            <span class="text-sm font-medium text-gray-900 dark:text-gray-100">Gemini</span>
-          </div>
-          <p class="text-sm text-gray-700 dark:text-gray-300 mb-3">Please select a course to work with, or create a new one.</p>
-
-          <button
-            @click="handleCreateCourse"
-            class="w-full mb-3 px-3 py-2 border-2 border-dashed border-blue-300 dark:border-blue-700 text-blue-600 dark:text-blue-400 rounded-lg text-sm font-medium hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors flex items-center justify-center gap-2"
-          >
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-            </svg>
-            Create Course
-          </button>
-
-          <div v-if="isLoading" class="space-y-2">
-            <div v-for="i in 3" :key="i" class="animate-pulse bg-gray-200 dark:bg-gray-700 rounded-lg h-14" />
-          </div>
-
-          <div v-else-if="wizardCourses.length === 0" class="text-center py-4 text-sm text-gray-500 dark:text-gray-400">
-            No courses found. Create one to get started.
-          </div>
-
-          <div v-else class="space-y-2">
-            <div
-              v-for="course in wizardCourses"
-              :key="course.id"
-              class="group relative p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-blue-400 dark:hover:border-blue-500 transition-colors"
-            >
-              <div class="flex items-center justify-between">
-                <div class="flex-1 min-w-0 pr-2">
-                  <h4 class="text-sm font-medium text-gray-900 dark:text-white truncate">{{ course.title }}</h4>
-                  <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-1">{{ course.description || 'No description' }}</p>
-                </div>
-                <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-                  <button @click="handleEnterCourse(course.id)" class="p-1.5 rounded-md hover:bg-blue-100 dark:hover:bg-blue-900/30 text-gray-400 hover:text-blue-600 transition-colors" title="View Labs">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
-                  </button>
-                  <button @click="handleEditCourse(course.id)" class="p-1.5 rounded-md hover:bg-yellow-100 dark:hover:bg-yellow-900/30 text-gray-400 hover:text-yellow-600 transition-colors" title="Edit">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                  </button>
-                  <button @click="handleDeleteClick('course', course.id)" class="p-1.5 rounded-md hover:bg-red-100 dark:hover:bg-red-900/30 text-gray-400 hover:text-red-500 transition-colors" title="Delete">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                  </button>
-                </div>
-              </div>
-              <div v-if="deleteConfirmItem?.type === 'course' && deleteConfirmItem?.id === course.id" class="mt-2 p-2 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
-                <p class="text-xs text-red-600 dark:text-red-400 mb-2">Delete this course? This cannot be undone.</p>
-                <div class="flex gap-2">
-                  <button @click="handleDeleteConfirm" class="px-3 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600">Confirm</button>
-                  <button @click="handleDeleteCancel" class="px-3 py-1 text-xs bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded">Cancel</button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- ====== LAB LIST (as bot message) ====== -->
-      <div v-else-if="wizardState.step === 'lab_list'" class="flex gap-3 p-4 bg-white dark:bg-gray-900">
-        <div class="flex-shrink-0 w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
-          <svg class="w-4 h-4 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-          </svg>
-        </div>
-        <div class="flex-1 min-w-0">
-          <div class="flex items-center gap-2 mb-2">
-            <span class="text-sm font-medium text-gray-900 dark:text-gray-100">Gemini</span>
-          </div>
-          <p class="text-sm text-gray-700 dark:text-gray-300 mb-3">Select a lab from the list below, or create a new one.</p>
-
-          <button
-            @click="handleCreateLab"
-            class="w-full mb-3 px-3 py-2 border-2 border-dashed border-green-300 dark:border-green-700 text-green-600 dark:text-green-400 rounded-lg text-sm font-medium hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors flex items-center justify-center gap-2"
-          >
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-            </svg>
-            Create Lab
-          </button>
-
-          <div v-if="isLoading" class="space-y-2">
-            <div v-for="i in 3" :key="i" class="animate-pulse bg-gray-200 dark:bg-gray-700 rounded-lg h-14" />
-          </div>
-
-          <div v-else-if="wizardLabs.length === 0" class="text-center py-4 text-sm text-gray-500 dark:text-gray-400">
-            No labs in this course. Create one to get started.
-          </div>
-
-          <div v-else class="space-y-2">
-            <div
-              v-for="lab in wizardLabs"
-              :key="lab.id"
-              class="group relative p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-green-400 dark:hover:border-green-500 transition-colors"
-            >
-              <div class="flex items-center justify-between">
-                <div class="flex-1 min-w-0 pr-2">
-                  <h4 class="text-sm font-medium text-gray-900 dark:text-white truncate">{{ lab.title }}</h4>
-                  <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Type: {{ lab.type || 'N/A' }}</p>
-                </div>
-                <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-                  <button @click="handleEnterLab(lab.id)" class="p-1.5 rounded-md hover:bg-green-100 dark:hover:bg-green-900/30 text-gray-400 hover:text-green-600 transition-colors" title="View Parts">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
-                  </button>
-                  <button @click="handleEditLab(lab.id)" class="p-1.5 rounded-md hover:bg-yellow-100 dark:hover:bg-yellow-900/30 text-gray-400 hover:text-yellow-600 transition-colors" title="Edit">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                  </button>
-                  <button @click="handleDeleteClick('lab', lab.id)" class="p-1.5 rounded-md hover:bg-red-100 dark:hover:bg-red-900/30 text-gray-400 hover:text-red-500 transition-colors" title="Delete">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                  </button>
-                </div>
-              </div>
-              <div v-if="deleteConfirmItem?.type === 'lab' && deleteConfirmItem?.id === lab.id" class="mt-2 p-2 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
-                <p class="text-xs text-red-600 dark:text-red-400 mb-2">Delete this lab? This cannot be undone.</p>
-                <div class="flex gap-2">
-                  <button @click="handleDeleteConfirm" class="px-3 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600">Confirm</button>
-                  <button @click="handleDeleteCancel" class="px-3 py-1 text-xs bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded">Cancel</button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- ====== PART LIST (as bot message) ====== -->
-      <div v-else-if="wizardState.step === 'part_list'" class="flex gap-3 p-4 bg-white dark:bg-gray-900">
-        <div class="flex-shrink-0 w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
-          <svg class="w-4 h-4 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-          </svg>
-        </div>
-        <div class="flex-1 min-w-0">
-          <div class="flex items-center gap-2 mb-2">
-            <span class="text-sm font-medium text-gray-900 dark:text-gray-100">Gemini</span>
-          </div>
-          <p class="text-sm text-gray-700 dark:text-gray-300 mb-3">Select a part to edit, or create a new one.</p>
-
-          <button
-            @click="handleCreatePart"
-            class="w-full mb-3 px-3 py-2 border-2 border-dashed border-purple-300 dark:border-purple-700 text-purple-600 dark:text-purple-400 rounded-lg text-sm font-medium hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors flex items-center justify-center gap-2"
-          >
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-            </svg>
-            Create Part
-          </button>
-
-          <div v-if="isLoading" class="space-y-2">
-            <div v-for="i in 3" :key="i" class="animate-pulse bg-gray-200 dark:bg-gray-700 rounded-lg h-14" />
-          </div>
-
-          <div v-else-if="wizardParts.length === 0" class="text-center py-4 text-sm text-gray-500 dark:text-gray-400">
-            No parts in this lab. Create one to get started.
-          </div>
-
-          <div v-else class="space-y-2">
-            <div
-              v-for="part in wizardParts"
-              :key="part.id"
-              class="group relative p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-purple-400 dark:hover:border-purple-500 transition-colors"
-            >
-              <div class="flex items-center justify-between">
-                <div class="flex-1 min-w-0 pr-2">
-                  <h4 class="text-sm font-medium text-gray-900 dark:text-white truncate">{{ part.title }}</h4>
-                  <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{{ part.description || 'No description' }}</p>
-                </div>
-                <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-                  <button @click="handleEditPart(part.id)" class="p-1.5 rounded-md hover:bg-yellow-100 dark:hover:bg-yellow-900/30 text-gray-400 hover:text-yellow-600 transition-colors" title="Edit">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                  </button>
-                  <button @click="handleDeleteClick('part', part.id)" class="p-1.5 rounded-md hover:bg-red-100 dark:hover:bg-red-900/30 text-gray-400 hover:text-red-500 transition-colors" title="Delete">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                  </button>
-                </div>
-              </div>
-              <div v-if="deleteConfirmItem?.type === 'part' && deleteConfirmItem?.id === part.id" class="mt-2 p-2 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
-                <p class="text-xs text-red-600 dark:text-red-400 mb-2">Delete this part? This cannot be undone.</p>
-                <div class="flex gap-2">
-                  <button @click="handleDeleteConfirm" class="px-3 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600">Confirm</button>
-                  <button @click="handleDeleteCancel" class="px-3 py-1 text-xs bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded">Cancel</button>
-                </div>
-              </div>
-            </div>
-          </div>
+          <p class="text-sm">Start typing to chat with Gemini</p>
         </div>
       </div>
     </div>
 
-    <!-- Input (only in AI mode) -->
-    <div v-if="isInAIMode" class="border-t border-gray-200 dark:border-gray-700 p-4">
+    <!-- Input area (always shown when session is active) -->
+    <div v-if="session" class="border-t border-gray-200 dark:border-gray-700 p-4">
       <div class="flex gap-3">
         <textarea
           v-model="inputMessage"

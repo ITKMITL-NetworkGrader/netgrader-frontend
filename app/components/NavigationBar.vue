@@ -164,8 +164,8 @@ watch(() => route.path, () => {
                     class="p-2 rounded-md hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground transition-colors flex items-center gap-2"
                     title="AI Assistant"
                 >
-                    <span class="text-lg">🤖</span>
-                    <span class="hidden lg:inline text-sm">AI Chat</span>
+                    <span class="text-lg">💬</span>
+                    <span class="hidden lg:inline text-sm">Chat Assistant</span>
                 </button>
 
                 <!-- Theme toggle button -->
@@ -331,7 +331,7 @@ watch(() => route.path, () => {
                           @click="chatSlideoverOpen = true; mobileMenuOpen = false"
                         >
                           <span class="text-base mr-2">🤖</span>
-                          AI Chat
+                          Chat Assistant
                         </Button>
                         <NuxtLink to="/profile" class="flex-1">
                           <Button variant="ghost" size="sm" class="w-full">
