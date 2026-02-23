@@ -3,6 +3,18 @@
  * ChatMessage.vue - Single chat message component
  * Displays user/model messages with draft preview support
  */
+import { marked } from 'marked';
+
+// Configure marked for safe rendering
+marked.setOptions({
+  breaks: true,
+  gfm: true
+});
+
+const renderMarkdown = (text: string): string => {
+  if (!text) return '';
+  return marked.parse(text, { async: false }) as string;
+};
 
 interface Props {
   messageId: string;
@@ -82,10 +94,10 @@ const isRejected = computed(() => props.functionCall?.status === 'rejected');
         <span v-if="isStreaming" class="text-xs text-blue-500 animate-pulse">Typing...</span>
       </div>
 
-      <!-- Text content -->
+      <!-- Text content (Markdown) -->
       <div 
         class="prose prose-sm dark:prose-invert max-w-none"
-        v-html="textContent.replace(/\n/g, '<br>')"
+        v-html="renderMarkdown(textContent)"
       />
 
       <!-- Draft Preview -->
@@ -101,7 +113,7 @@ const isRejected = computed(() => props.functionCall?.status === 'rejected');
         <!-- Preview content (Markdown) -->
         <div 
           class="prose prose-sm dark:prose-invert max-w-none"
-          v-html="humanReadablePreview.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')"
+          v-html="renderMarkdown(humanReadablePreview || '')"
         />
 
         <!-- JSON toggle -->

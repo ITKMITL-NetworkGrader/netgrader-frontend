@@ -27,6 +27,9 @@ const {
   deleteSession,
   closeSession,
   isLoading,
+  isRefreshingSchema,
+  refreshProgress,
+  refreshApiSchema,
   // Wizard data fetchers
   fetchCourses,
   fetchLabs,
@@ -55,6 +58,19 @@ const selectedCourseName = ref<string>('');
 const selectedLabId = ref<string | null>(null);
 const selectedLabName = ref<string>('');
 const selectedPartId = ref<string | null>(null);
+
+// Schema refresh status message
+const schemaRefreshMessage = ref<string | null>(null);
+
+const handleRefreshSchema = async () => {
+  schemaRefreshMessage.value = null;
+  const result = await refreshApiSchema();
+  schemaRefreshMessage.value = result.message;
+  // Auto-hide after 4 seconds
+  setTimeout(() => {
+    schemaRefreshMessage.value = null;
+  }, 4000);
+};
 
 const close = () => {
   emit('update:open', false);
@@ -384,16 +400,67 @@ onMounted(() => {
             <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Chat Assistant</h2>
             <p class="text-xs text-gray-500 dark:text-gray-400">Select a Chat Session or create a new one</p>
           </div>
-          <button
-            @click="close"
-            class="p-2 hover:bg-blue-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-            title="Close Chat"
-          >
-            <svg class="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+          <div class="flex items-center gap-1">
+            <!-- Refresh Schema Button -->
+            <button
+              @click="handleRefreshSchema"
+              :disabled="isRefreshingSchema"
+              class="flex items-center gap-1.5 px-3 py-1.5 bg-blue-100 dark:bg-gray-700 text-blue-700 dark:text-gray-200 text-xs font-medium rounded-lg hover:bg-blue-200 dark:hover:bg-gray-600 transition-colors border border-blue-200 dark:border-gray-600"
+              :class="{ 'opacity-80 cursor-not-allowed': isRefreshingSchema }"
+              title="Refresh API Schema"
+            >
+              <svg
+                class="w-3.5 h-3.5"
+                :class="{ 'animate-spin': isRefreshingSchema }"
+                fill="none" stroke="currentColor" viewBox="0 0 24 24"
+              >
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              <span>{{ isRefreshingSchema ? 'Refreshing...' : 'Refresh Schema' }}</span>
+            </button>
+            <button
+              @click="close"
+              class="p-2 hover:bg-blue-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              title="Close Chat"
+            >
+              <svg class="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         </div>
+
+        <!-- Schema Refresh Progress / Status -->
+        <Transition
+          enter-active-class="transition-all duration-200"
+          leave-active-class="transition-all duration-150"
+          enter-from-class="opacity-0 -translate-y-1"
+          enter-to-class="opacity-100 translate-y-0"
+          leave-from-class="opacity-100 translate-y-0"
+          leave-to-class="opacity-0 -translate-y-1"
+        >
+          <div v-if="isRefreshingSchema" class="px-4 py-3 border-b border-border bg-blue-50/50 dark:bg-blue-900/10">
+            <div class="flex items-center justify-between text-xs mb-1.5">
+              <span class="font-medium text-blue-700 dark:text-blue-400">{{ refreshProgress.message }}</span>
+              <span class="text-blue-600 dark:text-blue-300">{{ refreshProgress.percent }}%</span>
+            </div>
+            <div class="w-full bg-blue-100 dark:bg-gray-700 rounded-full h-1.5 overflow-hidden">
+              <div 
+                class="bg-blue-600 dark:bg-blue-500 h-1.5 rounded-full transition-all duration-300 ease-out" 
+                :style="{ width: `${refreshProgress.percent}%` }"
+              ></div>
+            </div>
+          </div>
+          <div
+            v-else-if="schemaRefreshMessage"
+            class="px-4 py-2 text-xs border-b border-border"
+            :class="schemaRefreshMessage.includes('error') || schemaRefreshMessage.includes('Failed')
+              ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
+              : 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400'"
+          >
+            {{ schemaRefreshMessage }}
+          </div>
+        </Transition>
 
         <!-- New Chat Button -->
         <div class="px-4 py-3 border-b border-border">
@@ -614,7 +681,22 @@ onMounted(() => {
         </Transition>
 
         <!-- Session List -->
-        <div class="flex-1 overflow-y-auto">
+        <div class="flex-1 overflow-y-auto relative">
+          <!-- Refreshing Overlay (blocks access to chats) -->
+          <div 
+            v-if="isRefreshingSchema" 
+            class="absolute inset-0 bg-white/50 dark:bg-gray-900/50 backdrop-blur-[1px] z-10 flex items-center justify-center pointer-events-auto"
+          >
+            <div class="bg-white dark:bg-gray-800 shadow-lg rounded-lg px-4 py-3 flex items-center gap-3 border border-border">
+              <svg class="w-5 h-5 text-blue-600 dark:text-blue-400 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              <div class="text-sm font-medium text-gray-700 dark:text-gray-200">
+                Updating AI Knowledge...
+              </div>
+            </div>
+          </div>
+
           <!-- Loading -->
           <div v-if="isLoading && !showCreationWizard" class="p-8 text-center text-muted-foreground text-sm">
             Loading sessions...
