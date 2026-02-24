@@ -42,7 +42,7 @@ const showJson = ref(false);
 
 const formattedTime = computed(() => {
   const date = new Date(props.timestamp);
-  return date.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+  return date.toLocaleString('en-GB', {hour12: false}) ;
 });
 
 const roleLabel = computed(() => {

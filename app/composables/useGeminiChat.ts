@@ -648,77 +648,8 @@ export function useGeminiChat() {
     // ============================================================================
     // API Schema Management
     // ============================================================================
+    // Schema is now automatically synced through the backend's OpenAPI service.
 
-    const refreshProgress = ref<{ percent: number; message: string }>({ percent: 0, message: '' });
-
-    const refreshApiSchema = async (): Promise<{ success: boolean; message: string; data?: any }> => {
-        isRefreshingSchema.value = true;
-        refreshProgress.value = { percent: 0, message: 'Starting refresh...' };
-        error.value = null;
-
-        try {
-            const response = await fetch(`${apiBase}/gemini/chat/schema/refresh`, {
-                method: 'POST',
-                credentials: 'include'
-            });
-
-            if (!response.ok) {
-                throw new Error(`HTTP error: ${response.status}`);
-            }
-
-            const reader = response.body?.getReader();
-            const decoder = new TextDecoder();
-
-            if (!reader) {
-                throw new Error('No response body');
-            }
-
-            let buffer = '';
-            let finalResult: { success: boolean; message: string; data?: any } | null = null;
-
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-
-                buffer += decoder.decode(value, { stream: true });
-                const lines = buffer.split('\n');
-                buffer = lines.pop() || '';
-
-                for (const line of lines) {
-                    if (!line.startsWith('data: ')) continue;
-
-                    try {
-                        const data = JSON.parse(line.slice(6));
-
-                        if (data.type === 'progress') {
-                            refreshProgress.value = {
-                                percent: data.percent,
-                                message: data.message
-                            };
-                        } else if (data.type === 'result') {
-                            finalResult = {
-                                success: data.success,
-                                message: data.success
-                                    ? `Discovered ${data.totalDiscovered} schemas`
-                                    : (data.errors?.[0] || 'Unknown error'),
-                                data
-                            };
-                        }
-                    } catch (e) {
-                        // Skip invalid JSON
-                    }
-                }
-            }
-
-            return finalResult || { success: true, message: 'Schema refreshed' };
-        } catch (err: any) {
-            const msg = err.message || 'Network error';
-            error.value = msg;
-            return { success: false, message: msg };
-        } finally {
-            isRefreshingSchema.value = false;
-        }
-    };
 
     return {
         // State
@@ -727,8 +658,6 @@ export function useGeminiChat() {
         messages,
         isLoading,
         isStreaming,
-        isRefreshingSchema,
-        refreshProgress,
         error,
         streamingText,
 
@@ -757,9 +686,6 @@ export function useGeminiChat() {
         selectItem,
         setWizardAction,
         navigateBack,
-
-        // Schema Management
-        refreshApiSchema,
 
         // Computed
         hasPendingDraft,
