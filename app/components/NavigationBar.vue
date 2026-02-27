@@ -95,6 +95,12 @@ const navigationItems = computed(() => [
         to: '/manage',
         show: isAuthenticated.value && canAccessManagePage.value,
         active: route.path.startsWith('/manage')
+    },
+    {
+        label: 'Task Generator',
+        to: '/task-generator',
+        show: isAuthenticated.value && canAccessManagePage.value,
+        active: route.path.startsWith('/task-generator')
     }
 ])
 
