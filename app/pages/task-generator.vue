@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
- * Task Generator - Chat page with session management + optional pipeline mode
- * Flow: Open page > fetch sessions > create/select session > chat OR run pipeline
+ * Task Generator - Chat page with session management + step-by-step pipeline
+ * Flow: Open page > fetch sessions > create/select session > chat OR run pipeline step-by-step
  */
 import { marked } from 'marked';
 
@@ -25,18 +25,25 @@ const {
   deleteSession,
   closeSession,
   sendMessage,
-  // Pipeline
+  // Pipeline (step-by-step)
   pipelineMode,
-  pipelineState,
+  pipelineRun,
+  pipelineModules,
+  pipelineError,
+  validationErrors,
   togglePipelineMode,
   resetPipeline,
-  runPipeline
+  startPipeline,
+  confirmModule,
+  retryModule
 } = useTaskGenerator();
 
 const inputMessage = ref('');
 const newSessionTitle = ref('');
 const showCreateDialog = ref(false);
 const messagesContainer = ref<HTMLElement | null>(null);
+const retryFeedback = ref<Record<string, string>>({});
+const expandedModules = ref<Record<string, boolean>>({});
 
 // Fetch sessions on page load
 onMounted(() => {
@@ -61,7 +68,7 @@ const handleSend = async () => {
   inputMessage.value = '';
 
   if (pipelineMode.value) {
-    await runPipeline(msg);
+    await startPipeline(msg);
   } else {
     await sendMessage(msg);
   }
@@ -90,6 +97,23 @@ const handleDeleteSession = async (sessionId: string) => {
   await deleteSession(sessionId);
 };
 
+// Handle confirm module
+const handleConfirm = async (pipelineId: string, moduleId: string) => {
+  await confirmModule(pipelineId, moduleId);
+};
+
+// Handle retry module
+const handleRetry = async (pipelineId: string, moduleId: string) => {
+  const feedback = retryFeedback.value[moduleId]?.trim() || undefined;
+  await retryModule(pipelineId, moduleId, feedback);
+  retryFeedback.value[moduleId] = '';
+};
+
+// Toggle expanded state
+const toggleExpanded = (moduleId: string) => {
+  expandedModules.value[moduleId] = !expandedModules.value[moduleId];
+};
+
 // Format time
 const formatTime = (date: Date) => {
   return new Date(date).toLocaleString('en-GB', { hour12: false });
@@ -108,27 +132,50 @@ const formatRelativeTime = (date: Date) => {
   return `${diffDays}d ago`;
 };
 
-// Pipeline step definitions
-const pipelineSteps = [
-  { id: 1, label: 'Extract Intent', icon: 'i-heroicons-magnifying-glass' },
-  { id: 2, label: 'Decompose Tasks', icon: 'i-heroicons-list-bullet' },
-  { id: 3, label: 'Check Scripts', icon: 'i-heroicons-document-magnifying-glass' },
-  { id: 4, label: 'Generate Missing', icon: 'i-heroicons-code-bracket' },
-  { id: 5, label: 'Execute Tasks', icon: 'i-heroicons-play' },
-  { id: 6, label: 'Results', icon: 'i-heroicons-chart-bar' }
-];
-
-// Get step status
-const getStepStatus = (stepId: number) => {
-  const ps = pipelineState.value;
-  if (ps.status === 'idle') return 'pending';
-  if (ps.status === 'error' && ps.currentStep < stepId) return 'pending';
-  if (ps.status === 'error' && ps.currentStep === stepId) return 'error';
-  if (ps.currentStep > stepId) return 'completed';
-  if (ps.currentStep === stepId && ps.status === 'running') return 'running';
-  if (ps.currentStep === stepId && ps.status === 'completed') return 'completed';
-  return 'pending';
+// Module step labels
+const stepLabels: Record<string, string> = {
+  extract_intent: 'Extract Intent',
+  decompose_tasks: 'Decompose Tasks',
+  check_scripts: 'Check Scripts',
+  generate_scripts: 'Generate Scripts',
+  execute_tasks: 'Execute Tasks'
 };
+
+// Status styles
+const statusStyles: Record<string, { bg: string; text: string; border: string }> = {
+  pending: {
+    bg: 'bg-gray-50 dark:bg-gray-800/50',
+    text: 'text-gray-400 dark:text-gray-500',
+    border: 'border-gray-200 dark:border-gray-700'
+  },
+  running: {
+    bg: 'bg-violet-50/50 dark:bg-violet-900/10',
+    text: 'text-violet-700 dark:text-violet-400',
+    border: 'border-violet-300 dark:border-violet-700'
+  },
+  waiting_confirm: {
+    bg: 'bg-amber-50/50 dark:bg-amber-900/10',
+    text: 'text-amber-700 dark:text-amber-400',
+    border: 'border-amber-300 dark:border-amber-700'
+  },
+  confirmed: {
+    bg: 'bg-emerald-50/50 dark:bg-emerald-900/10',
+    text: 'text-emerald-700 dark:text-emerald-400',
+    border: 'border-emerald-200 dark:border-emerald-800'
+  },
+  error: {
+    bg: 'bg-red-50/50 dark:bg-red-900/10',
+    text: 'text-red-700 dark:text-red-400',
+    border: 'border-red-200 dark:border-red-800'
+  },
+  skipped: {
+    bg: 'bg-gray-50/50 dark:bg-gray-800/30',
+    text: 'text-gray-500 dark:text-gray-400',
+    border: 'border-gray-200 dark:border-gray-700'
+  }
+};
+
+const getStatusStyle = (status: string) => statusStyles[status] || statusStyles.pending;
 
 // Format JSON for display
 const formatJson = (obj: any) => {
@@ -295,7 +342,7 @@ const formatJson = (obj: any) => {
           <div>
             <h1 class="text-lg font-bold text-gray-900 dark:text-white">{{ currentSession.title }}</h1>
             <p class="text-xs text-gray-500 dark:text-gray-400">
-              {{ pipelineMode ? 'Pipeline Mode' : 'Chat with Gemini AI' }}
+              {{ pipelineMode ? 'Pipeline Mode (Step-by-Step)' : 'Chat with Gemini AI' }}
             </p>
           </div>
         </div>
@@ -333,14 +380,14 @@ const formatJson = (obj: any) => {
           <textarea
             v-model="inputMessage"
             @keydown="handleKeydown"
-            :disabled="isLoading"
+            :disabled="isLoading || (pipelineMode && pipelineRun !== null && pipelineRun.status !== 'completed' && pipelineRun.status !== 'error')"
             :placeholder="pipelineMode ? 'Describe what you want to test...' : 'Type your message to Gemini...'"
             rows="2"
             class="flex-1 resize-none rounded-xl border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 px-4 py-3 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all duration-200 disabled:opacity-50"
           />
           <button
             @click="handleSend"
-            :disabled="!inputMessage.trim() || isLoading"
+            :disabled="!inputMessage.trim() || isLoading || (pipelineMode && pipelineRun !== null && pipelineRun.status !== 'completed' && pipelineRun.status !== 'error')"
             :class="[
               'px-5 py-3 text-white rounded-xl font-medium text-sm transition-all duration-200 shadow-lg disabled:shadow-none flex items-center gap-2 disabled:cursor-not-allowed',
               pipelineMode
@@ -359,29 +406,29 @@ const formatJson = (obj: any) => {
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
               <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
             </svg>
-            {{ isLoading ? 'Running...' : (pipelineMode ? 'Run Pipeline' : 'Send') }}
+            {{ isLoading ? 'Running...' : (pipelineMode ? 'Start Pipeline' : 'Send') }}
           </button>
         </div>
         <!-- Error banner -->
         <div
-          v-if="error"
+          v-if="error || pipelineError"
           class="mt-3 px-4 py-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm rounded-lg flex items-center gap-2"
         >
           <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
-          {{ error }}
+          {{ error || pipelineError }}
         </div>
       </div>
 
       <!-- ============================================================== -->
-      <!-- PIPELINE VIEW                                                    -->
+      <!-- PIPELINE VIEW (step-by-step)                                    -->
       <!-- ============================================================== -->
       <div v-if="pipelineMode" class="flex-1 overflow-y-auto px-6 py-6 space-y-4">
 
         <!-- Idle state -->
         <div
-          v-if="pipelineState.status === 'idle'"
+          v-if="!pipelineRun"
           class="flex flex-col items-center justify-center h-full text-gray-400 dark:text-gray-600 px-6"
         >
           <div class="w-20 h-20 rounded-2xl bg-gradient-to-br from-emerald-100 to-teal-100 dark:from-emerald-900/30 dark:to-teal-900/30 flex items-center justify-center mb-4">
@@ -390,198 +437,214 @@ const formatJson = (obj: any) => {
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
-          <p class="text-lg font-medium text-gray-500 dark:text-gray-400">Pipeline Mode</p>
-          <p class="text-sm mt-1">Describe what you want to test and click "Run Pipeline"</p>
+          <p class="text-lg font-medium text-gray-500 dark:text-gray-400">Pipeline Mode (Step-by-Step)</p>
+          <p class="text-sm mt-1">Describe what you want to test - each step requires your confirmation</p>
         </div>
 
-        <!-- Pipeline Stepper -->
+        <!-- Pipeline Modules -->
         <template v-else>
           <!-- Reset button -->
-          <div v-if="pipelineState.status !== 'running'" class="flex justify-end">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-medium px-2.5 py-1 rounded-full"
+                :class="pipelineRun.status === 'completed' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' :
+                         pipelineRun.status === 'error' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
+                         'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'"
+              >
+                {{ pipelineRun.status.replace('_', ' ').toUpperCase() }}
+              </span>
+            </div>
             <button
+              v-if="pipelineRun.status !== 'running'"
               @click="resetPipeline"
               class="px-3 py-1.5 text-xs font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
             >
-              Reset Pipeline
+              New Pipeline
             </button>
           </div>
 
-          <!-- Steps -->
+          <!-- Validation Errors Banner -->
           <div
-            v-for="step in pipelineSteps"
-            :key="step.id"
+            v-if="validationErrors.length > 0"
+            class="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl"
+          >
+            <h4 class="text-sm font-semibold text-red-700 dark:text-red-400 mb-2">Argument Validation Failed</h4>
+            <p class="text-xs text-red-600 dark:text-red-400 mb-3">
+              Required arguments are missing. Please retry from Step 1 to provide the necessary information.
+            </p>
+            <div class="space-y-1.5">
+              <div v-for="ve in validationErrors" :key="ve.taskId" class="text-xs text-red-600 dark:text-red-400 flex items-start gap-2">
+                <span class="font-mono bg-red-100 dark:bg-red-900/30 px-1.5 py-0.5 rounded">{{ ve.action }}</span>
+                <span>Missing: {{ ve.missingArgs.join(', ') }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Module Cards -->
+          <div
+            v-for="mod in pipelineModules"
+            :key="mod.moduleId"
             class="relative"
           >
             <!-- Connector line -->
             <div
-              v-if="step.id > 1"
+              v-if="mod.step > 1"
               class="absolute left-5 -top-4 w-0.5 h-4"
-              :class="getStepStatus(step.id - 1) === 'completed' ? 'bg-emerald-300 dark:bg-emerald-700' : 'bg-gray-200 dark:bg-gray-700'"
+              :class="mod.status === 'confirmed' || mod.status === 'skipped' ? 'bg-emerald-300 dark:bg-emerald-700' : 'bg-gray-200 dark:bg-gray-700'"
             />
 
-            <!-- Step card -->
+            <!-- Module Card -->
             <div
               :class="[
                 'rounded-xl border p-4 transition-all duration-300',
-                getStepStatus(step.id) === 'completed'
-                  ? 'bg-emerald-50/50 dark:bg-emerald-900/10 border-emerald-200 dark:border-emerald-800'
-                  : getStepStatus(step.id) === 'running'
-                    ? 'bg-violet-50/50 dark:bg-violet-900/10 border-violet-300 dark:border-violet-700 shadow-md shadow-violet-500/10'
-                    : getStepStatus(step.id) === 'error'
-                      ? 'bg-red-50/50 dark:bg-red-900/10 border-red-200 dark:border-red-800'
-                      : 'bg-white dark:bg-gray-800/50 border-gray-200 dark:border-gray-700 opacity-50'
+                getStatusStyle(mod.status).bg,
+                getStatusStyle(mod.status).border,
+                mod.status === 'running' ? 'shadow-md shadow-violet-500/10' : ''
               ]"
             >
+              <!-- Header row -->
               <div class="flex items-center gap-3">
                 <!-- Status icon -->
                 <div
                   :class="[
                     'w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0',
-                    getStepStatus(step.id) === 'completed'
+                    mod.status === 'confirmed' || mod.status === 'skipped'
                       ? 'bg-emerald-100 dark:bg-emerald-900/30'
-                      : getStepStatus(step.id) === 'running'
+                      : mod.status === 'running'
                         ? 'bg-violet-100 dark:bg-violet-900/30'
-                        : getStepStatus(step.id) === 'error'
-                          ? 'bg-red-100 dark:bg-red-900/30'
-                          : 'bg-gray-100 dark:bg-gray-800'
+                        : mod.status === 'waiting_confirm'
+                          ? 'bg-amber-100 dark:bg-amber-900/30'
+                          : mod.status === 'error'
+                            ? 'bg-red-100 dark:bg-red-900/30'
+                            : 'bg-gray-100 dark:bg-gray-800'
                   ]"
                 >
-                  <!-- Completed -->
-                  <svg v-if="getStepStatus(step.id) === 'completed'" class="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <!-- Confirmed / Skipped -->
+                  <svg v-if="mod.status === 'confirmed' || mod.status === 'skipped'" class="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                   </svg>
                   <!-- Running -->
-                  <svg v-else-if="getStepStatus(step.id) === 'running'" class="w-5 h-5 text-violet-500 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <svg v-else-if="mod.status === 'running'" class="w-5 h-5 text-violet-500 animate-spin" fill="none" viewBox="0 0 24 24">
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                   </svg>
+                  <!-- Waiting confirm -->
+                  <svg v-else-if="mod.status === 'waiting_confirm'" class="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
                   <!-- Error -->
-                  <svg v-else-if="getStepStatus(step.id) === 'error'" class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg v-else-if="mod.status === 'error'" class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                   </svg>
                   <!-- Pending -->
-                  <span v-else class="text-sm font-bold text-gray-400 dark:text-gray-500">{{ step.id }}</span>
+                  <span v-else class="text-sm font-bold text-gray-400 dark:text-gray-500">{{ mod.step }}</span>
                 </div>
 
                 <div class="flex-1 min-w-0">
                   <h3
-                    :class="[
-                      'text-sm font-semibold',
-                      getStepStatus(step.id) === 'completed' ? 'text-emerald-700 dark:text-emerald-400'
-                        : getStepStatus(step.id) === 'running' ? 'text-violet-700 dark:text-violet-400'
-                        : getStepStatus(step.id) === 'error' ? 'text-red-700 dark:text-red-400'
-                        : 'text-gray-400 dark:text-gray-500'
-                    ]"
+                    :class="['text-sm font-semibold', getStatusStyle(mod.status).text]"
                   >
-                    Step {{ step.id }}: {{ step.label }}
+                    Step {{ mod.step }}: {{ stepLabels[mod.moduleName] || mod.moduleName }}
                   </h3>
-                </div>
-              </div>
-
-              <!-- Step content (when completed or error) -->
-              <!-- Step 1: Intent -->
-              <div v-if="step.id === 1 && pipelineState.intent && getStepStatus(1) === 'completed'" class="mt-3 ml-13">
-                <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">Extracted Intent:</p>
-                <pre class="text-xs bg-gray-100 dark:bg-gray-900 rounded-lg p-3 overflow-x-auto text-gray-700 dark:text-gray-300">{{ formatJson(pipelineState.intent) }}</pre>
-              </div>
-
-              <!-- Step 2: Task Plan -->
-              <div v-if="step.id === 2 && pipelineState.taskPlan && getStepStatus(2) === 'completed'" class="mt-3 ml-13">
-                <p class="text-xs font-medium text-gray-600 dark:text-gray-300 mb-2">
-                  {{ pipelineState.taskPlan.mainTask }}
-                </p>
-                <div class="space-y-1.5">
-                  <div
-                    v-for="t in pipelineState.taskPlan.subTasks"
-                    :key="t.id"
-                    class="flex items-start gap-2 text-xs text-gray-600 dark:text-gray-400"
-                  >
-                    <span class="font-mono bg-gray-200 dark:bg-gray-700 px-1.5 py-0.5 rounded text-[10px]">{{ t.id }}</span>
-                    <div>
-                      <span class="font-medium text-gray-700 dark:text-gray-300">{{ t.action }}</span>
-                      <span class="text-gray-400"> on {{ t.sourceDevice }}</span>
-                      <span v-if="t.targetDevice" class="text-gray-400"> -> {{ t.targetDevice }}</span>
-                      <p class="text-gray-400 mt-0.5">{{ t.description }}</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Step 3: Script Check -->
-              <div v-if="step.id === 3 && pipelineState.scriptCheck && getStepStatus(3) === 'completed'" class="mt-3 ml-13">
-                <div class="flex items-center gap-4 text-xs">
-                  <span class="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                    </svg>
-                    Found: {{ pipelineState.scriptCheck.foundCount }}
-                  </span>
-                  <span v-if="pipelineState.scriptCheck.missingCount > 0" class="flex items-center gap-1 text-amber-600 dark:text-amber-400">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                    </svg>
-                    Missing: {{ pipelineState.scriptCheck.missingCount }}
-                  </span>
-                </div>
-              </div>
-
-              <!-- Step 4: Generated Scripts -->
-              <div v-if="step.id === 4 && pipelineState.generatedScripts.length > 0 && getStepStatus(4) === 'completed'" class="mt-3 ml-13">
-                <div class="space-y-1">
-                  <div
-                    v-for="g in pipelineState.generatedScripts"
-                    :key="g.action"
-                    class="flex items-center gap-2 text-xs"
-                  >
-                    <svg v-if="g.success" class="w-3.5 h-3.5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                    </svg>
-                    <svg v-else class="w-3.5 h-3.5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                    <span class="text-gray-600 dark:text-gray-400">{{ g.action }}.py</span>
-                    <span :class="g.success ? 'text-emerald-500' : 'text-red-500'">
-                      {{ g.success ? 'Generated' : 'Failed' }}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Step 5-6: Execution Results -->
-              <div v-if="step.id === 6 && pipelineState.execution && getStepStatus(6) === 'completed'" class="mt-3 ml-13 space-y-2">
-                <div class="flex items-center gap-4 text-xs mb-2">
-                  <span class="text-emerald-600 dark:text-emerald-400 font-medium">
-                    Pass: {{ pipelineState.execution.successCount }}/{{ pipelineState.execution.results.length }}
-                  </span>
-                  <span v-if="pipelineState.execution.failureCount > 0" class="text-red-600 dark:text-red-400 font-medium">
-                    Fail: {{ pipelineState.execution.failureCount }}/{{ pipelineState.execution.results.length }}
-                  </span>
+                  <p v-if="mod.status === 'waiting_confirm'" class="text-xs text-amber-600 dark:text-amber-400 mt-0.5">
+                    Waiting for your confirmation
+                  </p>
+                  <p v-if="mod.status === 'skipped'" class="text-xs text-gray-400 mt-0.5">
+                    Skipped (no action needed)
+                  </p>
+                  <p v-if="mod.retryCount > 0" class="text-xs text-gray-400 mt-0.5">
+                    Retried {{ mod.retryCount }} time(s)
+                  </p>
                 </div>
 
-                <div
-                  v-for="r in pipelineState.execution.results"
-                  :key="r.id"
-                  :class="[
-                    'rounded-lg border p-3 text-xs',
-                    r.success
-                      ? 'bg-emerald-50 dark:bg-emerald-900/10 border-emerald-200 dark:border-emerald-800'
-                      : 'bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800'
-                  ]"
+                <!-- Expand/Collapse toggle -->
+                <button
+                  v-if="mod.output || mod.input"
+                  @click="toggleExpanded(mod.moduleId)"
+                  class="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                 >
-                  <div class="flex items-center gap-2 mb-1">
-                    <span :class="r.success ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'" class="font-semibold">
-                      {{ r.success ? '[PASS]' : '[FAIL]' }}
-                    </span>
-                    <span class="text-gray-700 dark:text-gray-300 font-medium">Task {{ r.id }}: {{ r.action }}</span>
+                  <svg
+                    class="w-4 h-4 transition-transform duration-200"
+                    :class="{ 'rotate-180': expandedModules[mod.moduleId] }"
+                    fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                  >
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+              </div>
+
+              <!-- Expandable Input/Output section -->
+              <Transition
+                enter-active-class="transition-all duration-200 ease-out"
+                leave-active-class="transition-all duration-150 ease-in"
+                enter-from-class="opacity-0 max-h-0"
+                enter-to-class="opacity-100 max-h-[600px]"
+                leave-from-class="opacity-100 max-h-[600px]"
+                leave-to-class="opacity-0 max-h-0"
+              >
+                <div v-if="expandedModules[mod.moduleId]" class="mt-3 ml-13 space-y-3 overflow-hidden">
+                  <!-- Input -->
+                  <div v-if="mod.input && Object.keys(mod.input).length > 0">
+                    <p class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider">Input</p>
+                    <pre class="text-xs bg-gray-100 dark:bg-gray-900 rounded-lg p-3 overflow-x-auto text-gray-700 dark:text-gray-300 max-h-48 overflow-y-auto">{{ formatJson(mod.input) }}</pre>
                   </div>
-                  <pre v-if="r.output" class="bg-gray-100 dark:bg-gray-900 rounded p-2 mt-1 overflow-x-auto text-gray-600 dark:text-gray-400 whitespace-pre-wrap">{{ r.output }}</pre>
-                  <p v-if="r.error" class="text-red-500 mt-1">{{ r.error }}</p>
+                  <!-- Output -->
+                  <div v-if="mod.output && Object.keys(mod.output).length > 0">
+                    <p class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider">Output</p>
+                    <pre class="text-xs bg-gray-100 dark:bg-gray-900 rounded-lg p-3 overflow-x-auto text-gray-700 dark:text-gray-300 max-h-48 overflow-y-auto">{{ formatJson(mod.output) }}</pre>
+                  </div>
                 </div>
+              </Transition>
+
+              <!-- Auto-expanded for waiting_confirm: show summary -->
+              <div v-if="mod.status === 'waiting_confirm' && mod.output && !expandedModules[mod.moduleId]" class="mt-3 ml-13">
+                <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">Output Preview:</p>
+                <pre class="text-xs bg-gray-100 dark:bg-gray-900 rounded-lg p-3 overflow-x-auto text-gray-700 dark:text-gray-300 max-h-32 overflow-y-auto">{{ formatJson(mod.output) }}</pre>
               </div>
 
               <!-- Error message -->
-              <div v-if="getStepStatus(step.id) === 'error' && pipelineState.error" class="mt-3 ml-13">
-                <p class="text-xs text-red-500">{{ pipelineState.error }}</p>
+              <div v-if="mod.error" class="mt-3 ml-13">
+                <p class="text-xs text-red-500 bg-red-50 dark:bg-red-900/20 rounded-lg p-2">{{ mod.error }}</p>
+              </div>
+
+              <!-- Action buttons -->
+              <div v-if="mod.status === 'waiting_confirm' || mod.status === 'confirmed' || mod.status === 'error'" class="mt-4 ml-13 flex items-start gap-3">
+                <!-- Confirm button -->
+                <button
+                  v-if="mod.status === 'waiting_confirm'"
+                  @click="handleConfirm(pipelineRun!.pipelineId, mod.moduleId)"
+                  :disabled="isLoading"
+                  class="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 disabled:bg-gray-300 dark:disabled:bg-gray-700 text-white rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5"
+                >
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                  </svg>
+                  Confirm & Continue
+                </button>
+
+                <!-- Retry button -->
+                <div class="flex-1 space-y-2">
+                  <div class="flex items-center gap-2">
+                    <button
+                      @click="handleRetry(pipelineRun!.pipelineId, mod.moduleId)"
+                      :disabled="isLoading"
+                      class="px-4 py-2 bg-amber-500 hover:bg-amber-600 disabled:bg-gray-300 dark:disabled:bg-gray-700 text-white rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5"
+                    >
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      Retry
+                    </button>
+                  </div>
+                  <!-- Feedback textarea (shown only for waiting_confirm or error) -->
+                  <textarea
+                    v-if="mod.status === 'waiting_confirm' || mod.status === 'error'"
+                    v-model="retryFeedback[mod.moduleId]"
+                    :placeholder="'Optional: Add feedback for retry (e.g. change parameters, adjust intent)...'"
+                    rows="2"
+                    class="w-full resize-none rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-xs text-gray-700 dark:text-gray-300 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-amber-500 focus:border-transparent"
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -589,7 +652,7 @@ const formatJson = (obj: any) => {
       </div>
 
       <!-- ============================================================== -->
-      <!-- CHAT VIEW (original, unchanged)                                 -->
+      <!-- CHAT VIEW (original)                                            -->
       <!-- ============================================================== -->
       <div
         v-else

@@ -1,4 +1,4 @@
-// Composable for Task Generator with session management + pipeline
+// Composable for Task Generator with session management + step-by-step pipeline
 import { ref } from 'vue';
 
 // ============================================================================
@@ -23,42 +23,39 @@ interface TaskGeneratorSession {
     createdAt?: Date;
 }
 
-// Pipeline types
-interface PipelineSubTask {
-    id: number;
-    action: string;
-    deviceType: string;
-    os: string;
-    sourceDevice: string;
-    targetDevice: string | null;
-    description: string;
-    params: Record<string, string>;
-}
-
-interface PipelineScriptCheck {
-    id: number;
-    action: string;
-    found: boolean;
-    script_path: string | null;
-}
-
-interface PipelineExecResult {
-    id: number;
-    action: string;
-    success: boolean;
-    output: string | null;
+// Pipeline types (step-by-step)
+interface PipelineModuleData {
+    moduleId: string;
+    pipelineId: string;
+    step: number;
+    moduleName: string;
+    status: 'pending' | 'running' | 'waiting_confirm' | 'confirmed' | 'error' | 'skipped';
+    input: Record<string, unknown>;
+    output: Record<string, unknown> | null;
     error: string | null;
+    retryCount: number;
+    userFeedback: string | null;
+    confirmedAt: string | null;
+    createdAt: string;
+    updatedAt: string;
 }
 
-interface PipelineState {
-    status: 'idle' | 'running' | 'completed' | 'error';
+interface PipelineRunData {
+    pipelineId: string;
+    sessionId: string;
+    userId: string;
+    userMessage: string;
+    status: 'running' | 'waiting_confirm' | 'completed' | 'error';
     currentStep: number;
-    intent: any | null;
-    taskPlan: { mainTask: string; subTasks: PipelineSubTask[] } | null;
-    scriptCheck: { results: PipelineScriptCheck[]; foundCount: number; missingCount: number } | null;
-    generatedScripts: { action: string; success: boolean }[];
-    execution: { results: PipelineExecResult[]; successCount: number; failureCount: number } | null;
-    error: string | null;
+    createdAt: string;
+    updatedAt: string;
+}
+
+interface ArgumentValidationError {
+    valid: boolean;
+    taskId: number;
+    action: string;
+    missingArgs: string[];
 }
 
 // ============================================================================
@@ -72,25 +69,19 @@ const isLoading = ref(false);
 const isLoadingSessions = ref(false);
 const error = ref<string | null>(null);
 
-// Pipeline state
+// Pipeline state (step-by-step)
 const pipelineMode = ref(false);
-const pipelineState = ref<PipelineState>({
-    status: 'idle',
-    currentStep: 0,
-    intent: null,
-    taskPlan: null,
-    scriptCheck: null,
-    generatedScripts: [],
-    execution: null,
-    error: null
-});
+const pipelineRun = ref<PipelineRunData | null>(null);
+const pipelineModules = ref<PipelineModuleData[]>([]);
+const pipelineError = ref<string | null>(null);
+const validationErrors = ref<ArgumentValidationError[]>([]);
 
 export function useTaskGenerator() {
     const config = useRuntimeConfig();
     const apiBase = `${config.public.backendurl}/v0`;
 
     // ========================================================================
-    // Session Management (unchanged)
+    // Session Management
     // ========================================================================
 
     const fetchSessions = async (): Promise<void> => {
@@ -217,7 +208,7 @@ export function useTaskGenerator() {
     };
 
     // ========================================================================
-    // Chat (unchanged - still works as before)
+    // Chat (original)
     // ========================================================================
 
     const sendMessage = async (message: string): Promise<void> => {
@@ -291,20 +282,14 @@ export function useTaskGenerator() {
     };
 
     // ========================================================================
-    // Pipeline Mode
+    // Pipeline (Step-by-Step)
     // ========================================================================
 
     const resetPipeline = () => {
-        pipelineState.value = {
-            status: 'idle',
-            currentStep: 0,
-            intent: null,
-            taskPlan: null,
-            scriptCheck: null,
-            generatedScripts: [],
-            execution: null,
-            error: null
-        };
+        pipelineRun.value = null;
+        pipelineModules.value = [];
+        pipelineError.value = null;
+        validationErrors.value = [];
     };
 
     const togglePipelineMode = () => {
@@ -314,34 +299,22 @@ export function useTaskGenerator() {
         }
     };
 
-    const runPipeline = async (message: string): Promise<void> => {
+    const startPipeline = async (message: string): Promise<void> => {
         if (!currentSession.value?.sessionId || !message.trim() || isLoading.value) return;
 
         error.value = null;
+        pipelineError.value = null;
+        validationErrors.value = [];
         isLoading.value = true;
-        pipelineState.value = {
-            status: 'running',
-            currentStep: 1,
-            intent: null,
-            taskPlan: null,
-            scriptCheck: null,
-            generatedScripts: [],
-            execution: null,
-            error: null
-        };
 
         try {
             const response = await $fetch<{
                 success: boolean;
-                step: string;
-                intent?: any;
-                taskPlan?: any;
-                scriptCheck?: any;
-                generatedScripts?: any[];
-                execution?: any;
+                pipelineId?: string;
+                module?: PipelineModuleData;
                 error?: string;
             }>(
-                `${apiBase}/task-generator/sessions/${currentSession.value.sessionId}/pipeline`,
+                `${apiBase}/task-generator/sessions/${currentSession.value.sessionId}/pipeline/start`,
                 {
                     method: 'POST',
                     credentials: 'include',
@@ -350,39 +323,125 @@ export function useTaskGenerator() {
                 }
             );
 
-            // Map response to pipeline state
-            if (response.intent) {
-                pipelineState.value.intent = response.intent;
-                pipelineState.value.currentStep = 2;
-            }
-            if (response.taskPlan) {
-                pipelineState.value.taskPlan = response.taskPlan;
-                pipelineState.value.currentStep = 3;
-            }
-            if (response.scriptCheck) {
-                pipelineState.value.scriptCheck = response.scriptCheck;
-                pipelineState.value.currentStep = 4;
-            }
-            if (response.generatedScripts && response.generatedScripts.length > 0) {
-                pipelineState.value.generatedScripts = response.generatedScripts;
-                pipelineState.value.currentStep = 5;
-            }
-            if (response.execution) {
-                pipelineState.value.execution = response.execution;
-                pipelineState.value.currentStep = 6;
-            }
-
-            pipelineState.value.status = response.success ? 'completed' : 'error';
-            pipelineState.value.error = response.error || null;
-
-            // Refresh messages (pipeline saves summary to DB)
-            if (response.success) {
-                await selectSession(currentSession.value.sessionId);
+            if (response.success && response.pipelineId) {
+                // Fetch full pipeline data
+                await fetchPipelineRun(response.pipelineId);
+            } else {
+                pipelineError.value = response.error || 'Failed to start pipeline';
             }
         } catch (err: any) {
-            pipelineState.value.status = 'error';
-            pipelineState.value.error = err?.data?.message || err.message || 'Pipeline failed';
-            error.value = pipelineState.value.error;
+            pipelineError.value = err?.data?.message || err.message || 'Pipeline start failed';
+        } finally {
+            isLoading.value = false;
+        }
+    };
+
+    const fetchPipelineRun = async (pipelineId: string): Promise<void> => {
+        if (!currentSession.value?.sessionId) return;
+
+        try {
+            const response = await $fetch<{
+                success: boolean;
+                data?: {
+                    pipeline: PipelineRunData;
+                    modules: PipelineModuleData[];
+                };
+                message?: string;
+            }>(
+                `${apiBase}/task-generator/sessions/${currentSession.value.sessionId}/pipeline/${pipelineId}`,
+                { credentials: 'include' }
+            );
+
+            if (response.success && response.data) {
+                pipelineRun.value = response.data.pipeline;
+                pipelineModules.value = response.data.modules;
+            }
+        } catch (err: any) {
+            console.error('Failed to fetch pipeline:', err);
+        }
+    };
+
+    const confirmModule = async (pipelineId: string, moduleId: string): Promise<void> => {
+        if (isLoading.value) return;
+
+        isLoading.value = true;
+        pipelineError.value = null;
+        validationErrors.value = [];
+
+        try {
+            const response = await $fetch<{
+                success: boolean;
+                nextModule?: PipelineModuleData;
+                pipelineCompleted?: boolean;
+                validationErrors?: ArgumentValidationError[];
+                error?: string;
+            }>(
+                `${apiBase}/task-generator/pipeline/${pipelineId}/modules/${moduleId}/confirm`,
+                {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' }
+                }
+            );
+
+            if (response.validationErrors && response.validationErrors.length > 0) {
+                validationErrors.value = response.validationErrors;
+            }
+
+            // Refresh pipeline data
+            await fetchPipelineRun(pipelineId);
+
+            if (response.pipelineCompleted) {
+                // Refresh messages too since pipeline is done
+                if (currentSession.value?.sessionId) {
+                    await selectSession(currentSession.value.sessionId);
+                }
+            }
+
+            if (!response.success) {
+                pipelineError.value = response.error || 'Confirm failed';
+            }
+        } catch (err: any) {
+            pipelineError.value = err?.data?.message || err.message || 'Confirm failed';
+        } finally {
+            isLoading.value = false;
+        }
+    };
+
+    const retryModule = async (
+        pipelineId: string,
+        moduleId: string,
+        feedback?: string
+    ): Promise<void> => {
+        if (isLoading.value) return;
+
+        isLoading.value = true;
+        pipelineError.value = null;
+        validationErrors.value = [];
+
+        try {
+            const response = await $fetch<{
+                success: boolean;
+                module?: PipelineModuleData;
+                error?: string;
+            }>(
+                `${apiBase}/task-generator/pipeline/${pipelineId}/modules/${moduleId}/retry`,
+                {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: { feedback: feedback || undefined }
+                }
+            );
+
+            // Refresh pipeline data
+            await fetchPipelineRun(pipelineId);
+
+            if (!response.success) {
+                pipelineError.value = response.error || 'Retry failed';
+            }
+        } catch (err: any) {
+            pipelineError.value = err?.data?.message || err.message || 'Retry failed';
         } finally {
             isLoading.value = false;
         }
@@ -407,11 +466,17 @@ export function useTaskGenerator() {
         // Chat (original)
         sendMessage,
 
-        // Pipeline (new, optional)
+        // Pipeline (step-by-step)
         pipelineMode,
-        pipelineState,
+        pipelineRun,
+        pipelineModules,
+        pipelineError,
+        validationErrors,
         togglePipelineMode,
         resetPipeline,
-        runPipeline
+        startPipeline,
+        fetchPipelineRun,
+        confirmModule,
+        retryModule
     };
 }
