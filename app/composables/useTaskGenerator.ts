@@ -164,6 +164,10 @@ export function useTaskGenerator() {
                     ...m,
                     timestamp: new Date(m.timestamp)
                 }));
+
+                // Auto-load active pipeline if exists
+                await fetchActivePipeline(sessionId);
+
                 return true;
             } else {
                 error.value = response.message || 'Failed to load session';
@@ -294,8 +298,39 @@ export function useTaskGenerator() {
 
     const togglePipelineMode = () => {
         pipelineMode.value = !pipelineMode.value;
-        if (pipelineMode.value) {
-            resetPipeline();
+        if (!pipelineMode.value) {
+            // Switching back to chat mode - keep pipeline data
+        }
+    };
+
+    /**
+     * Auto-load the latest active pipeline (non-completed) from history.
+     * If found, switch to pipeline mode and load it.
+     */
+    const fetchActivePipeline = async (sessionId: string): Promise<void> => {
+        try {
+            const historyResponse = await $fetch<{
+                success: boolean;
+                data?: PipelineRunData[];
+            }>(
+                `${apiBase}/task-generator/sessions/${sessionId}/pipeline/history`,
+                { credentials: 'include' }
+            );
+
+            if (historyResponse.success && historyResponse.data && historyResponse.data.length > 0) {
+                // Find the latest active (non-completed) pipeline, or the latest one
+                const activePipeline = historyResponse.data.find(
+                    p => p.status !== 'completed'
+                ) || historyResponse.data[0];
+
+                if (activePipeline) {
+                    // Fetch full pipeline with modules
+                    await fetchPipelineRun(activePipeline.pipelineId);
+                    pipelineMode.value = true;
+                }
+            }
+        } catch (err: any) {
+            console.error('Failed to fetch active pipeline:', err);
         }
     };
 

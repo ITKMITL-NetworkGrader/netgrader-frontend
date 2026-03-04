@@ -138,7 +138,8 @@ const stepLabels: Record<string, string> = {
   decompose_tasks: 'Decompose Tasks',
   check_scripts: 'Check Scripts',
   generate_scripts: 'Generate Scripts',
-  execute_tasks: 'Execute Tasks'
+  execute_tasks: 'Execute Tasks',
+  pipeline_result: 'Pipeline Result'
 };
 
 // Status styles
@@ -496,10 +497,17 @@ const formatJson = (obj: any) => {
             <!-- Module Card -->
             <div
               :class="[
-                'rounded-xl border p-4 transition-all duration-300',
+                'rounded-xl border transition-all duration-300',
                 getStatusStyle(mod.status).bg,
                 getStatusStyle(mod.status).border,
-                mod.status === 'running' ? 'shadow-md shadow-violet-500/10' : ''
+                // Large prominent card for waiting_confirm
+                mod.status === 'waiting_confirm'
+                  ? 'p-6 shadow-lg ring-2 ring-amber-400/30 dark:ring-amber-500/20'
+                  : mod.status === 'running'
+                    ? 'p-5 shadow-md ring-2 ring-violet-400/30 dark:ring-violet-500/20 animate-pulse'
+                    : mod.status === 'error'
+                      ? 'p-5 shadow-md'
+                      : 'p-3 opacity-80' // compact for confirmed/skipped/pending
               ]"
             >
               <!-- Header row -->
@@ -578,8 +586,8 @@ const formatJson = (obj: any) => {
                 enter-active-class="transition-all duration-200 ease-out"
                 leave-active-class="transition-all duration-150 ease-in"
                 enter-from-class="opacity-0 max-h-0"
-                enter-to-class="opacity-100 max-h-[600px]"
-                leave-from-class="opacity-100 max-h-[600px]"
+                enter-to-class="opacity-100 max-h-[800px]"
+                leave-from-class="opacity-100 max-h-[800px]"
                 leave-to-class="opacity-0 max-h-0"
               >
                 <div v-if="expandedModules[mod.moduleId]" class="mt-3 ml-13 space-y-3 overflow-hidden">
@@ -588,18 +596,153 @@ const formatJson = (obj: any) => {
                     <p class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider">Input</p>
                     <pre class="text-xs bg-gray-100 dark:bg-gray-900 rounded-lg p-3 overflow-x-auto text-gray-700 dark:text-gray-300 max-h-48 overflow-y-auto">{{ formatJson(mod.input) }}</pre>
                   </div>
-                  <!-- Output -->
-                  <div v-if="mod.output && Object.keys(mod.output).length > 0">
+                  <!-- Output (raw JSON for non-special modules) -->
+                  <div v-if="mod.output && Object.keys(mod.output).length > 0 && mod.moduleName !== 'execute_tasks' && mod.moduleName !== 'pipeline_result'">
                     <p class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider">Output</p>
                     <pre class="text-xs bg-gray-100 dark:bg-gray-900 rounded-lg p-3 overflow-x-auto text-gray-700 dark:text-gray-300 max-h-48 overflow-y-auto">{{ formatJson(mod.output) }}</pre>
                   </div>
                 </div>
               </Transition>
 
-              <!-- Auto-expanded for waiting_confirm: show summary -->
-              <div v-if="mod.status === 'waiting_confirm' && mod.output && !expandedModules[mod.moduleId]" class="mt-3 ml-13">
-                <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">Output Preview:</p>
-                <pre class="text-xs bg-gray-100 dark:bg-gray-900 rounded-lg p-3 overflow-x-auto text-gray-700 dark:text-gray-300 max-h-32 overflow-y-auto">{{ formatJson(mod.output) }}</pre>
+              <!-- ======================================================== -->
+              <!-- Special: Execute Tasks (Step 5) - show EXECUTION PLAN     -->
+              <!-- ======================================================== -->
+              <div
+                v-if="mod.moduleName === 'execute_tasks' && mod.output && (mod.output as any).executionPlan"
+                class="mt-4 ml-13 space-y-2"
+              >
+                <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
+                  Execution Plan
+                  <span class="ml-2 font-normal normal-case">
+                    ({{ (mod.output as any).taskCount || 0 }} task(s) to execute)
+                  </span>
+                </p>
+                <div
+                  v-for="plan in ((mod.output as any).executionPlan || [])"
+                  :key="plan.taskId"
+                  class="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 p-3 space-y-1.5"
+                >
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs font-bold px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400">
+                      Task {{ plan.taskId }}
+                    </span>
+                    <span class="text-xs font-semibold text-gray-700 dark:text-gray-300">
+                      {{ plan.action }}
+                    </span>
+                    <span class="text-xs text-gray-400">
+                      ({{ plan.deviceType }}/{{ plan.os }})
+                    </span>
+                  </div>
+
+                  <!-- Script path -->
+                  <div class="flex items-center gap-2 text-xs">
+                    <span class="text-gray-400 dark:text-gray-500 font-medium">Script:</span>
+                    <code class="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-900 rounded text-violet-600 dark:text-violet-400 font-mono">
+                      {{ plan.scriptPath }}
+                    </code>
+                  </div>
+
+                  <!-- Device info -->
+                  <div class="flex items-center gap-2 text-xs">
+                    <span class="text-gray-400 dark:text-gray-500 font-medium">Source:</span>
+                    <span class="text-gray-600 dark:text-gray-300">{{ plan.sourceDevice }}</span>
+                    <template v-if="plan.targetDevice">
+                      <span class="text-gray-400">-></span>
+                      <span class="text-gray-600 dark:text-gray-300">{{ plan.targetDevice }}</span>
+                    </template>
+                  </div>
+
+                  <!-- Arguments -->
+                  <div v-if="plan.arguments && Object.keys(plan.arguments).length > 0">
+                    <span class="text-xs text-gray-400 dark:text-gray-500 font-medium">Arguments:</span>
+                    <div class="mt-1 flex flex-wrap gap-1.5">
+                      <span
+                        v-for="(val, key) in plan.arguments"
+                        :key="key"
+                        class="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-900 text-gray-700 dark:text-gray-300"
+                      >
+                        <span class="font-mono text-amber-600 dark:text-amber-400">--{{ key }}</span>
+                        <span>{{ val }}</span>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- ======================================================== -->
+              <!-- Special: Pipeline Result (Step 6) - execution results     -->
+              <!-- ======================================================== -->
+              <div
+                v-if="mod.moduleName === 'pipeline_result' && mod.output"
+                class="mt-4 ml-13 space-y-3"
+              >
+                <!-- Per-task execution results -->
+                <template v-if="(mod.output as any).results">
+                  <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">
+                    Execution Results
+                    <span class="ml-2 font-normal normal-case">
+                      ({{ (mod.output as any).successCount || 0 }} passed, {{ (mod.output as any).failureCount || 0 }} failed)
+                    </span>
+                  </p>
+                  <div
+                    v-for="taskResult in ((mod.output as any).results || [])"
+                    :key="taskResult.id"
+                    :class="[
+                      'rounded-lg border p-3',
+                      taskResult.success
+                        ? 'bg-emerald-50/50 dark:bg-emerald-900/10 border-emerald-200 dark:border-emerald-800'
+                        : 'bg-red-50/50 dark:bg-red-900/10 border-red-200 dark:border-red-800'
+                    ]"
+                  >
+                    <div class="flex items-center gap-2 mb-1.5">
+                      <span
+                        :class="[
+                          'text-xs font-bold px-1.5 py-0.5 rounded',
+                          taskResult.success
+                            ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400'
+                            : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
+                        ]"
+                      >
+                        {{ taskResult.success ? 'PASS' : 'FAIL' }}
+                      </span>
+                      <span class="text-xs font-semibold text-gray-700 dark:text-gray-300">
+                        Task {{ taskResult.id }}: {{ taskResult.action }}
+                      </span>
+                    </div>
+                    <!-- Task stdout -->
+                    <div v-if="taskResult.output" class="mt-1">
+                      <pre class="text-xs bg-gray-900 dark:bg-black rounded p-2.5 text-emerald-400 dark:text-emerald-300 overflow-x-auto max-h-40 overflow-y-auto font-mono whitespace-pre-wrap">{{ taskResult.output }}</pre>
+                    </div>
+                    <!-- Task error -->
+                    <div v-if="taskResult.error" class="mt-1">
+                      <pre class="text-xs bg-gray-900 dark:bg-black rounded p-2.5 text-red-400 dark:text-red-300 overflow-x-auto max-h-40 overflow-y-auto font-mono whitespace-pre-wrap">{{ taskResult.error }}</pre>
+                    </div>
+                  </div>
+                </template>
+
+                <!-- Summary markdown -->
+                <div
+                  v-if="(mod.output as any).summary"
+                  class="prose prose-sm dark:prose-invert max-w-none bg-gray-50 dark:bg-gray-900 rounded-lg p-4 border border-gray-200 dark:border-gray-700 prose-pre:bg-gray-800 prose-pre:text-gray-100"
+                  v-html="renderMarkdown((mod.output as any).summary)"
+                />
+              </div>
+
+              <!-- Auto-expanded for waiting_confirm: show full output (for non-special modules only) -->
+              <div
+                v-if="mod.status === 'waiting_confirm' && mod.output && !expandedModules[mod.moduleId] && mod.moduleName !== 'execute_tasks' && mod.moduleName !== 'pipeline_result'"
+                class="mt-4 ml-13 space-y-3"
+              >
+                <!-- Input section -->
+                <div v-if="mod.input && Object.keys(mod.input).length > 0">
+                  <p class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider">Input</p>
+                  <pre class="text-sm bg-gray-100 dark:bg-gray-900 rounded-lg p-4 overflow-x-auto text-gray-700 dark:text-gray-300 max-h-60 overflow-y-auto">{{ formatJson(mod.input) }}</pre>
+                </div>
+                <!-- Output section -->
+                <div>
+                  <p class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider">Output</p>
+                  <pre class="text-sm bg-gray-100 dark:bg-gray-900 rounded-lg p-4 overflow-x-auto text-gray-700 dark:text-gray-300 max-h-96 overflow-y-auto">{{ formatJson(mod.output) }}</pre>
+                </div>
               </div>
 
               <!-- Error message -->
