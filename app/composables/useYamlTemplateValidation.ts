@@ -22,13 +22,13 @@ export interface ValidationResult {
 }
 
 // Enum definitions from documentation
-export const CONNECTION_TYPES = ['netmiko', 'napalm', 'ssh', 'command'] as const
+
 export const DATA_TYPES = ['string', 'integer', 'float', 'boolean', 'ip_address', 'ipv6_address', 'domain_name', 'cidr'] as const
 export const ACTION_TYPES = ['netmiko_send_command', 'napalm_get', 'ping', 'parse_output', 'custom_script'] as const
 export const CONDITION_TYPES = ['equals', 'contains', 'greater_than', 'less_than', 'regex', 'exists', 'not_equals'] as const
 export const PARSER_TYPES = ['regex', 'textfsm', 'jinja'] as const
 
-type ConnectionType = typeof CONNECTION_TYPES[number]
+
 type DataType = typeof DATA_TYPES[number]
 type ActionType = typeof ACTION_TYPES[number]
 type ConditionType = typeof CONDITION_TYPES[number]
@@ -48,9 +48,7 @@ const isValidDataType = (datatype: string): boolean => {
     return types.every(t => DATA_TYPES.includes(t as DataType))
 }
 
-const isValidConnectionType = (type: string): boolean => {
-    return CONNECTION_TYPES.includes(type as ConnectionType)
-}
+
 
 const isValidActionType = (action: string): boolean => {
     return ACTION_TYPES.includes(action as ActionType)
@@ -85,16 +83,7 @@ function validateMetadata(parsed: Record<string, any>, errors: ValidationError[]
         errors.push({ path: 'description', message: 'description must be a string', severity: 'error' })
     }
 
-    // connection_type - required
-    if (!parsed.connection_type) {
-        errors.push({ path: 'connection_type', message: 'Missing required field: connection_type', severity: 'error' })
-    } else if (!isValidConnectionType(parsed.connection_type)) {
-        errors.push({
-            path: 'connection_type',
-            message: `Invalid connection_type: "${parsed.connection_type}". Must be one of: ${CONNECTION_TYPES.join(', ')}`,
-            severity: 'error'
-        })
-    }
+
 
     // author - optional
     if (parsed.author !== undefined && typeof parsed.author !== 'string') {
@@ -405,7 +394,7 @@ export function validateYamlTemplate(yamlContent: string): ValidationResult {
 export function useYamlTemplateValidation() {
     return {
         validateYamlTemplate,
-        CONNECTION_TYPES,
+
         DATA_TYPES,
         ACTION_TYPES,
         CONDITION_TYPES,
