@@ -105,7 +105,7 @@
             <span>Use the rich text editor to craft announcements, rules, or lab guidelines.</span>
           </div>
           <div>
-            {{ localData.instructions.html.length }} characters
+            {{ (localData.instructions.markdown || localData.instructions.html || '').length }} characters
           </div>
         </div>
 
@@ -132,7 +132,7 @@
   <ClientOnly>
     <FullScreenEditor
       v-model="showInstructionsEditor"
-      :content="localData.instructions.html"
+      :content="getEditorContent(localData.instructions)"
       title="Student Instructions"
       :subtitle="courseContext.courseName"
       :auto-save-enabled="false"
@@ -145,7 +145,7 @@
 
 <script setup lang="ts">
 import { computed, watch, ref, onMounted, nextTick } from 'vue'
-import DOMPurify from 'dompurify'
+import { getDisplayHtml, getEditorContent, buildRichTextContent } from '~/utils/contentCompat'
 import {
   BookOpen,
   Info,
@@ -187,7 +187,8 @@ const emit = defineEmits<Emits>()
 // Local state
 const cloneInstructions = (content?: RichTextContent): RichTextContent => ({
   html: content?.html || '',
-  json: content?.json ? JSON.parse(JSON.stringify(content.json)) : { type: 'doc', content: [] }
+  json: content?.json ? JSON.parse(JSON.stringify(content.json)) : { type: 'doc', content: [] },
+  markdown: content?.markdown || '',
 })
 
 const localData = ref({
@@ -201,11 +202,12 @@ const isUpdatingFromProps = ref(false)
 
 // Computed
 const renderedInstructions = computed(() => {
-  const html = localData.value.instructions?.html?.trim()
-  if (!html) {
+  const content = localData.value.instructions
+  const html = getDisplayHtml(content)
+  if (!html?.trim()) {
     return '<p class="text-muted-foreground">No instructions provided</p>'
   }
-  return DOMPurify.sanitize(html)
+  return html
 })
 
 // Methods
@@ -238,7 +240,9 @@ const validateField = (field: string) => {
       break
 
     case 'instructions':
-      if (!localData.value.instructions.html.trim()) {
+      const inst = localData.value.instructions
+      const hasContent = (inst.markdown || inst.html || '').trim()
+      if (!hasContent) {
         fieldErrors.value.instructions = 'Student instructions are required'
       } else {
         delete fieldErrors.value.instructions
@@ -268,7 +272,9 @@ const validateAllFields = () => {
     delete fieldErrors.value.description
   }
 
-  if (!localData.value.instructions.html.trim()) {
+  const inst = localData.value.instructions
+  const hasContent = (inst.markdown || inst.html || '').trim()
+  if (!hasContent) {
     fieldErrors.value.instructions = 'Student instructions are required'
   } else {
     delete fieldErrors.value.instructions
@@ -299,14 +305,22 @@ const openInstructionsEditor = () => {
   showInstructionsEditor.value = true
 }
 
-const handleInstructionsSave = (payload: { html: string; json: any }) => {
-  localData.value.instructions = cloneInstructions(payload)
+const handleInstructionsSave = (payload: { html: string; json: any; markdown?: string }) => {
+  if (payload.markdown) {
+    localData.value.instructions = buildRichTextContent(payload.markdown)
+  } else {
+    localData.value.instructions = cloneInstructions(payload)
+  }
   showInstructionsEditor.value = false
   validateField('instructions')
 }
 
-const handleInstructionsClose = (payload: { html: string; json: any }) => {
-  localData.value.instructions = cloneInstructions(payload)
+const handleInstructionsClose = (payload: { html: string; json: any; markdown?: string }) => {
+  if (payload.markdown) {
+    localData.value.instructions = buildRichTextContent(payload.markdown)
+  } else {
+    localData.value.instructions = cloneInstructions(payload)
+  }
   showInstructionsEditor.value = false
   validateField('instructions')
 }
@@ -357,11 +371,11 @@ onMounted(() => {
 <style scoped>
 /* Markdown preview styles */
 :deep(.prose) {
-  color: hsl(var(--foreground));
+  color: var(--foreground);
 }
 
 :deep(.prose h1) {
-  color: hsl(var(--foreground));
+  color: var(--foreground);
   font-size: 1.5rem;
   font-weight: 600;
   margin-top: 0;
@@ -369,7 +383,7 @@ onMounted(() => {
 }
 
 :deep(.prose h2) {
-  color: hsl(var(--foreground));
+  color: var(--foreground);
   font-size: 1.25rem;
   font-weight: 600;
   margin-top: 1.5rem;
@@ -377,7 +391,7 @@ onMounted(() => {
 }
 
 :deep(.prose h3) {
-  color: hsl(var(--foreground));
+  color: var(--foreground);
   font-size: 1.125rem;
   font-weight: 600;
   margin-top: 1.25rem;
@@ -399,14 +413,14 @@ onMounted(() => {
 }
 
 :deep(.prose code) {
-  background-color: hsl(var(--muted));
+  background-color: var(--muted);
   padding: 0.125rem 0.25rem;
   border-radius: 0.25rem;
   font-size: 0.875rem;
 }
 
 :deep(.prose pre) {
-  background-color: hsl(var(--muted));
+  background-color: var(--muted);
   padding: 1rem;
   border-radius: 0.5rem;
   overflow-x: auto;
@@ -414,10 +428,10 @@ onMounted(() => {
 }
 
 :deep(.prose blockquote) {
-  border-left: 4px solid hsl(var(--border));
+  border-left: 4px solid var(--border);
   padding-left: 1rem;
   margin: 1rem 0;
   font-style: italic;
-  color: hsl(var(--muted-foreground));
+  color: var(--muted-foreground);
 }
 </style>

@@ -497,7 +497,7 @@ const loadDraft = () => {
       if (parsed.basicInfo) {
         wizardData.basicInfo.name = parsed.basicInfo.name || ''
         wizardData.basicInfo.description = parsed.basicInfo.description || ''
-        wizardData.basicInfo.instructions = parsed.basicInfo.instructions || { html: '', json: { type: 'doc', content: [] } }
+        wizardData.basicInfo.instructions = parsed.basicInfo.instructions || { html: '', json: { type: 'doc', content: [] }, markdown: '' }
       }
       
       // Restore network config

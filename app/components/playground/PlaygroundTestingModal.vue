@@ -437,10 +437,10 @@ watch(() => props.open, (open) => {
 
             <!-- GNS3 Connection Info -->
             <Alert v-if="gns3Config"
-                class="mt-4 border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950/30">
+                class="mt-4 border-green-200 bg-green-50 border-green-500/20 bg-green-500/10">
                 <CheckCircle2 class="w-4 h-4 text-green-600" />
-                <AlertTitle class="text-green-800 dark:text-green-400">GNS3 Connected</AlertTitle>
-                <AlertDescription class="text-green-700 dark:text-green-500">
+                <AlertTitle class="text-green-800 text-green-500">GNS3 Connected</AlertTitle>
+                <AlertDescription class="text-green-700 text-green-500">
                     {{ gns3Config.serverIp }}:{{ gns3Config.serverPort }} • Project: {{ gns3Config.projectName }}
                 </AlertDescription>
             </Alert>

@@ -17,6 +17,8 @@ export interface User {
   profilePicture?: string; // Presigned URL to profile picture
   bio?: string; // User bio (max 500 chars)
   lastLogin?: string;
+  themePreference?: string;
+  colorMode?: string;
   iat?: number;
   exp?: number;
 }

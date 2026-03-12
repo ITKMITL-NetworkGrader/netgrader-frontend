@@ -4,25 +4,31 @@ import '@fontsource/geist-mono';
 import { SonnerToaster as Toaster } from '@/components/ui/sonner'
 import 'vue-sonner/style.css'
 
-// Initialize dark mode
-// useDarkMode()
-
-// Add script to head to apply dark mode immediately
-// useHead({
-//   script: [
-//     {
-//       innerHTML: `
-//         (function() {
-//           document.documentElement.classList.add('dark');
-//           if (typeof localStorage !== 'undefined') {
-//             localStorage.setItem('theme', 'dark');
-//           }
-//         })();
-//       `,
-//       type: 'text/javascript'
-//     }
-//   ]
-// })
+// Early theme initialization via inline script to prevent flash of default theme
+useHead({
+  script: [
+    {
+      innerHTML: `
+        (function() {
+          try {
+            var mode = localStorage.getItem('ng-color-mode') || 'dark';
+            if (mode === 'system') {
+              mode = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+            }
+            if (mode === 'dark') {
+              document.documentElement.classList.add('dark');
+            } else {
+              document.documentElement.classList.remove('dark');
+            }
+          } catch(e) {
+            document.documentElement.classList.add('dark');
+          }
+        })();
+      `,
+      type: 'text/javascript',
+    }
+  ]
+})
 
 useSeoMeta({
         title: 'NetGrader',

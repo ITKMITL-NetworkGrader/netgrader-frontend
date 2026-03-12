@@ -1410,12 +1410,13 @@ const handleDuplicateTaskToPart = (payload: { task: any; targetPartId: string; n
 
 const renderMarkdown = (content: string): string => {
   if (!content) return '<p class="text-muted-foreground">No instructions provided</p>'
-  
+
   try {
-    return marked(content, {
+    const raw = marked(content, {
       breaks: true,
       gfm: true
     })
+    return DOMPurify.sanitize(raw as string)
   } catch (error) {
     return `<p class="text-destructive">Error rendering markdown: ${error}</p>`
   }
@@ -1913,11 +1914,11 @@ onUnmounted(() => {
 
 /* Markdown preview styles */
 :deep(.prose) {
-  color: hsl(var(--foreground));
+  color: var(--foreground);
 }
 
 :deep(.prose h1) {
-  color: hsl(var(--foreground));
+  color: var(--foreground);
   font-size: 1.5rem;
   font-weight: 600;
   margin-top: 0;
@@ -1925,7 +1926,7 @@ onUnmounted(() => {
 }
 
 :deep(.prose h2) {
-  color: hsl(var(--foreground));
+  color: var(--foreground);
   font-size: 1.25rem;
   font-weight: 600;
   margin-top: 1.5rem;

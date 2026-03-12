@@ -7,14 +7,14 @@
     />
 
     <!-- Dialog -->
-    <div class="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md mx-4">
-      <div class="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
+    <div class="relative bg-background border border-border rounded-lg shadow-xl w-full max-w-md mx-4">
+      <div class="flex items-center justify-between p-4 border-b border-border">
+        <h3 class="text-lg font-semibold text-foreground">
           Insert Image
         </h3>
         <button
           @click="$emit('update:show', false)"
-          class="p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
+          class="p-1 rounded-md hover:bg-accent hover:text-accent-foreground"
         >
           <Icon name="lucide:x" class="w-5 h-5" />
         </button>
@@ -22,12 +22,12 @@
 
       <div class="p-4">
         <!-- Tab Navigation -->
-        <div class="flex mb-4 border-b border-gray-200 dark:border-gray-700">
+        <div class="flex mb-4 border-b border-border">
           <button
             @click="activeTab = 'url'"
             :class="{
-              'border-blue-500 text-blue-600 dark:text-blue-400': activeTab === 'url',
-              'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300': activeTab !== 'url'
+              'border-primary text-primary': activeTab === 'url',
+              'border-transparent text-muted-foreground hover:text-foreground': activeTab !== 'url'
             }"
             class="px-4 py-2 border-b-2 font-medium text-sm"
           >
@@ -36,8 +36,8 @@
           <button
             @click="activeTab = 'upload'"
             :class="{
-              'border-blue-500 text-blue-600 dark:text-blue-400': activeTab === 'upload',
-              'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300': activeTab !== 'upload'
+              'border-primary text-primary': activeTab === 'upload',
+              'border-transparent text-muted-foreground hover:text-foreground': activeTab !== 'upload'
             }"
             class="px-4 py-2 border-b-2 font-medium text-sm"
           >
@@ -48,37 +48,37 @@
         <!-- URL Tab -->
         <div v-if="activeTab === 'url'" class="space-y-4">
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label class="block text-sm font-medium text-foreground mb-2">
               Image URL
             </label>
             <input
               v-model="imageUrl"
               type="url"
               placeholder="https://example.com/image.jpg"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+              class="w-full px-3 py-2 border border-input rounded-md focus:ring-2 focus:ring-ring focus:border-ring bg-background text-foreground"
               @keyup.enter="insertFromUrl"
             />
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label class="block text-sm font-medium text-foreground mb-2">
               Alt Text (Optional)
             </label>
             <input
               v-model="altText"
               type="text"
               placeholder="Description of the image"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+              class="w-full px-3 py-2 border border-input rounded-md focus:ring-2 focus:ring-ring focus:border-ring bg-background text-foreground"
               @keyup.enter="insertFromUrl"
             />
           </div>
 
           <!-- Preview -->
           <div v-if="imageUrl && isValidUrl(imageUrl)" class="mt-4">
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label class="block text-sm font-medium text-foreground mb-2">
               Preview
             </label>
-            <div class="border border-gray-200 dark:border-gray-600 rounded-lg p-2 bg-gray-50 dark:bg-gray-700">
+            <div class="border border-border rounded-lg p-2 bg-muted">
               <img
                 :src="imageUrl"
                 :alt="altText"
@@ -86,7 +86,7 @@
                 @error="imageError = true"
                 @load="imageError = false"
               />
-              <div v-if="imageError" class="text-center text-red-500 text-sm py-8">
+              <div v-if="imageError" class="text-center text-destructive text-sm py-8">
                 Failed to load image
               </div>
             </div>
@@ -96,7 +96,7 @@
         <!-- Upload Tab -->
         <div v-if="activeTab === 'upload'" class="space-y-4">
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label class="block text-sm font-medium text-foreground mb-2">
               Choose File
             </label>
 
@@ -105,8 +105,8 @@
               @drop.prevent="handleFileDrop"
               @dragover.prevent
               @dragenter.prevent
-              :class="{ 'border-blue-500 bg-blue-50 dark:bg-blue-900/20': isDragOver }"
-              class="relative border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 text-center hover:border-gray-400 dark:hover:border-gray-500 transition-colors"
+              :class="{ 'border-primary bg-primary/10': isDragOver }"
+              class="relative border-2 border-dashed border-border rounded-lg p-6 text-center hover:border-foreground/30 transition-colors"
             >
               <input
                 ref="fileInput"
@@ -118,22 +118,22 @@
               />
 
               <div v-if="!selectedFile">
-                <Icon name="lucide:upload-cloud" class="w-8 h-8 mx-auto mb-2 text-gray-400" />
-                <p class="text-sm text-gray-600 dark:text-gray-400">
+                <Icon name="lucide:upload-cloud" class="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
+                <p class="text-sm text-foreground">
                   <span class="font-medium">Click to upload</span> or drag and drop
                 </p>
-                <p class="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                <p class="text-xs text-muted-foreground mt-1">
                   PNG, JPG, GIF, WEBP up to 5MB
                 </p>
               </div>
 
               <!-- File Selected -->
-              <div v-else class="flex items-center justify-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+              <div v-else class="flex items-center justify-center gap-2 text-sm text-foreground">
                 <Icon name="lucide:file-image" class="w-5 h-5" />
                 <span>{{ selectedFile.name }}</span>
                 <button
                   @click.stop="selectedFile = null"
-                  class="text-red-500 hover:text-red-700"
+                  class="text-destructive hover:text-destructive/70"
                 >
                   <Icon name="lucide:x" class="w-4 h-4" />
                 </button>
@@ -142,23 +142,23 @@
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label class="block text-sm font-medium text-foreground mb-2">
               Alt Text (Optional)
             </label>
             <input
               v-model="altText"
               type="text"
               placeholder="Description of the image"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+              class="w-full px-3 py-2 border border-input rounded-md focus:ring-2 focus:ring-ring focus:border-ring bg-background text-foreground"
             />
           </div>
 
           <!-- File Preview -->
           <div v-if="selectedFile && filePreview" class="mt-4">
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label class="block text-sm font-medium text-foreground mb-2">
               Preview
             </label>
-            <div class="border border-gray-200 dark:border-gray-600 rounded-lg p-2 bg-gray-50 dark:bg-gray-700">
+            <div class="border border-border rounded-lg p-2 bg-muted">
               <img
                 :src="filePreview"
                 :alt="selectedFile.name"
@@ -170,17 +170,17 @@
       </div>
 
       <!-- Footer -->
-      <div class="flex items-center justify-end gap-2 p-4 border-t border-gray-200 dark:border-gray-700">
+      <div class="flex items-center justify-end gap-2 p-4 border-t border-border">
         <button
           @click="$emit('update:show', false)"
-          class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md"
+          class="px-4 py-2 text-sm font-medium text-foreground hover:bg-accent hover:text-accent-foreground rounded-md"
         >
           Cancel
         </button>
         <button
           @click="insertImage"
           :disabled="!canInsert"
-          class="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          class="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Insert Image
         </button>

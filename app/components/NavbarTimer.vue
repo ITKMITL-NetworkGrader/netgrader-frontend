@@ -533,27 +533,27 @@ onBeforeUnmount(() => {
 }
 
 .timer-normal {
-  background: hsl(var(--muted) / 0.5);
-  border: 1px solid hsl(var(--border) / 0.8);
-  color: hsl(var(--foreground));
+  background: color-mix(in oklch, var(--muted) 50%, transparent);
+  border: 1px solid color-mix(in oklch, var(--border) 80%, transparent);
+  color: var(--foreground);
 }
 
 .timer-normal:hover {
-  background: hsl(var(--accent));
-  border-color: hsl(var(--border));
+  background: var(--accent);
+  border-color: var(--border);
 }
 
 .timer-warning {
-  background: hsl(var(--destructive) / 0.1);
-  border: 1px solid hsl(var(--destructive) / 0.4);
-  color: hsl(var(--destructive));
+  background: color-mix(in oklch, var(--destructive) 10%, transparent);
+  border: 1px solid color-mix(in oklch, var(--destructive) 40%, transparent);
+  color: var(--destructive);
   animation: warning-glow 1.5s ease-in-out infinite;
 }
 
 .timer-expired {
-  background: hsl(var(--destructive));
-  border: 1px solid hsl(var(--destructive));
-  color: hsl(var(--destructive-foreground));
+  background: var(--destructive);
+  border: 1px solid var(--destructive);
+  color: var(--destructive-foreground);
 }
 
 .timer-icon {
@@ -592,19 +592,19 @@ onBeforeUnmount(() => {
 }
 
 .tooltip-icon {
-  color: hsl(var(--muted-foreground));
+  color: var(--muted-foreground);
   flex-shrink: 0;
 }
 
 .tooltip-label {
-  color: hsl(var(--muted-foreground));
+  color: var(--muted-foreground);
   min-width: 2.5rem;
 }
 
 .tooltip-value {
   font-family: ui-monospace, SFMono-Regular, monospace;
   font-size: 0.6875rem;
-  color: hsl(var(--foreground));
+  color: var(--foreground);
   margin-left: auto;
 }
 
@@ -613,7 +613,7 @@ onBeforeUnmount(() => {
   justify-content: center;
   margin-top: 0.25rem;
   padding-top: 0.5rem;
-  border-top: 1px solid hsl(var(--border) / 0.5);
+  border-top: 1px solid color-mix(in oklch, var(--border) 50%, transparent);
 }
 
 .tooltip-badge {
@@ -624,10 +624,10 @@ onBeforeUnmount(() => {
 /* Warning glow animation */
 @keyframes warning-glow {
   0%, 100% {
-    box-shadow: 0 0 8px hsl(var(--destructive) / 0.3);
+    box-shadow: 0 0 8px color-mix(in oklch, var(--destructive) 30%, transparent);
   }
   50% {
-    box-shadow: 0 0 16px hsl(var(--destructive) / 0.5);
+    box-shadow: 0 0 16px color-mix(in oklch, var(--destructive) 50%, transparent);
   }
 }
 

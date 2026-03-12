@@ -67,14 +67,14 @@
       </div>
 
       <!-- Important Steps -->
-      <Alert class="bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800">
-        <CheckCircle class="w-4 h-4 text-green-600 dark:text-green-400" />
-        <AlertTitle class="text-green-800 dark:text-green-300">Important Steps</AlertTitle>
-        <AlertDescription class="text-green-700 dark:text-green-400">
+      <Alert class="bg-green-500/10 border-green-500/20">
+        <CheckCircle class="w-4 h-4 text-green-500" />
+        <AlertTitle class="text-green-600">Important Steps</AlertTitle>
+        <AlertDescription class="text-green-500">
           <ol class="list-decimal list-inside space-y-2 text-sm mt-2 ml-1">
             <li class="flex items-start gap-2">
               <span class="flex-shrink-0 mt-1">1.</span>
-              <span>Configure DHCP on <code class="bg-green-100 dark:bg-green-900 px-2 py-0.5 rounded font-mono text-xs">{{ dhcpConfig.dhcpServerDevice }}</code> using the IP range above</span>
+              <span>Configure DHCP on <code class="bg-green-500/10 px-2 py-0.5 rounded font-mono text-xs">{{ dhcpConfig.dhcpServerDevice }}</code> using the IP range above</span>
             </li>
             <li class="flex items-start gap-2">
               <span class="flex-shrink-0 mt-1">2.</span>

@@ -635,14 +635,16 @@ const normalizeRichText = (value: any) => {
   if (!value) {
     return {
       html: '',
-      json: { type: 'doc', content: [] }
+      json: { type: 'doc', content: [] },
+      markdown: '',
     }
   }
 
   if (typeof value === 'string') {
     return {
       html: value,
-      json: { type: 'doc', content: [] }
+      json: { type: 'doc', content: [] },
+      markdown: '',
     }
   }
 
@@ -651,15 +653,18 @@ const normalizeRichText = (value: any) => {
       ? value.html
       : (typeof value.instructions === 'string' ? value.instructions : '')
     const json = value.json ?? { type: 'doc', content: [] }
+    const markdown = value.markdown ?? ''
     return {
       html,
-      json
+      json,
+      markdown,
     }
   }
 
   return {
     html: '',
-    json: { type: 'doc', content: [] }
+    json: { type: 'doc', content: [] },
+    markdown: '',
   }
 }
 
@@ -1119,7 +1124,8 @@ const prepareRichTextForApi = (value: any) => {
   const normalized = normalizeRichText(value)
   return {
     html: (normalized.html || '').trim(),
-    json: JSON.parse(JSON.stringify(normalized.json ?? { type: 'doc', content: [] }))
+    json: JSON.parse(JSON.stringify(normalized.json ?? { type: 'doc', content: [] })),
+    markdown: (normalized.markdown || '').trim(),
   }
 }
 

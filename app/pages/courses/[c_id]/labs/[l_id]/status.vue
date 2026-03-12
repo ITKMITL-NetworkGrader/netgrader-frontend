@@ -215,6 +215,12 @@ const hasPartZero = computed(() => {
     return true
   }
 
+  // Check new markdown field
+  const markdown = typeof lab.instructions.markdown === 'string' ? lab.instructions.markdown.trim() : ''
+  if (markdown.length > 0) {
+    return true
+  }
+
   const json = lab.instructions.json
   if (json && typeof json === 'object') {
     return Object.keys(json).length > 0

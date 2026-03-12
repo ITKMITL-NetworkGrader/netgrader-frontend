@@ -510,10 +510,10 @@ const currentLabParts = computed<LabPart[]>(() => {
     return normalizedParts
   }
 
-  const instructions = lab.instructions ?? { html: '', json: { type: 'doc', content: [] } }
+  const instructions = lab.instructions ?? { html: '', json: { type: 'doc', content: [] }, markdown: '' }
   const instructionsHtml = typeof instructions === 'string'
     ? instructions
-    : (instructions.html || '')
+    : (instructions.markdown || instructions.html || '')
 
   const fallbackInstructions = typeof instructions === 'string'
     ? (instructions.trim()
@@ -841,29 +841,27 @@ const getTaskStatus = (taskId: string, partId: string): 'pending' | 'running' | 
   return 'pending'
 }
 
-// Markdown Rendering
+// Markdown Rendering with fresh image URLs
 const renderMarkdown = (markdown: string | any): string => {
-  // Handle case where instructions might come as an object instead of string
+  // Synchronous rendering without image URL replacement
+  // Image URLs are refreshed client-side via the useImageUrls composable
   let htmlContent = ''
 
   if (typeof markdown === 'string') {
-    // If it's a string, treat as markdown and convert to HTML
     htmlContent = marked(markdown)
   } else if (markdown && typeof markdown === 'object') {
-    // If it's a rich content object (from TipTap editor), extract HTML
-    if (markdown.html) {
+    if (markdown.markdown) {
+      htmlContent = marked(markdown.markdown)
+    } else if (markdown.html) {
       htmlContent = markdown.html
     } else if (markdown.content || markdown.text || markdown.instructions) {
-      // Fallback: treat as markdown
       const markdownText = markdown.content || markdown.text || markdown.instructions
       htmlContent = marked(markdownText)
     } else {
-      // Last resort: stringify the object
       htmlContent = marked(JSON.stringify(markdown))
     }
   } else {
-    const content = String(markdown || '')
-    htmlContent = marked(content)
+    htmlContent = marked(String(markdown || ''))
   }
 
   const sanitized = DOMPurify.sanitize(htmlContent, DOMPURIFY_TEXT_COLOR_CONFIG)

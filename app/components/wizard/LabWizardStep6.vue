@@ -51,7 +51,7 @@
             <Label class="text-sm font-medium text-muted-foreground">Student Instructions</Label>
             <div class="p-3 bg-muted/30 rounded border max-h-32 overflow-y-auto prose prose-sm">
               <!-- eslint-disable-next-line vue/no-v-html -->
-              <div v-html="renderRichText(wizardData.basicInfo.instructions?.html)"></div>
+              <div v-html="renderMarkdown(wizardData.basicInfo.instructions?.markdown) || renderRichText(wizardData.basicInfo.instructions?.html)"></div>
             </div>
           </div>
         </CardContent>
@@ -849,11 +849,11 @@ const handleCreateLab = () => {
 <style scoped>
 /* Markdown preview styles */
 :deep(.prose) {
-  color: hsl(var(--foreground));
+  color: var(--foreground);
 }
 
 :deep(.prose h1) {
-  color: hsl(var(--foreground));
+  color: var(--foreground);
   font-size: 1.25rem;
   font-weight: 600;
   margin-top: 0;
@@ -861,7 +861,7 @@ const handleCreateLab = () => {
 }
 
 :deep(.prose h2) {
-  color: hsl(var(--foreground));
+  color: var(--foreground);
   font-size: 1.125rem;
   font-weight: 600;
   margin-top: 1rem;
@@ -883,7 +883,7 @@ const handleCreateLab = () => {
 }
 
 :deep(.prose code) {
-  background-color: hsl(var(--muted));
+  background-color: var(--muted);
   padding: 0.125rem 0.25rem;
   border-radius: 0.25rem;
   font-size: 0.875rem;
@@ -895,12 +895,12 @@ table {
 }
 
 table th {
-  background-color: hsl(var(--muted) / 0.3);
-  border-bottom: 1px solid hsl(var(--border));
+  background-color: color-mix(in oklch, var(--muted) 0.3, transparent);
+  border-bottom: 1px solid var(--border);
 }
 
 table td {
-  border-bottom: 1px solid hsl(var(--border));
+  border-bottom: 1px solid var(--border);
 }
 
 table tr:last-child td {
@@ -908,6 +908,6 @@ table tr:last-child td {
 }
 
 table tr:hover {
-  background-color: hsl(var(--muted) / 0.1);
+  background-color: color-mix(in oklch, var(--muted) 0.1, transparent);
 }
 </style>

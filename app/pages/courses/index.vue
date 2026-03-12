@@ -4,10 +4,10 @@ import { ChevronRight, Home, Lock } from 'lucide-vue-next'
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
-import { useColorMode } from "@vueuse/core";
 import ParticlesBg from '@/components/ui/particles-bg/ParticlesBg.vue'
 
-const isDark = computed(() => useColorMode().value == "dark");
+const { resolvedColorMode } = useTheme()
+const isDark = computed(() => resolvedColorMode.value === 'dark');
 
 // Get the accent color from CSS variables
 const particleColor = computed(() => {
@@ -48,10 +48,15 @@ const { data: coursesData, status } = await useFetch<CourseResponse>(backendURL 
     default: () => ({ courses: [] })
 })
 
+import { getImageUrl } from '~/utils/imageUrl'
+
 const DEFAULT_BANNER_PLACEHOLDER = '/placeholder.avif'
 
 const getCourseBanner = (course: CourseResponse['courses'][number]) => {
-  return course.bannerUrl || course.bannerImage || DEFAULT_BANNER_PLACEHOLDER
+  const path = course.bannerUrl || course.bannerImage
+  if (!path) return DEFAULT_BANNER_PLACEHOLDER
+  if (path.startsWith('http')) return path
+  return getImageUrl(path, backendURL)
 }
 
 </script>

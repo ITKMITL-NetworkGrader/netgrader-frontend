@@ -18,7 +18,7 @@
           :key="question.questionId"
           class="p-4 border rounded-lg space-y-3 transition-all"
           :class="{
-            'border-green-500 bg-green-50 dark:bg-green-950': results[question.questionId]?.isCorrect,
+            'border-green-500 bg-green-500/10': results[question.questionId]?.isCorrect,
             'border-destructive bg-destructive/5': hasSubmitted && !results[question.questionId]?.isCorrect,
             'border-secondary bg-secondary/10': isUpdateMode && hasAnswerChanged(question.questionId)
           }"
@@ -67,7 +67,7 @@
                 :disabled="hasSubmitted && !isUpdateMode"
                 class="font-mono"
                 :class="{
-                  'border-green-500 bg-green-50 dark:bg-green-950': results[question.questionId]?.isCorrect,
+                  'border-green-500 bg-green-500/10': results[question.questionId]?.isCorrect,
                   'border-destructive': hasSubmitted && !results[question.questionId]?.isCorrect,
                   'border-secondary bg-secondary/10': isUpdateMode && hasAnswerChanged(question.questionId)
                 }"

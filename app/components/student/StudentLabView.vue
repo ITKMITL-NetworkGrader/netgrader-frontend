@@ -256,8 +256,8 @@
         <!-- Device Naming Warning -->
         <Alert class="mb-4 bg-amber-500/10 border-amber-500/30">
           <AlertTriangle class="h-4 w-4 text-amber-600" />
-          <AlertTitle class="text-amber-700 dark:text-amber-400">Important: Device Node Names</AlertTitle>
-          <AlertDescription class="text-sm text-amber-700 dark:text-amber-400">
+          <AlertTitle class="text-amber-700 text-amber-500">Important: Device Node Names</AlertTitle>
+          <AlertDescription class="text-sm text-amber-700 text-amber-500">
             GNS3 device node names must match exactly as defined below. Mismatched names will cause grading to fail.
           </AlertDescription>
         </Alert>
@@ -618,7 +618,9 @@ const convertContentToHtml = (content: string): string => {
 }
 
 const renderedInstructions = computed(() => {
-  const rawInstructions = props.labData.instructions?.html || ''
+  const instructions = props.labData.instructions
+  // Support both legacy HTML and new Markdown format
+  const rawInstructions = instructions?.markdown || instructions?.html || ''
 
   if (!rawInstructions) {
     return '<p class="text-muted-foreground">No instructions provided.</p>'
@@ -656,7 +658,8 @@ const renderPartInstructions = (part: LabPart): string => {
   if (typeof value === 'string') {
     html = value
   } else if (typeof value === 'object') {
-    html = value.html || value.instructions || ''
+    // Handle new markdown field or legacy html/json
+    html = value.markdown || value.html || value.instructions || ''
   }
 
   if (!html.trim()) return ''

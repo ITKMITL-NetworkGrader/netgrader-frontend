@@ -210,7 +210,7 @@
                     </Label>
                     <!-- Dual-Stack Indicator -->
                     <div v-if="hasIpv6Enabled" class="flex items-center gap-1.5">
-                      <Badge variant="outline" class="text-xs bg-emerald-50 border-emerald-200 text-emerald-700">IPv4</Badge>
+                      <Badge variant="outline" class="text-xs bg-emerald-500/10 border-emerald-200 text-emerald-700">IPv4</Badge>
                       <span class="text-muted-foreground">+</span>
                       <Badge variant="outline" class="text-xs bg-indigo-50 border-indigo-200 text-indigo-700">IPv6</Badge>
                     </div>
@@ -263,7 +263,7 @@
                         <!-- IPv4 Column -->
                         <div class="p-3 space-y-3" :class="hasIpv6Enabled ? 'border-r' : ''">
                           <div class="flex items-center gap-2">
-                            <Badge variant="outline" class="text-xs bg-emerald-50 border-emerald-200 text-emerald-700">IPv4</Badge>
+                            <Badge variant="outline" class="text-xs bg-emerald-500/10 border-emerald-200 text-emerald-700">IPv4</Badge>
                           </div>
                           
                           <!-- IPv4 Type Selector -->
@@ -339,7 +339,7 @@
                             </p>
                           </div>
 
-                          <div v-else-if="ipVar.inputType === 'studentManagement'" class="p-2 bg-blue-50 rounded text-xs text-blue-700">
+                          <div v-else-if="ipVar.inputType === 'studentManagement'" class="p-2 bg-blue-50 rounded text-xs text-blue-600">
                             <div class="font-medium">Backend Generated</div>
                             <div>From: {{ networkConfig.managementNetwork }}/{{ networkConfig.managementSubnetMask }}</div>
                           </div>
@@ -361,7 +361,7 @@
 
                           <!-- Sub-VLAN Configuration (Large Subnet Mode) -->
                           <div v-else-if="ipVar.inputType?.startsWith('subVlan') && !ipVar.inputType?.startsWith('subVlan6_')" class="space-y-2">
-                            <div class="p-2 bg-emerald-50 dark:bg-emerald-950 rounded text-xs text-emerald-700 dark:text-emerald-300">
+                            <div class="p-2 bg-emerald-500/10 bg-emerald-500/100/10 rounded text-xs text-emerald-700 text-emerald-500">
                               <div class="font-medium">{{ getSubVlanName(ipVar.inputType) }} (Large Subnet Mode)</div>
                               <div>Students calculate IP from their assigned subnet block</div>
                             </div>
@@ -370,7 +370,7 @@
                               <Input v-model.number="ipVar.interfaceOffset" type="number" :min="1"
                                 placeholder="1" class="text-sm w-16 h-7"
                                 @input="validateIpVariable(index, ipIndex, 'interfaceOffset')" />
-                              <span class="text-xs text-emerald-600 dark:text-emerald-400">Host .{{ ipVar.interfaceOffset || 1 }} in sub-VLAN block</span>
+                              <span class="text-xs text-emerald-600 text-emerald-500">Host .{{ ipVar.interfaceOffset || 1 }} in sub-VLAN block</span>
                             </div>
                             <input type="hidden" v-model="ipVar.vlanIndex" />
                           </div>
@@ -481,7 +481,7 @@
 
                           <!-- Large Subnet Mode Sub-VLAN IPv6 Configuration -->
                           <div v-else-if="ipVar.ipv6InputType?.startsWith('subVlan6_')" class="space-y-2">
-                            <div class="p-2 bg-emerald-100 dark:bg-emerald-950 rounded text-xs text-emerald-700 dark:text-emerald-300">
+                            <div class="p-2 bg-emerald-500/10 bg-emerald-500/100/10 rounded text-xs text-emerald-700 text-emerald-500">
                               <div class="font-medium">Sub-VLAN IPv6 (Large Subnet Mode)</div>
                               <div>Template: 2001:&lt;X&gt;:&lt;Y&gt;:&lt;SubVLAN_ID&gt;::&lt;offset&gt;/64</div>
                             </div>
@@ -598,10 +598,10 @@
 
                   <!-- Console info message -->
                   <div v-if="device.connectionParams.connectionType === 'console'"
-                    class="p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg">
+                    class="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
                     <div class="flex items-start gap-2">
-                      <Info class="w-4 h-4 mt-0.5 text-blue-600 dark:text-blue-400" />
-                      <div class="text-sm text-blue-700 dark:text-blue-300">
+                      <Info class="w-4 h-4 mt-0.5 text-blue-500" />
+                      <div class="text-sm text-blue-600">
                         Console connection does not require additional credentials. The device will be accessed directly
                         through the
                         console port.

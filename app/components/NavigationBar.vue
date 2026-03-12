@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { toast } from 'vue-sonner'
 import NavbarTimer from '@/components/NavbarTimer.vue'
+import { getImageUrl } from '~/utils/imageUrl'
 
 const userState = useUserState()
 const { canAccessManagePage } = useRoleGuard()
@@ -15,6 +16,17 @@ const backendUrl = config.public.backendurl
 // Profile fallback image
 const PROFILE_FALLBACK = '/profile_fallback.jpg'
 
+// Computed profile picture URL with fresh presigned URL
+const profilePictureUrl = computedAsync(async () => {
+  const path = userState.value?.profilePicture
+  if (!path) return PROFILE_FALLBACK
+  try {
+    return await getImageUrl(path, backendUrl)
+  } catch {
+    return path || PROFILE_FALLBACK
+  }
+})
+
 // Timer state from composable
 const { timerState } = useNavbarTimer()
 const { emitTimerExpired, emitDeadlineExtended } = useNavbarTimerEvents()
@@ -26,7 +38,7 @@ onMounted(() => {
     isMounted.value = true
 })
 
-// Dark mode functionality
+const { resetToDefault } = useTheme()
 
 const logout = async () => {
     try {
@@ -55,6 +67,7 @@ const logout = async () => {
             }
         })
         userState.value = null
+        resetToDefault()
         toast.success('Logged out successfully!', {
             description: 'You have been logged out.',
         })
@@ -156,18 +169,6 @@ watch(() => route.path, () => {
 
                 <!-- User section -->
                 <div class="flex items-center gap-3 ml-4 pl-4 border-l border-border/30">
-                <!-- Theme toggle button -->
-                <!-- <button
-                    class="p-2 rounded-md hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground transition-colors"
-                    :title="isDark ? 'Switch to light mode' : 'Switch to dark mode'"
-                    @click="toggleTheme"
-                >
-                    <Icon 
-                    :name="isDark ? 'lucide:sun' : 'lucide:moon'" 
-                    class="w-4 h-4" 
-                    />
-                </button> -->
-                
                 <!-- Login button for guests -->
                 <NuxtLink 
                     v-if="!isAuthenticated" 
@@ -190,8 +191,8 @@ watch(() => route.path, () => {
                         :class="{ 'bg-accent text-accent-foreground': dropdownOpen }"
                     >
                         <img
-                          v-if="userState?.profilePicture"
-                          :src="userState.profilePicture"
+                          v-if="profilePictureUrl"
+                          :src="profilePictureUrl"
                           :alt="userState?.fullName || 'Profile'"
                           class="w-8 h-8 rounded-full object-cover"
                           @error="(e: Event) => (e.target as HTMLImageElement).src = PROFILE_FALLBACK"
@@ -218,13 +219,13 @@ watch(() => route.path, () => {
                         <Icon name="lucide:user" class="w-4 h-4 mr-2" />
                         Profile
                     </DropdownMenuItem>
-                    <DropdownMenuItem class="cursor-pointer">
+                    <DropdownMenuItem class="cursor-pointer" @click="navigateTo('/settings/personalization')">
                         <Icon name="lucide:settings" class="w-4 h-4 mr-2" />
                         Settings
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem 
-                        class="cursor-pointer text-red-500 focus:text-red-500 dark:text-red-400 dark:focus:text-red-400" 
+                        class="cursor-pointer text-red-500 focus:text-red-500 text-red-500 focus:text-red-500" 
                         @click="logout"
                     >
                         <Icon name="lucide:log-out" class="w-4 h-4 mr-2" />
@@ -291,8 +292,8 @@ watch(() => route.path, () => {
                     <div v-else class="space-y-3">
                     <div class="flex items-center gap-3">
                         <img
-                          v-if="userState?.profilePicture"
-                          :src="userState.profilePicture"
+                          v-if="profilePictureUrl"
+                          :src="profilePictureUrl"
                           :alt="userState?.fullName || 'Profile'"
                           class="w-8 h-8 rounded-full object-cover"
                           @error="(e: Event) => (e.target as HTMLImageElement).src = PROFILE_FALLBACK"
@@ -320,7 +321,7 @@ watch(() => route.path, () => {
                         <Button 
                         variant="ghost" 
                         size="sm" 
-                        class="flex-1 text-red-500 hover:text-red-500 dark:text-red-400 dark:hover:text-red-400" 
+                        class="flex-1 text-red-500 hover:text-red-500 text-red-500 hover:text-red-500" 
                         @click="logout"
                         >
                         <Icon name="lucide:log-out" class="w-4 h-4 mr-2" />

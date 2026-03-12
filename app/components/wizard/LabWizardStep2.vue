@@ -267,7 +267,7 @@
           </template>
 
           <!-- Management Network Override Section -->
-          <div class="space-y-3 p-3 border rounded-lg bg-amber-50/50 border-amber-200 dark:bg-amber-900/10 dark:border-amber-800">
+          <div class="space-y-3 p-3 border rounded-lg bg-amber-500/10 border-amber-500/20 border-amber-500/20">
             <div class="flex items-center justify-between">
               <div class="space-y-0.5">
                 <Label class="text-sm font-medium flex items-center gap-2">
@@ -295,14 +295,14 @@
                 <Label class="text-sm font-normal">Use Student ID (last 3 digits) as suffix</Label>
                 <Switch v-model="useStudentIdSuffix" />
               </div>
-              <div class="p-2 bg-white dark:bg-background rounded border text-xs font-mono">
-                Preview: <span class="text-amber-700 dark:text-amber-400">{{ managementPreview }}</span>
+              <div class="p-2 bg-white bg-background rounded border text-xs font-mono">
+                Preview: <span class="text-amber-700 text-amber-500">{{ managementPreview }}</span>
               </div>
             </div>
           </div>
 
           <!-- Enhanced Live Preview -->
-          <div class="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-lg border space-y-4">
+          <div class="p-4 bg-slate-50 bg-muted rounded-lg border space-y-4">
             <div class="flex items-center gap-2 text-sm font-medium">
               <Eye class="w-4 h-4" />
               Live Preview (Student {{ previewStudentId }})
@@ -310,19 +310,19 @@
             
             <!-- Student Variable Breakdown -->
             <div class="grid grid-cols-4 gap-2 text-xs">
-              <div class="p-2 bg-white dark:bg-background rounded border text-center">
+              <div class="p-2 bg-white bg-background rounded border text-center">
                 <div class="font-semibold text-primary">X</div>
                 <div class="font-mono">{{ studentVariables.X }}</div>
               </div>
-              <div class="p-2 bg-white dark:bg-background rounded border text-center">
+              <div class="p-2 bg-white bg-background rounded border text-center">
                 <div class="font-semibold text-primary">Y</div>
                 <div class="font-mono">{{ studentVariables.Y }}</div>
               </div>
-              <div class="p-2 bg-white dark:bg-background rounded border text-center">
+              <div class="p-2 bg-white bg-background rounded border text-center">
                 <div class="font-semibold text-primary">last3</div>
                 <div class="font-mono">{{ studentVariables.last3 }}</div>
               </div>
-              <div class="p-2 bg-white dark:bg-background rounded border text-center">
+              <div class="p-2 bg-white bg-background rounded border text-center">
                 <div class="font-semibold text-primary">X (hex)</div>
                 <div class="font-mono">{{ studentVariables.X_hex }}</div>
               </div>
@@ -344,8 +344,8 @@
             <div v-if="localData.ipv6Config?.managementOverride?.enabled" 
                  class="pt-3 border-t">
               <div class="flex items-center gap-3 text-sm">
-                <Badge variant="secondary" class="bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-400">Management</Badge>
-                <code class="flex-1 text-xs font-mono text-amber-700 dark:text-amber-400 break-all">{{ managementPreview }}</code>
+                <Badge variant="secondary" class="bg-amber-100 bg-amber-500/10 text-amber-800 text-amber-500">Management</Badge>
+                <code class="flex-1 text-xs font-mono text-amber-700 text-amber-500 break-all">{{ managementPreview }}</code>
               </div>
             </div>
           </div>
@@ -884,12 +884,12 @@
               </template>
               <!-- Large Subnet Mode Sub-VLANs Preview -->
               <template v-else-if="localData.largeSubnetConfig?.subVlans">
-                <div class="p-3 bg-blue-50 dark:bg-blue-950/30 rounded border border-blue-200 dark:border-blue-800 mb-3">
+                <div class="p-3 bg-blue-500/10 rounded border border-blue-500/20 mb-3">
                   <div class="flex items-center gap-2 mb-2">
-                    <Info class="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                    <span class="text-sm font-medium text-blue-700 dark:text-blue-300">Large Subnet Assignment</span>
+                    <Info class="w-4 h-4 text-blue-500" />
+                    <span class="text-sm font-medium text-blue-600">Large Subnet Assignment</span>
                   </div>
-                  <div class="text-xs text-blue-600 dark:text-blue-400 space-y-1">
+                  <div class="text-xs text-blue-500 space-y-1">
                     <div>Private Network Pool: {{ localData.largeSubnetConfig.privateNetworkPool }}</div>
                     <div>Student Subnet Size: /{{ localData.largeSubnetConfig.studentSubnetSize }}</div>
                     <div>Student receives a unique large subnet based on their ID</div>
