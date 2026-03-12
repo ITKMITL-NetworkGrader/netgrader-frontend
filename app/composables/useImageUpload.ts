@@ -138,6 +138,11 @@ export function useImageUpload(options: ImageUploadOptions = {}) {
     isUploading.value = true
 
     try {
+      // Validate URL scheme to prevent SSRF
+      const urlObj = new URL(url)
+      if (!['http:', 'https:'].includes(urlObj.protocol)) {
+        throw new Error('Only http and https URLs are allowed')
+      }
       const response = await fetch(url)
       if (!response.ok) {
         throw new Error(`Failed to fetch image from URL: ${response.statusText}`)

@@ -150,8 +150,9 @@ const canInsert = computed(() => {
 // Methods
 const isValidUrl = (url: string): boolean => {
   try {
-    new URL(url)
-    return true
+    const urlObj = new URL(url)
+    // Only allow http/https protocols to prevent javascript: XSS
+    return ['http:', 'https:'].includes(urlObj.protocol)
   } catch {
     return false
   }

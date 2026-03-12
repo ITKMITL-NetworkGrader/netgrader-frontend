@@ -20,7 +20,12 @@ export default defineNuxtConfig({
   vite: {
     plugins: [
       tailwindcss()
-    ]
+    ],
+    // DSEC-16: Strip console logs and debugger statements in production
+    esbuild: {
+      drop: process.env.NODE_ENV === 'production' ? ['debugger'] : [],
+      pure: process.env.NODE_ENV === 'production' ? ['console.log', 'console.debug'] : []
+    }
   },
   runtimeConfig: {
     public: {
