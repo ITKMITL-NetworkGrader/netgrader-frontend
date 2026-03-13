@@ -3,7 +3,7 @@
     <!-- Task Groups Header -->
     <div class="flex items-center justify-between">
       <div>
-        <Label class="text-sm font-medium text-purple-700">Task Groups</Label>
+        <Label class="text-sm font-medium text-primary">Task Groups</Label>
         <p class="text-xs text-muted-foreground mt-1">
           Organize tasks into groups for execution control and grading
         </p>
@@ -18,11 +18,11 @@
     <div v-if="localTaskGroups.length > 0" class="flex gap-6 items-start">
       <!-- Main Area: Ungrouped Tasks -->
       <div class="flex-1 min-w-0">
-        <div class="border-2 border-dashed border-gray-200 rounded-lg p-4 bg-gray-50/30">
+        <div class="border-2 border-dashed border-border rounded-lg p-4 bg-muted/30">
           <div class="flex items-center justify-between mb-4">
             <div class="flex items-center space-x-2">
-              <Package class="w-4 h-4 text-gray-500" />
-              <h4 class="font-medium text-gray-700">Ungrouped Tasks</h4>
+              <Package class="w-4 h-4 text-muted-foreground" />
+              <h4 class="font-medium text-foreground">Ungrouped Tasks</h4>
               <Badge variant="secondary" class="text-xs">
                 {{ ungroupedTasks.length }} task{{ ungroupedTasks.length !== 1 ? 's' : '' }}
               </Badge>
@@ -37,7 +37,7 @@
             class="min-h-[200px] space-y-3 transition-colors"
             :class="{
               'bg-green-50 border-2 border-green-300 rounded-md p-3': isDragOverUngrouped,
-              'border-2 border-dashed border-gray-300 rounded-md p-3': ungroupedTasks.length === 0 && !isDragOverUngrouped
+              'border-2 border-dashed border-border rounded-md p-3': ungroupedTasks.length === 0 && !isDragOverUngrouped
             }"
           >
             <div v-if="ungroupedTasks.length === 0" class="text-center text-sm text-muted-foreground py-8">
@@ -135,7 +135,7 @@
               class="min-h-[60px] space-y-2 transition-all rounded-md"
               :class="{
                 'bg-green-50 border-2 border-green-300 p-2': isDragOverGroup === group.tempId,
-                'border-2 border-dashed border-gray-300 p-2': getGroupTasks(group.tempId).length === 0 && isDragOverGroup !== group.tempId
+                'border-2 border-dashed border-border p-2': getGroupTasks(group.tempId).length === 0 && isDragOverGroup !== group.tempId
               }"
             >
               <div v-if="getGroupTasks(group.tempId).length === 0" class="text-center text-xs text-muted-foreground py-3">
@@ -157,7 +157,7 @@
             </div>
 
             <!-- Group Summary -->
-            <div class="mt-2 pt-2 border-t border-gray-200">
+            <div class="mt-2 pt-2 border-t border-border">
               <div class="flex flex-col gap-1 text-xs text-muted-foreground">
                 <div class="flex items-center justify-between">
                   <span>Timeout:</span>
@@ -175,11 +175,11 @@
     </div>
 
     <!-- No Task Groups: Show ungrouped tasks normally -->
-    <div v-else class="border-2 border-dashed border-gray-200 rounded-lg p-4 bg-gray-50/30">
+    <div v-else class="border-2 border-dashed border-border rounded-lg p-4 bg-muted/30">
       <div class="flex items-center justify-between mb-4">
         <div class="flex items-center space-x-2">
-          <Package class="w-4 h-4 text-gray-500" />
-          <h4 class="font-medium text-gray-700">All Tasks</h4>
+          <Package class="w-4 h-4 text-muted-foreground" />
+          <h4 class="font-medium text-foreground">All Tasks</h4>
           <Badge variant="secondary" class="text-xs">
             {{ ungroupedTasks.length }} task{{ ungroupedTasks.length !== 1 ? 's' : '' }}
           </Badge>
@@ -250,7 +250,7 @@
                   v-model="groupForm.group_type"
                   value="all_or_nothing"
                   type="radio"
-                  class="w-4 h-4 text-destructive border-gray-300 focus:ring-destructive"
+                  class="w-4 h-4 text-destructive border-border focus:ring-destructive"
                 />
                 <Label for="all-or-nothing" class="text-sm">
                   All or Nothing - Students get full points or zero for entire group
@@ -262,7 +262,7 @@
                   v-model="groupForm.group_type"
                   value="proportional"
                   type="radio"
-                  class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                  class="w-4 h-4 text-blue-600 border-border focus:ring-blue-500"
                 />
                 <Label for="proportional" class="text-sm">
                   Proportional - Students get partial credit based on completed tasks
@@ -315,7 +315,7 @@
               id="continue-on-failure"
               v-model="groupForm.continue_on_failure"
               type="checkbox"
-              class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+              class="w-4 h-4 text-blue-600 border-border rounded focus:ring-blue-500"
             />
             <Label for="continue-on-failure" class="text-sm">
               Continue execution if this group fails

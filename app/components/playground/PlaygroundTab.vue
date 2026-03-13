@@ -106,7 +106,6 @@ function connectToSSE(jobId: string) {
 
     eventSource.addEventListener('progress', (event) => {
         // Progress updates handled by GradingProgress component
-        console.log('Progress:', JSON.parse(event.data))
     })
 
     eventSource.addEventListener('completed', (event) => {

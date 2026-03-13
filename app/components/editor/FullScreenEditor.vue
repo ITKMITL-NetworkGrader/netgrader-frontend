@@ -52,7 +52,7 @@
           <!-- Action buttons -->
           <button
             @click="saveDocument"
-            :disabled="isSaving || !hasUnsavedChanges"
+            :disabled="isSaving"
             class="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center transition-colors text-sm"
             title="Save (Ctrl+S)"
           >
@@ -77,7 +77,7 @@
       <!-- Main Editor Area -->
       <div class="flex-1 flex overflow-hidden">
         <!-- Editor Panel -->
-        <div class="flex-1 flex flex-col">
+        <div class="flex-1 flex flex-col min-h-0">
           <RichTextEditor
             ref="editorRef"
             v-model="content"
@@ -85,11 +85,11 @@
             :show-toolbar="true"
             :show-status-bar="false"
             :autofocus="true"
-            :editor-class="'flex-1 overflow-y-auto min-h-0'"
+            :editor-class="'flex-1 overflow-y-auto min-h-0 fullscreen-editor'"
             @focus="handleFocus"
             @blur="handleBlur"
             @save="saveDocument"
-            class="border-0 flex-1 flex flex-col"
+            class="border-0 flex-1 flex flex-col min-h-0"
           />
         </div>
 
@@ -360,13 +360,14 @@ const buildPayload = (): RichTextPayload => {
 }
 
 const saveDocument = async (): Promise<RichTextPayload | void> => {
-  if (isSaving.value || !hasUnsavedChanges.value) return
+  if (isSaving.value) return
 
   isSaving.value = true
   try {
     const payload = buildPayload()
     emit('save', payload)
-    originalContent.value = payload.html
+    // Use markdown for originalContent (matches what editor uses)
+    originalContent.value = payload.markdown
     lastSaved.value = new Date()
     return payload
   } catch (error) {
@@ -490,6 +491,7 @@ watch(isOpen, (value) => {
   if (value) {
     // Reset state when opening
     content.value = props.content
+    // Use markdown for originalContent (matches what editor uses)
     originalContent.value = props.content
     lastSaved.value = null
   }
@@ -529,3 +531,42 @@ watch(isOpen, (open) => {
   }
 })
 </script>
+
+<style scoped>
+/* Fullscreen editor container improvements */
+.fullscreen-editor {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.fullscreen-editor :deep(.milkdown-wrapper) {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.fullscreen-editor :deep(.milkdown) {
+  flex: 1;
+  min-height: 0;
+}
+
+.fullscreen-editor :deep(.ProseMirror) {
+  flex: 1;
+  overflow-y: auto;
+}
+
+/* Ensure slash menu appears above footer */
+.fullscreen-editor :deep(.milkdown-slash-menu),
+.fullscreen-editor :deep(.milkdown-block-edit),
+.fullscreen-editor :deep(.slash-menu),
+.fullscreen-editor :deep(.block-edit-menu) {
+  z-index: 100 !important;
+}
+
+/* Ensure toolbar appears above footer */
+.fullscreen-editor :deep(.milkdown-toolbar),
+.fullscreen-editor :deep(.crepe-toolbar) {
+  z-index: 50 !important;
+}
+</style>

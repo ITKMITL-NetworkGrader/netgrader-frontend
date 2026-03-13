@@ -82,6 +82,9 @@ const currentMarkdown = ref('')
 const wordCount = ref(0)
 const charCount = ref(0)
 
+// Track if update came from editor itself to prevent circular updates
+let isEditorUpdate = false
+
 // Convert initial value (may be HTML or Markdown) to Markdown for the editor
 const initialContent = computed(() => {
   return getEditorContent(props.modelValue)
@@ -89,7 +92,13 @@ const initialContent = computed(() => {
 
 const onContentUpdate = (markdown: string) => {
   currentMarkdown.value = markdown
+  // Mark that this update came from the editor to prevent circular updates
+  isEditorUpdate = true
   emit('update:modelValue', markdown)
+  // Reset flag after emit completes
+  nextTick(() => {
+    isEditorUpdate = false
+  })
   updateStats(markdown)
 }
 
@@ -129,10 +138,16 @@ const formatTime = (date: Date) => {
   }).format(date)
 }
 
-// Watch for external content changes
+// Watch for external content changes (only update if change came from outside)
 watch(() => props.modelValue, (newValue) => {
+  // Skip if this update came from the editor itself
+  if (isEditorUpdate) {
+    isEditorUpdate = false
+    return
+  }
   const converted = getEditorContent(newValue)
   if (converted !== currentMarkdown.value) {
+    isEditorUpdate = true
     milkdownRef.value?.setContent?.(converted)
   }
 })

@@ -158,19 +158,17 @@ const loadData = async () => {
     if (detailResult.success && detailResult.data) {
       submissionData.value = detailResult.data
 
-      // Fetch lab and course info for breadcrumb navigation
-      await fetchLabById(detailResult.data.labId)
+      // Fetch lab and student history in parallel (both only need detailResult data)
+      const [labResult, historyResult] = await Promise.all([
+        fetchLabById(detailResult.data.labId),
+        fetchStudentHistory(detailResult.data.labId, detailResult.data.studentId)
+      ])
 
-      // Fetch course info if lab has courseId
+      // Fetch course info if lab has courseId (depends on lab being fetched)
       if (currentLab.value?.courseId) {
         await fetchCourse(currentLab.value.courseId)
       }
 
-      // Fetch student history
-      const historyResult = await fetchStudentHistory(
-        detailResult.data.labId,
-        detailResult.data.studentId
-      )
       if (historyResult.success && historyResult.data) {
         studentHistory.value = historyResult.data
       }

@@ -655,10 +655,6 @@ watch(isManageModalOpen, (isOpen) => {
 
 // Debug logging to check enrollment data
 watchEffect(() => {
-  console.log('Current course enrollment:', currentCourseEnrollment.value)
-  console.log('Is enrolled:', isEnrolled.value)
-  console.log('User role:', userRole.value)
-  console.log('Can manage course:', canManageCourse.value)
 })
 
 // Watch for admin role change modal open to set default value

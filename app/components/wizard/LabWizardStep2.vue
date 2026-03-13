@@ -295,7 +295,7 @@
                 <Label class="text-sm font-normal">Use Student ID (last 3 digits) as suffix</Label>
                 <Switch v-model="useStudentIdSuffix" />
               </div>
-              <div class="p-2 bg-white bg-background rounded border text-xs font-mono">
+              <div class="p-2 bg-card bg-background rounded border text-xs font-mono">
                 Preview: <span class="text-amber-700 text-amber-500">{{ managementPreview }}</span>
               </div>
             </div>
@@ -310,19 +310,19 @@
             
             <!-- Student Variable Breakdown -->
             <div class="grid grid-cols-4 gap-2 text-xs">
-              <div class="p-2 bg-white bg-background rounded border text-center">
+              <div class="p-2 bg-card bg-background rounded border text-center">
                 <div class="font-semibold text-primary">X</div>
                 <div class="font-mono">{{ studentVariables.X }}</div>
               </div>
-              <div class="p-2 bg-white bg-background rounded border text-center">
+              <div class="p-2 bg-card bg-background rounded border text-center">
                 <div class="font-semibold text-primary">Y</div>
                 <div class="font-mono">{{ studentVariables.Y }}</div>
               </div>
-              <div class="p-2 bg-white bg-background rounded border text-center">
+              <div class="p-2 bg-card bg-background rounded border text-center">
                 <div class="font-semibold text-primary">last3</div>
                 <div class="font-mono">{{ studentVariables.last3 }}</div>
               </div>
-              <div class="p-2 bg-white bg-background rounded border text-center">
+              <div class="p-2 bg-card bg-background rounded border text-center">
                 <div class="font-semibold text-primary">X (hex)</div>
                 <div class="font-mono">{{ studentVariables.X_hex }}</div>
               </div>
@@ -816,7 +816,7 @@
                       {{ vlan.ipv6VlanAlphabet || getVlanAlphabet(index) }}
                     </Badge>
                   </div>
-                  <div class="p-3 bg-white/80 rounded border border-blue-100">
+                  <div class="p-3 bg-card/80 rounded border border-blue-100">
                     <p class="text-xs text-slate-600 mb-1">IPv6 Prefix Format:</p>
                     <code class="text-sm font-mono text-blue-700 break-all">{{ localData.ipv6Config?.template || '2001:{X}:{Y}:{VLAN}::{offset}/64' }}</code>
                     <p class="text-xs text-slate-500 mt-1">Example: {{ generateIPv6Preview(vlan, index) }}</p>
@@ -1150,7 +1150,6 @@ onMounted(() => {
     const normalized = normalizeLargeSubnetConfig(localData.value.largeSubnetConfig)
     if (normalized) {
       localData.value.largeSubnetConfig = normalized
-      console.log('[LabWizardStep2] Normalized largeSubnetConfig:', normalized)
     }
   }
 })
@@ -1234,7 +1233,6 @@ const getPreviewSubVlanNetwork = (subVlanIndex: number, subVlanSize: number): st
 // Handle mode change side effects (called after v-model updates)
 const handleModeChange = () => {
   const newMode = localData.value.mode
-  console.log('[LabWizardStep2] Mode changed to', newMode)
   
   if (newMode === 'large_subnet') {
     // Initialize Large Subnet Mode configuration
@@ -1270,7 +1268,6 @@ const handleModeChange = () => {
 const ipv6Enabled = computed({
   get: () => localData.value.ipv6Config?.enabled ?? false,
   set: (val: boolean) => {
-    console.log('ipv6Enabled setter called with:', val)
     if (val) {
       localData.value.ipv6Config = {
         enabled: true,
@@ -1296,7 +1293,6 @@ const ipv6Enabled = computed({
         managementOverride: undefined
       }
     }
-    console.log('ipv6Config after toggle:', localData.value.ipv6Config)
   }
 })
 
@@ -1666,7 +1662,6 @@ const IPv6_PRESETS: Record<string, { template: string; managementTemplate: strin
 }
 
 const toggleIPv6Config = (enabled: boolean) => {
-  console.log('toggleIPv6Config called with:', enabled)
   if (enabled) {
     const preset = IPv6_PRESETS['standard_exam']!
     localData.value.ipv6Config = {
@@ -1683,7 +1678,6 @@ const toggleIPv6Config = (enabled: boolean) => {
       presetName: undefined
     }
   }
-  console.log('ipv6Config after toggle:', localData.value.ipv6Config)
 }
 
 const selectIPv6Preset = (presetName: 'standard_exam' | 'university_network' | 'simple_lab' | 'custom') => {

@@ -474,13 +474,11 @@ const clearGns3ProjectData = () => {
       // Only clear if it matches the current lab to avoid clearing other sessions
       if (config.labId === labId.value) {
         localStorage.removeItem(GNS3_PROJECT_STORAGE_KEY)
-        console.log('[GNS3 Cleanup] Cleared GNS3 project data for lab:', labId.value)
       }
     }
   } catch (e) {
     // Ignore parse errors, just try to remove the item
     localStorage.removeItem(GNS3_PROJECT_STORAGE_KEY)
-    console.log('[GNS3 Cleanup] Cleared GNS3 project data (error during parse)')
   }
 }
 
@@ -972,17 +970,12 @@ function checkGns3ProjectExists(): boolean {
 }
 
 function checkAndShowGns3Modal() {
-  console.log('[GNS3 Modal Debug] checkAndShowGns3Modal called')
-  console.log('[GNS3 Modal Debug] instructionsAcknowledged:', instructionsAcknowledged.value)
   
   const projectExists = checkGns3ProjectExists()
-  console.log('[GNS3 Modal Debug] projectExists:', projectExists)
   
   if (!projectExists) {
-    console.log('[GNS3 Modal Debug] Showing modal - no project found')
     showGns3SetupModal.value = true
   } else {
-    console.log('[GNS3 Modal Debug] Not showing modal - project already exists')
     hasGns3Project.value = true
   }
 }
@@ -1032,7 +1025,6 @@ const submitPartForGrading = async (): Promise<{ success: boolean; isExpired?: b
     )
 
     if (result.success) {
-      console.log('Submission created successfully:', result.jobId)
       return { success: true }
     } else {
       console.error('❌ Failed to create submission:', result.error)
@@ -1117,7 +1109,6 @@ const fillInBlankActionButtonDisabled = computed(() => {
 const currentGradingStatus = computed(() => {
   if (!currentPart.value) return { status: 'idle', message: 'Ready to submit', isLate: false, latePenaltyPercent: 50 }
   const status = getGradingStatus(labId.value, currentPart.value.partId)
-  console.log('[DEBUG] Current grading status:', status)
   
   // Get configurable penalty percentage from lab (default 50%)
   const labLatePenaltyPercent = currentLab.value?.latePenaltyPercent ?? 50
@@ -1138,17 +1129,9 @@ const currentGradingStatus = computed(() => {
         const effectivePenalty = Math.max(0, Math.min(100, labLatePenaltyPercent))
         const penaltyMultiplier = (100 - effectivePenalty) / 100
         const adjustedPoints = Math.round(status.results.total_points_earned * penaltyMultiplier * 100) / 100
-        
-        console.log('[DEBUG] Late penalty applied:', {
-          original: status.results.total_points_earned,
-          adjusted: adjustedPoints,
-          penaltyPercent: effectivePenalty,
-          submittedAt: submittedDate.toISOString(),
-          dueDate: dueDate.toISOString()
-        })
-        
+
         const originallyPassed = status.results.total_points_earned === status.results.total_points_possible
-        
+
         return {
           ...status,
           isLate: true,
@@ -1192,7 +1175,6 @@ watch(() => currentGradingStatus.value, async (newStatus) => {
         completedTasks.value[partId].add(task.taskId)
       })
 
-      console.log('Part completed and marked as done:', currentPart.value.partId)
     }
 
     // Always refresh points after any submission (including partial points)
@@ -1400,7 +1382,6 @@ const checkLabCompletion = async () => {
     }
 
     if (!activeLabSessionId.value) {
-      console.log('[DEBUG] Active lab session not available yet, skipping completion check')
       return
     }
 
@@ -1457,7 +1438,6 @@ const checkLabCompletion = async () => {
         const part = actualLabParts.value?.find(p => p.partId === partId)
         if (part) {
           completedParts.value.add(part.id)
-          console.log('[DEBUG] Synced completed part from history:', partId, '-> id:', part.id)
         }
       })
 
@@ -1522,17 +1502,9 @@ const loadPersonalizedIPs = async (options: { restart?: boolean } = {}) => {
       // Store Large Subnet Info for Large Subnet Mode
       if (result.data.networkConfiguration.largeSubnetInfo) {
         backendLargeSubnetInfo.value = result.data.networkConfiguration.largeSubnetInfo
-        console.log('[DEBUG] Large Subnet Info:', backendLargeSubnetInfo.value)
       } else {
         backendLargeSubnetInfo.value = null
       }
-
-      console.log('[DEBUG] Loaded personalized IPs:', {
-        ipMappings: backendIpMappings.value,
-        vlanMappings: backendVlanMappings.value,
-        vlanSubnets: backendVlanSubnets.value,
-        largeSubnetInfo: backendLargeSubnetInfo.value
-      })
 
       if (result.data.session) {
         const sessionInfo = result.data.session
@@ -1639,7 +1611,6 @@ const autoSubmitCurrentPart = async (): Promise<{ success: boolean; submitted: b
   const partType = currentPart.value.partType
   const partTitle = currentPart.value.title
   
-  console.log(`Auto-submitting part "${partTitle}" (type: ${partType})...`)
   
   try {
     if (partType === 'fill_in_blank') {
@@ -1668,11 +1639,9 @@ const autoSubmitCurrentPart = async (): Promise<{ success: boolean; submitted: b
 }
 
 const handleTimerExpired = async () => {
-  console.log('Timer expired!')
   
   // Prevent multiple auto-submit attempts
   if (isAutoSubmitting.value) {
-    console.log('Auto-submit already in progress, skipping...')
     return
   }
   
@@ -1685,7 +1654,6 @@ const handleTimerExpired = async () => {
       : true
     
     if (!isCurrentPartCompleted && currentPart.value) {
-      console.log(`Current part "${currentPart.value.title}" not completed, attempting auto-submit...`)
       
       // Show a toast to inform the user
       toast.info('Time\'s up!', {
@@ -1710,7 +1678,6 @@ const handleTimerExpired = async () => {
         })
       }
     } else {
-      console.log('Current part already completed or no part selected, skipping auto-submit')
     }
   } catch (error: any) {
     console.error('⏰ Error during timer expiry handling:', error)
@@ -1730,33 +1697,24 @@ const handleDeadlineExtended = (payload: {
   labTitle?: string
   fields: Array<{ type: 'dueDate' | 'availableUntil'; diffMs: number }>
 }) => {
-  console.log('[INFO] Lab timer extended:', payload)
 }
 
 // Data Loading
 const loadLabData = async () => {
-  console.log('[DEBUG] loadLabData started')
-  console.log('[DEBUG] courseId:', courseId.value)
-  console.log('[DEBUG] labId:', labId.value)
 
   try {
     // Load course and lab in parallel
-    console.log('[DEBUG] Loading course and lab...')
     await Promise.all([
       fetchCourse(courseId.value),
       fetchLabById(labId.value)
     ])
 
-    console.log('[DEBUG] Course and lab data loaded')
-    console.log('[DEBUG] currentLab.value:', currentLab.value)
 
     initializeInstructionsState()
 
     // Then load parts data
     if (currentLab.value) {
-      console.log('[DEBUG] Lab found, fetching parts with labId:', labId.value)
       const parts = await fetchLabParts(labId.value) // Use labId directly as specified in API
-      console.log('[DEBUG] Parts fetched:', parts)
 
       // Load personalized IPs first so we know the active session before checking completion
       await loadPersonalizedIPs()
@@ -1766,7 +1724,6 @@ const loadLabData = async () => {
         await checkLabCompletion()
       }
     } else {
-      console.log('[DEBUG] No currentLab found, skipping parts fetch')
       isLoadingIPs.value = false
     }
   } catch (err) {

@@ -324,11 +324,6 @@ const restoreAnswersFromStorage = (payload: FillInBlankStoragePayload | null = s
 
     ipTableAnswers.value = nextIpTableAnswers
     lastPersistedIpTableAnswers.value = JSON.parse(JSON.stringify(nextIpTableAnswers))
-    
-    console.log('[FillInBlank] Restored validated IP table answers from localStorage', {
-      questionIds: Object.keys(nextIpTableAnswers),
-      partId: props.partId
-    })
   } else if (payload.ipTableAnswers && typeof payload.ipTableAnswers === 'object') {
     // Fallback to draft answers if no validated answers exist
     const nextIpTableAnswers: Record<string, string[][]> = {}
@@ -341,11 +336,6 @@ const restoreAnswersFromStorage = (payload: FillInBlankStoragePayload | null = s
 
     ipTableAnswers.value = nextIpTableAnswers
     lastPersistedIpTableAnswers.value = JSON.parse(JSON.stringify(nextIpTableAnswers))
-    
-    console.log('[FillInBlank] Restored draft IP table answers from localStorage', {
-      questionIds: Object.keys(nextIpTableAnswers),
-      partId: props.partId
-    })
   } else {
     ipTableAnswers.value = {}
     lastPersistedIpTableAnswers.value = {}
@@ -530,9 +520,7 @@ const ensureSessionMarker = () => {
             // If validatedIpTableAnswers exists, this was a passed submission and should be preserved
             if (!payload.validatedIpTableAnswers || Object.keys(payload.validatedIpTableAnswers).length === 0) {
               keysToRemove.push(key)
-              console.log('[FillInBlank] Marking draft answers for removal:', key)
             } else {
-              console.log('[FillInBlank] Preserving validated answers:', key)
             }
           } else {
             keysToRemove.push(key)

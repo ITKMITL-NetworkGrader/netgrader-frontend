@@ -10,6 +10,21 @@ type ColorMode = 'light' | 'dark' | 'system'
 const customThemes = ref<ThemePreset[]>([])
 const customThemesFetched = ref(false)
 
+// Force dark mode immediately on client to prevent white flash
+if (import.meta.client) {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY_COLOR_MODE) || 'dark'
+    const isDark = stored === 'dark' || (stored === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+    if (isDark) {
+      document.documentElement.classList.add('dark')
+    } else {
+      document.documentElement.classList.remove('dark')
+    }
+  } catch (e) {
+    // localStorage not available
+  }
+}
+
 export const useTheme = () => {
   const currentThemeId = useState<string>('theme-id', () => 'default')
   const colorMode = useState<ColorMode>('color-mode', () => 'dark')
@@ -60,20 +75,8 @@ export const useTheme = () => {
   }
 
   function fadeTransition(callback: () => void) {
-    if (typeof document === 'undefined') {
-      callback()
-      return
-    }
-    const root = document.documentElement
-    root.style.transition = 'opacity 150ms ease'
-    root.style.opacity = '0'
-    setTimeout(() => {
-      callback()
-      root.style.opacity = '1'
-      setTimeout(() => {
-        root.style.transition = ''
-      }, 150)
-    }, 150)
+    // CSS transitions handle smooth color changes - no overlay needed
+    callback()
   }
 
   function applyTheme(themeId: string, withTransition = false) {
@@ -93,7 +96,7 @@ export const useTheme = () => {
     }
   }
 
-  function applyColorMode(mode: ColorMode, withTransition = false) {
+  function applyColorMode(mode: ColorMode, withTransition = true) {
     colorMode.value = mode
 
     if (typeof localStorage !== 'undefined') {
@@ -102,11 +105,8 @@ export const useTheme = () => {
 
     const apply = () => applyThemeVars(currentTheme.value, resolvedColorMode.value)
 
-    if (withTransition) {
-      fadeTransition(apply)
-    } else {
-      apply()
-    }
+    // Use transition to prevent white flash
+    fadeTransition(apply)
   }
 
   async function savePreferences() {

@@ -475,7 +475,6 @@ const saveDraft = async () => {
     }
     
     const draftKey = `lab-draft-${courseId}`
-    console.log(`Saving draft with key: ${draftKey}`, draftData)
     localStorage.setItem(draftKey, JSON.stringify(draftData))
 
     showGlobalMessage('success', 'Draft saved successfully')
@@ -491,7 +490,6 @@ const loadDraft = () => {
     const draftData = localStorage.getItem(draftKey)
     if (draftData) {
       const parsed = JSON.parse(draftData)
-      console.log(`Loading draft with key: ${draftKey}`, parsed)
       
       // Restore basic info
       if (parsed.basicInfo) {
@@ -654,9 +652,6 @@ const handleCreateLab = async () => {
 
     // 🐛 DEBUG: Log the full wizard data and lab data being submitted
     console.group('DEBUG: Lab Creation Data')
-    console.log('Full Wizard Data:', JSON.stringify(wizardData, null, 2))
-    console.log('Lab API Payload:', JSON.stringify(labData, null, 2))
-    console.log('API Endpoint:', `${backendURL}/v0/labs`)
     console.groupEnd()
 
     const labResponse = await $fetch(`${backendURL}/v0/labs`, {
@@ -808,15 +803,11 @@ const handleCreateLab = async () => {
 
       // 🐛 DEBUG: Log each part data being submitted
       console.group(`DEBUG: Part ${i + 1} Data`)
-      console.log('Part API Payload:', JSON.stringify(partData, null, 2))
-      console.log('API Endpoint:', `${backendURL}/v0/parts`)
       // 🆕 Log IP Table Questionnaire data if present
       if (part.partType === 'fill_in_blank' && part.questions) {
         const ipTableQuestions = part.questions.filter(q => q.ipTableQuestionnaire)
         if (ipTableQuestions.length > 0) {
-          console.log('IP Table Questionnaire Questions:', ipTableQuestions.length)
           ipTableQuestions.forEach((q, idx) => {
-            console.log(`  Question ${idx + 1}: ${q.ipTableQuestionnaire?.rowCount}x${q.ipTableQuestionnaire?.columnCount} table`)
           })
         }
       }
@@ -834,9 +825,7 @@ const handleCreateLab = async () => {
 
     // Clear draft from localStorage
     const draftKey = `lab-draft-${courseId}`
-    console.log(`Clearing draft with key: ${draftKey}`)
     localStorage.removeItem(draftKey)
-    console.log(`Draft cleared. Verifying: ${localStorage.getItem(draftKey) === null ? 'Success' : 'FAILED'}`)
 
     // Success - redirect to course page
     showGlobalMessage('success', 'Lab created successfully!')

@@ -154,7 +154,6 @@
                     Device Template <span class="text-destructive">*</span>
                   </Label>
                   <Select v-model="device.templateId" @update:modelValue="(value) => {
-                    console.log('🔍 Select @update:modelValue fired:', { value, type: typeof value })
                     onTemplateChange(index, value)
                   }">
                     <SelectTrigger :class="{
@@ -857,14 +856,12 @@ const onIpv6InputTypeChange = (deviceIndex: number, ipIndex: number, ipv6InputTy
   
   // Safety check: ignore null/undefined values (can happen when Select is cleared)
   if (ipv6InputType === null || ipv6InputType === undefined) {
-    console.log('[IPv6 Handler] Received null/undefined value, ignoring')
     return
   }
   
   const inputType = String(ipv6InputType)
   ipVar.ipv6InputType = inputType as typeof ipVar.ipv6InputType
   
-  console.log('[IPv6 Handler] Setting ipv6InputType to:', inputType)
   
   // Initialize default values for the selected IPv6 mode
   if (inputType === 'fullIPv6' || inputType === 'linkLocal') {
@@ -1004,21 +1001,8 @@ const onVariableNameInput = (deviceIndex: number, ipIndex: number, event: Event)
 }
 
 const onTemplateChange = (deviceIndex: number, templateId: string) => {
-  // 🐛 DEBUG: Log template change
-  console.log('🔍 Template changing:', {
-    deviceIndex,
-    templateId,
-    deviceId: localData.value[deviceIndex].deviceId
-  })
-
   // Update the template ID
   localData.value[deviceIndex].templateId = templateId
-
-  // 🐛 DEBUG: Verify template ID was set
-  console.log('🔍 Template ID after setting:', {
-    templateId: localData.value[deviceIndex].templateId,
-    device: localData.value[deviceIndex]
-  })
 
   // Clear template validation error immediately
   if (fieldErrors.value[deviceIndex]) {
@@ -1474,13 +1458,6 @@ const loadDeviceTemplates = async () => {
 
     if (response.success && response.data.templates) {
       deviceTemplates.value = response.data.templates
-
-      // 🐛 DEBUG: Log loaded templates
-      console.log('🔍 Device templates loaded:', deviceTemplates.value.map(t => ({
-        id: t.id,
-        name: t.name,
-        deviceType: t.deviceType
-      })))
     }
   } catch (error) {
     console.error('Failed to load device templates:', error)
@@ -1630,13 +1607,6 @@ watch(
     if (!isUpdatingFromProps.value) {
       // Convert to regular Device array (remove tempId)
       const cleanDevices = newValue.map(({ tempId, ...device }) => device)
-
-      // 🐛 DEBUG: Log what we're emitting
-      console.log('🔍 Step 3 emitting devices:', cleanDevices.map(d => ({
-        deviceId: d.deviceId,
-        templateId: d.templateId,
-        hasTemplateId: !!d.templateId
-      })))
 
       emit('update:modelValue', cleanDevices)
     }

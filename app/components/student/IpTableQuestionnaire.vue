@@ -2,29 +2,29 @@
   <div class="ip-table-questionnaire">
     <!-- Table Header -->
     <div class="mb-4">
-      <h3 class="text-lg font-semibold text-gray-900 text-foreground">
+      <h3 class="text-lg font-semibold text-foreground text-foreground">
         IP Address Configuration Table
       </h3>
-      <p class="text-sm text-gray-600 text-muted-foreground mt-1">
+      <p class="text-sm text-muted-foreground text-muted-foreground mt-1">
         Enter the IP addresses for each device interface as specified in the instructions.
       </p>
     </div>
 
     <!-- IP Table -->
-    <div class="overflow-x-auto border border-gray-200 border-border rounded-lg">
-      <table class="min-w-full divide-y divide-gray-200 divide-border">
+    <div class="overflow-x-auto border border-border rounded-lg">
+      <table class="min-w-full divide-y divide-border">
         <!-- Column Headers -->
-        <thead class="bg-gray-50 bg-muted">
+        <thead class="bg-muted">
           <tr>
             <th
-              class="px-4 py-3 text-left text-xs font-medium text-gray-700 text-muted-foreground uppercase tracking-wider border-r border-gray-200 border-border"
+              class="px-4 py-3 text-left text-xs font-medium text-foreground uppercase tracking-wider border-r border-border"
             >
               Device.Interface
             </th>
             <th
               v-for="column in sortedColumns"
               :key="column.columnId"
-              class="px-4 py-3 text-left text-xs font-medium text-gray-700 text-muted-foreground uppercase tracking-wider"
+              class="px-4 py-3 text-left text-xs font-medium text-foreground uppercase tracking-wider"
             >
               {{ column.label }}
             </th>
@@ -32,15 +32,15 @@
         </thead>
 
         <!-- Table Body -->
-        <tbody class="bg-white bg-background divide-y divide-gray-200 divide-border">
+        <tbody class="bg-white bg-background divide-y divide-border">
           <tr
             v-for="(row, rowIndex) in sortedRows"
             :key="row.rowId"
-            class="hover:bg-gray-50 hover:bg-muted transition-colors"
+            class="hover:bg-muted transition-colors"
           >
             <!-- Row Header (Device.Interface) -->
             <td
-              class="px-4 py-3 text-sm font-medium text-gray-900 text-foreground border-r border-gray-200 border-border bg-gray-50 bg-muted"
+              class="px-4 py-3 text-sm font-medium text-foreground text-foreground border-r border-border bg-muted"
             >
               {{ row.displayName }}
             </td>
@@ -55,7 +55,7 @@
                 <!-- Read-only Cell -->
                 <div
                   v-if="getCellType(rowIndex, colIndex) === 'readonly'"
-                  class="w-full px-3 py-2 text-sm bg-gray-100 bg-muted border border-gray-300 border-input rounded-md text-gray-700 text-muted-foreground"
+                  class="w-full px-3 py-2 text-sm bg-muted bg-muted border border-border border-input rounded-md text-foreground"
                 >
                   {{ getReadonlyContent(rowIndex, colIndex) }}
                 </div>
@@ -63,7 +63,7 @@
                 <!-- Blank Cell -->
                 <div
                   v-else-if="getCellType(rowIndex, colIndex) === 'blank'"
-                  class="w-full px-3 py-2 text-sm bg-gray-50 bg-background border border-gray-200 border-border rounded-md text-gray-500 text-muted-foreground text-center"
+                  class="w-full px-3 py-2 text-sm bg-background border border-border rounded-md text-muted-foreground text-muted-foreground text-center"
                 >
                   {{ getBlankReason(rowIndex, colIndex) || '—' }}
                 </div>
@@ -112,10 +112,10 @@
 
     <!-- Points Display -->
     <div class="mt-4 flex items-center justify-between">
-      <div class="text-sm text-gray-600 text-muted-foreground">
+      <div class="text-sm text-muted-foreground text-muted-foreground">
         Total Points: <span class="font-semibold">{{ totalPoints }}</span>
       </div>
-      <div class="text-sm text-gray-600 text-muted-foreground">
+      <div class="text-sm text-muted-foreground text-muted-foreground">
         Filled: {{ filledCellsCount }} / {{ totalCellsCount }}
       </div>
     </div>
@@ -379,14 +379,14 @@ const getCellInputClass = (rowIndex: number, colIndex: number): string => {
   const baseClasses = 'focus:outline-none focus:ring-2'
 
   if (isCellInputDisabled(rowIndex, colIndex)) {
-    return `${baseClasses} bg-gray-100 bg-muted cursor-not-allowed border-gray-300 border-input`
+    return `${baseClasses} bg-muted bg-muted cursor-not-allowed border-border border-input`
   }
 
   if (hasValue) {
     return `${baseClasses} border-green-500 border-green-500 focus:ring-green-500 focus:ring-green-500 bg-white bg-background`
   }
 
-  return `${baseClasses} border-gray-300 border-input focus:ring-blue-500 focus:ring-blue-500 bg-white bg-background`
+  return `${baseClasses} border-border border-input focus:ring-blue-500 focus:ring-blue-500 bg-white bg-background`
 }
 
 const isLecturerRangeEditableCell = (rowIndex: number, colIndex: number): boolean => {
@@ -433,17 +433,6 @@ const isCellInputDisabled = (rowIndex: number, colIndex: number): boolean => {
   const isLecturerRange = isLecturerRangeEditableCell(rowIndex, colIndex)
   const isSlaac = isSlaacEditableCell(rowIndex, colIndex)
   const result = !isLecturerRange && !isSlaac
-
-  // Debug logging for SLAAC cells
-  if (cell.answerType === 'calculated' && cell.calculatedAnswer) {
-    console.log(`[IpTableQuestionnaire] Cell (${rowIndex}, ${colIndex}) disabled check:`, {
-      calculationType: cell.calculatedAnswer.calculationType,
-      isLecturerRange,
-      isSlaac,
-      readonly: props.readonly,
-      isDisabled: result
-    })
-  }
 
   return result
 }

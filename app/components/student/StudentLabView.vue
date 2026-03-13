@@ -739,15 +739,10 @@ function checkGns3ProjectExists(): boolean {
 
 function checkAndShowGns3Modal() {
   const projectExists = checkGns3ProjectExists()
-  console.log('[GNS3 Modal Debug] checkAndShowGns3Modal called')
-  console.log('[GNS3 Modal Debug] projectExists:', projectExists)
-  console.log('[GNS3 Modal Debug] instructionsAcknowledged:', instructionsAcknowledged.value)
   
   if (!projectExists) {
-    console.log('[GNS3 Modal Debug] Showing modal - no project found')
     showGns3SetupModal.value = true
   } else {
-    console.log('[GNS3 Modal Debug] Not showing modal - project already exists')
     hasGns3Project.value = true
   }
 }
@@ -914,7 +909,6 @@ function handleRestartLab() {
 
 // Handle timer expiration
 function handleTimerExpired() {
-  console.log('⏰ Timer expired!')
   timerExpiredModalMode.value = 'timer_expired'
   showTimerExpiredModal.value = true
 }
@@ -924,7 +918,6 @@ function handleDeadlineExtended(payload: {
   labTitle?: string
   fields: Array<{ type: 'dueDate' | 'availableUntil'; diffMs: number }>
 }) {
-  console.log('⏳ [INFO] Deadline extended for lab timer:', payload)
 }
 
 // Handle timer expired modal close
@@ -989,7 +982,6 @@ async function loadPersonalizedIPs() {
         activeLabSessionId.value = null
       }
 
-      console.log('✅ [DEBUG] Loaded personalized IPs:', {
         ipMappings: backendIpMappings.value,
         vlanMappings: backendVlanMappings.value
       })
@@ -1092,6 +1084,25 @@ onMounted(async () => {
   padding: 0.125rem 0.25rem;
   border-radius: 0.25rem;
   font-size: 0.875em;
+}
+
+/* Table styles */
+:deep(.prose table) {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1rem;
+}
+
+:deep(.prose th),
+:deep(.prose td) {
+  border: 1px solid #333333;
+  padding: 0.5rem;
+  text-align: left;
+}
+
+:deep(.prose th) {
+  background-color: #e5e5e5;
+  font-weight: 600;
 }
 
 .debug-info {

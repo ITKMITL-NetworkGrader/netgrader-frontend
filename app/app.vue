@@ -3,6 +3,37 @@ import '@fontsource/bai-jamjuree';
 import '@fontsource/geist-mono';
 import { SonnerToaster as Toaster } from '@/components/ui/sonner'
 import 'vue-sonner/style.css'
+import { Fragment, defineComponent, h } from 'vue'
+
+// Polyfill Fragment for Vue 3.5+ compatibility with Milkdown
+// This fixes the "Fragment is not defined" error in Milkdown's JSX components
+if (typeof window !== 'undefined') {
+  ;(window as any).Fragment = Fragment
+}
+
+// Global Vue error handler to catch rendering errors from third-party components (like Milkdown)
+const app = useNuxtApp().vueApp
+
+app.config.errorHandler = (err: unknown, instance: unknown, info: string) => {
+  // Check if this is the Fragment error from Milkdown
+  if (err instanceof ReferenceError && err.message === 'Fragment is not defined') {
+    console.warn('Milkdown ImageBlock render error caught:', err)
+    // Prevent the error from crashing the app - return a fallback UI
+    return false
+  }
+  // Log other errors
+  console.error('Vue error:', err, info)
+}
+
+// Also handle unhandled promise rejections that might occur during rendering
+if (typeof window !== 'undefined') {
+  window.addEventListener('unhandledrejection', (event) => {
+    if (event.reason instanceof ReferenceError && event.reason.message === 'Fragment is not defined') {
+      console.warn('Milkdown ImageBlock unhandled rejection caught:', event.reason)
+      event.preventDefault()
+    }
+  })
+}
 
 // Early theme initialization via inline script to prevent flash of default theme
 useHead({

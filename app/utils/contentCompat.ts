@@ -50,7 +50,8 @@ export function htmlToMarkdown(html: string): string {
 export function markdownToHtml(markdown: string): string {
   if (!markdown || !markdown.trim()) return ''
   try {
-    const raw = marked.parse(markdown, { async: false }) as string
+    // Use marked.parse() - the correct API for marked v16+
+    const raw = marked.parse(markdown) as string
     return DOMPurify.sanitize(raw)
   } catch {
     return DOMPurify.sanitize(markdown)

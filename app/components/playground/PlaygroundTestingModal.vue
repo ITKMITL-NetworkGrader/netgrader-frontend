@@ -182,7 +182,6 @@ function connectToGradingStream(partId: string, jobId: string) {
     eventSource.addEventListener('connected', (event: MessageEvent) => {
         try {
             const data = JSON.parse(event.data)
-            console.log('[Playground SSE] Connected:', data)
         } catch (e) {
             console.error('Failed to parse SSE connected event:', e)
         }
@@ -192,7 +191,6 @@ function connectToGradingStream(partId: string, jobId: string) {
     eventSource.addEventListener('started', (event: MessageEvent) => {
         try {
             const data = JSON.parse(event.data)
-            console.log('[Playground SSE] Job started:', data)
         } catch (e) {
             console.error('Failed to parse SSE started event:', e)
         }
@@ -202,7 +200,6 @@ function connectToGradingStream(partId: string, jobId: string) {
     eventSource.addEventListener('progress', (event: MessageEvent) => {
         try {
             const data = JSON.parse(event.data)
-            console.log('[Playground SSE] Progress:', data.percentage + '%', data.message)
             // Could update UI with progress here if desired
         } catch (e) {
             console.error('Failed to parse SSE progress event:', e)
@@ -213,7 +210,6 @@ function connectToGradingStream(partId: string, jobId: string) {
     eventSource.addEventListener('completed', (event: MessageEvent) => {
         try {
             const data = JSON.parse(event.data)
-            console.log('[Playground SSE] Completed:', data)
             
             const score = data.total_points_earned ?? 0
             const maxScore = data.total_points_possible ?? 100

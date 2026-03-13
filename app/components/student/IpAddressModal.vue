@@ -16,7 +16,7 @@
         <div v-if="networkVariables && networkVariables.length > 0" class="space-y-3">
           <div class="flex items-center gap-2">
             <Globe class="w-4 h-4 text-purple-600 text-purple-500" />
-            <h3 class="text-sm font-semibold text-gray-900 text-foreground">
+            <h3 class="text-sm font-semibold text-foreground text-foreground">
               Network Variables
             </h3>
           </div>
@@ -29,7 +29,7 @@
               <div class="text-xs font-medium text-purple-700 text-purple-400">
                 {{ variable.label }}
               </div>
-              <div class="text-sm font-mono text-gray-900 text-foreground mt-1">
+              <div class="text-sm font-mono text-foreground text-foreground mt-1">
                 {{ variable.value }}
               </div>
             </div>
@@ -41,7 +41,7 @@
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-2">
               <Server class="w-4 h-4 text-blue-600 text-blue-500" />
-              <h3 class="text-sm font-semibold text-gray-900 text-foreground">
+              <h3 class="text-sm font-semibold text-foreground text-foreground">
                 Device IP Addresses
               </h3>
             </div>
@@ -51,32 +51,32 @@
           </div>
 
           <!-- IP Address Table -->
-          <div class="overflow-x-auto border border-gray-200 border-border rounded-lg">
-            <table class="min-w-full divide-y divide-gray-200 divide-border">
-              <thead class="bg-gray-50 bg-muted">
+          <div class="overflow-x-auto border border-border rounded-lg">
+            <table class="min-w-full divide-y divide-border divide-border">
+              <thead class="bg-muted bg-muted">
                 <tr>
-                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 text-muted-foreground uppercase tracking-wider">
+                  <th class="px-4 py-3 text-left text-xs font-medium text-foreground text-muted-foreground uppercase tracking-wider">
                     Device.Interface
                   </th>
                   <th
                     v-for="column in tableColumns"
                     :key="column"
-                    class="px-4 py-3 text-left text-xs font-medium text-gray-700 text-muted-foreground uppercase tracking-wider"
+                    class="px-4 py-3 text-left text-xs font-medium text-foreground text-muted-foreground uppercase tracking-wider"
                   >
                     {{ column }}
                   </th>
-                  <th class="px-4 py-3 text-right text-xs font-medium text-gray-700 text-muted-foreground uppercase tracking-wider">
+                  <th class="px-4 py-3 text-right text-xs font-medium text-foreground text-muted-foreground uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
               </thead>
-              <tbody class="bg-white bg-background divide-y divide-gray-200 divide-border">
+              <tbody class="bg-white bg-background divide-y divide-border divide-border">
                 <tr
                   v-for="(rowData, deviceKey) in declaredIps"
                   :key="deviceKey"
-                  class="hover:bg-gray-50 hover:bg-muted transition-colors"
+                  class="hover:bg-muted hover:bg-muted transition-colors"
                 >
-                  <td class="px-4 py-3 text-sm font-medium text-gray-900 text-foreground">
+                  <td class="px-4 py-3 text-sm font-medium text-foreground text-foreground">
                     {{ rowData.displayName }}
                   </td>
                   <td

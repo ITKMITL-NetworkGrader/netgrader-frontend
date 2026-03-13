@@ -216,15 +216,10 @@ export const useCourseLabs = () => {
   }
 
   const fetchLabParts = async (labId: string) => {
-    console.log('🔍 [DEBUG] fetchLabParts called with labId:', labId)
-    console.log('🔍 [DEBUG] Backend URL:', backendURL)
-    console.log('🔍 [DEBUG] Full API URL:', `${backendURL}/v0/parts/lab/${labId}`)
-
     isLoadingParts.value = true
     error.value = null
 
     try {
-      console.log('🔍 [DEBUG] Making API request...')
       const response = await $fetch<PartsPaginationResponse | DirectPartsResponse>(`${backendURL}/v0/parts/lab/${labId}`, {
         method: 'GET',
         credentials: 'include',
@@ -233,11 +228,6 @@ export const useCourseLabs = () => {
         }
       })
 
-      console.log('🔍 [DEBUG] API response received:', response)
-      console.log('🔍 [DEBUG] Response has success field:', 'success' in response)
-      console.log('🔍 [DEBUG] Response has data field:', 'data' in response)
-      console.log('🔍 [DEBUG] Response has parts field:', 'parts' in response)
-
       // Handle both response formats:
       // Format 1: { success: true, data: { parts: [...], pagination: {...} } }
       // Format 2: { parts: [...], pagination: {...} }
@@ -245,15 +235,12 @@ export const useCourseLabs = () => {
 
       if ('success' in response && response.success && 'data' in response) {
         // Standard API response format
-        console.log('🔍 [DEBUG] Using standard API response format')
         parts = response.data.parts || []
       } else if ('parts' in response) {
         // Direct response format (actual backend format)
-        console.log('🔍 [DEBUG] Using direct response format')
         parts = (response as any).parts || []
       } else {
         // Unexpected format
-        console.log('🔍 [DEBUG] Unexpected response format')
         error.value = 'Unexpected API response format'
         currentLabParts.value = []
         allLabParts.value = []
@@ -269,27 +256,17 @@ export const useCourseLabs = () => {
         totalPoints: calculatePartTotalPoints(part)
       }))
 
-      console.log('🔍 [DEBUG] Sorted parts with corrected points:', partsWithCorrectPoints)
-      console.log('🔍 [DEBUG] Parts count:', partsWithCorrectPoints.length)
-
       allLabParts.value = partsWithCorrectPoints
       currentLabParts.value = partsWithCorrectPoints.filter(part => !part.isVirtual)
       return partsWithCorrectPoints
     } catch (err: any) {
-      console.error('🔍 [DEBUG] API request failed:', err)
-      console.error('🔍 [DEBUG] Error type:', typeof err)
-      console.error('🔍 [DEBUG] Error message:', err.message)
-      console.error('🔍 [DEBUG] Error data:', err.data)
-      console.error('🔍 [DEBUG] Error status:', err.status)
-      console.error('🔍 [DEBUG] Error statusCode:', err.statusCode)
-      console.error('🔍 [DEBUG] Full error object:', JSON.stringify(err, null, 2))
+      console.error('Failed to fetch lab parts:', err.message || err)
 
       error.value = err.message || 'Failed to fetch lab parts'
       currentLabParts.value = []
       allLabParts.value = []
       return []
     } finally {
-      console.log('🔍 [DEBUG] fetchLabParts completed, isLoadingParts set to false')
       isLoadingParts.value = false
     }
   }

@@ -16,15 +16,12 @@ const backendUrl = config.public.backendurl
 // Profile fallback image
 const PROFILE_FALLBACK = '/profile_fallback.jpg'
 
-// Computed profile picture URL with fresh presigned URL
-const profilePictureUrl = computedAsync(async () => {
+// Computed profile picture URL using proxy endpoint (no expiry)
+const profilePictureUrl = computed(() => {
   const path = userState.value?.profilePicture
   if (!path) return PROFILE_FALLBACK
-  try {
-    return await getImageUrl(path, backendUrl)
-  } catch {
-    return path || PROFILE_FALLBACK
-  }
+  if (path.startsWith('http')) return path
+  return getImageUrl(path, backendUrl)
 })
 
 // Timer state from composable
@@ -56,7 +53,6 @@ const logout = async () => {
             })
             // Also clear session marker so next login starts fresh
             try { window.sessionStorage.removeItem('fillin:session:active') } catch { /* no-op */ }
-            console.log('[Logout] Cleared fill-in-blank localStorage data')
         }
 
         await $fetch(`${backendUrl}/v0/auth/logout`, {

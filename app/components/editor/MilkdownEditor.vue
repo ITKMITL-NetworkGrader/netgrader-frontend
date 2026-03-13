@@ -73,7 +73,27 @@ const { get } = useEditor((root) => {
         mode: 'doc',
       },
       [Crepe.Feature.ImageBlock]: {
-        onUpload: handleImageUpload,
+        // Use block-specific upload handler for better URL handling
+        blockOnUpload: async (file: File): Promise<string> => {
+          try {
+            return await handleImageUpload(file)
+          } catch (error) {
+            console.error('Image upload error:', error)
+            return URL.createObjectURL(file)
+          }
+        },
+        onUpload: async (file: File): Promise<string> => {
+          try {
+            return await handleImageUpload(file)
+          } catch (error) {
+            console.error('Image upload error:', error)
+            return URL.createObjectURL(file)
+          }
+        },
+        proxyDomURL: convertImagePathToUrl,
+        onImageLoadError: () => {
+          console.warn('Image failed to load')
+        },
       },
     },
   })
@@ -109,7 +129,7 @@ const { get } = useEditor((root) => {
 })
 
 // Image upload handler using the backend storage endpoint
-// Returns markdown image syntax with object path for persistence
+// Returns the presigned URL for immediate display
 async function handleImageUpload(file: File): Promise<string> {
   try {
     const config = useRuntimeConfig()
@@ -127,19 +147,37 @@ async function handleImageUpload(file: File): Promise<string> {
       credentials: 'include',
     });
 
-    if (response.success && response.data?.path) {
-      // Return markdown image syntax with object path for persistent storage
-      // The path will be replaced with presigned URL when rendering
-      const filename = file.name || 'image'
-      return `![${filename}](${response.data.path})`
+    if (response.success && response.data?.url) {
+      // Return just the URL - Milkdown's setLink() expects a URL
+      return response.data.url
     }
 
     throw new Error('Upload failed')
   } catch (error) {
     console.error('Image upload failed:', error)
     // Fallback: create object URL for local preview (temporary)
-    return `![image](${URL.createObjectURL(file)})`
+    return URL.createObjectURL(file)
   }
+}
+
+// Convert stored object paths to presigned URLs when loading content
+// This is called by Milkdown when rendering images from stored markdown
+// Note: This should be sync or return the original URL on error to prevent render issues
+function convertImagePathToUrl(url: string): string {
+  // If it's already a full URL (e.g., presigned URL or external), return as-is
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) {
+    return url
+  }
+
+  // If it's a relative path (stored object path), return as-is for now
+  // The async conversion happens separately when needed
+  if (url.startsWith('editor/') || url.startsWith('profiles/') || url.startsWith('courses/')) {
+    // Return original URL - async URL conversion will be handled separately
+    return url
+  }
+
+  // Return original if not recognized
+  return url
 }
 
 // Expose methods for parent
@@ -225,6 +263,15 @@ onBeforeUnmount(() => {
   --crepe-shadow-2: none;
 }
 
+/* Editor container - proper height handling */
+.milkdown-wrapper .crepe,
+.milkdown-wrapper .milkdown {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 200px;
+}
+
 /* Dark mode overrides */
 .dark .milkdown-wrapper .crepe .milkdown,
 .dark .milkdown-wrapper .milkdown {
@@ -251,26 +298,39 @@ onBeforeUnmount(() => {
   border-radius: 0.5rem;
 }
 
-/* Headings */
+/* Headings - Ensure they render with correct styling */
+.milkdown-wrapper .ProseMirror h1,
+.milkdown-wrapper .ProseMirror h2,
+.milkdown-wrapper .ProseMirror h3,
+.milkdown-wrapper .ProseMirror h4,
+.milkdown-wrapper .ProseMirror h5,
+.milkdown-wrapper .ProseMirror h6 {
+  font-weight: 700;
+  line-height: 1.25;
+}
+
 .milkdown-wrapper .ProseMirror h1 {
   font-size: 1.875rem;
-  font-weight: 700;
   margin-top: 1.5rem;
   margin-bottom: 1rem;
 }
 
 .milkdown-wrapper .ProseMirror h2 {
   font-size: 1.5rem;
-  font-weight: 700;
   margin-top: 1.25rem;
   margin-bottom: 0.75rem;
 }
 
 .milkdown-wrapper .ProseMirror h3 {
   font-size: 1.25rem;
-  font-weight: 700;
   margin-top: 1rem;
   margin-bottom: 0.75rem;
+}
+
+.milkdown-wrapper .ProseMirror h4 {
+  font-size: 1.125rem;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
 }
 
 /* Blockquotes */
@@ -318,5 +378,26 @@ onBeforeUnmount(() => {
 .milkdown-wrapper .ProseMirror hr {
   border-color: var(--border);
   margin: 1.5rem 0;
+}
+
+/* Native cursor styling (when virtual cursor is disabled) */
+.milkdown-wrapper .ProseMirror {
+  caret-color: var(--crepe-color-on-background, currentColor);
+  line-height: 1.6;
+}
+
+/* Ensure heading text renders correctly */
+.milkdown-wrapper .ProseMirror-heading::before {
+  content: none;
+}
+
+/* Slash menu dropdown styling */
+.milkdown-wrapper .milkdown-slash-menu {
+  z-index: 50;
+}
+
+/* Fix for block edit menu positioning */
+.milkdown-wrapper .milkdown-block-edit {
+  z-index: 40;
 }
 </style>

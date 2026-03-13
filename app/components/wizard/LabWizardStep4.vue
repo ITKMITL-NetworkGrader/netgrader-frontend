@@ -521,7 +521,7 @@
                       </Label>
                       <div class="flex items-center space-x-2">
                         <Button
-                          v-if="part.instructions.length > 0"
+                          v-if="getInstructionsText(part.instructions).length > 0"
                           variant="ghost"
                           size="sm"
                           @click="toggleInstructionsPreview(partIndex)"
@@ -542,19 +542,19 @@
                         class="w-full h-20 flex flex-col items-center justify-center gap-2 border-2 border-dashed hover:border-solid transition-all"
                         :class="{
                           'border-destructive text-destructive': hasPartFieldError(partIndex, 'instructions'),
-                          'border-green-500 text-green-700 bg-green-50 hover:bg-green-100': !hasPartFieldError(partIndex, 'instructions') && part.instructions.length > 0,
-                          'border-blue-500 text-blue-700 bg-blue-50 hover:bg-blue-100': !hasPartFieldError(partIndex, 'instructions') && part.instructions.length === 0
+                          'border-green-500 text-green-700 bg-green-50 hover:bg-green-100': !hasPartFieldError(partIndex, 'instructions') && getInstructionsText(part.instructions).length > 0,
+                          'border-blue-500 text-blue-700 bg-blue-50 hover:bg-blue-100': !hasPartFieldError(partIndex, 'instructions') && getInstructionsText(part.instructions).length === 0
                         }"
                       >
                         <div class="flex items-center gap-2">
                           <Icon name="lucide:file-text" class="w-5 h-5" />
                           <span class="font-medium">
-                            {{ part.instructions.length > 0 ? 'Edit Instructions' : 'Create Instructions' }}
+                            {{ getInstructionsText(part.instructions).length > 0 ? 'Edit Instructions' : 'Create Instructions' }}
                           </span>
                         </div>
                         <div class="text-xs text-muted-foreground">
-                          {{ part.instructions.length > 0
-                            ? `${getInstructionsStats(part.instructions).words} words, ${getInstructionsStats(part.instructions).characters} characters`
+                          {{ getInstructionsText(part.instructions).length > 0
+                            ? `${getInstructionsStats(getInstructionsText(part.instructions)).words} words, ${getInstructionsStats(getInstructionsText(part.instructions)).characters} characters`
                             : 'Click to open the rich text editor with image support, formatting, and more'
                           }}
                         </div>
@@ -562,10 +562,11 @@
 
                       <!-- Instructions Preview -->
                       <div
-                        v-if="part.showInstructionsPreview && part.instructions.length > 0"
+                        v-if="part.showInstructionsPreview && getInstructionsText(part.instructions).length > 0"
                         class="min-h-[150px] p-4 border rounded-md bg-background prose prose-sm max-w-none"
                       >
-                        <div v-html="renderMarkdown(part.instructions)"></div>
+                        <!-- Handle both string and RichTextContent object -->
+                        <div v-html="renderMarkdown(typeof part.instructions === 'string' ? part.instructions : (part.instructions?.markdown || part.instructions?.html || ''))"></div>
                       </div>
 
                       <!-- Validation Error -->
@@ -731,6 +732,7 @@
 import { computed, watch, ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { marked } from 'marked'
 import { toast } from 'vue-sonner'
+import { buildRichTextContent } from '~/utils/contentCompat'
 import {
   BookOpen,
   Plus,
@@ -829,6 +831,7 @@ const taskValidationErrors = ref<Record<string, string[]>>({})
 const isUpdatingFromProps = ref(false)
 const isValidating = ref(false)
 const isChangingPartType = ref(false) // NEW: Flag to prevent validation during part type change
+const isSavingInstructions = ref(false) // Flag to prevent props from overwriting during save
 const validationDebounceTimer = ref<ReturnType<typeof setTimeout> | null>(null)
 
 // Rich Text Editor state
@@ -1408,6 +1411,13 @@ const handleDuplicateTaskToPart = (payload: { task: any; targetPartId: string; n
   })
 }
 
+// Helper to get instructions content as string (handles both string and RichTextContent object)
+const getInstructionsText = (instructions: any): string => {
+  if (!instructions) return ''
+  if (typeof instructions === 'string') return instructions
+  return instructions.markdown || instructions.html || ''
+}
+
 const renderMarkdown = (content: string): string => {
   if (!content) return '<p class="text-muted-foreground">No instructions provided</p>'
 
@@ -1474,27 +1484,65 @@ const updatePartTaskGroups = (partIndex: number, taskGroups: WizardTaskGroup[]) 
 const openInstructionsEditor = (partIndex: number) => {
   warnAboutPartEdit(partIndex)
   currentEditingPartIndex.value = partIndex
-  currentInstructionsContent.value = localData.value[partIndex].instructions
+  // Use existing content if available (for quick reopens), otherwise load from localData
+  const existingContent = currentInstructionsContent.value
+  const localContent = localData.value[partIndex]?.instructions
+
+  // Handle both string and RichTextContent object
+  let editorContent = ''
+  if (typeof localContent === 'string') {
+    editorContent = localContent
+  } else if (localContent?.markdown) {
+    editorContent = localContent.markdown
+  } else if (localContent?.html) {
+    editorContent = localContent.html
+  }
+
+  currentInstructionsContent.value = existingContent || editorContent || ''
   showInstructionsEditor.value = true
 }
 
 const handleInstructionsSave = (payload: RichTextPayload) => {
+  // Set flag to prevent props from overwriting during save
+  isSavingInstructions.value = true
+
   if (currentEditingPartIndex.value !== null) {
-    localData.value[currentEditingPartIndex.value].instructions = payload.html
+    // Store as RichTextContent object (same as Step 1) for proper rendering
+    const markdown = payload.markdown || currentInstructionsContent.value || ''
+    localData.value[currentEditingPartIndex.value].instructions = buildRichTextContent(markdown)
+    // Keep markdown string for editor reopens
+    currentInstructionsContent.value = markdown
     validatePart(currentEditingPartIndex.value, 'instructions')
   }
+  // Close the editor modal
+  showInstructionsEditor.value = false
+
+  // Reset the flag after a delay to allow data propagation
+  setTimeout(() => {
+    isSavingInstructions.value = false
+    // Clear currentInstructionsContent after a longer delay
+    currentInstructionsContent.value = ''
+  }, 1000)
 }
 
 const handleInstructionsClose = (payload: RichTextPayload) => {
   if (currentEditingPartIndex.value !== null) {
-    localData.value[currentEditingPartIndex.value].instructions = payload.html
+    // Store as RichTextContent object (same as Step 1) for proper rendering
+    const markdown = payload.markdown || currentInstructionsContent.value || ''
+    localData.value[currentEditingPartIndex.value].instructions = buildRichTextContent(markdown)
+    // Keep markdown string for editor reopens
+    currentInstructionsContent.value = markdown
     validatePart(currentEditingPartIndex.value, 'instructions')
   }
 
   // Reset editor state
   currentEditingPartIndex.value = null
-  currentInstructionsContent.value = ''
   showInstructionsEditor.value = false
+
+  // Clear content after delay
+  setTimeout(() => {
+    currentInstructionsContent.value = ''
+  }, 1000)
 }
 
 const getInstructionsStats = (content: string) => {
@@ -1540,7 +1588,7 @@ const getPartFieldError = (partIndex: number, field: string): string => {
 const isPartValid = (part: WizardLabPart): boolean => {
   const basicValid = part.partId.length > 0 &&
                      part.title.length > 0 &&
-                     part.instructions.length > 0
+                     getInstructionsText(part.instructions).length > 0
 
   // Different validation based on part type
   if (part.partType === 'network_config') {
@@ -1594,11 +1642,12 @@ const validatePart = (partIndex: number, field: string) => {
 
     case 'instructions':
       {
+        // Support both markdown and HTML content
         const instructionsContent = typeof part.instructions === 'string'
           ? part.instructions
-          : (part.instructions?.html || '')
+          : (part.instructions?.markdown || part.instructions?.html || '')
 
-        if (!instructionsContent.trim()) {
+        if (!instructionsContent?.trim()) {
           partFieldErrors.value[partIndex].instructions = 'Student instructions are required'
         } else if (instructionsContent.length > 10000) {
           partFieldErrors.value[partIndex].instructions = 'Instructions must be 10000 characters or less'
@@ -1803,6 +1852,9 @@ watch(
 watch(
   () => props.modelValue,
   (newValue) => {
+    // Skip if we're currently saving instructions - don't let parent overwrite our data
+    if (isSavingInstructions.value) return
+
     if (isUpdatingFromProps.value) return // Prevent recursive updates
 
     isUpdatingFromProps.value = true
@@ -1819,7 +1871,8 @@ watch(
       ...part,
       // Preserve partType if it exists in the incoming data, otherwise use existing
       partType: part.partType || existingPartTypes.get(index) || 'network_config',
-      instructions: typeof part.instructions === 'string' ? part.instructions : (part.instructions?.html || ''),
+      // Support both markdown (preferred) and HTML for instructions
+      instructions: typeof part.instructions === 'string' ? part.instructions : (part.instructions?.markdown || part.instructions?.html || ''),
       showInstructionsPreview: false, // Reset to default to avoid recursion
       tempId: part.tempId || generateTempId()
     }))
@@ -1878,6 +1931,8 @@ onMounted(async () => {
   if (props.modelValue.length > 0) {
     localData.value = props.modelValue.map(part => ({
       ...part,
+      // Support both markdown and HTML for instructions
+      instructions: typeof part.instructions === 'string' ? part.instructions : (part.instructions?.markdown || part.instructions?.html || ''),
       showInstructionsPreview: false,
       tempId: generateTempId()
     }))
@@ -1945,5 +2000,24 @@ onUnmounted(() => {
 
 :deep(.prose li) {
   margin-bottom: 0.25rem;
+}
+
+/* Table styles */
+:deep(.prose table) {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1rem;
+}
+
+:deep(.prose th),
+:deep(.prose td) {
+  border: 1px solid #333333;
+  padding: 0.5rem;
+  text-align: left;
+}
+
+:deep(.prose th) {
+  background-color: #e5e5e5;
+  font-weight: 600;
 }
 </style>
