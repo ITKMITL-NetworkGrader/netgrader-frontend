@@ -163,7 +163,7 @@
         </div>
 
         <!-- Task Status -->
-        <div class="pt-2 border-t border-gray-200">
+        <div class="pt-2 border-t border-border">
           <div class="flex items-center justify-between text-xs">
             <div class="flex items-center space-x-2">
               <div 

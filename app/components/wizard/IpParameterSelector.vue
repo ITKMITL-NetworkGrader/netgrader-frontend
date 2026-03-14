@@ -256,15 +256,7 @@ const handleCustomIpChange = (event: Event) => {
   // Set user typing state immediately to prevent interference
   isUserTyping.value = true
   lastUserAction.value = 'custom'
-  
-  // Debug logging to track the issue
-  console.log('🔍 Custom IP Change:', {
-    eventValue: currentValue,
-    customIpValue: customIp.value,
-    length: currentValue.length,
-    fullValue: currentValue
-  })
-  
+
   // Save immediately using the event value (not customIp.value which hasn't updated yet)
   emit('update:modelValue', currentValue)
   
@@ -295,14 +287,6 @@ const updateModelValue = (value: string) => {
 }
 
 const parseCurrentValue = (value: string) => {
-  console.log('🔍 Parse Current Value:', {
-    value,
-    length: value.length,
-    isUserTyping: isUserTyping.value,
-    lastUserAction: lastUserAction.value,
-    currentMode: mode.value
-  })
-
   if (!value) {
     // Clear values but don't change mode
     selectedVariable.value = ''

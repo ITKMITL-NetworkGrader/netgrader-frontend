@@ -182,7 +182,6 @@ function connectToGradingStream(partId: string, jobId: string) {
     eventSource.addEventListener('connected', (event: MessageEvent) => {
         try {
             const data = JSON.parse(event.data)
-            console.log('[Playground SSE] Connected:', data)
         } catch (e) {
             console.error('Failed to parse SSE connected event:', e)
         }
@@ -192,7 +191,6 @@ function connectToGradingStream(partId: string, jobId: string) {
     eventSource.addEventListener('started', (event: MessageEvent) => {
         try {
             const data = JSON.parse(event.data)
-            console.log('[Playground SSE] Job started:', data)
         } catch (e) {
             console.error('Failed to parse SSE started event:', e)
         }
@@ -202,7 +200,6 @@ function connectToGradingStream(partId: string, jobId: string) {
     eventSource.addEventListener('progress', (event: MessageEvent) => {
         try {
             const data = JSON.parse(event.data)
-            console.log('[Playground SSE] Progress:', data.percentage + '%', data.message)
             // Could update UI with progress here if desired
         } catch (e) {
             console.error('Failed to parse SSE progress event:', e)
@@ -213,7 +210,6 @@ function connectToGradingStream(partId: string, jobId: string) {
     eventSource.addEventListener('completed', (event: MessageEvent) => {
         try {
             const data = JSON.parse(event.data)
-            console.log('[Playground SSE] Completed:', data)
             
             const score = data.total_points_earned ?? 0
             const maxScore = data.total_points_possible ?? 100
@@ -437,10 +433,10 @@ watch(() => props.open, (open) => {
 
             <!-- GNS3 Connection Info -->
             <Alert v-if="gns3Config"
-                class="mt-4 border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950/30">
+                class="mt-4 border-green-200 bg-green-50 border-green-500/20 bg-green-500/10">
                 <CheckCircle2 class="w-4 h-4 text-green-600" />
-                <AlertTitle class="text-green-800 dark:text-green-400">GNS3 Connected</AlertTitle>
-                <AlertDescription class="text-green-700 dark:text-green-500">
+                <AlertTitle class="text-green-800 text-green-500">GNS3 Connected</AlertTitle>
+                <AlertDescription class="text-green-700 text-green-500">
                     {{ gns3Config.serverIp }}:{{ gns3Config.serverPort }} • Project: {{ gns3Config.projectName }}
                 </AlertDescription>
             </Alert>

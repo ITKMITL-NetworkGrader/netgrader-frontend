@@ -30,10 +30,7 @@ export default defineNuxtRouteMiddleware(async (to, _from) => {
         }
     }
 
-    // if (import.meta.dev) {
-    //     console.log("Development environment detected, skipping route protection.");
-    //     return;
-    // }
+    // NG-SEC-024: Dev bypass code removed
 
     // Check if user is properly authenticated (not just a falsy value)
     const isAuthenticated = userState.value &&
@@ -82,8 +79,12 @@ export default defineNuxtRouteMiddleware(async (to, _from) => {
         return /^\/courses\/[^/]+\/?$/.test(path);
     };
 
+    // DSEC-17: Validate course ID format before making API calls
+    const isValidObjectId = (id: string) => /^[a-f\d]{24}$/i.test(id);
+
     const ensureCourseRole = async (courseId: string) => {
         if (!isAuthenticated) return null;
+        if (!isValidObjectId(courseId)) return null;
 
         if (courseRoleState.value?.courseId === courseId && courseRoleState.value.role) {
             return courseRoleState.value;

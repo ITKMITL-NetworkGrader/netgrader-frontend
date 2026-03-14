@@ -78,6 +78,8 @@ const canManageCourse = canManageCurrentCourse
 const isCourseInstructor = computed(() => currentCourseEnrollment.value?.role === 'INSTRUCTOR')
 const isCourseTA = computed(() => currentCourseEnrollment.value?.role === 'TA')
 
+import { getImageUrl } from '~/utils/imageUrl'
+
 const DEFAULT_BANNER_PLACEHOLDER = '/placeholder.avif'
 const ACCEPTED_BANNER_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
 const MAX_BANNER_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
@@ -85,8 +87,12 @@ const MAX_BANNER_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
 const bannerFileInput = ref<HTMLInputElement | null>(null)
 const isUploadingBanner = ref(false)
 
+// Banner URL using proxy endpoint (no expiry)
 const courseBannerUrl = computed(() => {
-  return currentCourse.value?.bannerUrl || currentCourse.value?.bannerImage || DEFAULT_BANNER_PLACEHOLDER
+  const path = currentCourse.value?.bannerUrl || currentCourse.value?.bannerImage
+  if (!path) return DEFAULT_BANNER_PLACEHOLDER
+  if (path.startsWith('http')) return path
+  return getImageUrl(path, backendUrl)
 })
 
 // Modal states
@@ -649,10 +655,6 @@ watch(isManageModalOpen, (isOpen) => {
 
 // Debug logging to check enrollment data
 watchEffect(() => {
-  console.log('Current course enrollment:', currentCourseEnrollment.value)
-  console.log('Is enrolled:', isEnrolled.value)
-  console.log('User role:', userRole.value)
-  console.log('Can manage course:', canManageCourse.value)
 })
 
 // Watch for admin role change modal open to set default value

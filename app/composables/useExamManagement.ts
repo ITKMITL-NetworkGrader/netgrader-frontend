@@ -210,18 +210,10 @@ export const useExamManagement = (courseId: string) => {
     if (config.algorithm === 'default') {
       return previewConfiguration(sampleStudentId, examNumber)
     } else {
-      // For custom algorithms, we would need to evaluate the custom code
-      // This is a simplified version - in production, you'd want to safely evaluate the custom algorithm
-      try {
-        // This would need proper sandboxing in production
-        const customFunction = new Function('studentId', 'examNumber', config.customAlgorithm || '')
-        const result = customFunction(sampleStudentId, examNumber)
-        return result as ExamConfiguration
-      } catch (error) {
-        console.error('Custom algorithm execution failed:', error)
-        // Fallback to default algorithm
-        return previewConfiguration(sampleStudentId, examNumber)
-      }
+      // SECURITY FIX: new Function() removed — equivalent to eval() and enables RCE.
+      // Custom algorithms must be executed server-side in a sandboxed environment.
+      console.warn('Custom algorithm execution is not supported on the client. Using default algorithm.')
+      return previewConfiguration(sampleStudentId, examNumber)
     }
   }
 

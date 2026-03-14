@@ -22,6 +22,13 @@ const backendURL = config.public.backendurl
 const PROFILE_FALLBACK = '/profile_fallback.jpg'
 const DEFAULT_BANNER_PLACEHOLDER = '/placeholder.avif'
 
+// Get banner URL using proxy endpoint (no expiry)
+const getBannerUrl = (path: string | undefined) => {
+  if (!path) return DEFAULT_BANNER_PLACEHOLDER
+  if (path.startsWith('http')) return path
+  return getImageUrl(path, backendURL)
+}
+
 // Bio editing state
 const isEditingBio = ref(false)
 const bioInput = ref('')
@@ -42,6 +49,8 @@ interface EnrollmentWithCourse extends EnrollmentResponse {
   courseTitle?: string
   bannerUrl?: string
 }
+
+import { getImageUrl } from '~/utils/imageUrl'
 
 const enrollments = ref<EnrollmentWithCourse[]>([])
 const isLoadingEnrollments = ref(false)
@@ -375,8 +384,8 @@ const bioCharacterRemaining = computed(() => bioMaxLength - bioCharacterCount.va
               @click="goToCourse(enrollment.c_id)"
             >
               <div v-if="enrollment.bannerUrl" class="h-24 overflow-hidden rounded-t-lg">
-                <img 
-                  :src="enrollment.bannerUrl" 
+                <img
+                  :src="getBannerUrl(enrollment.bannerUrl)" 
                   :alt="enrollment.courseTitle || 'Course banner'"
                   class="w-full h-full object-cover"
                   @error="(e: Event) => (e.target as HTMLImageElement).src = DEFAULT_BANNER_PLACEHOLDER"

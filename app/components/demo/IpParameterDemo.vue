@@ -24,7 +24,7 @@
               <div
                 v-for="ipVar in device.ipVariables"
                 :key="ipVar.name"
-                class="text-xs bg-white dark:bg-gray-800 p-2 rounded border"
+                class="text-xs bg-card p-2 rounded border"
               >
                 <code class="font-mono">{{ device.deviceId }}.{{ ipVar.name }}</code>
                 <span class="text-muted-foreground ml-2">{{ ipVar.inputType }}</span>
@@ -38,7 +38,7 @@
       <!-- Task Template Simulation -->
       <div class="space-y-3">
         <Label class="text-sm font-medium">Task Template Parameter Simulation</Label>
-        <Card class="p-4 bg-blue-50 dark:bg-blue-950/20">
+        <Card class="p-4 bg-primary/10">
           <div class="space-y-2 mb-4">
             <h4 class="font-medium">Template: "ping_connectivity_test"</h4>
             <p class="text-sm text-muted-foreground">Parameter: "target_ip" (type: "ip_address", required: true)</p>
@@ -68,7 +68,7 @@
       <!-- Result Display -->
       <div class="space-y-3">
         <Label class="text-sm font-medium">Current Parameter Value</Label>
-        <div class="p-3 bg-green-50 dark:bg-green-950/20 rounded border">
+        <div class="p-3 bg-green-500/10 rounded border">
           <div class="flex items-center space-x-2">
             <Badge variant="outline" class="font-mono">target_ip</Badge>
             <Badge v-if="selectedIpValue" variant="default" class="font-mono">{{ selectedIpValue }}</Badge>

@@ -1,374 +1,50 @@
 <template>
-  <div class="rich-text-editor" :class="{ 'is-focused': editor?.isFocused }">
-    <!-- Toolbar -->
-    <div
-      v-if="showToolbar && editor"
-      class="editor-toolbar border-b border-gray-200 dark:border-gray-700 p-2 flex flex-wrap gap-1 bg-gray-50 dark:bg-gray-800"
-      role="toolbar"
-      aria-label="Text Formatting"
-    >
-      <!-- Text Formatting -->
-      <div class="toolbar-group">
-        <button
-          type="button"
-          @mousedown.prevent
-          @click="editor.chain().focus().toggleBold().run()"
-          :class="{ 'is-active': editor.isActive('bold') }"
-          class="toolbar-btn"
-          :aria-pressed="editor.isActive('bold')"
-          title="Bold (Ctrl+B)"
-        >
-          <Icon name="lucide:bold" class="w-4 h-4" />
-        </button>
-
-        <button
-          type="button"
-          @mousedown.prevent
-          @click="editor.chain().focus().toggleItalic().run()"
-          :class="{ 'is-active': editor.isActive('italic') }"
-          class="toolbar-btn"
-          :aria-pressed="editor.isActive('italic')"
-          title="Italic (Ctrl+I)"
-        >
-          <Icon name="lucide:italic" class="w-4 h-4" />
-        </button>
-
-        <button
-          type="button"
-          @mousedown.prevent
-          @click="editor.chain().focus().toggleStrike().run()"
-          :class="{ 'is-active': editor.isActive('strike') }"
-          class="toolbar-btn"
-          :aria-pressed="editor.isActive('strike')"
-          title="Strikethrough"
-        >
-          <Icon name="lucide:strikethrough" class="w-4 h-4" />
-        </button>
-
-        <button
-          type="button"
-          @mousedown.prevent
-          @click="editor.chain().focus().toggleCode().run()"
-          :class="{ 'is-active': editor.isActive('code') }"
-          class="toolbar-btn"
-          :aria-pressed="editor.isActive('code')"
-          title="Code"
-        >
-          <Icon name="lucide:code" class="w-4 h-4" />
-        </button>
-      </div>
-
-      <div class="toolbar-separator"></div>
-
-      <!-- Text Color -->
-      <div class="toolbar-group">
-        <label
-          class="toolbar-color-picker"
-          :class="{ 'has-color': hasTextColor }"
-          @mousedown="saveCurrentSelection"
-          title="Text Color"
-        >
-          <Icon
-            name="lucide:palette"
-            class="w-4 h-4"
-            :style="{ color: hasTextColor ? currentTextColor : undefined }"
-          />
-          <input
-            type="color"
-            class="color-input"
-            :value="currentTextColor"
-            aria-label="Select text color"
-            @focus="saveCurrentSelection"
-            @input="onColorInput"
-          />
-        </label>
-
-        <button
-          type="button"
-          @mousedown.prevent="saveCurrentSelection"
-          @click="clearTextColor"
-          class="toolbar-btn"
-          :class="{ 'is-active': hasTextColor }"
-          :disabled="!hasTextColor"
-          title="Reset Text Color"
-        >
-          <Icon name="lucide:eraser" class="w-4 h-4" />
-        </button>
-      </div>
-
-      <div class="toolbar-separator"></div>
-
-      <!-- Headings -->
-      <div class="toolbar-group">
-        <button
-          type="button"
-          @mousedown.prevent
-          @click="editor.chain().focus().toggleHeading({ level: 1 }).run()"
-          :class="{ 'is-active': editor.isActive('heading', { level: 1 }) }"
-          class="toolbar-btn"
-          title="Heading 1"
-        >
-          H1
-        </button>
-
-        <button
-          type="button"
-          @mousedown.prevent
-          @click="editor.chain().focus().toggleHeading({ level: 2 }).run()"
-          :class="{ 'is-active': editor.isActive('heading', { level: 2 }) }"
-          class="toolbar-btn"
-          title="Heading 2"
-        >
-          H2
-        </button>
-
-        <button
-          type="button"
-          @mousedown.prevent
-          @click="editor.chain().focus().toggleHeading({ level: 3 }).run()"
-          :class="{ 'is-active': editor.isActive('heading', { level: 3 }) }"
-          class="toolbar-btn"
-          title="Heading 3"
-        >
-          H3
-        </button>
-      </div>
-
-      <div class="toolbar-separator"></div>
-
-      <!-- Lists -->
-      <div class="toolbar-group">
-        <button
-          type="button"
-          @mousedown.prevent
-          @click="editor.chain().focus().toggleBulletList().run()"
-          :class="{ 'is-active': editor.isActive('bulletList') }"
-          class="toolbar-btn"
-          title="Bullet List"
-        >
-          <Icon name="lucide:list" class="w-4 h-4" />
-        </button>
-
-        <button
-          type="button"
-          @mousedown.prevent
-          @click="editor.chain().focus().toggleOrderedList().run()"
-          :class="{ 'is-active': editor.isActive('orderedList') }"
-          class="toolbar-btn"
-          title="Numbered List"
-        >
-          <Icon name="lucide:list-ordered" class="w-4 h-4" />
-        </button>
-
-        <button
-          type="button"
-          @mousedown.prevent
-          @click="editor.chain().focus().toggleBlockquote().run()"
-          :class="{ 'is-active': editor.isActive('blockquote') }"
-          class="toolbar-btn"
-          title="Quote"
-        >
-          <Icon name="lucide:quote" class="w-4 h-4" />
-        </button>
-      </div>
-
-      <div class="toolbar-separator"></div>
-
-      <!-- Alignment -->
-      <div class="toolbar-group">
-        <button
-          type="button"
-          @mousedown.prevent
-          @click="editor.chain().focus().setTextAlign('left').run()"
-          :class="{ 'is-active': editor.isActive({ textAlign: 'left' }) }"
-          class="toolbar-btn"
-          title="Align Left"
-        >
-          <Icon name="lucide:align-left" class="w-4 h-4" />
-        </button>
-
-        <button
-          type="button"
-          @mousedown.prevent
-          @click="editor.chain().focus().setTextAlign('center').run()"
-          :class="{ 'is-active': editor.isActive({ textAlign: 'center' }) }"
-          class="toolbar-btn"
-          title="Align Center"
-        >
-          <Icon name="lucide:align-center" class="w-4 h-4" />
-        </button>
-
-        <button
-          type="button"
-          @mousedown.prevent
-          @click="editor.chain().focus().setTextAlign('right').run()"
-          :class="{ 'is-active': editor.isActive({ textAlign: 'right' }) }"
-          class="toolbar-btn"
-          title="Align Right"
-        >
-          <Icon name="lucide:align-right" class="w-4 h-4" />
-        </button>
-      </div>
-
-      <div class="toolbar-separator"></div>
-
-      <!-- Image and Link -->
-      <div class="toolbar-group">
-        <button
-          type="button"
-          @mousedown.prevent
-          @click="showImageDialog = true"
-          class="toolbar-btn"
-          title="Insert Image"
-        >
-          <Icon name="lucide:image" class="w-4 h-4" />
-        </button>
-
-        <button
-          type="button"
-          @mousedown.prevent
-          @click="toggleLink"
-          :class="{ 'is-active': editor.isActive('link') }"
-          class="toolbar-btn"
-          title="Insert Link"
-        >
-          <Icon name="lucide:link" class="w-4 h-4" />
-        </button>
-
-        <button
-          type="button"
-          @mousedown.prevent
-          @click="editor.chain().focus().setHorizontalRule().run()"
-          class="toolbar-btn"
-          title="Horizontal Rule"
-        >
-          <Icon name="lucide:minus" class="w-4 h-4" />
-        </button>
-      </div>
-
-      <div class="toolbar-separator"></div>
-
-      <!-- Code Block -->
-      <div class="toolbar-group">
-        <button
-          type="button"
-          @mousedown.prevent
-          @click="editor.chain().focus().toggleCodeBlock().run()"
-          :class="{ 'is-active': editor.isActive('codeBlock') }"
-          class="toolbar-btn"
-          title="Code Block"
-        >
-          <Icon name="lucide:code-2" class="w-4 h-4" />
-        </button>
-      </div>
-
-      <div class="toolbar-separator"></div>
-
-      <!-- Undo/Redo -->
-      <div class="toolbar-group">
-        <button
-          type="button"
-          @mousedown.prevent
-          @click="editor.chain().focus().undo().run()"
-          :disabled="!editor.can().undo()"
-          class="toolbar-btn"
-          title="Undo (Ctrl+Z)"
-        >
-          <Icon name="lucide:undo" class="w-4 h-4" />
-        </button>
-
-        <button
-          type="button"
-          @mousedown.prevent
-          @click="editor.chain().focus().redo().run()"
-          :disabled="!editor.can().redo()"
-          class="toolbar-btn"
-          title="Redo (Ctrl+Y)"
-        >
-          <Icon name="lucide:redo" class="w-4 h-4" />
-        </button>
-      </div>
-    </div>
-
-    <!-- Editor Content -->
-    <div class="editor-content-wrapper relative flex-1 overflow-hidden">
-      <EditorContent
-        :editor="editor"
-        class="prose prose-sm max-w-none dark:prose-invert focus:outline-none h-full"
-        :class="editorClass"
-        role="textbox"
-        aria-multiline="true"
-        :aria-label="`Rich text editor${props.placeholder ? ': ' + props.placeholder : ''}`"
-        :aria-describedby="showStatusBar ? `${editorId}-status` : undefined"
-      />
-
-      <!-- Upload Progress -->
-      <div
-        v-if="isUploading"
-        class="absolute inset-0 bg-black/20 flex items-center justify-center backdrop-blur-sm"
-      >
-        <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-lg">
-          <div class="flex items-center gap-3">
-            <Icon name="lucide:upload" class="w-5 h-5 animate-spin" />
-            <span>Uploading image... {{ uploadProgress }}%</span>
-          </div>
-          <div class="w-48 h-2 bg-gray-200 dark:bg-gray-700 rounded-full mt-2">
-            <div
-              class="h-2 bg-blue-500 rounded-full transition-all duration-300"
-              :style="{ width: `${uploadProgress}%` }"
-            />
-          </div>
+  <div class="rich-text-editor" :class="{ 'is-focused': isFocused, 'is-readonly': !editable }">
+    <ClientOnly>
+      <MilkdownProvider>
+        <MilkdownEditor
+          ref="milkdownRef"
+          :default-value="initialContent"
+          :placeholder="placeholder"
+          :editable="editable"
+          :show-toolbar="showToolbar"
+          :editor-class="editorClass"
+          @update="onContentUpdate"
+          @focus="onFocus"
+          @blur="onBlur"
+          @ready="onEditorReady"
+        />
+      </MilkdownProvider>
+      <template #fallback>
+        <div class="flex items-center justify-center min-h-[200px] text-muted-foreground text-sm">
+          Loading editor...
         </div>
-      </div>
-    </div>
+      </template>
+    </ClientOnly>
 
     <!-- Status Bar -->
     <div
-      v-if="showStatusBar && editor"
-      :id="`${editorId}-status`"
-      class="editor-status-bar border-t border-gray-200 dark:border-gray-700 px-3 py-2 text-sm text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800"
+      v-if="showStatusBar && wordCount >= 0"
+      class="editor-status-bar border-t px-3 py-2 text-sm"
       role="status"
       aria-live="polite"
     >
       <div class="flex justify-between items-center">
-        <div class="flex gap-4">
-          <span>{{ characterCount.words }} words</span>
-          <span>{{ characterCount.characters }} characters</span>
+        <div class="flex gap-4 text-muted-foreground">
+          <span>{{ wordCount }} words</span>
+          <span>{{ charCount }} characters</span>
         </div>
-        <div v-if="lastSaved" class="text-xs">
+        <div v-if="lastSaved" class="text-xs text-muted-foreground">
           Last saved: {{ formatTime(lastSaved) }}
         </div>
       </div>
     </div>
-
-    <!-- Image Dialog -->
-    <ImageInsertDialog
-      :show="showImageDialog"
-      @update:show="showImageDialog = $event"
-      @insert="insertImage"
-    />
-
-    <!-- Link Dialog -->
-    <LinkInsertDialog
-      :show="showLinkDialog"
-      @update:show="showLinkDialog = $event"
-      :current-url="currentLinkUrl"
-      @insert="insertLink"
-      @remove="removeLink"
-    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { useEditor, EditorContent } from '@tiptap/vue-3'
-import StarterKit from '@tiptap/starter-kit'
-import Image from '@tiptap/extension-image'
-import Link from '@tiptap/extension-link'
-import TextAlign from '@tiptap/extension-text-align'
-import CharacterCount from '@tiptap/extension-character-count'
-import Placeholder from '@tiptap/extension-placeholder'
-import { TextStyle } from '@tiptap/extension-text-style'
-import Color from '@tiptap/extension-color'
+import { MilkdownProvider } from '@milkdown/vue'
+import { getEditorContent } from '~/utils/contentCompat'
 
 interface Props {
   modelValue?: string
@@ -389,7 +65,7 @@ const props = withDefaults(defineProps<Props>(), {
   showStatusBar: true,
   autofocus: false,
   editable: true,
-  maxLength: 50000
+  maxLength: 50000,
 })
 
 const emit = defineEmits<{
@@ -399,553 +75,122 @@ const emit = defineEmits<{
   'blur': []
 }>()
 
-const DEFAULT_TEXT_COLOR = '#000000'
-const currentTextColor = ref(DEFAULT_TEXT_COLOR)
-const hasTextColor = ref(false)
-
-const normalizeColor = (value: string | undefined): string => {
-  if (!value) return DEFAULT_TEXT_COLOR
-  const color = value.trim()
-  if (color.startsWith('#')) {
-    if (color.length === 4) {
-      return `#${color[1]}${color[1]}${color[2]}${color[2]}${color[3]}${color[3]}`
-    }
-    return color
-  }
-
-  const rgbMatch = color.match(/rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)/i)
-  if (rgbMatch) {
-    const toHex = (num: string) => Math.max(0, Math.min(255, parseInt(num, 10))).toString(16).padStart(2, '0')
-    return `#${toHex(rgbMatch[1])}${toHex(rgbMatch[2])}${toHex(rgbMatch[3])}`
-  }
-
-  return DEFAULT_TEXT_COLOR
-}
-
-const updateColorState = () => {
-  if (!editor.value) return
-  const color = editor.value.getAttributes('textStyle')?.color as string | undefined
-  if (color) {
-    currentTextColor.value = normalizeColor(color)
-    hasTextColor.value = true
-  } else {
-    currentTextColor.value = DEFAULT_TEXT_COLOR
-    hasTextColor.value = false
-  }
-}
-
-const restoreSelection = () => {
-  if (!editor.value || !savedSelection.value) return
-  editor.value.commands.setTextSelection(savedSelection.value)
-}
-
-const setTextColor = (color: string) => {
-  if (!editor.value) return
-  restoreSelection()
-
-  if (!color) {
-    editor.value.chain().focus().unsetColor().run()
-  } else {
-    editor.value.chain().focus().setColor(color).run()
-  }
-
-  savedSelection.value = null
-  updateColorState()
-}
-
-const onColorInput = (event: Event) => {
-  const target = event.target as HTMLInputElement | null
-  if (!target) return
-  setTextColor(target.value)
-}
-
-const clearTextColor = () => {
-  setTextColor('')
-}
-
-const saveCurrentSelection = () => {
-  if (!editor.value) return
-  const { from, to } = editor.value.state.selection
-  savedSelection.value = { from, to }
-}
-
-// Image upload composable
-const {
-  isUploading,
-  uploadProgress,
-  uploadFile,
-  setupDragDrop,
-  setupClipboardPaste,
-  insertImageFromUrl
-} = useImageUpload()
-
-// Reactive state
-const showImageDialog = ref(false)
-const showLinkDialog = ref(false)
-const currentLinkUrl = ref('')
-const savedSelection = ref<{ from: number; to: number } | null>(null)
+const milkdownRef = ref<any>(null)
+const isFocused = ref(false)
 const lastSaved = ref<Date | null>(null)
-const editorId = ref(`editor-${Math.random().toString(36).substr(2, 9)}`)
+const currentMarkdown = ref('')
+const wordCount = ref(0)
+const charCount = ref(0)
 
-// TipTap Editor
-const editor = useEditor({
-  content: props.modelValue,
-  editable: props.editable,
-  autofocus: props.autofocus,
+// Track if update came from editor itself to prevent circular updates
+let isEditorUpdate = false
 
-  extensions: [
-    Color.configure({
-      types: ['textStyle', 'listItem']
-    }),
-    TextStyle,
-    StarterKit.configure({
-      heading: {
-        levels: [1, 2, 3, 4, 5, 6]
-      },
-      link: false // Disable StarterKit's link extension to avoid duplicate
-    }),
-    Image.configure({
-      allowBase64: false,
-      HTMLAttributes: {
-        class: 'editor-image max-w-full h-auto rounded-lg'
-      }
-    }),
-    Link.configure({
-      openOnClick: false,
-      HTMLAttributes: {
-        class: 'text-blue-500 hover:text-blue-700 underline',
-        target: '_blank',
-        rel: 'noopener noreferrer'
-      }
-    }),
-    TextAlign.configure({
-      types: ['heading', 'paragraph']
-    }),
-    CharacterCount.configure({
-      limit: props.maxLength
-    }),
-    Placeholder.configure({
-      placeholder: props.placeholder
-    })
-  ],
-
-  onUpdate: ({ editor }) => {
-    emit('update:modelValue', editor.getHTML())
-    updateColorState()
-  },
-  onSelectionUpdate: () => {
-    updateColorState()
-  },
-
-  onFocus: () => {
-    emit('focus')
-  },
-
-  onBlur: () => {
-    emit('blur')
-  },
-
-  onCreate: ({ editor }) => {
-    // Setup drag and drop
-    const { handleDrop } = setupDragDrop(editor)
-    editor.view.dom.addEventListener('drop', handleDrop)
-
-    // Setup clipboard paste
-    const { handlePaste } = setupClipboardPaste(editor)
-    editor.view.dom.addEventListener('paste', handlePaste)
-
-    updateColorState()
-  }
+// Convert initial value (may be HTML or Markdown) to Markdown for the editor
+const initialContent = computed(() => {
+  return getEditorContent(props.modelValue)
 })
 
-watch(editor, (instance, _, onCleanup) => {
-  if (!instance) return
-
-  const handler = () => updateColorState()
-  instance.on('selectionUpdate', handler)
-  instance.on('transaction', handler)
-  instance.on('update', handler)
-  handler()
-
-  onCleanup(() => {
-    instance.off('selectionUpdate', handler)
-    instance.off('transaction', handler)
-    instance.off('update', handler)
+const onContentUpdate = (markdown: string) => {
+  currentMarkdown.value = markdown
+  // Mark that this update came from the editor to prevent circular updates
+  isEditorUpdate = true
+  emit('update:modelValue', markdown)
+  // Reset flag after emit completes
+  nextTick(() => {
+    isEditorUpdate = false
   })
-})
-
-// Character count computed
-const characterCount = computed(() => {
-  if (!editor.value) return { words: 0, characters: 0 }
-
-  const storage = editor.value.storage.characterCount
-  return {
-    words: storage.words(),
-    characters: storage.characters()
-  }
-})
-
-// Methods
-const escapeHtml = (value: string): string => {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
+  updateStats(markdown)
 }
 
-const toggleLink = () => {
-  if (!editor.value) return
-
-  if (editor.value.isActive('link')) {
-    editor.value.chain().focus().unsetLink().run()
-    savedSelection.value = null
-    return
-  }
-
-  const { from, to } = editor.value.state.selection
-  savedSelection.value = { from, to }
-  currentLinkUrl.value = editor.value.getAttributes('link').href || ''
-  showLinkDialog.value = true
+const onFocus = () => {
+  isFocused.value = true
+  emit('focus')
 }
 
-const insertLink = (url: string, text?: string, openInNewTab?: boolean) => {
-  if (!editor.value) return
-
-  restoreSelection()
-
-  const target = openInNewTab ? '_blank' : undefined
-
-  if (text && text.trim().length > 0) {
-    const safeText = escapeHtml(text)
-    const safeUrl = escapeHtml(url)
-    editor.value.chain().focus().insertContent(`<a href="${safeUrl}"${target ? ' target="_blank" rel="noopener"' : ''}>${safeText}</a>`).run()
-  } else {
-    editor.value.chain().focus().setLink({ href: url, target }).run()
-  }
-
-  savedSelection.value = null
-  showLinkDialog.value = false
+const onBlur = () => {
+  isFocused.value = false
+  emit('blur')
 }
 
-const removeLink = () => {
-  if (!editor.value) return
-
-  restoreSelection()
-  editor.value.chain().focus().unsetLink().run()
-  savedSelection.value = null
-  showLinkDialog.value = false
+const onEditorReady = () => {
+  if (props.autofocus) {
+    nextTick(() => milkdownRef.value?.focus?.())
+  }
+  updateStats(initialContent.value)
 }
 
-const insertImage = async (data: { type: 'url' | 'file', value: string | File, alt?: string }) => {
-  try {
-    if (data.type === 'file' && data.value instanceof File) {
-      const result = await uploadFile(data.value)
-      insertImageFromUrl(editor.value, result.url, data.alt || result.originalName)
-    } else if (data.type === 'url' && typeof data.value === 'string') {
-      insertImageFromUrl(editor.value, data.value, data.alt)
-    }
-    showImageDialog.value = false
-  } catch (error) {
-    console.error('Failed to insert image:', error)
-    // Handle error (show toast, etc.)
-  }
+const updateStats = (text: string) => {
+  const plain = text.replace(/[#*_~`>\-\[\]()!|]/g, '').trim()
+  const words = plain.split(/\s+/).filter(w => w.length > 0)
+  wordCount.value = words.length
+  charCount.value = plain.length
 }
 
 const save = () => {
-  const content = editor.value?.getHTML() || ''
-  emit('save', content)
+  emit('save', currentMarkdown.value)
   lastSaved.value = new Date()
 }
 
 const formatTime = (date: Date) => {
   return new Intl.DateTimeFormat('en-US', {
     hour: '2-digit',
-    minute: '2-digit'
+    minute: '2-digit',
   }).format(date)
 }
 
+// Watch for external content changes (only update if change came from outside)
+watch(() => props.modelValue, (newValue) => {
+  // Skip if this update came from the editor itself
+  if (isEditorUpdate) {
+    isEditorUpdate = false
+    return
+  }
+  const converted = getEditorContent(newValue)
+  if (converted !== currentMarkdown.value) {
+    isEditorUpdate = true
+    milkdownRef.value?.setContent?.(converted)
+  }
+})
+
 // Keyboard shortcuts
 onMounted(() => {
-  document.addEventListener('keydown', (e) => {
-    if (e.ctrlKey || e.metaKey) {
-      switch (e.key) {
-        case 's':
-          e.preventDefault()
-          save()
-          break
-      }
+  const handler = (e: KeyboardEvent) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+      e.preventDefault()
+      save()
     }
-  })
-})
-
-watch(showLinkDialog, (isOpen) => {
-  if (!isOpen) {
-    savedSelection.value = null
   }
-})
-
-// Watch for external content changes
-watch(() => props.modelValue, (newValue) => {
-  const currentValue = editor.value?.getHTML()
-  if (newValue !== currentValue) {
-    editor.value?.commands.setContent(newValue, false)
-    updateColorState()
-  }
-})
-
-// Cleanup
-onBeforeUnmount(() => {
-  editor.value?.destroy()
+  document.addEventListener('keydown', handler)
+  onBeforeUnmount(() => document.removeEventListener('keydown', handler))
 })
 
 // Expose methods
 defineExpose({
-  editor,
   save,
-  getHTML: () => editor.value?.getHTML(),
-  getJSON: () => editor.value?.getJSON(),
-  getText: () => editor.value?.getText(),
-  focus: () => editor.value?.commands.focus(),
-  blur: () => editor.value?.commands.blur()
+  getMarkdown: () => currentMarkdown.value,
+  getHTML: () => milkdownRef.value?.getHTML?.() || '',
+  getText: () => currentMarkdown.value.replace(/[#*_~`>\-\[\]()!|]/g, '').trim(),
+  focus: () => milkdownRef.value?.focus?.(),
+  blur: () => milkdownRef.value?.blur?.(),
 })
 </script>
 
 <style scoped>
 .rich-text-editor {
-  border: 1px solid hsl(var(--border));
+  border: 1px solid var(--border);
   border-radius: 0.5rem;
   overflow: hidden;
-  background-color: hsl(var(--card));
-}
-
-.dark .rich-text-editor {
-  border-color: hsl(var(--border));
-  background-color: hsl(var(--card));
+  background-color: var(--card);
 }
 
 .rich-text-editor.is-focused {
-  --tw-ring-offset-shadow: var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);
-  --tw-ring-shadow: var(--tw-ring-inset) 0 0 0 calc(2px + var(--tw-ring-offset-width)) var(--tw-ring-color);
-  box-shadow: var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow, 0 0 #0000);
-  --tw-ring-color: hsl(var(--ring));
+  outline: 2px solid var(--ring);
+  outline-offset: -1px;
   border-color: transparent;
 }
 
-.toolbar-btn {
-  padding: 0.375rem 0.5rem;
-  border-radius: 0.25rem;
-  color: hsl(var(--muted-foreground));
-  background-color: transparent;
-  border: none;
-  transition: all 0.15s ease;
-}
-
-.dark .toolbar-btn {
-  color: hsl(var(--muted-foreground));
-}
-
-.toolbar-btn:hover {
-  background-color: hsl(var(--muted));
-  color: hsl(var(--foreground));
-}
-
-.dark .toolbar-btn:hover {
-  background-color: hsl(var(--accent));
-  color: hsl(var(--accent-foreground));
-}
-
-.toolbar-btn.is-active {
-  background-color: hsl(var(--primary));
-  color: hsl(var(--primary-foreground));
-  box-shadow: 0 0 0 1px hsl(var(--primary));
-}
-
-.dark .toolbar-btn.is-active {
-  background-color: hsl(var(--primary));
-  color: hsl(var(--primary-foreground));
-}
-
-.toolbar-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.toolbar-color-picker {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.375rem;
-  border-radius: 0.25rem;
-  border: 1px solid transparent;
-  color: hsl(var(--muted-foreground));
-  background-color: transparent;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.toolbar-color-picker:hover {
-  background-color: hsl(var(--muted));
-  color: hsl(var(--foreground));
-}
-
-.dark .toolbar-color-picker {
-  color: hsl(var(--muted-foreground));
-}
-
-.dark .toolbar-color-picker:hover {
-  background-color: hsl(var(--accent));
-  color: hsl(var(--accent-foreground));
-}
-
-.toolbar-color-picker.has-color {
-  border-color: hsl(var(--primary));
-  box-shadow: 0 0 0 1px hsl(var(--primary));
-}
-
-.toolbar-color-picker .color-input {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  cursor: pointer;
-  width: 100%;
-  height: 100%;
-}
-
-.toolbar-group {
-  display: flex;
-  gap: 0.25rem;
-}
-
-.toolbar-separator {
-  width: 1px;
-  background-color: hsl(var(--border));
-  margin: 0 0.25rem;
-}
-
-.dark .toolbar-separator {
-  background-color: hsl(var(--border));
-}
-
-.editor-content-wrapper {
-  min-height: 200px;
-}
-
-:deep(.ProseMirror) {
-  padding: 1rem;
-  outline: none;
-  min-height: 200px;
-}
-
-:deep(.ProseMirror img) {
-  max-width: 100%;
-  height: auto;
-  border-radius: 0.5rem;
-}
-
-:deep(.ProseMirror .ProseMirror-selectednode) {
-  --tw-ring-offset-shadow: var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);
-  --tw-ring-shadow: var(--tw-ring-inset) 0 0 0 calc(2px + var(--tw-ring-offset-width)) var(--tw-ring-color);
-  box-shadow: var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow, 0 0 #0000);
-  --tw-ring-color: hsl(var(--ring));
-}
-
-:deep(.ProseMirror) {
-  height: 100%;
-  overflow-y: auto;
-  padding: 1rem;
-}
-
-:deep(.ProseMirror p.is-editor-empty:first-child::before) {
-  color: hsl(var(--muted-foreground));
-  pointer-events: none;
-  content: attr(data-placeholder);
-  white-space: pre-wrap;
-  position: absolute;
-  opacity: 0.7;
-}
-
-.dark :deep(.ProseMirror p.is-editor-empty:first-child::before) {
-  color: hsl(var(--muted-foreground));
-}
-
-:deep(.ProseMirror h1) {
-  font-size: 1.875rem;
-  font-weight: 700;
-  margin-top: 1.5rem;
-  margin-bottom: 1rem;
-}
-
-:deep(.ProseMirror h2) {
-  font-size: 1.5rem;
-  font-weight: 700;
-  margin-top: 1.25rem;
-  margin-bottom: 0.75rem;
-}
-
-:deep(.ProseMirror h3) {
-  font-size: 1.25rem;
-  font-weight: 700;
-  margin-top: 1rem;
-  margin-bottom: 0.75rem;
-}
-
-:deep(.ProseMirror blockquote) {
-  border-left: 4px solid hsl(var(--border));
-  padding-left: 1rem;
-  font-style: italic;
-  color: hsl(var(--muted-foreground));
-  margin: 1rem 0;
-}
-
-.dark :deep(.ProseMirror blockquote) {
-  border-left-color: hsl(var(--border));
-  color: hsl(var(--muted-foreground));
-}
-
-:deep(.ProseMirror pre) {
-  background-color: hsl(var(--muted));
-  border-radius: 0.5rem;
-  padding: 1rem;
-  overflow-x: auto;
-}
-
-:deep(.ProseMirror code) {
-  background-color: hsl(var(--muted));
-  padding: 0.125rem 0.375rem;
-  border-radius: 0.25rem;
-  font-size: 0.875rem;
-}
-
-:deep(.ProseMirror ul, .ProseMirror ol) {
-  margin: 1rem 0;
-}
-
-:deep(.ProseMirror ul) {
-  padding-left: 1.5rem;
-  list-style-position: outside;
-  list-style-type: disc;
-}
-
-:deep(.ProseMirror ol) {
-  padding-left: 1.75rem;
-  margin-left: 0;
-  list-style-position: outside;
-  list-style-type: decimal;
-}
-
-:deep(.ProseMirror li) {
-  margin: 0.25rem 0;
-}
-
-:deep(.ProseMirror hr) {
-  border-color: hsl(var(--border));
-  margin: 1.5rem 0;
-}
-
-.dark :deep(.ProseMirror hr) {
-  border-color: hsl(var(--border));
+.editor-status-bar {
+  border-color: var(--border);
+  background-color: var(--muted);
 }
 </style>

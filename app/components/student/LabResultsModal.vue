@@ -67,9 +67,9 @@
               </Badge>
             </div>
 
-            <div class="flex items-center justify-between p-3 bg-green-50 dark:bg-green-950/30 rounded-lg border border-green-200 dark:border-green-800">
-              <span class="text-sm font-medium text-green-700 dark:text-green-300">Status</span>
-              <Badge variant="outline" class="border-green-500 text-green-700 dark:text-green-300 font-semibold">
+            <div class="flex items-center justify-between p-3 bg-green-50 bg-green-500/10 rounded-lg border border-green-200 border-green-500/20">
+              <span class="text-sm font-medium text-green-700 text-green-400">Status</span>
+              <Badge variant="outline" class="border-green-500 text-green-700 text-green-400 font-semibold">
                 ✓ All Parts Passed
               </Badge>
             </div>
@@ -175,7 +175,7 @@
                     <div class="flex items-center space-x-3">
                       <div
                         class="w-10 h-10 rounded-full flex items-center justify-center"
-                        :class="partResult.isPassed ? 'bg-green-100 dark:bg-green-950' : 'bg-red-100 dark:bg-red-950'"
+                        :class="partResult.isPassed ? 'bg-green-100 bg-green-500/10' : 'bg-red-100 bg-red-500/10'"
                       >
                         <CheckCircle v-if="partResult.isPassed" class="w-5 h-5 text-green-600" />
                         <XCircle v-else class="w-5 h-5 text-red-600" />
@@ -196,7 +196,7 @@
                       </Badge>
                       <Badge
                         variant="outline"
-                        :class="partResult.isPassed ? 'border-green-500 text-green-700 dark:text-green-300' : 'border-red-500 text-red-700 dark:text-red-300'"
+                        :class="partResult.isPassed ? 'border-green-500 text-green-700 text-green-400' : 'border-red-500 text-red-700 text-red-400'"
                       >
                         {{ partResult.isPassed ? 'Passed' : 'Failed' }}
                       </Badge>
@@ -228,7 +228,7 @@
                           v-for="(test, testIdx) in partResult.testResults"
                           :key="testIdx"
                           class="p-3 rounded-lg border"
-                          :class="test.status === 'passed' ? 'bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800' : 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800'"
+                          :class="test.status === 'passed' ? 'bg-green-50 bg-green-500/10/20 border-green-200 border-green-500/20' : 'bg-red-50 bg-red-500/10/20 border-red-200 border-red-500/20'"
                         >
                           <div class="flex items-start justify-between mb-2">
                             <div class="flex items-start space-x-2">
@@ -250,7 +250,7 @@
                               v-for="(testCase, tcIdx) in test.test_case_results"
                               :key="tcIdx"
                               class="text-xs p-2 rounded bg-card border"
-                              :class="testCase.status === 'passed' ? 'border-green-200 dark:border-green-800' : 'border-destructive/30'"
+                              :class="testCase.status === 'passed' ? 'border-green-200 border-green-500/20' : 'border-destructive/30'"
                             >
                               <div class="flex items-center justify-between mb-1">
                                 <span class="font-medium">{{ testCase.description }}</span>

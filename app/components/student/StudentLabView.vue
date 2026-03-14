@@ -256,8 +256,8 @@
         <!-- Device Naming Warning -->
         <Alert class="mb-4 bg-amber-500/10 border-amber-500/30">
           <AlertTriangle class="h-4 w-4 text-amber-600" />
-          <AlertTitle class="text-amber-700 dark:text-amber-400">Important: Device Node Names</AlertTitle>
-          <AlertDescription class="text-sm text-amber-700 dark:text-amber-400">
+          <AlertTitle class="text-amber-700 text-amber-500">Important: Device Node Names</AlertTitle>
+          <AlertDescription class="text-sm text-amber-700 text-amber-500">
             GNS3 device node names must match exactly as defined below. Mismatched names will cause grading to fail.
           </AlertDescription>
         </Alert>
@@ -618,7 +618,9 @@ const convertContentToHtml = (content: string): string => {
 }
 
 const renderedInstructions = computed(() => {
-  const rawInstructions = props.labData.instructions?.html || ''
+  const instructions = props.labData.instructions
+  // Support both legacy HTML and new Markdown format
+  const rawInstructions = instructions?.markdown || instructions?.html || ''
 
   if (!rawInstructions) {
     return '<p class="text-muted-foreground">No instructions provided.</p>'
@@ -656,7 +658,8 @@ const renderPartInstructions = (part: LabPart): string => {
   if (typeof value === 'string') {
     html = value
   } else if (typeof value === 'object') {
-    html = value.html || value.instructions || ''
+    // Handle new markdown field or legacy html/json
+    html = value.markdown || value.html || value.instructions || ''
   }
 
   if (!html.trim()) return ''
@@ -736,15 +739,10 @@ function checkGns3ProjectExists(): boolean {
 
 function checkAndShowGns3Modal() {
   const projectExists = checkGns3ProjectExists()
-  console.log('[GNS3 Modal Debug] checkAndShowGns3Modal called')
-  console.log('[GNS3 Modal Debug] projectExists:', projectExists)
-  console.log('[GNS3 Modal Debug] instructionsAcknowledged:', instructionsAcknowledged.value)
   
   if (!projectExists) {
-    console.log('[GNS3 Modal Debug] Showing modal - no project found')
     showGns3SetupModal.value = true
   } else {
-    console.log('[GNS3 Modal Debug] Not showing modal - project already exists')
     hasGns3Project.value = true
   }
 }
@@ -911,7 +909,6 @@ function handleRestartLab() {
 
 // Handle timer expiration
 function handleTimerExpired() {
-  console.log('⏰ Timer expired!')
   timerExpiredModalMode.value = 'timer_expired'
   showTimerExpiredModal.value = true
 }
@@ -921,7 +918,6 @@ function handleDeadlineExtended(payload: {
   labTitle?: string
   fields: Array<{ type: 'dueDate' | 'availableUntil'; diffMs: number }>
 }) {
-  console.log('⏳ [INFO] Deadline extended for lab timer:', payload)
 }
 
 // Handle timer expired modal close
@@ -986,7 +982,6 @@ async function loadPersonalizedIPs() {
         activeLabSessionId.value = null
       }
 
-      console.log('✅ [DEBUG] Loaded personalized IPs:', {
         ipMappings: backendIpMappings.value,
         vlanMappings: backendVlanMappings.value
       })
@@ -1089,6 +1084,25 @@ onMounted(async () => {
   padding: 0.125rem 0.25rem;
   border-radius: 0.25rem;
   font-size: 0.875em;
+}
+
+/* Table styles */
+:deep(.prose table) {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1rem;
+}
+
+:deep(.prose th),
+:deep(.prose td) {
+  border: 1px solid #333333;
+  padding: 0.5rem;
+  text-align: left;
+}
+
+:deep(.prose th) {
+  background-color: #e5e5e5;
+  font-weight: 600;
 }
 
 .debug-info {

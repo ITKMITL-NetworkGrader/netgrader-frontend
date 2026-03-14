@@ -250,12 +250,12 @@
           </div>
 
           <!-- Duration Calculation -->
-          <div v-if="scheduleInfo.duration" class="mt-4 p-3 bg-blue-50 dark:bg-blue-950/30 rounded-md border border-blue-200 dark:border-blue-800">
+          <div v-if="scheduleInfo.duration" class="mt-4 p-3 bg-blue-500/10 rounded-md border border-blue-200 border-blue-500/20">
             <div class="flex items-center space-x-2">
               <Clock class="w-4 h-4 text-blue-600" />
               <div class="text-sm">
                 <span class="font-medium">Lab Duration: </span>
-                <span class="text-blue-700 dark:text-blue-300">{{ scheduleInfo.duration }}</span>
+                <span class="text-blue-700 text-blue-600">{{ scheduleInfo.duration }}</span>
               </div>
             </div>
           </div>

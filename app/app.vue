@@ -3,26 +3,63 @@ import '@fontsource/bai-jamjuree';
 import '@fontsource/geist-mono';
 import { SonnerToaster as Toaster } from '@/components/ui/sonner'
 import 'vue-sonner/style.css'
+import { Fragment, defineComponent, h } from 'vue'
 
-// Initialize dark mode
-// useDarkMode()
+// Polyfill Fragment for Vue 3.5+ compatibility with Milkdown
+// This fixes the "Fragment is not defined" error in Milkdown's JSX components
+if (typeof window !== 'undefined') {
+  ;(window as any).Fragment = Fragment
+}
 
-// Add script to head to apply dark mode immediately
-// useHead({
-//   script: [
-//     {
-//       innerHTML: `
-//         (function() {
-//           document.documentElement.classList.add('dark');
-//           if (typeof localStorage !== 'undefined') {
-//             localStorage.setItem('theme', 'dark');
-//           }
-//         })();
-//       `,
-//       type: 'text/javascript'
-//     }
-//   ]
-// })
+// Global Vue error handler to catch rendering errors from third-party components (like Milkdown)
+const app = useNuxtApp().vueApp
+
+app.config.errorHandler = (err: unknown, instance: unknown, info: string) => {
+  // Check if this is the Fragment error from Milkdown
+  if (err instanceof ReferenceError && err.message === 'Fragment is not defined') {
+    console.warn('Milkdown ImageBlock render error caught:', err)
+    // Prevent the error from crashing the app - return a fallback UI
+    return false
+  }
+  // Log other errors
+  console.error('Vue error:', err, info)
+}
+
+// Also handle unhandled promise rejections that might occur during rendering
+if (typeof window !== 'undefined') {
+  window.addEventListener('unhandledrejection', (event) => {
+    if (event.reason instanceof ReferenceError && event.reason.message === 'Fragment is not defined') {
+      console.warn('Milkdown ImageBlock unhandled rejection caught:', event.reason)
+      event.preventDefault()
+    }
+  })
+}
+
+// Early theme initialization via inline script to prevent flash of default theme
+useHead({
+  script: [
+    {
+      innerHTML: `
+        (function() {
+          try {
+            var mode = localStorage.getItem('ng-color-mode') || 'dark';
+            if (mode === 'system') {
+              mode = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+            }
+            if (mode === 'dark') {
+              document.documentElement.classList.add('dark');
+            } else {
+              document.documentElement.classList.remove('dark');
+            }
+          } catch(e) {
+            document.documentElement.classList.add('dark');
+          }
+        })();
+      `,
+      type: 'text/javascript',
+    }
+  ]
+})
 
 useSeoMeta({
         title: 'NetGrader',

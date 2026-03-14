@@ -137,8 +137,10 @@ const handleLogin = async () => {
         description: 'Redirecting you now...',
       })
 
-      if (query.query.next) {
-        await navigateTo(query.query.next as string, { replace: true })
+      // NG-SEC-019/DSEC-13: Validate redirect target to prevent open redirects
+      const next = query.query.next as string
+      if (next && next.startsWith('/') && !next.startsWith('//') && !next.startsWith('/\\')) {
+        await navigateTo(next, { replace: true })
       } else {
         await navigateTo('/courses', { replace: true })
       }

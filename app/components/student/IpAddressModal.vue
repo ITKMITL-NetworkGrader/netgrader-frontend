@@ -15,8 +15,8 @@
         <!-- Network Variables Section -->
         <div v-if="networkVariables && networkVariables.length > 0" class="space-y-3">
           <div class="flex items-center gap-2">
-            <Globe class="w-4 h-4 text-purple-600 dark:text-purple-400" />
-            <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">
+            <Globe class="w-4 h-4 text-purple-600 text-purple-500" />
+            <h3 class="text-sm font-semibold text-foreground text-foreground">
               Network Variables
             </h3>
           </div>
@@ -24,12 +24,12 @@
             <div
               v-for="variable in networkVariables"
               :key="variable.key"
-              class="p-3 border border-purple-200 dark:border-purple-800 rounded-lg bg-purple-50 dark:bg-purple-950/20"
+              class="p-3 border border-purple-200 border-purple-500/20 rounded-lg bg-purple-50 bg-purple-500/10"
             >
-              <div class="text-xs font-medium text-purple-700 dark:text-purple-300">
+              <div class="text-xs font-medium text-purple-700 text-purple-400">
                 {{ variable.label }}
               </div>
-              <div class="text-sm font-mono text-gray-900 dark:text-gray-100 mt-1">
+              <div class="text-sm font-mono text-foreground text-foreground mt-1">
                 {{ variable.value }}
               </div>
             </div>
@@ -40,8 +40,8 @@
         <div class="space-y-3">
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-2">
-              <Server class="w-4 h-4 text-blue-600 dark:text-blue-400" />
-              <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">
+              <Server class="w-4 h-4 text-blue-600 text-blue-500" />
+              <h3 class="text-sm font-semibold text-foreground text-foreground">
                 Device IP Addresses
               </h3>
             </div>
@@ -51,32 +51,32 @@
           </div>
 
           <!-- IP Address Table -->
-          <div class="overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-lg">
-            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead class="bg-gray-50 dark:bg-gray-800">
+          <div class="overflow-x-auto border border-border rounded-lg">
+            <table class="min-w-full divide-y divide-border divide-border">
+              <thead class="bg-muted bg-muted">
                 <tr>
-                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                  <th class="px-4 py-3 text-left text-xs font-medium text-foreground text-muted-foreground uppercase tracking-wider">
                     Device.Interface
                   </th>
                   <th
                     v-for="column in tableColumns"
                     :key="column"
-                    class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider"
+                    class="px-4 py-3 text-left text-xs font-medium text-foreground text-muted-foreground uppercase tracking-wider"
                   >
                     {{ column }}
                   </th>
-                  <th class="px-4 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                  <th class="px-4 py-3 text-right text-xs font-medium text-foreground text-muted-foreground uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
               </thead>
-              <tbody class="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
+              <tbody class="bg-white bg-background divide-y divide-border divide-border">
                 <tr
                   v-for="(rowData, deviceKey) in declaredIps"
                   :key="deviceKey"
-                  class="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                  class="hover:bg-muted hover:bg-muted transition-colors"
                 >
-                  <td class="px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100">
+                  <td class="px-4 py-3 text-sm font-medium text-foreground text-foreground">
                     {{ rowData.displayName }}
                   </td>
                   <td
@@ -98,7 +98,7 @@
                       />
                       <div
                         v-if="!isValidIP(rowData.values[column]) && rowData.values[column]"
-                        class="text-xs text-red-600 dark:text-red-400 mt-1"
+                        class="text-xs text-red-600 text-red-500 mt-1"
                       >
                         Invalid IP format
                       </div>

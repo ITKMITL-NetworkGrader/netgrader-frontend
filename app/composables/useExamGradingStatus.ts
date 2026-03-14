@@ -124,7 +124,6 @@ export const useExamGradingStatus = (courseId: string, examId: string, partId: s
       }
     } catch (error) {
       // If no submission exists, status remains 'not_submitted'
-      console.log('No existing exam submission found')
     }
   }
 

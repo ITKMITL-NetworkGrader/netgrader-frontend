@@ -292,31 +292,16 @@ watch(() => props.status, (newStatus, oldStatus) => {
   if (newStatus === 'grading' || newStatus === 'submitting') {
     showProgressDetails.value = true
   }
-  console.log('[GradingProgress] Status changed:', { oldStatus, newStatus, showProgressDetails: showProgressDetails.value })
 }, { immediate: true })
 
-// Watch progress changes for debugging
+// Watch progress changes
 watch(() => props.progress, (newProgress, oldProgress) => {
-  if (newProgress) {
-    console.log('[GradingProgress] Progress updated:', {
-      percentage: newProgress.percentage,
-      message: newProgress.message,
-      current_test: newProgress.current_test,
-      tests_completed: newProgress.tests_completed,
-      total_tests: newProgress.total_tests
-    })
-  }
+  // Progress tracking handled internally
 }, { deep: true })
 
-// Watch results for debugging
+// Watch results
 watch(() => props.results, (newResults) => {
-  if (newResults) {
-    console.log('[GradingProgress] Results received:', {
-      status: newResults.status,
-      points: `${newResults.total_points_earned}/${newResults.total_points_possible}`,
-      passed: isPassed.value
-    })
-  }
+  // Results handled internally
 }, { deep: true })
 
 const isPassed = computed(() => {

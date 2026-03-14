@@ -5,6 +5,7 @@ import type { PartSubmissionSummary } from './submission'
 export interface RichTextContent {
   html: string
   json: any
+  markdown?: string   // Primary format going forward (Milkdown)
 }
 
 // Core Lab Structure

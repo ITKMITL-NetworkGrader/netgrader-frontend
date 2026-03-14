@@ -8,16 +8,16 @@
     :esc-to-close="!hasUnsavedChanges"
     @before-close="handleCloseAttempt"
   >
-    <div class="flex flex-col h-full bg-white dark:bg-gray-900 pt-16">
+    <div class="flex flex-col h-full bg-background pt-16">
       <!-- Header -->
-      <header class="flex-shrink-0 flex justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+      <header class="flex-shrink-0 flex justify-between items-center p-4 border-b border-border bg-background">
         <div class="flex items-center gap-3">
-          <Icon name="lucide:file-text" class="w-5 h-5 text-gray-600 dark:text-gray-400" />
+          <Icon name="lucide:file-text" class="w-5 h-5 text-muted-foreground" />
           <div>
-            <h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">
+            <h2 class="text-xl font-semibold text-foreground">
               {{ title }}
             </h2>
-            <p v-if="subtitle" class="text-sm text-gray-500 dark:text-gray-400">
+            <p v-if="subtitle" class="text-sm text-muted-foreground">
               {{ subtitle }}
             </p>
           </div>
@@ -29,9 +29,9 @@
             v-if="autoSaveEnabled"
             class="flex items-center gap-2 px-2 py-1 text-xs rounded-full"
             :class="{
-              'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200': !hasUnsavedChanges && lastSaved,
-              'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200': hasUnsavedChanges,
-              'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400': !lastSaved
+              'bg-green-500/10 text-green-600': !hasUnsavedChanges && lastSaved,
+              'bg-yellow-500/10 text-yellow-600': hasUnsavedChanges,
+              'bg-muted text-muted-foreground': !lastSaved
             }"
           >
             <Icon
@@ -52,8 +52,8 @@
           <!-- Action buttons -->
           <button
             @click="saveDocument"
-            :disabled="isSaving || !hasUnsavedChanges"
-            class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center transition-colors text-sm"
+            :disabled="isSaving"
+            class="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center transition-colors text-sm"
             title="Save (Ctrl+S)"
           >
             <Icon
@@ -67,7 +67,7 @@
 
           <button
             @click="closeEditor"
-            class="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md transition-colors text-sm"
+            class="px-4 py-2 text-foreground bg-muted hover:bg-muted/80 rounded-md transition-colors text-sm"
           >
             Close
           </button>
@@ -77,7 +77,7 @@
       <!-- Main Editor Area -->
       <div class="flex-1 flex overflow-hidden">
         <!-- Editor Panel -->
-        <div class="flex-1 flex flex-col">
+        <div class="flex-1 flex flex-col min-h-0">
           <RichTextEditor
             ref="editorRef"
             v-model="content"
@@ -85,51 +85,51 @@
             :show-toolbar="true"
             :show-status-bar="false"
             :autofocus="true"
-            :editor-class="'flex-1 overflow-y-auto min-h-0'"
+            :editor-class="'flex-1 overflow-y-auto min-h-0 fullscreen-editor'"
             @focus="handleFocus"
             @blur="handleBlur"
             @save="saveDocument"
-            class="border-0 flex-1 flex flex-col"
+            class="border-0 flex-1 flex flex-col min-h-0"
           />
         </div>
 
         <!-- Side Panel (Optional) -->
         <div
           v-if="showSidePanel"
-          class="w-80 border-l border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex-shrink-0 overflow-y-auto"
+          class="w-80 border-l border-border bg-muted flex-shrink-0 overflow-y-auto"
         >
           <div class="p-4">
-            <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100 mb-3">
+            <h3 class="text-sm font-medium text-foreground mb-3">
               Document Info
             </h3>
 
             <!-- Statistics -->
             <div class="space-y-2 text-sm">
               <div class="flex justify-between">
-                <span class="text-gray-600 dark:text-gray-400">Words:</span>
+                <span class="text-muted-foreground">Words:</span>
                 <span class="font-medium">{{ statistics.words }}</span>
               </div>
               <div class="flex justify-between">
-                <span class="text-gray-600 dark:text-gray-400">Characters:</span>
+                <span class="text-muted-foreground">Characters:</span>
                 <span class="font-medium">{{ statistics.characters }}</span>
               </div>
               <div class="flex justify-between">
-                <span class="text-gray-600 dark:text-gray-400">Reading time:</span>
+                <span class="text-muted-foreground">Reading time:</span>
                 <span class="font-medium">{{ statistics.readingTime }} min</span>
               </div>
             </div>
 
-            <hr class="my-4 border-gray-200 dark:border-gray-700" />
+            <hr class="my-4 border-border" />
 
             <!-- Quick Actions -->
             <div class="space-y-2">
-              <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">
+              <h4 class="text-sm font-medium text-foreground">
                 Quick Actions
               </h4>
 
               <button
                 @click="exportAsMarkdown"
-                class="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md flex items-center gap-2"
+                class="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-accent hover:text-accent-foreground rounded-md flex items-center gap-2"
               >
                 <Icon name="lucide:download" class="w-4 h-4" />
                 Export as Markdown
@@ -137,7 +137,7 @@
 
               <button
                 @click="copyContent"
-                class="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md flex items-center gap-2"
+                class="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-accent hover:text-accent-foreground rounded-md flex items-center gap-2"
               >
                 <Icon name="lucide:copy" class="w-4 h-4" />
                 Copy Content
@@ -148,7 +148,7 @@
       </div>
 
       <!-- Status Bar -->
-      <footer class="flex-shrink-0 border-t border-gray-200 dark:border-gray-700 px-4 py-2 text-sm text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800">
+      <footer class="flex-shrink-0 border-t border-border px-4 py-2 text-sm text-muted-foreground bg-muted">
         <div class="flex justify-between items-center">
           <div class="flex gap-4">
             <span>{{ statistics.words }} words</span>
@@ -162,7 +162,7 @@
             <!-- Keyboard shortcuts help -->
             <button
               @click="showShortcuts = !showShortcuts"
-              class="hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+              class="hover:text-foreground transition-colors"
               title="Keyboard shortcuts"
             >
               <Icon name="lucide:keyboard" class="w-4 h-4" />
@@ -171,7 +171,7 @@
             <!-- Full screen toggle -->
             <button
               @click="toggleSidePanel"
-              class="hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+              class="hover:text-foreground transition-colors"
               :title="showSidePanel ? 'Hide side panel' : 'Show side panel'"
             >
               <Icon
@@ -187,15 +187,15 @@
     <!-- Keyboard Shortcuts Help -->
     <div
       v-if="showShortcuts"
-      class="absolute bottom-16 right-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-4 w-80 z-10"
+      class="absolute bottom-16 right-4 bg-card border border-border rounded-lg shadow-lg p-4 w-80 z-10"
     >
       <div class="flex justify-between items-center mb-3">
-        <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">
+        <h3 class="text-sm font-medium text-foreground">
           Keyboard Shortcuts
         </h3>
         <button
           @click="showShortcuts = false"
-          class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+          class="text-muted-foreground hover:text-foreground"
         >
           <Icon name="lucide:x" class="w-4 h-4" />
         </button>
@@ -203,8 +203,8 @@
 
       <div class="space-y-2 text-sm">
         <div v-for="shortcut in keyboardShortcuts" :key="shortcut.keys" class="flex justify-between">
-          <span class="text-gray-600 dark:text-gray-400">{{ shortcut.description }}</span>
-          <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">
+          <span class="text-muted-foreground">{{ shortcut.description }}</span>
+          <kbd class="px-2 py-1 bg-muted rounded text-xs font-mono">
             {{ shortcut.keys }}
           </kbd>
         </div>
@@ -216,34 +216,34 @@
       v-if="showUnsavedDialog"
       class="absolute inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50"
     >
-      <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-md mx-4">
+      <div class="bg-card border border-border rounded-lg shadow-xl p-6 w-full max-w-md mx-4">
         <div class="flex items-center gap-3 mb-4">
-          <Icon name="lucide:alert-triangle" class="w-6 h-6 text-amber-500" />
-          <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
+          <Icon name="lucide:alert-triangle" class="w-6 h-6 text-yellow-500" />
+          <h3 class="text-lg font-semibold text-foreground">
             Unsaved Changes
           </h3>
         </div>
 
-        <p class="text-gray-600 dark:text-gray-400 mb-6">
+        <p class="text-muted-foreground mb-6">
           You have unsaved changes. What would you like to do?
         </p>
 
         <div class="flex justify-end gap-2">
           <button
             @click="discardChanges"
-            class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md"
+            class="px-4 py-2 text-sm font-medium text-foreground hover:bg-accent hover:text-accent-foreground rounded-md"
           >
             Discard Changes
           </button>
           <button
             @click="saveAndClose"
-            class="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            class="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
           >
             Save & Close
           </button>
           <button
             @click="showUnsavedDialog = false"
-            class="px-4 py-2 text-sm font-medium bg-gray-600 text-white rounded-md hover:bg-gray-700"
+            class="px-4 py-2 text-sm font-medium bg-muted text-foreground rounded-md hover:bg-muted/80"
           >
             Cancel
           </button>
@@ -256,6 +256,7 @@
 <script setup lang="ts">
 import { VueFinalModal } from 'vue-final-modal'
 import RichTextEditor from './RichTextEditor.vue'
+import { buildRichTextContent, markdownToHtml } from '~/utils/contentCompat'
 
 interface Props {
   modelValue: boolean
@@ -269,6 +270,7 @@ interface Props {
 interface RichTextPayload {
   html: string
   json: any
+  markdown?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -302,7 +304,7 @@ const editorRef = ref<InstanceType<typeof RichTextEditor>>()
 // Modal content class
 const modalContentClass = computed(() => [
   'w-full h-full flex flex-col',
-  'bg-white dark:bg-gray-900',
+  'bg-background',
   'fixed inset-0 z-50'
 ])
 
@@ -348,31 +350,24 @@ const handleBlur = () => {
   }
 }
 
-const getEditorJson = () => {
-  const editorComponent = editorRef.value
-  const json = editorComponent?.getJSON?.()
-    ?? editorComponent?.editor?.value?.getJSON?.()
-    ?? { type: 'doc', content: [] }
-  try {
-    return JSON.parse(JSON.stringify(json))
-  } catch (error) {
-    return json
+const buildPayload = (): RichTextPayload => {
+  const markdown = content.value
+  return {
+    html: markdownToHtml(markdown),
+    json: { type: 'doc', content: [] },
+    markdown,
   }
 }
 
-const buildPayload = (): RichTextPayload => ({
-  html: content.value,
-  json: getEditorJson()
-})
-
 const saveDocument = async (): Promise<RichTextPayload | void> => {
-  if (isSaving.value || !hasUnsavedChanges.value) return
+  if (isSaving.value) return
 
   isSaving.value = true
   try {
     const payload = buildPayload()
     emit('save', payload)
-    originalContent.value = payload.html
+    // Use markdown for originalContent (matches what editor uses)
+    originalContent.value = payload.markdown
     lastSaved.value = new Date()
     return payload
   } catch (error) {
@@ -437,7 +432,7 @@ function debounce(func: Function, wait: number) {
 
 // Export functions
 const exportAsMarkdown = () => {
-  const markdown = content.value // Convert HTML to Markdown if needed
+  const markdown = content.value
   const blob = new Blob([markdown], { type: 'text/markdown' })
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
@@ -496,6 +491,7 @@ watch(isOpen, (value) => {
   if (value) {
     // Reset state when opening
     content.value = props.content
+    // Use markdown for originalContent (matches what editor uses)
     originalContent.value = props.content
     lastSaved.value = null
   }
@@ -535,3 +531,42 @@ watch(isOpen, (open) => {
   }
 })
 </script>
+
+<style scoped>
+/* Fullscreen editor container improvements */
+.fullscreen-editor {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.fullscreen-editor :deep(.milkdown-wrapper) {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.fullscreen-editor :deep(.milkdown) {
+  flex: 1;
+  min-height: 0;
+}
+
+.fullscreen-editor :deep(.ProseMirror) {
+  flex: 1;
+  overflow-y: auto;
+}
+
+/* Ensure slash menu appears above footer */
+.fullscreen-editor :deep(.milkdown-slash-menu),
+.fullscreen-editor :deep(.milkdown-block-edit),
+.fullscreen-editor :deep(.slash-menu),
+.fullscreen-editor :deep(.block-edit-menu) {
+  z-index: 100 !important;
+}
+
+/* Ensure toolbar appears above footer */
+.fullscreen-editor :deep(.milkdown-toolbar),
+.fullscreen-editor :deep(.crepe-toolbar) {
+  z-index: 50 !important;
+}
+</style>

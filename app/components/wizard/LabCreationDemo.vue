@@ -381,11 +381,11 @@ watch(studentId, () => {
   text-align: center;
   margin-bottom: 2rem;
   padding-bottom: 1rem;
-  border-bottom: 2px solid hsl(var(--border));
+  border-bottom: 2px solid var(--border);
 }
 
 .demo-header h2 {
-  color: hsl(var(--foreground));
+  color: var(--foreground);
   margin-bottom: 0.5rem;
 }
 
@@ -395,7 +395,7 @@ watch(studentId, () => {
   align-items: center;
   margin-bottom: 2rem;
   padding: 1rem;
-  background-color: hsl(var(--muted));
+  background-color: var(--muted);
   border-radius: 0.5rem;
 }
 
@@ -408,8 +408,8 @@ watch(studentId, () => {
 
 .debug-button {
   padding: 0.5rem 1rem;
-  background-color: hsl(var(--primary));
-  color: hsl(var(--primary-foreground));
+  background-color: var(--primary);
+  color: var(--primary-foreground);
   border: none;
   border-radius: 0.375rem;
   cursor: pointer;
@@ -417,12 +417,12 @@ watch(studentId, () => {
 }
 
 .debug-button:hover {
-  background-color: hsl(var(--primary) / 0.9);
+  background-color: color-mix(in oklch, var(--primary) 0.9, transparent);
 }
 
 .wizard-step {
-  background-color: hsl(var(--card));
-  border: 1px solid hsl(var(--border));
+  background-color: var(--card);
+  border: 1px solid var(--border);
   border-radius: 0.5rem;
   padding: 2rem;
   margin-bottom: 2rem;
@@ -430,10 +430,10 @@ watch(studentId, () => {
 }
 
 .wizard-step h3 {
-  color: hsl(var(--foreground));
+  color: var(--foreground);
   margin-bottom: 1.5rem;
   padding-bottom: 0.5rem;
-  border-bottom: 1px solid hsl(var(--border));
+  border-bottom: 1px solid var(--border);
 }
 
 .form-group {
@@ -444,7 +444,7 @@ watch(studentId, () => {
   display: block;
   font-weight: 500;
   margin-bottom: 0.25rem;
-  color: hsl(var(--foreground));
+  color: var(--foreground);
 }
 
 .form-group input,
@@ -452,7 +452,7 @@ watch(studentId, () => {
 .form-group select {
   width: 100%;
   padding: 0.5rem;
-  border: 1px solid hsl(var(--border));
+  border: 1px solid var(--border);
   border-radius: 0.375rem;
   font-size: 0.875rem;
 }
@@ -467,7 +467,7 @@ watch(studentId, () => {
   gap: 1rem;
   align-items: end;
   padding: 1rem;
-  background-color: hsl(var(--muted) / 0.5);
+  background-color: color-mix(in oklch, var(--muted) 0.5, transparent);
   border-radius: 0.375rem;
   margin-bottom: 1.5rem;
 }
@@ -484,8 +484,8 @@ watch(studentId, () => {
 
 .add-device-form button {
   padding: 0.5rem 1rem;
-  background-color: hsl(var(--primary));
-  color: hsl(var(--primary-foreground));
+  background-color: var(--primary);
+  color: var(--primary-foreground);
   border: none;
   border-radius: 0.375rem;
   cursor: pointer;
@@ -493,7 +493,7 @@ watch(studentId, () => {
 }
 
 .add-device-form button:disabled {
-  background-color: hsl(var(--muted));
+  background-color: var(--muted);
   cursor: not-allowed;
 }
 
@@ -503,20 +503,20 @@ watch(studentId, () => {
 }
 
 .device-card {
-  border: 1px solid hsl(var(--border));
+  border: 1px solid var(--border);
   border-radius: 0.375rem;
   padding: 1rem;
-  background-color: hsl(var(--muted) / 0.3);
+  background-color: color-mix(in oklch, var(--muted) 0.3, transparent);
 }
 
 .device-card h4 {
   margin: 0 0 1rem 0;
-  color: hsl(var(--foreground));
+  color: var(--foreground);
 }
 
 .ip-variables h5 {
   margin: 0 0 0.5rem 0;
-  color: hsl(var(--muted-foreground));
+  color: var(--muted-foreground);
 }
 
 .ip-variable {
@@ -528,15 +528,15 @@ watch(studentId, () => {
   align-items: center;
   gap: 0.5rem;
   padding: 0.25rem 0.5rem;
-  background-color: hsl(var(--card));
-  border: 1px solid hsl(var(--border));
+  background-color: var(--card);
+  border: 1px solid var(--border);
   border-radius: 0.25rem;
   font-size: 0.875rem;
 }
 
 .variable-name {
   font-weight: 500;
-  color: hsl(var(--foreground));
+  color: var(--foreground);
 }
 
 .variable-type {
@@ -547,29 +547,29 @@ watch(studentId, () => {
 }
 
 .variable-type.student_generated {
-  background-color: hsl(var(--primary) / 0.1);
-  color: hsl(var(--primary));
+  background-color: color-mix(in oklch, var(--primary) 0.1, transparent);
+  color: var(--primary);
 }
 
 .variable-type.host_offset {
-  background-color: hsl(var(--accent) / 0.3);
-  color: hsl(var(--primary));
+  background-color: color-mix(in oklch, var(--accent) 0.3, transparent);
+  color: var(--primary);
 }
 
 .variable-type.full_ip {
-  background-color: hsl(var(--primary) / 0.15);
-  color: hsl(var(--primary));
+  background-color: color-mix(in oklch, var(--primary) 0.15, transparent);
+  color: var(--primary);
 }
 
 .variable-value {
   font-family: 'Monaco', 'Menlo', monospace;
-  color: hsl(var(--primary));
+  color: var(--primary);
   font-weight: 600;
 }
 
 .readonly-badge {
-  background-color: hsl(var(--accent));
-  color: hsl(var(--accent-foreground));
+  background-color: var(--accent);
+  color: var(--accent-foreground);
   padding: 0.125rem 0.25rem;
   border-radius: 0.25rem;
   font-size: 0.75rem;
@@ -581,7 +581,7 @@ watch(studentId, () => {
   gap: 0.5rem;
   margin-top: 0.5rem;
   padding-top: 0.5rem;
-  border-top: 1px solid hsl(var(--border));
+  border-top: 1px solid var(--border);
 }
 
 .add-variable-form input,
@@ -593,8 +593,8 @@ watch(studentId, () => {
 
 .add-variable-form button {
   padding: 0.25rem 0.5rem;
-  background-color: hsl(var(--secondary));
-  color: hsl(var(--secondary-foreground));
+  background-color: var(--secondary);
+  color: var(--secondary-foreground);
   border: none;
   border-radius: 0.25rem;
   cursor: pointer;
@@ -605,14 +605,14 @@ watch(studentId, () => {
 .ip-variables-summary {
   margin-top: 2rem;
   padding: 1rem;
-  background-color: hsl(var(--primary) / 0.05);
-  border: 1px solid hsl(var(--primary) / 0.2);
+  background-color: color-mix(in oklch, var(--primary) 0.05, transparent);
+  border: 1px solid color-mix(in oklch, var(--primary) 0.2, transparent);
   border-radius: 0.375rem;
 }
 
 .ip-variables-summary h4 {
   margin: 0 0 1rem 0;
-  color: hsl(var(--primary));
+  color: var(--primary);
 }
 
 .variables-grid {
@@ -626,20 +626,20 @@ watch(studentId, () => {
   justify-content: space-between;
   align-items: center;
   padding: 0.5rem;
-  background-color: hsl(var(--card));
-  border: 1px solid hsl(var(--border));
+  background-color: var(--card);
+  border: 1px solid var(--border);
   border-radius: 0.25rem;
   font-size: 0.875rem;
 }
 
 .ref-name {
   font-weight: 600;
-  color: hsl(var(--primary));
+  color: var(--primary);
 }
 
 .ref-ip {
   font-family: 'Monaco', 'Menlo', monospace;
-  color: hsl(var(--primary));
+  color: var(--primary);
 }
 
 .ref-type {
@@ -649,25 +649,25 @@ watch(studentId, () => {
 }
 
 .ref-type.student_generated {
-  background-color: hsl(var(--primary) / 0.1);
-  color: hsl(var(--primary));
+  background-color: color-mix(in oklch, var(--primary) 0.1, transparent);
+  color: var(--primary);
 }
 
 .ref-type.custom {
-  background-color: hsl(var(--destructive) / 0.1);
-  color: hsl(var(--destructive));
+  background-color: color-mix(in oklch, var(--destructive) 0.1, transparent);
+  color: var(--destructive);
 }
 
 .task-template-demo {
-  border: 1px solid hsl(var(--border));
+  border: 1px solid var(--border);
   border-radius: 0.375rem;
   padding: 1.5rem;
-  background-color: hsl(var(--muted) / 0.3);
+  background-color: color-mix(in oklch, var(--muted) 0.3, transparent);
 }
 
 .task-template-demo h4 {
   margin: 0 0 0.5rem 0;
-  color: hsl(var(--foreground));
+  color: var(--foreground);
 }
 
 .parameter-group {
@@ -678,26 +678,26 @@ watch(studentId, () => {
   display: block;
   font-weight: 500;
   margin-bottom: 0.5rem;
-  color: hsl(var(--foreground));
+  color: var(--foreground);
 }
 
 .validation-errors {
   margin-top: 1rem;
   padding: 1rem;
-  background-color: hsl(var(--destructive) / 0.1);
-  border: 1px solid hsl(var(--destructive) / 0.3);
+  background-color: color-mix(in oklch, var(--destructive) 0.1, transparent);
+  border: 1px solid color-mix(in oklch, var(--destructive) 0.3, transparent);
   border-radius: 0.375rem;
 }
 
 .validation-errors h5 {
   margin: 0 0 0.5rem 0;
-  color: hsl(var(--destructive));
+  color: var(--destructive);
 }
 
 .validation-errors ul {
   margin: 0;
   padding-left: 1.5rem;
-  color: hsl(var(--destructive));
+  color: var(--destructive);
 }
 
 .wizard-navigation {
@@ -705,22 +705,22 @@ watch(studentId, () => {
   justify-content: space-between;
   align-items: center;
   padding: 1rem;
-  background-color: hsl(var(--muted) / 0.5);
+  background-color: color-mix(in oklch, var(--muted) 0.5, transparent);
   border-radius: 0.5rem;
   margin-bottom: 2rem;
 }
 
 .wizard-navigation button {
   padding: 0.5rem 1rem;
-  border: 1px solid hsl(var(--border));
+  border: 1px solid var(--border);
   border-radius: 0.375rem;
-  background-color: hsl(var(--card));
+  background-color: var(--card);
   cursor: pointer;
   font-weight: 500;
 }
 
 .wizard-navigation button:hover:not(:disabled) {
-  background-color: hsl(var(--muted));
+  background-color: var(--muted);
 }
 
 .wizard-navigation button:disabled {
@@ -730,12 +730,12 @@ watch(studentId, () => {
 
 .step-indicator {
   font-weight: 500;
-  color: hsl(var(--foreground));
+  color: var(--foreground);
 }
 
 .debug-panel {
-  background-color: hsl(var(--muted));
-  color: hsl(var(--foreground));
+  background-color: var(--muted);
+  color: var(--foreground);
   border-radius: 0.5rem;
   padding: 1.5rem;
   margin-top: 2rem;
@@ -743,7 +743,7 @@ watch(studentId, () => {
 
 .debug-panel h3,
 .debug-panel h4 {
-  color: hsl(var(--foreground));
+  color: var(--foreground);
   margin-bottom: 1rem;
 }
 
@@ -755,7 +755,7 @@ watch(studentId, () => {
 
 .debug-summary li {
   padding: 0.25rem 0;
-  border-bottom: 1px solid hsl(var(--border));
+  border-bottom: 1px solid var(--border);
 }
 
 .debug-panel details {
@@ -766,13 +766,13 @@ watch(studentId, () => {
   cursor: pointer;
   font-weight: 600;
   padding: 0.5rem;
-  background-color: hsl(var(--accent));
+  background-color: var(--accent);
   border-radius: 0.25rem;
   margin-bottom: 0.5rem;
 }
 
 .debug-panel pre {
-  background-color: hsl(var(--card));
+  background-color: var(--card);
   padding: 1rem;
   border-radius: 0.25rem;
   overflow-x: auto;

@@ -179,11 +179,11 @@ const formatRoleLabel = (role: CourseRoleOption) => {
 const roleBadgeClass = (role: CourseRoleOption) => {
   switch (role) {
     case 'INSTRUCTOR':
-      return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400'
+      return 'bg-emerald-100 text-emerald-800 bg-emerald-500/10 text-emerald-600'
     case 'TA':
-      return 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400'
+      return 'bg-amber-100 text-amber-800 bg-amber-500/10 text-amber-600'
     default:
-      return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+      return 'bg-blue-100 text-blue-800 bg-blue-500/10 text-blue-600'
   }
 }
 
@@ -360,7 +360,7 @@ const handleToggleRemoval = (userId: string) => {
                 <div class="flex items-center gap-3">
                   <div :class="[
                     'p-2 rounded-lg transition-colors',
-                    editForm.isPrivate ? 'bg-destructive/10 text-destructive dark:bg-destructive/20' : 'bg-primary/10 text-primary dark:bg-primary/20'
+                    editForm.isPrivate ? 'bg-destructive/10 text-destructive bg-destructive/10' : 'bg-primary/10 text-primary bg-primary/10'
                   ]">
                     <Lock v-if="editForm.isPrivate" class="h-4 w-4" />
                     <GraduationCap v-else class="h-4 w-4" />
@@ -421,9 +421,9 @@ const handleToggleRemoval = (userId: string) => {
                     :class="[
                       'transition-colors duration-200',
                       student.markedForRemoval
-                        ? 'bg-red-50 dark:bg-red-900/10'
+                        ? 'bg-red-50 bg-red-500/10'
                         : student.newRole !== student.originalRole
-                          ? 'bg-amber-50 dark:bg-amber-900/10'
+                          ? 'bg-amber-50 bg-amber-500/10'
                           : 'hover:bg-muted/50'
                     ]"
                   >
@@ -478,7 +478,7 @@ const handleToggleRemoval = (userId: string) => {
                         <Badge
                           v-if="!student.markedForRemoval && student.newRole !== student.originalRole"
                           variant="outline"
-                          class="text-xs border-amber-300 text-amber-600 bg-amber-50 dark:bg-amber-900/20"
+                          class="text-xs border-amber-300 text-amber-600 bg-amber-50 bg-amber-500/10"
                         >
                           Modified
                         </Badge>

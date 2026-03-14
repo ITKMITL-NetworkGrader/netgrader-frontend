@@ -2,29 +2,29 @@
   <div class="ip-table-questionnaire">
     <!-- Table Header -->
     <div class="mb-4">
-      <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
+      <h3 class="text-lg font-semibold text-foreground text-foreground">
         IP Address Configuration Table
       </h3>
-      <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">
+      <p class="text-sm text-muted-foreground text-muted-foreground mt-1">
         Enter the IP addresses for each device interface as specified in the instructions.
       </p>
     </div>
 
     <!-- IP Table -->
-    <div class="overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-lg">
-      <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+    <div class="overflow-x-auto border border-border rounded-lg">
+      <table class="min-w-full divide-y divide-border">
         <!-- Column Headers -->
-        <thead class="bg-gray-50 dark:bg-gray-800">
+        <thead class="bg-muted">
           <tr>
             <th
-              class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider border-r border-gray-200 dark:border-gray-700"
+              class="px-4 py-3 text-left text-xs font-medium text-foreground uppercase tracking-wider border-r border-border"
             >
               Device.Interface
             </th>
             <th
               v-for="column in sortedColumns"
               :key="column.columnId"
-              class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider"
+              class="px-4 py-3 text-left text-xs font-medium text-foreground uppercase tracking-wider"
             >
               {{ column.label }}
             </th>
@@ -32,15 +32,15 @@
         </thead>
 
         <!-- Table Body -->
-        <tbody class="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
+        <tbody class="bg-white bg-background divide-y divide-border">
           <tr
             v-for="(row, rowIndex) in sortedRows"
             :key="row.rowId"
-            class="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+            class="hover:bg-muted transition-colors"
           >
             <!-- Row Header (Device.Interface) -->
             <td
-              class="px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100 border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800"
+              class="px-4 py-3 text-sm font-medium text-foreground text-foreground border-r border-border bg-muted"
             >
               {{ row.displayName }}
             </td>
@@ -55,7 +55,7 @@
                 <!-- Read-only Cell -->
                 <div
                   v-if="getCellType(rowIndex, colIndex) === 'readonly'"
-                  class="w-full px-3 py-2 text-sm bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300"
+                  class="w-full px-3 py-2 text-sm bg-muted bg-muted border border-border border-input rounded-md text-foreground"
                 >
                   {{ getReadonlyContent(rowIndex, colIndex) }}
                 </div>
@@ -63,7 +63,7 @@
                 <!-- Blank Cell -->
                 <div
                   v-else-if="getCellType(rowIndex, colIndex) === 'blank'"
-                  class="w-full px-3 py-2 text-sm bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-md text-gray-500 dark:text-gray-500 text-center"
+                  class="w-full px-3 py-2 text-sm bg-background border border-border rounded-md text-muted-foreground text-muted-foreground text-center"
                 >
                   {{ getBlankReason(rowIndex, colIndex) || '—' }}
                 </div>
@@ -98,7 +98,7 @@
                   <!-- Lecturer Range Hint (for DHCP pool cells)
                   <div
                     v-if="getLecturerRange(rowIndex, colIndex)"
-                    class="mt-1 text-xs text-blue-600 dark:text-blue-400"
+                    class="mt-1 text-xs text-blue-600 text-blue-500"
                   >
                     Valid range: {{ getLecturerRange(rowIndex, colIndex) }}
                   </div> -->
@@ -112,10 +112,10 @@
 
     <!-- Points Display -->
     <div class="mt-4 flex items-center justify-between">
-      <div class="text-sm text-gray-600 dark:text-gray-400">
+      <div class="text-sm text-muted-foreground text-muted-foreground">
         Total Points: <span class="font-semibold">{{ totalPoints }}</span>
       </div>
-      <div class="text-sm text-gray-600 dark:text-gray-400">
+      <div class="text-sm text-muted-foreground text-muted-foreground">
         Filled: {{ filledCellsCount }} / {{ totalCellsCount }}
       </div>
     </div>
@@ -379,14 +379,14 @@ const getCellInputClass = (rowIndex: number, colIndex: number): string => {
   const baseClasses = 'focus:outline-none focus:ring-2'
 
   if (isCellInputDisabled(rowIndex, colIndex)) {
-    return `${baseClasses} bg-gray-100 dark:bg-gray-800 cursor-not-allowed border-gray-300 dark:border-gray-600`
+    return `${baseClasses} bg-muted bg-muted cursor-not-allowed border-border border-input`
   }
 
   if (hasValue) {
-    return `${baseClasses} border-green-500 dark:border-green-400 focus:ring-green-500 dark:focus:ring-green-400 bg-white dark:bg-gray-900`
+    return `${baseClasses} border-green-500 border-green-500 focus:ring-green-500 focus:ring-green-500 bg-white bg-background`
   }
 
-  return `${baseClasses} border-gray-300 dark:border-gray-600 focus:ring-blue-500 dark:focus:ring-blue-400 bg-white dark:bg-gray-900`
+  return `${baseClasses} border-border border-input focus:ring-blue-500 focus:ring-blue-500 bg-white bg-background`
 }
 
 const isLecturerRangeEditableCell = (rowIndex: number, colIndex: number): boolean => {
@@ -433,17 +433,6 @@ const isCellInputDisabled = (rowIndex: number, colIndex: number): boolean => {
   const isLecturerRange = isLecturerRangeEditableCell(rowIndex, colIndex)
   const isSlaac = isSlaacEditableCell(rowIndex, colIndex)
   const result = !isLecturerRange && !isSlaac
-
-  // Debug logging for SLAAC cells
-  if (cell.answerType === 'calculated' && cell.calculatedAnswer) {
-    console.log(`[IpTableQuestionnaire] Cell (${rowIndex}, ${colIndex}) disabled check:`, {
-      calculationType: cell.calculatedAnswer.calculationType,
-      isLecturerRange,
-      isSlaac,
-      readonly: props.readonly,
-      isDisabled: result
-    })
-  }
 
   return result
 }

@@ -97,7 +97,6 @@ export const useGradingStatus = (courseId: string, labId: string, partId: string
       }
     } catch (error) {
       // If no submission exists, status remains 'not_submitted'
-      console.log('No existing submission found')
     }
   }
 

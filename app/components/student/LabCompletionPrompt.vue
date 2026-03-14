@@ -29,19 +29,19 @@
             </Badge>
           </div>
 
-          <div class="flex items-center justify-between p-3 bg-green-50 dark:bg-green-950/30 rounded-lg border border-green-200 dark:border-green-800">
-            <span class="text-sm font-medium text-green-700 dark:text-green-300">Status</span>
-            <Badge variant="outline" class="border-green-500 text-green-700 dark:text-green-300 font-semibold">
+          <div class="flex items-center justify-between p-3 bg-green-50 bg-green-500/10 rounded-lg border border-green-200 border-green-500/20">
+            <span class="text-sm font-medium text-green-700 text-green-400">Status</span>
+            <Badge variant="outline" class="border-green-500 text-green-700 text-green-400 font-semibold">
               ✓ All Parts Passed
             </Badge>
           </div>
         </div>
 
-        <div class="mt-6 p-4 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg">
-          <p class="text-sm text-blue-800 dark:text-blue-200">
+        <div class="mt-6 p-4 bg-blue-50 bg-blue-500/10 border border-blue-200 border-blue-500/20 rounded-lg">
+          <p class="text-sm text-blue-800 text-blue-300">
             <strong>Do you want to start over?</strong>
           </p>
-          <p class="text-xs text-blue-600 dark:text-blue-300 mt-2">
+          <p class="text-xs text-blue-600 text-blue-400 mt-2">
             Starting over will allow you to practice the lab again. Your previous completion will be preserved.
           </p>
         </div>

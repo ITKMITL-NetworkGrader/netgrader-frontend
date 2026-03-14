@@ -322,7 +322,7 @@ watch(() => props.open, (open) => {
         <!-- Success Banner -->
         <div class="flex items-center gap-2 p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
           <CheckCircle2 class="h-5 w-5 text-green-600" />
-          <span class="text-sm text-green-700 dark:text-green-400 font-medium">
+          <span class="text-sm text-green-600 font-medium">
             Your lab environment is ready!
           </span>
         </div>

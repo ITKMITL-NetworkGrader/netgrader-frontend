@@ -154,7 +154,6 @@
                     Device Template <span class="text-destructive">*</span>
                   </Label>
                   <Select v-model="device.templateId" @update:modelValue="(value) => {
-                    console.log('🔍 Select @update:modelValue fired:', { value, type: typeof value })
                     onTemplateChange(index, value)
                   }">
                     <SelectTrigger :class="{
@@ -210,7 +209,7 @@
                     </Label>
                     <!-- Dual-Stack Indicator -->
                     <div v-if="hasIpv6Enabled" class="flex items-center gap-1.5">
-                      <Badge variant="outline" class="text-xs bg-emerald-50 border-emerald-200 text-emerald-700">IPv4</Badge>
+                      <Badge variant="outline" class="text-xs bg-emerald-500/10 border-emerald-200 text-emerald-700">IPv4</Badge>
                       <span class="text-muted-foreground">+</span>
                       <Badge variant="outline" class="text-xs bg-indigo-50 border-indigo-200 text-indigo-700">IPv6</Badge>
                     </div>
@@ -263,7 +262,7 @@
                         <!-- IPv4 Column -->
                         <div class="p-3 space-y-3" :class="hasIpv6Enabled ? 'border-r' : ''">
                           <div class="flex items-center gap-2">
-                            <Badge variant="outline" class="text-xs bg-emerald-50 border-emerald-200 text-emerald-700">IPv4</Badge>
+                            <Badge variant="outline" class="text-xs bg-emerald-500/10 border-emerald-200 text-emerald-700">IPv4</Badge>
                           </div>
                           
                           <!-- IPv4 Type Selector -->
@@ -339,7 +338,7 @@
                             </p>
                           </div>
 
-                          <div v-else-if="ipVar.inputType === 'studentManagement'" class="p-2 bg-blue-50 rounded text-xs text-blue-700">
+                          <div v-else-if="ipVar.inputType === 'studentManagement'" class="p-2 bg-blue-50 rounded text-xs text-blue-600">
                             <div class="font-medium">Backend Generated</div>
                             <div>From: {{ networkConfig.managementNetwork }}/{{ networkConfig.managementSubnetMask }}</div>
                           </div>
@@ -361,7 +360,7 @@
 
                           <!-- Sub-VLAN Configuration (Large Subnet Mode) -->
                           <div v-else-if="ipVar.inputType?.startsWith('subVlan') && !ipVar.inputType?.startsWith('subVlan6_')" class="space-y-2">
-                            <div class="p-2 bg-emerald-50 dark:bg-emerald-950 rounded text-xs text-emerald-700 dark:text-emerald-300">
+                            <div class="p-2 bg-emerald-500/10 bg-emerald-500/100/10 rounded text-xs text-emerald-700 text-emerald-500">
                               <div class="font-medium">{{ getSubVlanName(ipVar.inputType) }} (Large Subnet Mode)</div>
                               <div>Students calculate IP from their assigned subnet block</div>
                             </div>
@@ -370,7 +369,7 @@
                               <Input v-model.number="ipVar.interfaceOffset" type="number" :min="1"
                                 placeholder="1" class="text-sm w-16 h-7"
                                 @input="validateIpVariable(index, ipIndex, 'interfaceOffset')" />
-                              <span class="text-xs text-emerald-600 dark:text-emerald-400">Host .{{ ipVar.interfaceOffset || 1 }} in sub-VLAN block</span>
+                              <span class="text-xs text-emerald-600 text-emerald-500">Host .{{ ipVar.interfaceOffset || 1 }} in sub-VLAN block</span>
                             </div>
                             <input type="hidden" v-model="ipVar.vlanIndex" />
                           </div>
@@ -481,7 +480,7 @@
 
                           <!-- Large Subnet Mode Sub-VLAN IPv6 Configuration -->
                           <div v-else-if="ipVar.ipv6InputType?.startsWith('subVlan6_')" class="space-y-2">
-                            <div class="p-2 bg-emerald-100 dark:bg-emerald-950 rounded text-xs text-emerald-700 dark:text-emerald-300">
+                            <div class="p-2 bg-emerald-500/10 bg-emerald-500/100/10 rounded text-xs text-emerald-700 text-emerald-500">
                               <div class="font-medium">Sub-VLAN IPv6 (Large Subnet Mode)</div>
                               <div>Template: 2001:&lt;X&gt;:&lt;Y&gt;:&lt;SubVLAN_ID&gt;::&lt;offset&gt;/64</div>
                             </div>
@@ -598,10 +597,10 @@
 
                   <!-- Console info message -->
                   <div v-if="device.connectionParams.connectionType === 'console'"
-                    class="p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg">
+                    class="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
                     <div class="flex items-start gap-2">
-                      <Info class="w-4 h-4 mt-0.5 text-blue-600 dark:text-blue-400" />
-                      <div class="text-sm text-blue-700 dark:text-blue-300">
+                      <Info class="w-4 h-4 mt-0.5 text-blue-500" />
+                      <div class="text-sm text-blue-600">
                         Console connection does not require additional credentials. The device will be accessed directly
                         through the
                         console port.
@@ -857,14 +856,12 @@ const onIpv6InputTypeChange = (deviceIndex: number, ipIndex: number, ipv6InputTy
   
   // Safety check: ignore null/undefined values (can happen when Select is cleared)
   if (ipv6InputType === null || ipv6InputType === undefined) {
-    console.log('[IPv6 Handler] Received null/undefined value, ignoring')
     return
   }
   
   const inputType = String(ipv6InputType)
   ipVar.ipv6InputType = inputType as typeof ipVar.ipv6InputType
   
-  console.log('[IPv6 Handler] Setting ipv6InputType to:', inputType)
   
   // Initialize default values for the selected IPv6 mode
   if (inputType === 'fullIPv6' || inputType === 'linkLocal') {
@@ -1004,21 +1001,8 @@ const onVariableNameInput = (deviceIndex: number, ipIndex: number, event: Event)
 }
 
 const onTemplateChange = (deviceIndex: number, templateId: string) => {
-  // 🐛 DEBUG: Log template change
-  console.log('🔍 Template changing:', {
-    deviceIndex,
-    templateId,
-    deviceId: localData.value[deviceIndex].deviceId
-  })
-
   // Update the template ID
   localData.value[deviceIndex].templateId = templateId
-
-  // 🐛 DEBUG: Verify template ID was set
-  console.log('🔍 Template ID after setting:', {
-    templateId: localData.value[deviceIndex].templateId,
-    device: localData.value[deviceIndex]
-  })
 
   // Clear template validation error immediately
   if (fieldErrors.value[deviceIndex]) {
@@ -1474,13 +1458,6 @@ const loadDeviceTemplates = async () => {
 
     if (response.success && response.data.templates) {
       deviceTemplates.value = response.data.templates
-
-      // 🐛 DEBUG: Log loaded templates
-      console.log('🔍 Device templates loaded:', deviceTemplates.value.map(t => ({
-        id: t.id,
-        name: t.name,
-        deviceType: t.deviceType
-      })))
     }
   } catch (error) {
     console.error('Failed to load device templates:', error)
@@ -1630,13 +1607,6 @@ watch(
     if (!isUpdatingFromProps.value) {
       // Convert to regular Device array (remove tempId)
       const cleanDevices = newValue.map(({ tempId, ...device }) => device)
-
-      // 🐛 DEBUG: Log what we're emitting
-      console.log('🔍 Step 3 emitting devices:', cleanDevices.map(d => ({
-        deviceId: d.deviceId,
-        templateId: d.templateId,
-        hasTemplateId: !!d.templateId
-      })))
 
       emit('update:modelValue', cleanDevices)
     }

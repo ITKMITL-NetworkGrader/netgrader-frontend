@@ -232,28 +232,28 @@ const handleDeleteExam = (exam: Lab) => {
           <TabsList class="w-full grid grid-cols-2 h-12 p-1 bg-muted/50">
             <TabsTrigger 
               value="labs" 
-              class="h-full text-base font-medium data-[state=active]:bg-white dark:data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all duration-200"
+              class="h-full text-base font-medium data-[state=active]:bg-white data-[state=active]:bg-card data-[state=active]:shadow-sm transition-all duration-200"
             >
               <FlaskConical class="h-4 w-4 mr-2" />
               Labs
               <Badge 
                 v-if="labs.length > 0" 
                 variant="secondary" 
-                class="ml-2 h-5 min-w-[20px] text-xs bg-primary/10 text-primary dark:bg-primary/20"
+                class="ml-2 h-5 min-w-[20px] text-xs bg-primary/10 text-primary bg-primary/10"
               >
                 {{ labs.length }}
               </Badge>
             </TabsTrigger>
             <TabsTrigger 
               value="exams" 
-              class="h-full text-base font-medium data-[state=active]:bg-white dark:data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all duration-200"
+              class="h-full text-base font-medium data-[state=active]:bg-white data-[state=active]:bg-card data-[state=active]:shadow-sm transition-all duration-200"
             >
               <ClipboardCheck class="h-4 w-4 mr-2" />
               Exams
               <Badge 
                 v-if="exams.length > 0" 
                 variant="secondary" 
-                class="ml-2 h-5 min-w-[20px] text-xs bg-secondary/20 text-secondary dark:bg-secondary/30"
+                class="ml-2 h-5 min-w-[20px] text-xs bg-secondary/20 text-secondary bg-secondary/10"
               >
                 {{ exams.length }}
               </Badge>
@@ -304,9 +304,9 @@ const handleDeleteExam = (exam: Lab) => {
                       :variant="getAvailabilityStatus(lab).variant"
                       :class="[
                         'text-xs',
-                        getAvailabilityStatus(lab).color === 'emerald' && 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
-                        getAvailabilityStatus(lab).color === 'blue' && 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-                        getAvailabilityStatus(lab).color === 'red' && 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                        getAvailabilityStatus(lab).color === 'emerald' && 'bg-emerald-100 text-emerald-700 bg-emerald-500/10 text-emerald-600',
+                        getAvailabilityStatus(lab).color === 'blue' && 'bg-blue-100 text-blue-700 bg-blue-500/10 text-blue-600',
+                        getAvailabilityStatus(lab).color === 'red' && 'bg-red-100 text-red-700 bg-red-500/10 text-red-600'
                       ]"
                     >
                       {{ getAvailabilityStatus(lab).label }}
@@ -340,7 +340,7 @@ const handleDeleteExam = (exam: Lab) => {
                   <Button 
                     variant="outline" 
                     size="sm" 
-                    class="h-9 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300 dark:hover:bg-blue-900/20"
+                    class="h-9 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300 hover:bg-blue-500/10"
                     @click="openDuplicateLabModal(lab)"
                     title="Duplicate lab"
                   >
@@ -348,7 +348,7 @@ const handleDeleteExam = (exam: Lab) => {
                     Duplicate
                   </Button>
                   <NuxtLink :to="`/courses/${courseId}/labs/${lab.id}/edit`">
-                    <Button variant="outline" size="sm" class="h-9 hover:bg-primary/10 hover:text-primary hover:border-primary/30 dark:hover:bg-primary/20">
+                    <Button variant="outline" size="sm" class="h-9 hover:bg-primary/10 hover:text-primary hover:border-primary/30 hover:bg-primary/10">
                       <Edit class="h-3.5 w-3.5 mr-1.5" />
                       Edit
                     </Button>
@@ -356,7 +356,7 @@ const handleDeleteExam = (exam: Lab) => {
                   <Button 
                     variant="outline" 
                     size="sm" 
-                    class="h-9 hover:bg-red-50 hover:text-red-600 hover:border-red-300 dark:hover:bg-red-900/20"
+                    class="h-9 hover:bg-red-50 hover:text-red-600 hover:border-red-300 hover:bg-red-500/10"
                     @click="handleDeleteLab(lab)"
                   >
                     <Trash2 class="h-3.5 w-3.5 mr-1.5" />
@@ -371,7 +371,7 @@ const handleDeleteExam = (exam: Lab) => {
           <div v-else class="flex flex-col items-center justify-center py-16 text-center">
             <div class="relative mb-6">
               <div class="absolute inset-0 bg-primary/20 blur-2xl rounded-full" />
-              <div class="relative p-6 rounded-full bg-primary/10 dark:bg-primary/20">
+              <div class="relative p-6 rounded-full bg-primary/10 bg-primary/10">
                 <FlaskConical class="h-12 w-12 text-primary" />
               </div>
             </div>
@@ -431,9 +431,9 @@ const handleDeleteExam = (exam: Lab) => {
                       :variant="getAvailabilityStatus(exam).variant"
                       :class="[
                         'text-xs',
-                        getAvailabilityStatus(exam).color === 'emerald' && 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
-                        getAvailabilityStatus(exam).color === 'blue' && 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-                        getAvailabilityStatus(exam).color === 'red' && 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                        getAvailabilityStatus(exam).color === 'emerald' && 'bg-emerald-100 text-emerald-700 bg-emerald-500/10 text-emerald-600',
+                        getAvailabilityStatus(exam).color === 'blue' && 'bg-blue-100 text-blue-700 bg-blue-500/10 text-blue-600',
+                        getAvailabilityStatus(exam).color === 'red' && 'bg-red-100 text-red-700 bg-red-500/10 text-red-600'
                       ]"
                     >
                       {{ getAvailabilityStatus(exam).label }}
@@ -473,7 +473,7 @@ const handleDeleteExam = (exam: Lab) => {
                   <Button 
                     variant="outline" 
                     size="sm" 
-                    class="h-9 hover:bg-red-50 hover:text-red-600 hover:border-red-300 dark:hover:bg-red-900/20"
+                    class="h-9 hover:bg-red-50 hover:text-red-600 hover:border-red-300 hover:bg-red-500/10"
                     @click="handleDeleteExam(exam)"
                   >
                     <Trash2 class="h-3.5 w-3.5 mr-1.5" />
@@ -488,7 +488,7 @@ const handleDeleteExam = (exam: Lab) => {
           <div v-else class="flex flex-col items-center justify-center py-16 text-center">
             <div class="relative mb-6">
               <div class="absolute inset-0 bg-secondary/20 blur-2xl rounded-full" />
-              <div class="relative p-6 rounded-full bg-secondary/10 dark:bg-secondary/20">
+              <div class="relative p-6 rounded-full bg-secondary/10 bg-secondary/10">
                 <ClipboardCheck class="h-12 w-12 text-secondary" />
               </div>
             </div>

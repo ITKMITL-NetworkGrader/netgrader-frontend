@@ -1,8 +1,20 @@
 <!-- Component ported and enhanced from https://codepen.io/JuanFuentes/pen/eYEeoyE -->
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, watch, useTemplateRef } from 'vue';
+import { onMounted, onUnmounted, watch, useTemplateRef, nextTick } from 'vue';
 import * as THREE from 'three';
+
+// Preload IBM Plex Mono font by adding link tag to head (client-side only for SSR)
+if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+  // Check if link already exists
+  const existingLink = document.querySelector('link[href*="IBM+Plex+Mono"]');
+  if (!existingLink) {
+    const link = document.createElement('link');
+    link.href = 'https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&display=swap';
+    link.rel = 'stylesheet';
+    document.head.appendChild(link);
+  }
+}
 
 interface AsciiTextProps {
   text?: string;
@@ -271,8 +283,10 @@ class CanvasTxt {
       this.context.font = this.font;
       const metrics = this.context.measureText(this.txt);
 
-      const textWidth = Math.ceil(metrics.width) + 20;
-      const textHeight = Math.ceil(metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent) + 20;
+      // Use a multiplier to ensure canvas is always large enough
+      // This prevents clipping when fallback font has different metrics
+      const textWidth = Math.ceil(metrics.width * 1.1) + 50;
+      const textHeight = Math.ceil((metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent) * 1) + 50;
 
       this.canvas.width = textWidth;
       this.canvas.height = textHeight;
@@ -500,15 +514,33 @@ class CanvAscii {
 const containerRef = useTemplateRef<HTMLDivElement>('containerRef');
 let asciiRef: CanvAscii | null = null;
 
-const initializeAscii = () => {
+// Helper function to ensure IBM Plex Mono font is fully loaded
+const waitForFont = async (): Promise<void> => {
+  // Wait for fonts API if available
+  if (document.fonts) {
+    try {
+      await document.fonts.ready;
+    } catch (e) {
+      // Fallback
+    }
+  }
+};
+
+const initializeAscii = async () => {
   if (!containerRef.value) return;
+
+  // Wait for IBM Plex Mono font to be fully loaded before any text measurements
+  await waitForFont();
 
   const { width, height } = containerRef.value.getBoundingClientRect();
 
   if (width === 0 || height === 0) {
     const observer = new IntersectionObserver(
-      ([entry]) => {
+      async ([entry]) => {
         if (entry.isIntersecting && entry.boundingClientRect.width > 0 && entry.boundingClientRect.height > 0) {
+          // Wait for fonts before creating CanvAscii
+          await waitForFont();
+
           const { width: w, height: h } = entry.boundingClientRect;
 
           asciiRef = new CanvAscii(
@@ -561,8 +593,22 @@ const initializeAscii = () => {
   ro.observe(containerRef.value);
 };
 
-onMounted(() => {
-  initializeAscii();
+onMounted(async () => {
+  // Wait for DOM to be fully rendered
+  await nextTick();
+
+  // Use requestAnimationFrame to ensure we're in the next paint cycle
+  // This gives browser time to load fonts
+  await new Promise(resolve => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(resolve);
+    });
+  });
+
+  // Additional delay - be generous to ensure font loads
+  await new Promise(resolve => setTimeout(resolve, 500));
+
+  await initializeAscii();
 });
 
 onUnmounted(() => {
