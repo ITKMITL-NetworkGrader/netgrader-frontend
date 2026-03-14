@@ -33,3 +33,5 @@ logs
 /skills
 /.shared
 /.github
+# Sentry Config File
+.env.sentry-build-plugin
