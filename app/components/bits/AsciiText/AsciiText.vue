@@ -286,7 +286,7 @@ class CanvasTxt {
       // Use a multiplier to ensure canvas is always large enough
       // This prevents clipping when fallback font has different metrics
       const textWidth = Math.ceil(metrics.width * 1.1) + 50;
-      const textHeight = Math.ceil((metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent) * 1.3) + 50;
+      const textHeight = Math.ceil((metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent) * 1) + 50;
 
       this.canvas.width = textWidth;
       this.canvas.height = textHeight;
