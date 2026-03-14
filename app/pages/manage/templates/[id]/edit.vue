@@ -482,7 +482,7 @@ onUnmounted(() => {
             <CardContent>
               <ul class="text-xs text-muted-foreground space-y-2">
                 <li>• Press <code class="bg-muted px-1 rounded">Ctrl+Space</code> for suggestions</li>
-                <li>• Required: <code class="bg-muted px-1 rounded">task_name</code>, <code class="bg-muted px-1 rounded">description</code>, <code class="bg-muted px-1 rounded">connection_type</code></li>
+                <li>• Required: <code class="bg-muted px-1 rounded">task_name</code>, <code class="bg-muted px-1 rounded">description</code></li>
                 <li>• Use <code class="bg-muted px-1 rounded">&#123;&#123;param&#125;&#125;</code> for variables</li>
               </ul>
             </CardContent>

@@ -5,7 +5,6 @@
 
 import { autocompletion, type CompletionContext, type Completion, type CompletionResult } from '@codemirror/autocomplete'
 import {
-    CONNECTION_TYPES,
     DATA_TYPES,
     ACTION_TYPES,
     CONDITION_TYPES,
@@ -28,7 +27,7 @@ interface FieldSchema {
 const TOP_LEVEL_FIELDS: FieldSchema[] = [
     { label: 'task_name', type: 'property', detail: 'required', info: 'Unique identifier for the template (alphanumeric, underscores, hyphens)', snippet: 'task_name: "$1"' },
     { label: 'description', type: 'property', detail: 'required', info: 'Human-readable description of what the task does', snippet: 'description: "$1"' },
-    { label: 'connection_type', type: 'property', detail: 'required', info: 'Connection method: netmiko, napalm, ssh, or command', snippet: 'connection_type: "$1"' },
+
     { label: 'author', type: 'property', detail: 'optional', info: 'Template author name', snippet: 'author: "$1"' },
     { label: 'version', type: 'property', detail: 'optional', info: 'Template version (default: 1.0.0)', snippet: 'version: "1.0.0"' },
     { label: 'points', type: 'property', detail: 'optional', info: 'Maximum points for this task (default: 10)', snippet: 'points: ${1:10}' },
@@ -137,7 +136,7 @@ type YamlContext =
     | 'commands_parameters'
     | 'validation_item'
     | 'debug'
-    | 'value_connection_type'
+
     | 'value_datatype'
     | 'value_action'
     | 'value_condition'
@@ -160,9 +159,7 @@ function detectContext(context: CompletionContext): { ctx: YamlContext; currentA
         const afterColon = (colonMatch[2] || '').trim()
 
         // Value completions
-        if (key === 'connection_type' && (afterColon === '' || afterColon.startsWith('"'))) {
-            return { ctx: 'value_connection_type' }
-        }
+
         if (key === 'datatype' && (afterColon === '' || afterColon.startsWith('"'))) {
             return { ctx: 'value_datatype' }
         }
@@ -288,9 +285,7 @@ function yamlTemplateCompletions(context: CompletionContext): CompletionResult |
         case 'debug':
             options = createCompletions(DEBUG_FIELDS)
             break
-        case 'value_connection_type':
-            options = createValueCompletions(CONNECTION_TYPES)
-            break
+
         case 'value_datatype':
             options = createValueCompletions(DATA_TYPES)
             break
