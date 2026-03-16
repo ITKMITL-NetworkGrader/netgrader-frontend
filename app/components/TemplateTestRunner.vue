@@ -139,6 +139,11 @@ type FormDevice = {
 }
 
 const payloadMode = ref<PayloadMode>('form')
+
+// ─── Dry Run mode ─────────────────────────────────────────────────────────────
+
+type TestMode = 'live' | 'dry-run' | 'parser'
+const testMode = ref<TestMode>('live')
 const expandedDevices = ref<Set<number>>(new Set([0]))
 const defaultDeviceName = 'device1'
 const formDevices = ref<FormDevice[]>([
@@ -177,6 +182,330 @@ watch(yamlParameters, (params) => {
   }
   formTaskParams.value = next
 }, { immediate: true })
+
+// ─── Dry Run: parse_output actions extracted from YAML ────────────────────────
+
+type ParseAction = {
+  stepName: string
+  parser: string          // 'regex' | 'textfsm' | 'jinja'
+  pattern: string | null
+  template: string | null
+}
+
+const dryRunActions = computed<ParseAction[]>(() => {
+  try {
+    const parsed = yaml.load(props.yamlContent) as any
+    // 'commands' is the canonical key; also check 'steps' for forward-compat
+    const cmds: any[] = Array.isArray(parsed?.commands)
+      ? parsed.commands
+      : Array.isArray(parsed?.steps) ? parsed.steps : []
+    return cmds
+      .filter((s: any) => s?.action === 'parse_output')
+      .map((s: any) => ({
+        stepName: s.name ?? 'Unnamed Step',
+        parser: ((s.parameters?.parser as string) || 'regex').toLowerCase(),
+        pattern: s.parameters?.pattern ?? null,
+        template: s.parameters?.template ?? null,
+      }))
+  } catch { return [] }
+})
+
+type DryRunActionState = {
+  inputText: string
+  result: Record<string, any> | null
+  isLoading: boolean
+  error: string | null
+}
+
+const dryRunStates = ref<DryRunActionState[]>([])
+
+// Keep state array in sync with dryRunActions; preserve inputText/result across YAML edits
+watch(dryRunActions, (actions) => {
+  const prev = dryRunStates.value
+  dryRunStates.value = actions.map((_, i) => ({
+    inputText: prev[i]?.inputText ?? '',
+    result:    prev[i]?.result    ?? null,
+    isLoading: false,
+    error:     prev[i]?.error     ?? null,
+  }))
+}, { immediate: true })
+
+const dryRunDebounceTimers: (ReturnType<typeof setTimeout> | null)[] = []
+
+const parseDryRun = async (actionIdx: number) => {
+  const action = dryRunActions.value[actionIdx]
+  const state  = dryRunStates.value[actionIdx]
+  if (!action || !state) return
+
+  state.isLoading = true
+  state.error  = null
+  state.result = null
+
+  try {
+    const resp = await $fetch<{ success: boolean; message?: string; data?: any }>(
+      `${backendURL}/v0/task-templates/parse-dry-run`,
+      {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: {
+          input:    state.inputText,
+          parser:   action.parser,
+          pattern:  action.pattern  ?? undefined,
+          template: action.template ?? undefined,
+        },
+      }
+    )
+    if (!resp.success || !resp.data) {
+      state.error = resp.message || 'Parse failed'
+      return
+    }
+    const parsed = resp.data
+    if (!parsed.success) {
+      state.error = parsed.error || 'Parser returned an error'
+    } else {
+      state.result = parsed.result
+    }
+  } catch (err: any) {
+    state.error = err?.data?.message || err?.message || 'Request failed'
+  } finally {
+    state.isLoading = false
+  }
+}
+
+const scheduleDryRunParse = (actionIdx: number) => {
+  const t = dryRunDebounceTimers[actionIdx]
+  if (t) clearTimeout(t)
+  dryRunDebounceTimers[actionIdx] = setTimeout(() => parseDryRun(actionIdx), 500)
+}
+
+// ─── Dry Run: NTC-templates (use_textfsm: true steps) ─────────────────────────
+
+type NtcAction = {
+  stepName: string
+  command: string
+}
+
+const ntcDryRunActions = computed<NtcAction[]>(() => {
+  try {
+    const parsed = yaml.load(props.yamlContent) as any
+    const cmds: any[] = Array.isArray(parsed?.commands)
+      ? parsed.commands
+      : Array.isArray(parsed?.steps) ? parsed.steps : []
+    return cmds
+      .filter((s: any) => s?.parameters?.use_textfsm === true && s?.parameters?.command)
+      .map((s: any) => ({
+        stepName: s.name ?? 'Unnamed Step',
+        command: s.parameters.command as string,
+      }))
+  } catch { return [] }
+})
+
+type NtcDryRunState = {
+  inputText: string
+  platform: 'cisco_ios' | 'linux'
+  result: any | null
+  isLoading: boolean
+  error: string | null
+}
+
+const ntcDryRunStates = ref<NtcDryRunState[]>([])
+
+watch(ntcDryRunActions, (actions) => {
+  const prev = ntcDryRunStates.value
+  ntcDryRunStates.value = actions.map((_, i) => ({
+    inputText: prev[i]?.inputText ?? '',
+    platform:  prev[i]?.platform  ?? 'cisco_ios',
+    result:    prev[i]?.result    ?? null,
+    isLoading: false,
+    error:     prev[i]?.error     ?? null,
+  }))
+}, { immediate: true })
+
+const ntcDebounceTimers: (ReturnType<typeof setTimeout> | null)[] = []
+
+const parseNtcDryRun = async (idx: number) => {
+  const action = ntcDryRunActions.value[idx]
+  const state  = ntcDryRunStates.value[idx]
+  if (!action || !state) return
+
+  state.isLoading = true
+  state.error  = null
+  state.result = null
+
+  try {
+    const resp = await $fetch<{ success: boolean; message?: string; data?: any }>(
+      `${backendURL}/v0/task-templates/parse-dry-run`,
+      {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: {
+          input:    state.inputText,
+          parser:   'textfsm',
+          platform: state.platform,
+          command:  action.command,
+        },
+      }
+    )
+    if (!resp.success || !resp.data) {
+      state.error = resp.message || 'Parse failed'
+      return
+    }
+    if (!resp.data.success) {
+      state.error = resp.data.error || 'Parser returned an error'
+    } else {
+      state.result = resp.data.result
+    }
+  } catch (err: any) {
+    state.error = err?.data?.message || err?.message || 'Request failed'
+  } finally {
+    state.isLoading = false
+  }
+}
+
+const scheduleNtcDryRunParse = (idx: number) => {
+  const t = ntcDebounceTimers[idx]
+  if (t) clearTimeout(t)
+  ntcDebounceTimers[idx] = setTimeout(() => parseNtcDryRun(idx), 500)
+}
+
+// ─── Unified ordered list for rendering (preserves YAML step sequence) ────────
+
+type UnifiedDryRunItem =
+  | { kind: 'parse'; stateIdx: number } & ParseAction
+  | { kind: 'ntc';   stateIdx: number } & NtcAction
+
+const unifiedDryRunItems = computed<UnifiedDryRunItem[]>(() => {
+  try {
+    const parsed = yaml.load(props.yamlContent) as any
+    const cmds: any[] = Array.isArray(parsed?.commands)
+      ? parsed.commands
+      : Array.isArray(parsed?.steps) ? parsed.steps : []
+    let parseIdx = 0
+    let ntcIdx = 0
+    const items: UnifiedDryRunItem[] = []
+    for (const s of cmds) {
+      if (s?.action === 'parse_output') {
+        items.push({
+          kind: 'parse',
+          stateIdx: parseIdx++,
+          stepName: s.name ?? 'Unnamed Step',
+          parser: ((s.parameters?.parser as string) || 'regex').toLowerCase(),
+          pattern: s.parameters?.pattern ?? null,
+          template: s.parameters?.template ?? null,
+        })
+      } else if (s?.parameters?.use_textfsm === true && s?.parameters?.command) {
+        items.push({
+          kind: 'ntc',
+          stateIdx: ntcIdx++,
+          stepName: s.name ?? 'Unnamed Step',
+          command: s.parameters.command as string,
+        })
+      }
+    }
+    return items
+  } catch { return [] }
+})
+
+// ─── Parser Playground ────────────────────────────────────────────────────────
+
+type PlaygroundParser = 'regex' | 'jinja' | 'textfsm' | 'ntc-templates'
+
+const playgroundParser = ref<PlaygroundParser>('regex')
+const playgroundInput = ref('')
+const playgroundTemplate = ref('')
+const playgroundPlatform = ref<'cisco_ios' | 'linux'>('cisco_ios')
+const playgroundCommand = ref('')
+const playgroundResult = ref<any | null>(null)
+const playgroundIsLoading = ref(false)
+const playgroundError = ref<string | null>(null)
+
+// Flex-grow values for split pane. 3-panel: [input, template, result], 2-panel NTC: [input, result]
+const playgroundFlexValues = ref<number[]>([33, 34, 33])
+const playgroundContainerRef = ref<HTMLDivElement | null>(null)
+
+let _pgDragging = false
+let _pgDividerIdx = 0
+let _pgDragStartX = 0
+let _pgDragStartFlex: number[] = []
+
+const pgStartDrag = (dividerIdx: number, event: PointerEvent) => {
+  _pgDragging = true
+  _pgDividerIdx = dividerIdx
+  _pgDragStartX = event.clientX
+  _pgDragStartFlex = [...playgroundFlexValues.value]
+  document.addEventListener('pointermove', _pgOnDrag)
+  document.addEventListener('pointerup', _pgStopDrag)
+}
+
+const _pgOnDrag = (event: PointerEvent) => {
+  if (!_pgDragging || !playgroundContainerRef.value) return
+  const containerWidth = playgroundContainerRef.value.getBoundingClientRect().width
+  const totalFlex = _pgDragStartFlex.reduce((a, b) => a + b, 0)
+  const deltaFlex = ((event.clientX - _pgDragStartX) / containerWidth) * totalFlex
+  const newValues = [..._pgDragStartFlex]
+  const idx = _pgDividerIdx
+  newValues[idx] = Math.max(10, (_pgDragStartFlex[idx] ?? 33) + deltaFlex)
+  newValues[idx + 1] = Math.max(10, (_pgDragStartFlex[idx + 1] ?? 33) - deltaFlex)
+  playgroundFlexValues.value = newValues
+}
+
+const _pgStopDrag = () => {
+  _pgDragging = false
+  document.removeEventListener('pointermove', _pgOnDrag)
+  document.removeEventListener('pointerup', _pgStopDrag)
+}
+
+watch(playgroundParser, (p) => {
+  playgroundFlexValues.value = p === 'ntc-templates' ? [50, 50] : [33, 34, 33]
+  playgroundResult.value = null
+  playgroundError.value = null
+})
+
+let _pgDebounceTimer: ReturnType<typeof setTimeout> | null = null
+
+const parsePlayground = async () => {
+  playgroundIsLoading.value = true
+  playgroundError.value = null
+  playgroundResult.value = null
+  try {
+    const isNtc = playgroundParser.value === 'ntc-templates'
+    const body: Record<string, any> = {
+      input: playgroundInput.value,
+      parser: isNtc ? 'textfsm' : playgroundParser.value,
+    }
+    if (!isNtc) {
+      if (playgroundParser.value === 'regex') body.pattern = playgroundTemplate.value
+      else body.template = playgroundTemplate.value
+    } else {
+      body.platform = playgroundPlatform.value
+      body.command = playgroundCommand.value
+    }
+    const resp = await $fetch<{ success: boolean; message?: string; data?: any }>(
+      `${backendURL}/v0/task-templates/parse-dry-run`,
+      { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body }
+    )
+    if (!resp.success || !resp.data) {
+      playgroundError.value = resp.message || 'Parse failed'
+      return
+    }
+    if (!resp.data.success) {
+      playgroundError.value = resp.data.error || 'Parser returned an error'
+    } else {
+      playgroundResult.value = resp.data.result
+    }
+  } catch (err: any) {
+    playgroundError.value = err?.data?.message || err?.message || 'Request failed'
+  } finally {
+    playgroundIsLoading.value = false
+  }
+}
+
+const schedulePlaygroundParse = () => {
+  if (_pgDebounceTimer) clearTimeout(_pgDebounceTimer)
+  _pgDebounceTimer = setTimeout(parsePlayground, 500)
+}
 
 // ─── Payload helpers ──────────────────────────────────────────────────────────
 
@@ -510,23 +839,40 @@ onMounted(() => {
       <div class="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <CardTitle class="text-lg">Template Test Runner</CardTitle>
-          <CardDescription>Run a direct preview test without RabbitMQ</CardDescription>
+          <CardDescription>{{
+            testMode === 'live' ? 'Run a direct preview test without RabbitMQ' :
+            testMode === 'dry-run' ? 'Test parse_output steps against raw device output — no device needed' :
+            'Interactively test any parser with custom input and templates'
+          }}</CardDescription>
         </div>
-        <div class="flex items-center gap-2">
-          <Button variant="outline" size="sm" @click="loadSamplePayload" :disabled="isTesting">
-            Load Sample
-          </Button>
-          <Button variant="outline" size="sm" @click="runTemplateTest(true)" :disabled="isTesting">
-            {{ isTesting ? 'Testing...' : 'Validate' }}
-          </Button>
-          <Button size="sm" @click="runTemplateTest(false)" :disabled="isTesting" class="bg-emerald-600 hover:bg-emerald-700">
-            {{ isTesting ? 'Running...' : 'Run Test' }}
-          </Button>
+        <div class="flex items-center gap-2 flex-wrap">
+          <Tabs :model-value="testMode" class="w-auto">
+            <TabsList class="grid grid-cols-3">
+              <TabsTrigger value="live" @click="testMode = 'live'">Live Test</TabsTrigger>
+              <TabsTrigger value="dry-run" @click="testMode = 'dry-run'">Dry Run</TabsTrigger>
+              <TabsTrigger value="parser" @click="testMode = 'parser'">Parser</TabsTrigger>
+            </TabsList>
+          </Tabs>
+          <template v-if="testMode === 'live'">
+            <Button variant="outline" size="sm" @click="loadSamplePayload" :disabled="isTesting">
+              Load Sample
+            </Button>
+            <Button variant="outline" size="sm" @click="runTemplateTest(true)" :disabled="isTesting">
+              {{ isTesting ? 'Testing...' : 'Validate' }}
+            </Button>
+            <Button size="sm" @click="runTemplateTest(false)" :disabled="isTesting" class="bg-emerald-600 hover:bg-emerald-700">
+              {{ isTesting ? 'Running...' : 'Run Test' }}
+            </Button>
+          </template>
         </div>
       </div>
     </CardHeader>
 
-    <CardContent class="space-y-4">
+    <CardContent>
+
+      <!-- ── Live Test ── -->
+      <div v-if="testMode === 'live'" class="space-y-4">
+
       <!-- Mode Toggle -->
       <Tabs :model-value="payloadMode" class="w-full">
         <TabsList class="grid w-full grid-cols-2 max-w-xs">
@@ -951,6 +1297,302 @@ onMounted(() => {
           <pre class="mt-2 text-xs overflow-auto">{{ JSON.stringify(testResult.grading_result, null, 2) }}</pre>
         </details>
       </div>
+
+      </div>
+      <!-- ── end Live Test ── -->
+
+      <!-- ── Dry Run ── -->
+      <div v-else-if="testMode === 'dry-run'" class="space-y-4">
+
+        <!-- Empty state: no dry-run steps in YAML -->
+        <div
+          v-if="unifiedDryRunItems.length === 0"
+          class="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground"
+        >
+          <p class="font-medium">No testable steps found</p>
+          <p class="mt-1">Add <code class="font-mono text-xs bg-muted px-1 py-0.5 rounded">action: parse_output</code> steps or steps with <code class="font-mono text-xs bg-muted px-1 py-0.5 rounded">use_textfsm: true</code> to use Dry Run.</p>
+        </div>
+
+        <!-- All dry-run items in YAML order -->
+        <template v-for="(item, _i) in unifiedDryRunItems" :key="item.kind + item.stepName + _i">
+
+          <!-- ── parse_output step ── -->
+          <div v-if="item.kind === 'parse'" class="rounded-md border overflow-hidden">
+            <div class="flex items-center justify-between gap-2 px-4 py-3 bg-muted/30 border-b">
+              <div class="flex items-center gap-2 min-w-0">
+                <span class="font-mono text-sm font-medium truncate">{{ item.stepName }}</span>
+                <Badge variant="outline" class="text-xs shrink-0">{{ item.parser }}</Badge>
+              </div>
+              <Button size="sm" variant="outline" class="h-7 text-xs shrink-0"
+                :disabled="dryRunStates[item.stateIdx]?.isLoading"
+                @click="parseDryRun(item.stateIdx)"
+              >
+                {{ dryRunStates[item.stateIdx]?.isLoading ? 'Parsing...' : 'Parse' }}
+              </Button>
+            </div>
+            <div class="px-4 py-2 bg-muted/10 border-b">
+              <div class="text-xs text-muted-foreground mb-1 font-semibold uppercase tracking-wider">
+                {{ item.parser === 'textfsm' ? 'TextFSM Template' : item.parser === 'jinja' ? 'Jinja Template' : 'Regex Pattern' }}
+              </div>
+              <pre class="text-xs font-mono text-foreground whitespace-pre-wrap break-all">{{
+                item.parser === 'textfsm' || item.parser === 'jinja'
+                  ? (item.template || item.pattern || '—')
+                  : (item.pattern || '—')
+              }}</pre>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-border">
+              <div class="p-3 space-y-1.5">
+                <label class="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Device Output (Input)</label>
+                <textarea
+                  :value="dryRunStates[item.stateIdx]?.inputText ?? ''"
+                  @input="(e: Event) => {
+                    if (dryRunStates[item.stateIdx]) {
+                      dryRunStates[item.stateIdx]!.inputText = (e.target as HTMLTextAreaElement).value
+                      scheduleDryRunParse(item.stateIdx)
+                    }
+                  }"
+                  class="w-full min-h-[180px] rounded-md border border-input bg-background px-3 py-2 font-mono text-xs resize-none focus:outline-none focus:ring-1 focus:ring-ring"
+                  placeholder="Paste raw device output here…"
+                  spellcheck="false"
+                />
+              </div>
+              <div class="p-3 space-y-1.5">
+                <label class="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Parsed Result</label>
+                <div v-if="dryRunStates[item.stateIdx]?.isLoading" class="min-h-[180px] rounded-md border bg-muted/20 animate-pulse" />
+                <Alert v-else-if="dryRunStates[item.stateIdx]?.error" variant="destructive" class="min-h-[180px]">
+                  <AlertTriangle class="h-4 w-4" />
+                  <AlertTitle>Parse Error</AlertTitle>
+                  <AlertDescription class="font-mono text-xs break-all">{{ dryRunStates[item.stateIdx]?.error }}</AlertDescription>
+                </Alert>
+                <div v-else-if="dryRunStates[item.stateIdx]?.result !== null" class="min-h-[180px] rounded-md border bg-muted/5 p-3 overflow-auto">
+                  <pre class="text-xs font-mono text-foreground whitespace-pre-wrap">{{ JSON.stringify(dryRunStates[item.stateIdx]?.result, null, 2) }}</pre>
+                </div>
+                <div v-else class="min-h-[180px] rounded-md border border-dashed flex items-center justify-center text-xs text-muted-foreground">
+                  Paste input and press Parse (or wait 500 ms after typing)
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── use_textfsm: true step ── -->
+          <div v-else class="rounded-md border overflow-hidden">
+            <div class="flex items-center justify-between gap-2 px-4 py-3 bg-muted/30 border-b">
+              <div class="flex items-center gap-2 min-w-0">
+                <span class="font-mono text-sm font-medium truncate">{{ item.stepName }}</span>
+                <Badge variant="outline" class="text-xs shrink-0">ntc-templates</Badge>
+              </div>
+              <Button size="sm" variant="outline" class="h-7 text-xs shrink-0"
+                :disabled="ntcDryRunStates[item.stateIdx]?.isLoading"
+                @click="parseNtcDryRun(item.stateIdx)"
+              >
+                {{ ntcDryRunStates[item.stateIdx]?.isLoading ? 'Parsing...' : 'Parse' }}
+              </Button>
+            </div>
+            <div class="px-4 py-2 bg-muted/10 border-b flex items-center justify-between gap-4 flex-wrap">
+              <div>
+                <div class="text-xs text-muted-foreground mb-1 font-semibold uppercase tracking-wider">Command</div>
+                <span class="font-mono text-xs bg-muted px-1.5 py-0.5 rounded text-foreground">{{ item.command }}</span>
+              </div>
+              <div>
+                <div class="text-xs text-muted-foreground mb-1 font-semibold uppercase tracking-wider">Platform</div>
+                <div class="flex rounded-md border overflow-hidden text-xs">
+                  <button
+                    :class="ntcDryRunStates[item.stateIdx]?.platform === 'cisco_ios'
+                      ? 'bg-primary text-primary-foreground px-3 py-1'
+                      : 'bg-background text-foreground hover:bg-muted px-3 py-1'"
+                    @click="if (ntcDryRunStates[item.stateIdx]) { ntcDryRunStates[item.stateIdx]!.platform = 'cisco_ios'; scheduleNtcDryRunParse(item.stateIdx) }"
+                  >cisco_ios</button>
+                  <button
+                    :class="ntcDryRunStates[item.stateIdx]?.platform === 'linux'
+                      ? 'bg-primary text-primary-foreground px-3 py-1 border-l'
+                      : 'bg-background text-foreground hover:bg-muted px-3 py-1 border-l'"
+                    @click="if (ntcDryRunStates[item.stateIdx]) { ntcDryRunStates[item.stateIdx]!.platform = 'linux'; scheduleNtcDryRunParse(item.stateIdx) }"
+                  >linux</button>
+                </div>
+              </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-border">
+              <div class="p-3 space-y-1.5">
+                <label class="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Device Output (Input)</label>
+                <textarea
+                  :value="ntcDryRunStates[item.stateIdx]?.inputText ?? ''"
+                  @input="(e: Event) => {
+                    if (ntcDryRunStates[item.stateIdx]) {
+                      ntcDryRunStates[item.stateIdx]!.inputText = (e.target as HTMLTextAreaElement).value
+                      scheduleNtcDryRunParse(item.stateIdx)
+                    }
+                  }"
+                  class="w-full min-h-[180px] rounded-md border border-input bg-background px-3 py-2 font-mono text-xs resize-none focus:outline-none focus:ring-1 focus:ring-ring"
+                  placeholder="Paste raw device output here…"
+                  spellcheck="false"
+                />
+              </div>
+              <div class="p-3 space-y-1.5">
+                <label class="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Parsed Result</label>
+                <div v-if="ntcDryRunStates[item.stateIdx]?.isLoading" class="min-h-[180px] rounded-md border bg-muted/20 animate-pulse" />
+                <Alert v-else-if="ntcDryRunStates[item.stateIdx]?.error" variant="destructive" class="min-h-[180px]">
+                  <AlertTriangle class="h-4 w-4" />
+                  <AlertTitle>Parse Error</AlertTitle>
+                  <AlertDescription class="font-mono text-xs break-all">{{ ntcDryRunStates[item.stateIdx]?.error }}</AlertDescription>
+                </Alert>
+                <div v-else-if="ntcDryRunStates[item.stateIdx]?.result !== null" class="min-h-[180px] rounded-md border bg-muted/5 p-3 overflow-auto">
+                  <pre class="text-xs font-mono text-foreground whitespace-pre-wrap">{{ JSON.stringify(ntcDryRunStates[item.stateIdx]?.result, null, 2) }}</pre>
+                </div>
+                <div v-else class="min-h-[180px] rounded-md border border-dashed flex items-center justify-center text-xs text-muted-foreground">
+                  Paste input and press Parse (or wait 500 ms after typing)
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </template>
+
+      </div>
+      <!-- ── end Dry Run ── -->
+
+      <!-- ── Parser Playground ── -->
+      <div v-else class="space-y-3">
+
+        <!-- Controls row -->
+        <div class="flex items-center gap-3 flex-wrap">
+          <!-- Parser selector -->
+          <div class="flex items-center gap-2">
+            <label class="text-xs font-semibold text-muted-foreground uppercase tracking-wider shrink-0">Parser</label>
+            <Select :model-value="playgroundParser" @update:model-value="(v: any) => { playgroundParser = v; }">
+              <SelectTrigger class="h-8 w-40 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="regex">Regex</SelectItem>
+                <SelectItem value="jinja">Jinja</SelectItem>
+                <SelectItem value="textfsm">TextFSM</SelectItem>
+                <SelectItem value="ntc-templates">NTC-Templates</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <!-- NTC-Templates: platform toggle + command -->
+          <template v-if="playgroundParser === 'ntc-templates'">
+            <div class="flex items-center gap-2">
+              <label class="text-xs font-semibold text-muted-foreground uppercase tracking-wider shrink-0">Platform</label>
+              <div class="flex rounded-md border overflow-hidden text-xs">
+                <button
+                  :class="playgroundPlatform === 'cisco_ios'
+                    ? 'bg-primary text-primary-foreground px-3 py-1.5'
+                    : 'bg-background text-foreground hover:bg-muted px-3 py-1.5'"
+                  @click="playgroundPlatform = 'cisco_ios'; schedulePlaygroundParse()"
+                >cisco_ios</button>
+                <button
+                  :class="playgroundPlatform === 'linux'
+                    ? 'bg-primary text-primary-foreground px-3 py-1.5 border-l'
+                    : 'bg-background text-foreground hover:bg-muted px-3 py-1.5 border-l'"
+                  @click="playgroundPlatform = 'linux'; schedulePlaygroundParse()"
+                >linux</button>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <label class="text-xs font-semibold text-muted-foreground uppercase tracking-wider shrink-0">Command</label>
+              <Input
+                v-model="playgroundCommand"
+                placeholder="show ip dhcp binding"
+                class="h-8 text-xs font-mono w-56"
+                @input="schedulePlaygroundParse()"
+              />
+            </div>
+          </template>
+
+          <Button size="sm" class="h-8 ml-auto" :disabled="playgroundIsLoading" @click="parsePlayground">
+            {{ playgroundIsLoading ? 'Parsing…' : 'Parse' }}
+          </Button>
+        </div>
+
+        <!-- Resizable split pane -->
+        <div
+          ref="playgroundContainerRef"
+          class="flex rounded-md border overflow-hidden select-none"
+          style="height: 420px;"
+        >
+          <!-- Input panel -->
+          <div
+            :style="{ flex: `${playgroundFlexValues[0]} 1 0%` }"
+            class="flex flex-col min-w-0 overflow-hidden"
+          >
+            <div class="px-3 py-1.5 bg-muted/30 border-b text-xs font-semibold text-muted-foreground uppercase tracking-wider shrink-0">
+              Input
+            </div>
+            <textarea
+              v-model="playgroundInput"
+              @input="schedulePlaygroundParse()"
+              class="flex-1 w-full px-3 py-2 font-mono text-xs resize-none bg-background focus:outline-none"
+              placeholder="Paste device output here…"
+              spellcheck="false"
+            />
+          </div>
+
+          <!-- Divider 1 (input ↔ template or input ↔ result for NTC) -->
+          <div
+            class="w-1 bg-border hover:bg-primary/40 cursor-col-resize shrink-0 transition-colors"
+            @pointerdown.prevent="pgStartDrag(0, $event)"
+          />
+
+          <!-- Template / Pattern panel (hidden for ntc-templates) -->
+          <template v-if="playgroundParser !== 'ntc-templates'">
+            <div
+              :style="{ flex: `${playgroundFlexValues[1]} 1 0%` }"
+              class="flex flex-col min-w-0 overflow-hidden border-l"
+            >
+              <div class="px-3 py-1.5 bg-muted/30 border-b text-xs font-semibold text-muted-foreground uppercase tracking-wider shrink-0">
+                {{ playgroundParser === 'regex' ? 'Pattern' : 'Template' }}
+              </div>
+              <textarea
+                v-model="playgroundTemplate"
+                @input="schedulePlaygroundParse()"
+                class="flex-1 w-full px-3 py-2 font-mono text-xs resize-none bg-background focus:outline-none"
+                :placeholder="playgroundParser === 'regex'
+                  ? 'Enter regex pattern…'
+                  : playgroundParser === 'jinja'
+                    ? 'Enter Jinja2 template…'
+                    : 'Enter TextFSM template…'"
+                spellcheck="false"
+              />
+            </div>
+
+            <!-- Divider 2 (template ↔ result) -->
+            <div
+              class="w-1 bg-border hover:bg-primary/40 cursor-col-resize shrink-0 transition-colors"
+              @pointerdown.prevent="pgStartDrag(1, $event)"
+            />
+          </template>
+
+          <!-- Result panel -->
+          <div
+            :style="{ flex: `${playgroundFlexValues[playgroundParser !== 'ntc-templates' ? 2 : 1]} 1 0%` }"
+            class="flex flex-col min-w-0 overflow-hidden border-l"
+          >
+            <div class="px-3 py-1.5 bg-muted/30 border-b text-xs font-semibold text-muted-foreground uppercase tracking-wider shrink-0">
+              Result
+            </div>
+            <div class="flex-1 overflow-auto">
+              <div v-if="playgroundIsLoading" class="h-full min-h-[60px] bg-muted/20 animate-pulse" />
+              <Alert v-else-if="playgroundError" variant="destructive" class="m-3">
+                <AlertTriangle class="h-4 w-4" />
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription class="font-mono text-xs break-all">{{ playgroundError }}</AlertDescription>
+              </Alert>
+              <pre
+                v-else-if="playgroundResult !== null"
+                class="p-3 text-xs font-mono text-foreground whitespace-pre-wrap"
+              >{{ JSON.stringify(playgroundResult, null, 2) }}</pre>
+              <div v-else class="h-full flex items-center justify-center text-xs text-muted-foreground p-4 text-center">
+                Paste input and press Parse (or wait 500 ms after typing)
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+      <!-- ── end Parser Playground ── -->
+
     </CardContent>
   </Card>
 </template>
