@@ -408,105 +408,6 @@ const unifiedDryRunItems = computed<UnifiedDryRunItem[]>(() => {
   } catch { return [] }
 })
 
-// ─── Parser Playground ────────────────────────────────────────────────────────
-
-type PlaygroundParser = 'regex' | 'jinja' | 'textfsm' | 'ntc-templates'
-
-const playgroundParser = ref<PlaygroundParser>('regex')
-const playgroundInput = ref('')
-const playgroundTemplate = ref('')
-const playgroundPlatform = ref<'cisco_ios' | 'linux'>('cisco_ios')
-const playgroundCommand = ref('')
-const playgroundResult = ref<any | null>(null)
-const playgroundIsLoading = ref(false)
-const playgroundError = ref<string | null>(null)
-
-// Flex-grow values for split pane. 3-panel: [input, template, result], 2-panel NTC: [input, result]
-const playgroundFlexValues = ref<number[]>([33, 34, 33])
-const playgroundContainerRef = ref<HTMLDivElement | null>(null)
-
-let _pgDragging = false
-let _pgDividerIdx = 0
-let _pgDragStartX = 0
-let _pgDragStartFlex: number[] = []
-
-const pgStartDrag = (dividerIdx: number, event: PointerEvent) => {
-  _pgDragging = true
-  _pgDividerIdx = dividerIdx
-  _pgDragStartX = event.clientX
-  _pgDragStartFlex = [...playgroundFlexValues.value]
-  document.addEventListener('pointermove', _pgOnDrag)
-  document.addEventListener('pointerup', _pgStopDrag)
-}
-
-const _pgOnDrag = (event: PointerEvent) => {
-  if (!_pgDragging || !playgroundContainerRef.value) return
-  const containerWidth = playgroundContainerRef.value.getBoundingClientRect().width
-  const totalFlex = _pgDragStartFlex.reduce((a, b) => a + b, 0)
-  const deltaFlex = ((event.clientX - _pgDragStartX) / containerWidth) * totalFlex
-  const newValues = [..._pgDragStartFlex]
-  const idx = _pgDividerIdx
-  newValues[idx] = Math.max(10, (_pgDragStartFlex[idx] ?? 33) + deltaFlex)
-  newValues[idx + 1] = Math.max(10, (_pgDragStartFlex[idx + 1] ?? 33) - deltaFlex)
-  playgroundFlexValues.value = newValues
-}
-
-const _pgStopDrag = () => {
-  _pgDragging = false
-  document.removeEventListener('pointermove', _pgOnDrag)
-  document.removeEventListener('pointerup', _pgStopDrag)
-}
-
-watch(playgroundParser, (p) => {
-  playgroundFlexValues.value = p === 'ntc-templates' ? [50, 50] : [33, 34, 33]
-  playgroundResult.value = null
-  playgroundError.value = null
-})
-
-let _pgDebounceTimer: ReturnType<typeof setTimeout> | null = null
-
-const parsePlayground = async () => {
-  playgroundIsLoading.value = true
-  playgroundError.value = null
-  playgroundResult.value = null
-  try {
-    const isNtc = playgroundParser.value === 'ntc-templates'
-    const body: Record<string, any> = {
-      input: playgroundInput.value,
-      parser: isNtc ? 'textfsm' : playgroundParser.value,
-    }
-    if (!isNtc) {
-      if (playgroundParser.value === 'regex') body.pattern = playgroundTemplate.value
-      else body.template = playgroundTemplate.value
-    } else {
-      body.platform = playgroundPlatform.value
-      body.command = playgroundCommand.value
-    }
-    const resp = await $fetch<{ success: boolean; message?: string; data?: any }>(
-      `${backendURL}/v0/task-templates/parse-dry-run`,
-      { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body }
-    )
-    if (!resp.success || !resp.data) {
-      playgroundError.value = resp.message || 'Parse failed'
-      return
-    }
-    if (!resp.data.success) {
-      playgroundError.value = resp.data.error || 'Parser returned an error'
-    } else {
-      playgroundResult.value = resp.data.result
-    }
-  } catch (err: any) {
-    playgroundError.value = err?.data?.message || err?.message || 'Request failed'
-  } finally {
-    playgroundIsLoading.value = false
-  }
-}
-
-const schedulePlaygroundParse = () => {
-  if (_pgDebounceTimer) clearTimeout(_pgDebounceTimer)
-  _pgDebounceTimer = setTimeout(parsePlayground, 500)
-}
-
 // ─── Payload helpers ──────────────────────────────────────────────────────────
 
 const getPreviewTaskName = (): string => {
@@ -841,16 +742,14 @@ onMounted(() => {
           <CardTitle class="text-lg">Template Test Runner</CardTitle>
           <CardDescription>{{
             testMode === 'live' ? 'Run a direct preview test without RabbitMQ' :
-            testMode === 'dry-run' ? 'Test parse_output steps against raw device output — no device needed' :
-            'Interactively test any parser with custom input and templates'
+            'Test parse_output steps against raw device output — no device needed'
           }}</CardDescription>
         </div>
         <div class="flex items-center gap-2 flex-wrap">
           <Tabs :model-value="testMode" class="w-auto">
-            <TabsList class="grid grid-cols-3">
+            <TabsList class="grid grid-cols-2">
               <TabsTrigger value="live" @click="testMode = 'live'">Live Test</TabsTrigger>
               <TabsTrigger value="dry-run" @click="testMode = 'dry-run'">Dry Run</TabsTrigger>
-              <TabsTrigger value="parser" @click="testMode = 'parser'">Parser</TabsTrigger>
             </TabsList>
           </Tabs>
           <template v-if="testMode === 'live'">
@@ -1449,149 +1348,6 @@ onMounted(() => {
 
       </div>
       <!-- ── end Dry Run ── -->
-
-      <!-- ── Parser Playground ── -->
-      <div v-else class="space-y-3">
-
-        <!-- Controls row -->
-        <div class="flex items-center gap-3 flex-wrap">
-          <!-- Parser selector -->
-          <div class="flex items-center gap-2">
-            <label class="text-xs font-semibold text-muted-foreground uppercase tracking-wider shrink-0">Parser</label>
-            <Select :model-value="playgroundParser" @update:model-value="(v: any) => { playgroundParser = v; }">
-              <SelectTrigger class="h-8 w-40 text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="regex">Regex</SelectItem>
-                <SelectItem value="jinja">Jinja</SelectItem>
-                <SelectItem value="textfsm">TextFSM</SelectItem>
-                <SelectItem value="ntc-templates">NTC-Templates</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <!-- NTC-Templates: platform toggle + command -->
-          <template v-if="playgroundParser === 'ntc-templates'">
-            <div class="flex items-center gap-2">
-              <label class="text-xs font-semibold text-muted-foreground uppercase tracking-wider shrink-0">Platform</label>
-              <div class="flex rounded-md border overflow-hidden text-xs">
-                <button
-                  :class="playgroundPlatform === 'cisco_ios'
-                    ? 'bg-primary text-primary-foreground px-3 py-1.5'
-                    : 'bg-background text-foreground hover:bg-muted px-3 py-1.5'"
-                  @click="playgroundPlatform = 'cisco_ios'; schedulePlaygroundParse()"
-                >cisco_ios</button>
-                <button
-                  :class="playgroundPlatform === 'linux'
-                    ? 'bg-primary text-primary-foreground px-3 py-1.5 border-l'
-                    : 'bg-background text-foreground hover:bg-muted px-3 py-1.5 border-l'"
-                  @click="playgroundPlatform = 'linux'; schedulePlaygroundParse()"
-                >linux</button>
-              </div>
-            </div>
-            <div class="flex items-center gap-2">
-              <label class="text-xs font-semibold text-muted-foreground uppercase tracking-wider shrink-0">Command</label>
-              <Input
-                v-model="playgroundCommand"
-                placeholder="show ip dhcp binding"
-                class="h-8 text-xs font-mono w-56"
-                @input="schedulePlaygroundParse()"
-              />
-            </div>
-          </template>
-
-          <Button size="sm" class="h-8 ml-auto" :disabled="playgroundIsLoading" @click="parsePlayground">
-            {{ playgroundIsLoading ? 'Parsing…' : 'Parse' }}
-          </Button>
-        </div>
-
-        <!-- Resizable split pane -->
-        <div
-          ref="playgroundContainerRef"
-          class="flex rounded-md border overflow-hidden select-none"
-          style="height: 420px;"
-        >
-          <!-- Input panel -->
-          <div
-            :style="{ flex: `${playgroundFlexValues[0]} 1 0%` }"
-            class="flex flex-col min-w-0 overflow-hidden"
-          >
-            <div class="px-3 py-1.5 bg-muted/30 border-b text-xs font-semibold text-muted-foreground uppercase tracking-wider shrink-0">
-              Input
-            </div>
-            <textarea
-              v-model="playgroundInput"
-              @input="schedulePlaygroundParse()"
-              class="flex-1 w-full px-3 py-2 font-mono text-xs resize-none bg-background focus:outline-none"
-              placeholder="Paste device output here…"
-              spellcheck="false"
-            />
-          </div>
-
-          <!-- Divider 1 (input ↔ template or input ↔ result for NTC) -->
-          <div
-            class="w-1 bg-border hover:bg-primary/40 cursor-col-resize shrink-0 transition-colors"
-            @pointerdown.prevent="pgStartDrag(0, $event)"
-          />
-
-          <!-- Template / Pattern panel (hidden for ntc-templates) -->
-          <template v-if="playgroundParser !== 'ntc-templates'">
-            <div
-              :style="{ flex: `${playgroundFlexValues[1]} 1 0%` }"
-              class="flex flex-col min-w-0 overflow-hidden border-l"
-            >
-              <div class="px-3 py-1.5 bg-muted/30 border-b text-xs font-semibold text-muted-foreground uppercase tracking-wider shrink-0">
-                {{ playgroundParser === 'regex' ? 'Pattern' : 'Template' }}
-              </div>
-              <textarea
-                v-model="playgroundTemplate"
-                @input="schedulePlaygroundParse()"
-                class="flex-1 w-full px-3 py-2 font-mono text-xs resize-none bg-background focus:outline-none"
-                :placeholder="playgroundParser === 'regex'
-                  ? 'Enter regex pattern…'
-                  : playgroundParser === 'jinja'
-                    ? 'Enter Jinja2 template…'
-                    : 'Enter TextFSM template…'"
-                spellcheck="false"
-              />
-            </div>
-
-            <!-- Divider 2 (template ↔ result) -->
-            <div
-              class="w-1 bg-border hover:bg-primary/40 cursor-col-resize shrink-0 transition-colors"
-              @pointerdown.prevent="pgStartDrag(1, $event)"
-            />
-          </template>
-
-          <!-- Result panel -->
-          <div
-            :style="{ flex: `${playgroundFlexValues[playgroundParser !== 'ntc-templates' ? 2 : 1]} 1 0%` }"
-            class="flex flex-col min-w-0 overflow-hidden border-l"
-          >
-            <div class="px-3 py-1.5 bg-muted/30 border-b text-xs font-semibold text-muted-foreground uppercase tracking-wider shrink-0">
-              Result
-            </div>
-            <div class="flex-1 overflow-auto">
-              <div v-if="playgroundIsLoading" class="h-full min-h-[60px] bg-muted/20 animate-pulse" />
-              <Alert v-else-if="playgroundError" variant="destructive" class="m-3">
-                <AlertTriangle class="h-4 w-4" />
-                <AlertTitle>Error</AlertTitle>
-                <AlertDescription class="font-mono text-xs break-all">{{ playgroundError }}</AlertDescription>
-              </Alert>
-              <pre
-                v-else-if="playgroundResult !== null"
-                class="p-3 text-xs font-mono text-foreground whitespace-pre-wrap"
-              >{{ JSON.stringify(playgroundResult, null, 2) }}</pre>
-              <div v-else class="h-full flex items-center justify-center text-xs text-muted-foreground p-4 text-center">
-                Paste input and press Parse (or wait 500 ms after typing)
-              </div>
-            </div>
-          </div>
-        </div>
-
-      </div>
-      <!-- ── end Parser Playground ── -->
 
     </CardContent>
   </Card>
