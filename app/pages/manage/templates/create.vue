@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { ChevronRight, Home, Save, FileCode2, Code2, Boxes, AlertTriangle, Check, ArrowLeft, Info } from 'lucide-vue-next'
+import TemplateTestRunner from '@/components/TemplateTestRunner.vue'
 import { Breadcrumb, BreadcrumbItem, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -28,7 +29,6 @@ const backendURL = config.public.backendurl
 // Light theme for CodeMirror
 const lightTheme = EditorView.theme({
   '&': { 
-    height: '600px',
     backgroundColor: 'hsl(var(--muted) / 0.3)',
   },
   '.cm-scroller': { overflow: 'auto' },
@@ -80,6 +80,7 @@ const extensions = [
   createYamlTemplateAutocomplete(),
 ]
 
+
 // Template data
 const templateName = ref('')
 const yamlContent = ref(`# Task Template Definition
@@ -113,7 +114,7 @@ commands:
     action: "parse_output"
     parameters:
       input: "{{ping_result}}"
-      pattern: "Success rate is (\\d+) percent"
+      pattern: "Success rate is (\\\\d+) percent"
     register: "success_rate"
 
 # Validation rules for grading
@@ -189,7 +190,6 @@ const saveTemplate = async () => {
       toast.success('Template saved successfully!', {
         description: `Saved as ${fileName.value}`
       })
-      navigateTo('/manage')
     } else {
       throw new Error(response.message || 'Failed to save template')
     }
@@ -403,7 +403,7 @@ onUnmounted(() => {
 
         <!-- Editor Area -->
         <div class="lg:col-span-3">
-          <Card class="border-border/50 h-full overflow-hidden">
+          <Card class="border-border/50 overflow-hidden">
             <CardHeader class="pb-3 border-b border-border/50">
               <div class="flex items-center justify-between">
                 <CardTitle class="text-lg flex items-center gap-2">
@@ -470,6 +470,11 @@ onUnmounted(() => {
               <AlertDescription>{{ saveError }}</AlertDescription>
             </Alert>
           </div>
+
+          <!-- Template Test Runner -->
+          <div class="mt-4">
+            <TemplateTestRunner :yaml-content="yamlContent" storage-key="create" />
+          </div>
         </div>
         </div>
       </div>
@@ -478,15 +483,18 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.yaml-editor :deep(.cm-editor) {
+.yaml-editor :deep(.cm-editor),
+.json-editor :deep(.cm-editor) {
   font-size: 14px;
 }
 
-.yaml-editor :deep(.cm-editor.cm-focused) {
+.yaml-editor :deep(.cm-editor.cm-focused),
+.json-editor :deep(.cm-editor.cm-focused) {
   outline: none;
 }
 
-.yaml-editor :deep(.cm-gutters) {
+.yaml-editor :deep(.cm-gutters),
+.json-editor :deep(.cm-gutters) {
   border-right: 1px solid rgba(0, 0, 0, 0.1);
 }
 </style>
