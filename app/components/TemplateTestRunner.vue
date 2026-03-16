@@ -9,7 +9,7 @@ import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirro
 import { searchKeymap } from '@codemirror/search'
 import { tags } from '@lezer/highlight'
 import { toast } from 'vue-sonner'
-import { Plus, Trash2, AlertTriangle, Check } from 'lucide-vue-next'
+import { Plus, Trash2, AlertTriangle, Check, ChevronDown } from 'lucide-vue-next'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -93,11 +93,6 @@ const CONNECTION_OPTIONS = [
   { value: 'telnet', label: 'Telnet' },
 ]
 
-const ROLE_OPTIONS = [
-  { value: 'direct', label: 'Direct' },
-  { value: 'via_console', label: 'Console Server' },
-]
-
 // Platform options depend on device OS and connection method.
 // For SSH, the platform IS the OS identifier (linux / cisco_ios).
 // For Telnet, generic platform names are used; device_os tells netgrader the actual OS.
@@ -144,6 +139,7 @@ type FormDevice = {
 }
 
 const payloadMode = ref<PayloadMode>('form')
+const expandedDevices = ref<Set<number>>(new Set([0]))
 const defaultDeviceName = 'device1'
 const formDevices = ref<FormDevice[]>([
   {
@@ -281,8 +277,19 @@ const syncJsonToForm = (jsonStr: string) => {
 
 // ─── Device management ────────────────────────────────────────────────────────
 
+const toggleDevice = (idx: number) => {
+  if (expandedDevices.value.has(idx)) {
+    expandedDevices.value.delete(idx)
+  } else {
+    expandedDevices.value.add(idx)
+  }
+  // Trigger reactivity since Set mutations aren't tracked automatically
+  expandedDevices.value = new Set(expandedDevices.value)
+}
+
 const addDevice = () => {
   const n = formDevices.value.length + 1
+  const newIdx = formDevices.value.length
   formDevices.value.push({
     id: `device${n}`,
     ip_address: '',
@@ -294,6 +301,8 @@ const addDevice = () => {
     password: 'cisco',
     role: 'direct',
   })
+  // Auto-open the newly added device
+  expandedDevices.value = new Set([...expandedDevices.value, newIdx])
 }
 
 const removeDevice = (index: number) => {
@@ -302,6 +311,13 @@ const removeDevice = (index: number) => {
   if (removedId && formExecutionDevice.value === removedId && formDevices.value.length > 0) {
     formExecutionDevice.value = formDevices.value[0]!.id
   }
+  // Rebuild expanded set: drop removed index, shift indices above it down by 1
+  const next = new Set<number>()
+  for (const i of expandedDevices.value) {
+    if (i < index) next.add(i)
+    else if (i > index) next.add(i - 1)
+  }
+  expandedDevices.value = next
 }
 
 // When device_os changes, reset platform to the first valid option for the new OS
@@ -428,7 +444,7 @@ const loadSamplePayload = () => {
   formDevices.value = [
     {
       id: defaultDeviceName,
-      ip_address: '10.0.0.1',
+      ip_address: 'gns3.it.kmitl.ac.th',
       port: '',
       device_os: 'cisco_ios',
       connection_method: 'ssh',
@@ -535,21 +551,38 @@ onMounted(() => {
           <div
             v-for="(device, idx) in formDevices"
             :key="idx"
-            class="rounded-md border bg-muted/20 p-3 space-y-3"
+            class="rounded-md border bg-muted/20 overflow-hidden"
           >
-            <div class="flex items-center justify-between">
-              <span class="text-xs font-medium text-muted-foreground uppercase tracking-wide">Device {{ idx + 1 }}</span>
+            <!-- Accordion trigger -->
+            <button
+              type="button"
+              class="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-muted/40 transition-colors"
+              @click="toggleDevice(idx)"
+            >
+              <div class="flex items-center gap-2 min-w-0">
+                <ChevronDown
+                  class="h-3.5 w-3.5 text-muted-foreground shrink-0 transition-transform duration-200"
+                  :class="{ '-rotate-90': !expandedDevices.has(idx) }"
+                />
+                <span class="text-xs font-medium">{{ device.id || `Device ${idx + 1}` }}</span>
+                <span v-if="!expandedDevices.has(idx)" class="text-xs text-muted-foreground truncate font-mono">
+                  {{ [device.ip_address, device.port].filter(Boolean).join(':') || '—' }}
+                  · {{ device.platform }}
+                </span>
+              </div>
               <Button
                 v-if="formDevices.length > 1"
                 variant="ghost"
                 size="icon"
-                class="h-6 w-6 text-destructive hover:text-destructive"
-                @click="removeDevice(idx)"
+                class="h-6 w-6 text-destructive hover:text-destructive shrink-0 ml-2"
+                @click.stop="removeDevice(idx)"
               >
                 <Trash2 class="h-3 w-3" />
               </Button>
-            </div>
+            </button>
 
+            <!-- Accordion body -->
+            <div v-show="expandedDevices.has(idx)" class="p-3 border-t">
             <div class="grid grid-cols-2 gap-2">
               <div>
                 <Label class="text-xs">Device ID</Label>
@@ -632,6 +665,7 @@ onMounted(() => {
                 <Input v-model="device.password" type="password" class="mt-1 h-8 text-sm" placeholder="cisco" />
               </div>
             </div>
+            </div> <!-- end accordion body -->
           </div>
         </div>
 
@@ -776,16 +810,36 @@ onMounted(() => {
               <Badge :variant="task.status === 'passed' ? 'default' : 'destructive'">{{ task.status }}</Badge>
             </div>
 
-            <!-- Command Results (Debug Info) -->
-            <div v-if="task.debug_info?.command_results?.length" class="space-y-2 mt-2">
-              <div class="text-xs font-medium text-muted-foreground uppercase tracking-wider">Commands Executed</div>
-              <div class="space-y-2">
+            <!-- Debug Info: Parameters Received -->
+            <details
+              v-if="task.debug_info?.parameters_received && Object.keys(task.debug_info.parameters_received).length"
+              open
+              class="rounded-md border bg-background overflow-hidden mt-3"
+            >
+              <summary class="px-3 py-2 cursor-pointer bg-muted/10 hover:bg-muted/30 transition-colors select-none outline-none text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                Parameters Received
+              </summary>
+              <div class="p-3 border-t text-[13px] font-mono overflow-x-auto text-foreground">
+                <pre class="m-0">{{ JSON.stringify(task.debug_info.parameters_received, null, 2) }}</pre>
+              </div>
+            </details>
+
+            <!-- Debug Info: Commands Executed -->
+            <details
+              v-if="task.debug_info?.command_results?.length"
+              open
+              class="rounded-md border bg-background overflow-hidden mt-3"
+            >
+              <summary class="px-3 py-2 cursor-pointer bg-muted/10 hover:bg-muted/30 transition-colors select-none outline-none text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                Commands Executed ({{ task.debug_info.command_results.length }})
+              </summary>
+              <div class="p-3 border-t space-y-2">
                 <details
                   v-for="(cmd, i) in task.debug_info.command_results"
                   :key="cmd.name + i"
-                  class="group rounded-md border bg-background overflow-hidden"
+                  class="group rounded-md border bg-muted/5 overflow-hidden"
                 >
-                  <summary class="flex items-center justify-between p-2.5 cursor-pointer bg-muted/10 hover:bg-muted/30 transition-colors select-none outline-none">
+                  <summary class="flex items-center justify-between p-2.5 cursor-pointer hover:bg-muted/20 transition-colors select-none outline-none">
                     <div class="flex items-center gap-2">
                       <Check v-if="cmd.success" class="h-4 w-4 text-emerald-600" />
                       <AlertTriangle v-else class="h-4 w-4 text-destructive" />
@@ -793,7 +847,7 @@ onMounted(() => {
                     </div>
                     <span class="text-[10px] text-muted-foreground font-mono uppercase bg-muted/50 px-1.5 py-0.5 rounded border">{{ cmd.action }}</span>
                   </summary>
-                  <div class="p-3 border-t bg-muted/5 text-[13px] font-mono whitespace-pre-wrap overflow-x-auto text-muted-foreground">
+                  <div class="p-3 border-t text-[13px] font-mono whitespace-pre-wrap overflow-x-auto text-muted-foreground">
                     <div v-if="cmd.stdout" class="mb-3 last:mb-0">
                       <div class="text-[10px] font-bold text-foreground/70 uppercase mb-1">STDOUT</div>
                       <div class="bg-background border rounded p-2 text-foreground break-all">{{ cmd.stdout }}</div>
@@ -809,10 +863,65 @@ onMounted(() => {
                   </div>
                 </details>
               </div>
-            </div>
+            </details>
+
+            <!-- Debug Info: Registered Variables -->
+            <details
+              v-if="task.debug_info?.registered_variables && Object.keys(task.debug_info.registered_variables).length"
+              open
+              class="rounded-md border bg-background overflow-hidden mt-3"
+            >
+              <summary class="px-3 py-2 cursor-pointer bg-muted/10 hover:bg-muted/30 transition-colors select-none outline-none text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                Registered Variables
+              </summary>
+              <div class="p-3 border-t text-[13px] font-mono overflow-x-auto text-foreground">
+                <pre class="m-0">{{ JSON.stringify(task.debug_info.registered_variables, null, 2) }}</pre>
+              </div>
+            </details>
+
+            <!-- Debug Info: Validation Rules -->
+            <details
+              v-if="task.debug_info?.validation_details?.length"
+              open
+              class="rounded-md border bg-background overflow-hidden mt-3"
+            >
+              <summary class="px-3 py-2 cursor-pointer bg-muted/10 hover:bg-muted/30 transition-colors select-none outline-none text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                Validation Rules ({{ task.debug_info.validation_details.length }})
+              </summary>
+              <div class="p-3 border-t space-y-2">
+                <div v-for="(v, idx) in task.debug_info.validation_details" :key="v.field + idx" class="rounded-md border bg-muted/5 p-3 text-[13px] font-mono overflow-x-auto text-muted-foreground">
+                  <div class="flex items-center gap-2 mb-2 flex-wrap text-[13px]">
+                    <Check v-if="v.passed" class="h-4 w-4 text-emerald-600 shrink-0" />
+                    <AlertTriangle v-else class="h-4 w-4 text-destructive shrink-0" />
+                    <span class="font-medium text-foreground">{{ v.field }}</span>
+                    <span class="text-xs text-muted-foreground px-1 py-0.5 bg-muted rounded">{{ v.condition }}</span>
+                    <span class="font-bold text-foreground">{{ v.expected }}</span>
+                  </div>
+                  <div class="text-xs border-l-2 pl-3 py-0.5 border-border/50">
+                    <span class="text-[10px] uppercase font-bold text-foreground/70 mr-1">Actual:</span>
+                    <span :class="v.passed ? 'text-emerald-600' : 'text-destructive'">{{ typeof v.actual === 'object' ? JSON.stringify(v.actual) : String(v.actual) }}</span>
+                  </div>
+                  <div v-if="v.description" class="text-xs mt-2 text-muted-foreground italic">{{ v.description }}</div>
+                </div>
+              </div>
+            </details>
+
+            <!-- Debug Info: Custom Debug Points -->
+            <details
+              v-if="task.debug_info?.custom_debug_points && Object.keys(task.debug_info.custom_debug_points).length"
+              open
+              class="rounded-md border bg-background overflow-hidden mt-3"
+            >
+              <summary class="px-3 py-2 cursor-pointer bg-muted/10 hover:bg-muted/30 transition-colors select-none outline-none text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                Custom Debug Points
+              </summary>
+              <div class="p-3 border-t text-[13px] font-mono overflow-x-auto text-foreground">
+                <pre class="m-0">{{ JSON.stringify(task.debug_info.custom_debug_points, null, 2) }}</pre>
+              </div>
+            </details>
 
             <!-- Raw Output Fallback -->
-            <div v-else-if="task.raw_output" class="mt-2">
+            <div v-else-if="task.raw_output" class="mt-4">
               <details class="group rounded-md border bg-background overflow-hidden">
                 <summary class="p-2.5 cursor-pointer bg-muted/10 hover:bg-muted/30 text-xs font-medium text-muted-foreground transition-colors select-none outline-none">
                   View Raw Output

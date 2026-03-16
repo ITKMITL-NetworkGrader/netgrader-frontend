@@ -223,7 +223,6 @@ const saveTemplate = async () => {
       if (response.success) {
         toast.success('Template updated successfully!')
         hasChanges.value = false
-        navigateTo('/manage/templates')
       } else {
         throw new Error(response.message || 'Failed to update template')
       }
@@ -250,7 +249,6 @@ const saveTemplate = async () => {
       if (response.success) {
         toast.success('Template updated successfully!')
         hasChanges.value = false
-        navigateTo('/manage/templates')
       } else {
         throw new Error(response.message || 'Failed to update template')
       }

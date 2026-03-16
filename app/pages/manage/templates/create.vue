@@ -190,7 +190,6 @@ const saveTemplate = async () => {
       toast.success('Template saved successfully!', {
         description: `Saved as ${fileName.value}`
       })
-      navigateTo('/manage')
     } else {
       throw new Error(response.message || 'Failed to save template')
     }
