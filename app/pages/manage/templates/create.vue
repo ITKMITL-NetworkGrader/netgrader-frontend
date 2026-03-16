@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { ChevronRight, Home, Save, FileCode2, Code2, Boxes, AlertTriangle, Check, ArrowLeft, Info } from 'lucide-vue-next'
+import TemplateTestRunner from '@/components/TemplateTestRunner.vue'
 import { Breadcrumb, BreadcrumbItem, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -18,7 +19,6 @@ import { useYamlTemplateAutocomplete } from '@/composables/useYamlTemplateAutoco
 // CodeMirror imports
 import { Codemirror } from 'vue-codemirror'
 import { yaml as yamlLang } from '@codemirror/lang-yaml'
-import { json as jsonLang } from '@codemirror/lang-json'
 import { EditorView } from '@codemirror/view'
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
 import { tags } from '@lezer/highlight'
@@ -80,12 +80,6 @@ const extensions = [
   createYamlTemplateAutocomplete(),
 ]
 
-const jsonExtensions = [
-  jsonLang(),
-  lightTheme,
-  syntaxHighlighting(lightHighlightStyle),
-  EditorView.lineWrapping,
-]
 
 // Template data
 const templateName = ref('')
@@ -120,7 +114,7 @@ commands:
     action: "parse_output"
     parameters:
       input: "{{ping_result}}"
-      pattern: "Success rate is (\\d+) percent"
+      pattern: "Success rate is (\\\\d+) percent"
     register: "success_rate"
 
 # Validation rules for grading
@@ -134,31 +128,6 @@ validation:
 // Save state
 const isSaving = ref(false)
 const saveError = ref<string | null>(null)
-
-// Template test-run state
-const isTesting = ref(false)
-const testError = ref<string | null>(null)
-const testResult = ref<any | null>(null)
-const testPayloadJson = ref('')
-
-const testValidationErrors = computed<string[]>(() => {
-  const errors = testResult.value?.validation?.errors
-  return Array.isArray(errors) ? errors : []
-})
-
-const testTaskResults = computed<any[]>(() => {
-  const results = testResult.value?.grading_result?.test_results
-  return Array.isArray(results) ? results : []
-})
-
-const passedTaskCount = computed(() => testTaskResults.value.filter((task: any) => task?.status === 'passed').length)
-
-const extractErrorMessage = (error: any): string => {
-  if (typeof error?.data?.message === 'string' && error.data.message.trim()) return error.data.message
-  if (typeof error?.data?.detail === 'string' && error.data.detail.trim()) return error.data.detail
-  if (typeof error?.message === 'string' && error.message.trim()) return error.message
-  return 'Template test failed'
-}
 
 // Validation state
 const validationResult = ref<ValidationResult>({ isValid: true, errors: [], warnings: [] })
@@ -178,138 +147,6 @@ const fileName = computed(() => {
 const validateYaml = () => {
   validationResult.value = validateYamlTemplate(yamlContent.value)
   return validationResult.value.isValid
-}
-
-const getPreviewTaskName = (): string => {
-  try {
-    const parsed = yaml.load(yamlContent.value) as Record<string, any> | null
-    if (parsed?.task_name && typeof parsed.task_name === 'string') {
-      return parsed.task_name
-    }
-  } catch {
-    // Fallback handled below
-  }
-
-  if (fileName.value) {
-    return fileName.value.replace(/\.ya?ml$/, '')
-  }
-  return 'preview_template'
-}
-
-const buildDefaultTestPayload = (taskName: string) => JSON.stringify({
-  job_id: 'template_preview_job',
-  student_id: 'preview_student',
-  lab_id: 'preview_lab',
-  part: {
-    part_id: 'part1',
-    title: 'Template Preview',
-    network_tasks: [
-      {
-        task_id: 'preview_task_1',
-        name: 'Template Preview Task',
-        template_name: taskName,
-        execution_device: 'device1',
-        parameters: {},
-        test_cases: [],
-        points: 10
-      }
-    ],
-    groups: []
-  },
-  devices: [
-    {
-      id: 'device1',
-      ip_address: '10.0.0.1',
-      credentials: {
-        username: 'admin',
-        password: 'cisco'
-      },
-      platform: 'cisco_ios',
-      role: 'direct'
-    }
-  ],
-  ip_mappings: {}
-}, null, 2)
-
-const loadSampleTestPayload = () => {
-  testPayloadJson.value = buildDefaultTestPayload(getPreviewTaskName())
-}
-
-const runTemplateTest = async (validateOnly = false) => {
-  if (!validateYaml()) {
-    toast.error('Please fix YAML validation errors before testing')
-    return
-  }
-
-  let parsedPayload: any
-  try {
-    parsedPayload = JSON.parse(testPayloadJson.value)
-  } catch (error: any) {
-    toast.error('Invalid test payload JSON', {
-      description: error?.message || 'Please provide valid JSON.'
-    })
-    return
-  }
-
-  const previewTaskName = getPreviewTaskName()
-  if (Array.isArray(parsedPayload?.part?.network_tasks)) {
-    parsedPayload.part.network_tasks = parsedPayload.part.network_tasks.map((task: any) => ({
-      ...task,
-      template_name: previewTaskName
-    }))
-  }
-
-  try {
-    isTesting.value = true
-    testError.value = null
-
-    const response = await $fetch<{ success: boolean; message?: string; data?: any }>(`${backendURL}/v0/task-templates/test-run`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: {
-        yamlContent: yamlContent.value,
-        jobPayload: parsedPayload,
-        validateOnly,
-        taskNameOverride: previewTaskName,
-      }
-    })
-
-    if (!response.success || !response.data) {
-      throw new Error(response.message || 'Template test failed')
-    }
-
-    testResult.value = response.data
-    if (!response.data.success) {
-      const validationMessage = testValidationErrors.value.length > 0
-        ? testValidationErrors.value.join('; ')
-        : (response.message || 'Template test failed')
-      testError.value = validationMessage
-      toast.error(validateOnly ? 'Validation failed' : 'Template test failed', {
-        description: validationMessage
-      })
-      return
-    }
-
-    if (validateOnly) {
-      toast.success('Template payload validated successfully')
-    } else {
-      const earned = response.data?.grading_result?.total_points_earned ?? 0
-      const possible = response.data?.grading_result?.total_points_possible ?? 0
-      toast.success('Template test execution completed', {
-        description: `Score ${earned}/${possible}`
-      })
-    }
-  } catch (error: any) {
-    testError.value = extractErrorMessage(error)
-    toast.error('Template test failed', {
-      description: testError.value
-    })
-  } finally {
-    isTesting.value = false
-  }
 }
 
 // Watch for YAML changes and validate (debounced)
@@ -390,7 +227,6 @@ const handleKeydown = (event: KeyboardEvent) => {
 onMounted(() => {
   window.addEventListener('keydown', handleKeydown)
   validateYaml()
-  loadSampleTestPayload()
 })
 
 onUnmounted(() => {
@@ -638,117 +474,7 @@ onUnmounted(() => {
 
           <!-- Template Test Runner -->
           <div class="mt-4">
-            <Card class="border-border/50">
-              <CardHeader class="pb-3">
-                <div class="flex items-center justify-between gap-3">
-                  <div>
-                    <CardTitle class="text-lg">Template Test Runner</CardTitle>
-                    <CardDescription>Run direct preview test without RabbitMQ</CardDescription>
-                  </div>
-                  <div class="flex items-center gap-2">
-                    <Button variant="outline" size="sm" @click="loadSampleTestPayload" :disabled="isTesting">
-                      Load Sample Payload
-                    </Button>
-                    <Button variant="outline" size="sm" @click="runTemplateTest(true)" :disabled="isTesting">
-                      {{ isTesting ? 'Testing...' : 'Validate Payload' }}
-                    </Button>
-                    <Button size="sm" @click="runTemplateTest(false)" :disabled="isTesting">
-                      {{ isTesting ? 'Testing...' : 'Run Test' }}
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent class="space-y-3">
-                <Label for="test-payload-json">Test Job Payload (JSON)</Label>
-                <div class="json-editor border rounded-md overflow-hidden">
-                  <ClientOnly>
-                    <Codemirror
-                      v-model="testPayloadJson"
-                      :extensions="jsonExtensions"
-                      :style="{ height: '260px' }"
-                      placeholder="Paste test job payload JSON"
-                    />
-                    <template #fallback>
-                      <textarea
-                        id="test-payload-json"
-                        v-model="testPayloadJson"
-                        class="w-full h-[260px] p-3 font-mono text-sm bg-muted/20 border-0 focus:outline-none resize-none"
-                        spellcheck="false"
-                        placeholder="Paste test job payload JSON"
-                      />
-                    </template>
-                  </ClientOnly>
-                </div>
-
-                <Alert v-if="testError" variant="destructive">
-                  <AlertTriangle class="h-4 w-4" />
-                  <AlertTitle>Test Error</AlertTitle>
-                  <AlertDescription>{{ testError }}</AlertDescription>
-                </Alert>
-
-                <div v-if="testResult" class="space-y-2">
-                  <div class="grid grid-cols-1 md:grid-cols-4 gap-2 text-sm">
-                    <div class="rounded-md border px-3 py-2">
-                      <div class="text-muted-foreground">Mode</div>
-                      <div class="font-medium">{{ testResult.mode }}</div>
-                    </div>
-                    <div class="rounded-md border px-3 py-2">
-                      <div class="text-muted-foreground">Success</div>
-                      <div class="font-medium">{{ testResult.success ? 'Yes' : 'No' }}</div>
-                    </div>
-                    <div class="rounded-md border px-3 py-2">
-                      <div class="text-muted-foreground">Template</div>
-                      <div class="font-medium">{{ testResult.template_name }}</div>
-                    </div>
-                    <div class="rounded-md border px-3 py-2">
-                      <div class="text-muted-foreground">Tasks Passed</div>
-                      <div class="font-medium">{{ passedTaskCount }}/{{ testTaskResults.length }}</div>
-                    </div>
-                  </div>
-
-                  <div v-if="testResult.grading_result" class="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
-                    <div class="rounded-md border px-3 py-2">
-                      <div class="text-muted-foreground">Status</div>
-                      <div class="font-medium">{{ testResult.grading_result.status }}</div>
-                    </div>
-                    <div class="rounded-md border px-3 py-2">
-                      <div class="text-muted-foreground">Score</div>
-                      <div class="font-medium">{{ testResult.grading_result.total_points_earned }}/{{ testResult.grading_result.total_points_possible }}</div>
-                    </div>
-                    <div class="rounded-md border px-3 py-2">
-                      <div class="text-muted-foreground">Execution Time</div>
-                      <div class="font-medium">{{ Number(testResult.grading_result.total_execution_time || 0).toFixed(2) }}s</div>
-                    </div>
-                  </div>
-
-                  <div v-if="testTaskResults.length > 0" class="rounded-md border bg-muted/5 p-3 text-sm space-y-2">
-                    <div class="font-medium">Task Results</div>
-                    <div v-for="task in testTaskResults" :key="task.test_name" class="flex items-start justify-between gap-3 border-b last:border-b-0 pb-2 last:pb-0">
-                      <div>
-                        <div class="font-medium">{{ task.test_name }}</div>
-                        <div class="text-xs text-muted-foreground">{{ task.message }}</div>
-                      </div>
-                      <Badge :variant="task.status === 'passed' ? 'default' : 'destructive'">{{ task.status }}</Badge>
-                    </div>
-                  </div>
-
-                  <Alert v-if="testValidationErrors.length > 0" variant="destructive">
-                    <AlertTriangle class="h-4 w-4" />
-                    <AlertTitle>Validation Errors</AlertTitle>
-                    <AlertDescription>
-                      <ul class="text-sm space-y-1">
-                        <li v-for="validationError in testValidationErrors" :key="validationError">{{ validationError }}</li>
-                      </ul>
-                    </AlertDescription>
-                  </Alert>
-
-                  <details class="rounded-md border bg-muted/10 p-3">
-                    <summary class="cursor-pointer text-sm font-medium">Raw Result JSON</summary>
-                    <pre class="mt-2 text-xs overflow-auto">{{ JSON.stringify(testResult, null, 2) }}</pre>
-                  </details>
-                </div>
-              </CardContent>
-            </Card>
+            <TemplateTestRunner :yaml-content="yamlContent" storage-key="create" />
           </div>
         </div>
         </div>
