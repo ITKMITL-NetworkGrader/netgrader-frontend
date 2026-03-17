@@ -139,6 +139,11 @@ type FormDevice = {
 }
 
 const payloadMode = ref<PayloadMode>('form')
+
+// ─── Dry Run mode ─────────────────────────────────────────────────────────────
+
+type TestMode = 'live' | 'dry-run' | 'parser'
+const testMode = ref<TestMode>('live')
 const expandedDevices = ref<Set<number>>(new Set([0]))
 const defaultDeviceName = 'device1'
 const formDevices = ref<FormDevice[]>([
@@ -177,6 +182,377 @@ watch(yamlParameters, (params) => {
   }
   formTaskParams.value = next
 }, { immediate: true })
+
+// ─── Dry Run: parse_output actions extracted from YAML ────────────────────────
+
+type ParseAction = {
+  stepName: string
+  parser: string          // 'regex' | 'textfsm' | 'jinja'
+  pattern: string | null
+  template: string | null
+}
+
+const dryRunActions = computed<ParseAction[]>(() => {
+  try {
+    const parsed = yaml.load(props.yamlContent) as any
+    // 'commands' is the canonical key; also check 'steps' for forward-compat
+    const cmds: any[] = Array.isArray(parsed?.commands)
+      ? parsed.commands
+      : Array.isArray(parsed?.steps) ? parsed.steps : []
+    return cmds
+      .filter((s: any) => s?.action === 'parse_output')
+      .map((s: any) => ({
+        stepName: s.name ?? 'Unnamed Step',
+        parser: ((s.parameters?.parser as string) || 'regex').toLowerCase(),
+        pattern: s.parameters?.pattern ?? null,
+        template: s.parameters?.template ?? null,
+      }))
+  } catch { return [] }
+})
+
+type DryRunActionState = {
+  inputText: string
+  result: Record<string, any> | null
+  isLoading: boolean
+  error: string | null
+}
+
+const dryRunStates = ref<DryRunActionState[]>([])
+
+// Keep state array in sync with dryRunActions; preserve inputText/result across YAML edits
+watch(dryRunActions, (actions) => {
+  const prev = dryRunStates.value
+  dryRunStates.value = actions.map((_, i) => ({
+    inputText: prev[i]?.inputText ?? '',
+    result:    prev[i]?.result    ?? null,
+    isLoading: false,
+    error:     prev[i]?.error     ?? null,
+  }))
+}, { immediate: true })
+
+const dryRunDebounceTimers: (ReturnType<typeof setTimeout> | null)[] = []
+
+const parseDryRun = async (actionIdx: number) => {
+  const action = dryRunActions.value[actionIdx]
+  const state  = dryRunStates.value[actionIdx]
+  if (!action || !state) return
+
+  state.isLoading = true
+  state.error  = null
+  state.result = null
+
+  try {
+    const resp = await $fetch<{ success: boolean; message?: string; data?: any }>(
+      `${backendURL}/v0/task-templates/parse-dry-run`,
+      {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: {
+          input:    state.inputText,
+          parser:   action.parser,
+          pattern:  action.pattern  ?? undefined,
+          template: action.template ?? undefined,
+        },
+      }
+    )
+    if (!resp.success || !resp.data) {
+      state.error = resp.message || 'Parse failed'
+      return
+    }
+    const parsed = resp.data
+    if (!parsed.success) {
+      state.error = parsed.error || 'Parser returned an error'
+    } else {
+      state.result = parsed.result
+    }
+  } catch (err: any) {
+    state.error = err?.data?.message || err?.message || 'Request failed'
+  } finally {
+    state.isLoading = false
+  }
+}
+
+const scheduleDryRunParse = (actionIdx: number) => {
+  const t = dryRunDebounceTimers[actionIdx]
+  if (t) clearTimeout(t)
+  dryRunDebounceTimers[actionIdx] = setTimeout(() => parseDryRun(actionIdx), 500)
+}
+
+// ─── Dry Run: NTC-templates (use_textfsm: true steps) ─────────────────────────
+
+type NtcAction = {
+  stepName: string
+  command: string
+}
+
+const ntcDryRunActions = computed<NtcAction[]>(() => {
+  try {
+    const parsed = yaml.load(props.yamlContent) as any
+    const cmds: any[] = Array.isArray(parsed?.commands)
+      ? parsed.commands
+      : Array.isArray(parsed?.steps) ? parsed.steps : []
+    return cmds
+      .filter((s: any) => s?.parameters?.use_textfsm === true && s?.parameters?.command)
+      .map((s: any) => ({
+        stepName: s.name ?? 'Unnamed Step',
+        command: s.parameters.command as string,
+      }))
+  } catch { return [] }
+})
+
+type NtcDryRunState = {
+  inputText: string
+  platform: 'cisco_ios' | 'linux'
+  result: any | null
+  isLoading: boolean
+  error: string | null
+}
+
+const ntcDryRunStates = ref<NtcDryRunState[]>([])
+
+watch(ntcDryRunActions, (actions) => {
+  const prev = ntcDryRunStates.value
+  ntcDryRunStates.value = actions.map((_, i) => ({
+    inputText: prev[i]?.inputText ?? '',
+    platform:  prev[i]?.platform  ?? 'cisco_ios',
+    result:    prev[i]?.result    ?? null,
+    isLoading: false,
+    error:     prev[i]?.error     ?? null,
+  }))
+}, { immediate: true })
+
+const ntcDebounceTimers: (ReturnType<typeof setTimeout> | null)[] = []
+
+const parseNtcDryRun = async (idx: number) => {
+  const action = ntcDryRunActions.value[idx]
+  const state  = ntcDryRunStates.value[idx]
+  if (!action || !state) return
+
+  state.isLoading = true
+  state.error  = null
+  state.result = null
+
+  try {
+    const resp = await $fetch<{ success: boolean; message?: string; data?: any }>(
+      `${backendURL}/v0/task-templates/parse-dry-run`,
+      {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: {
+          input:    state.inputText,
+          parser:   'textfsm',
+          platform: state.platform,
+          command:  action.command,
+        },
+      }
+    )
+    if (!resp.success || !resp.data) {
+      state.error = resp.message || 'Parse failed'
+      return
+    }
+    if (!resp.data.success) {
+      state.error = resp.data.error || 'Parser returned an error'
+    } else {
+      state.result = resp.data.result
+    }
+  } catch (err: any) {
+    state.error = err?.data?.message || err?.message || 'Request failed'
+  } finally {
+    state.isLoading = false
+  }
+}
+
+const scheduleNtcDryRunParse = (idx: number) => {
+  const t = ntcDebounceTimers[idx]
+  if (t) clearTimeout(t)
+  ntcDebounceTimers[idx] = setTimeout(() => parseNtcDryRun(idx), 500)
+}
+
+// ─── Dry Run: Validation testing ──────────────────────────────────────────────
+
+type ValidationRule = {
+  field: string
+  condition: string
+  value: any
+  description?: string
+}
+
+const dryRunValidationRules = computed<ValidationRule[]>(() => {
+  try {
+    const parsed = yaml.load(props.yamlContent) as any
+    if (!Array.isArray(parsed?.validation)) return []
+    return parsed.validation.map((r: any) => ({
+      field:       r.field       ?? '',
+      condition:   r.condition   ?? 'equals',
+      value:       r.value       ?? null,
+      description: r.description ?? undefined,
+    }))
+  } catch { return [] }
+})
+
+const validationVarsText    = ref('{}')
+const validationResults     = ref<any[] | null>(null)
+const validationIsLoading   = ref(false)
+const validationError       = ref<string | null>(null)
+const validationAllPassed   = ref<boolean | null>(null)
+const validationParamsValues = ref<Record<string, string>>({})
+
+// Keep validationParamsValues in sync with YAML parameters (add new, preserve existing)
+watch(yamlParameters, (params) => {
+  const next: Record<string, string> = {}
+  for (const p of params) {
+    next[p.name] = validationParamsValues.value[p.name] ?? ''
+  }
+  validationParamsValues.value = next
+}, { immediate: true })
+
+// Coerce a string input to the most appropriate JS type for Jinja rendering
+function parseParamValue(val: string): any {
+  if (val === 'true')  return true
+  if (val === 'false') return false
+  if (val !== '' && !isNaN(Number(val))) return Number(val)
+  return val
+}
+
+// Auto-scaffold the variables JSON from register: field names in the YAML
+const dryRunRegisterNames = computed<string[]>(() => {
+  try {
+    const parsed = yaml.load(props.yamlContent) as any
+    const cmds: any[] = Array.isArray(parsed?.commands)
+      ? parsed.commands
+      : Array.isArray(parsed?.steps) ? parsed.steps : []
+    return cmds.filter((s: any) => s?.register).map((s: any) => s.register as string)
+  } catch { return [] }
+})
+
+watch(dryRunRegisterNames, (names) => {
+  try {
+    const existing = JSON.parse(validationVarsText.value)
+    let changed = false
+    for (const name of names) {
+      if (!(name in existing)) { existing[name] = null; changed = true }
+    }
+    if (changed) validationVarsText.value = JSON.stringify(existing, null, 2)
+  } catch {
+    const tmpl: Record<string, null> = {}
+    for (const name of names) tmpl[name] = null
+    validationVarsText.value = JSON.stringify(tmpl, null, 2)
+  }
+}, { immediate: true })
+
+// One-click: fill variables JSON from the current Dry Run parse results above
+const populateVarsFromParseResults = () => {
+  try {
+    const parsed = yaml.load(props.yamlContent) as any
+    const cmds: any[] = Array.isArray(parsed?.commands)
+      ? parsed.commands
+      : Array.isArray(parsed?.steps) ? parsed.steps : []
+    const vars: Record<string, any> = {}
+    let parseIdx = 0
+    let ntcIdx = 0
+    for (const s of cmds) {
+      if (s?.action === 'parse_output' && s?.register) {
+        vars[s.register] = dryRunStates.value[parseIdx]?.result ?? null
+        parseIdx++
+      } else if (s?.parameters?.use_textfsm === true && s?.register) {
+        vars[s.register] = ntcDryRunStates.value[ntcIdx]?.result ?? null
+        ntcIdx++
+      } else if (s?.register) {
+        vars[s.register] = null
+      }
+    }
+    validationVarsText.value = JSON.stringify(vars, null, 2)
+  } catch { /* keep current */ }
+}
+
+const runValidationDryRun = async () => {
+  if (!dryRunValidationRules.value.length) return
+  validationIsLoading.value = true
+  validationError.value     = null
+  validationResults.value   = null
+  validationAllPassed.value = null
+
+  let variables: Record<string, any>
+  try {
+    variables = JSON.parse(validationVarsText.value)
+  } catch {
+    validationError.value = 'Variables JSON is invalid — please fix the syntax.'
+    validationIsLoading.value = false
+    return
+  }
+
+  // Coerce string inputs to typed values before sending to backend
+  const parameters: Record<string, any> = {}
+  for (const [k, v] of Object.entries(validationParamsValues.value)) {
+    parameters[k] = parseParamValue(v)
+  }
+
+  try {
+    const resp = await $fetch<{ success: boolean; message?: string; data?: any }>(
+      `${backendURL}/v0/task-templates/validate-dry-run`,
+      {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: { variables, rules: dryRunValidationRules.value, parameters },
+      }
+    )
+    if (!resp.success || !resp.data) {
+      validationError.value = resp.message || 'Validation failed'
+      return
+    }
+    if (!resp.data.success) {
+      validationError.value = resp.data.error || 'Validation returned an error'
+    } else {
+      validationResults.value   = resp.data.results
+      validationAllPassed.value = resp.data.all_passed
+    }
+  } catch (err: any) {
+    validationError.value = err?.data?.message || err?.message || 'Request failed'
+  } finally {
+    validationIsLoading.value = false
+  }
+}
+
+// ─── Unified ordered list for rendering (preserves YAML step sequence) ────────
+
+type UnifiedDryRunItem =
+  | { kind: 'parse'; stateIdx: number } & ParseAction
+  | { kind: 'ntc';   stateIdx: number } & NtcAction
+
+const unifiedDryRunItems = computed<UnifiedDryRunItem[]>(() => {
+  try {
+    const parsed = yaml.load(props.yamlContent) as any
+    const cmds: any[] = Array.isArray(parsed?.commands)
+      ? parsed.commands
+      : Array.isArray(parsed?.steps) ? parsed.steps : []
+    let parseIdx = 0
+    let ntcIdx = 0
+    const items: UnifiedDryRunItem[] = []
+    for (const s of cmds) {
+      if (s?.action === 'parse_output') {
+        items.push({
+          kind: 'parse',
+          stateIdx: parseIdx++,
+          stepName: s.name ?? 'Unnamed Step',
+          parser: ((s.parameters?.parser as string) || 'regex').toLowerCase(),
+          pattern: s.parameters?.pattern ?? null,
+          template: s.parameters?.template ?? null,
+        })
+      } else if (s?.parameters?.use_textfsm === true && s?.parameters?.command) {
+        items.push({
+          kind: 'ntc',
+          stateIdx: ntcIdx++,
+          stepName: s.name ?? 'Unnamed Step',
+          command: s.parameters.command as string,
+        })
+      }
+    }
+    return items
+  } catch { return [] }
+})
 
 // ─── Payload helpers ──────────────────────────────────────────────────────────
 
@@ -510,23 +886,38 @@ onMounted(() => {
       <div class="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <CardTitle class="text-lg">Template Test Runner</CardTitle>
-          <CardDescription>Run a direct preview test without RabbitMQ</CardDescription>
+          <CardDescription>{{
+            testMode === 'live' ? 'Run a direct preview test without RabbitMQ' :
+            'Test parse_output steps against raw device output — no device needed'
+          }}</CardDescription>
         </div>
-        <div class="flex items-center gap-2">
-          <Button variant="outline" size="sm" @click="loadSamplePayload" :disabled="isTesting">
-            Load Sample
-          </Button>
-          <Button variant="outline" size="sm" @click="runTemplateTest(true)" :disabled="isTesting">
-            {{ isTesting ? 'Testing...' : 'Validate' }}
-          </Button>
-          <Button size="sm" @click="runTemplateTest(false)" :disabled="isTesting" class="bg-emerald-600 hover:bg-emerald-700">
-            {{ isTesting ? 'Running...' : 'Run Test' }}
-          </Button>
+        <div class="flex items-center gap-2 flex-wrap">
+          <Tabs :model-value="testMode" class="w-auto">
+            <TabsList class="grid grid-cols-2">
+              <TabsTrigger value="live" @click="testMode = 'live'">Live Test</TabsTrigger>
+              <TabsTrigger value="dry-run" @click="testMode = 'dry-run'">Dry Run</TabsTrigger>
+            </TabsList>
+          </Tabs>
+          <template v-if="testMode === 'live'">
+            <Button variant="outline" size="sm" @click="loadSamplePayload" :disabled="isTesting">
+              Load Sample
+            </Button>
+            <Button variant="outline" size="sm" @click="runTemplateTest(true)" :disabled="isTesting">
+              {{ isTesting ? 'Testing...' : 'Validate' }}
+            </Button>
+            <Button size="sm" @click="runTemplateTest(false)" :disabled="isTesting" class="bg-emerald-600 hover:bg-emerald-700">
+              {{ isTesting ? 'Running...' : 'Run Test' }}
+            </Button>
+          </template>
         </div>
       </div>
     </CardHeader>
 
-    <CardContent class="space-y-4">
+    <CardContent>
+
+      <!-- ── Live Test ── -->
+      <div v-if="testMode === 'live'" class="space-y-4">
+
       <!-- Mode Toggle -->
       <Tabs :model-value="payloadMode" class="w-full">
         <TabsList class="grid w-full grid-cols-2 max-w-xs">
@@ -951,6 +1342,272 @@ onMounted(() => {
           <pre class="mt-2 text-xs overflow-auto">{{ JSON.stringify(testResult.grading_result, null, 2) }}</pre>
         </details>
       </div>
+
+      </div>
+      <!-- ── end Live Test ── -->
+
+      <!-- ── Dry Run ── -->
+      <div v-else-if="testMode === 'dry-run'" class="space-y-4">
+
+        <!-- Empty state: no dry-run steps in YAML -->
+        <div
+          v-if="unifiedDryRunItems.length === 0"
+          class="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground"
+        >
+          <p class="font-medium">No testable steps found</p>
+          <p class="mt-1">Add <code class="font-mono text-xs bg-muted px-1 py-0.5 rounded">action: parse_output</code> steps or steps with <code class="font-mono text-xs bg-muted px-1 py-0.5 rounded">use_textfsm: true</code> to use Dry Run.</p>
+        </div>
+
+        <!-- All dry-run items in YAML order -->
+        <template v-for="(item, _i) in unifiedDryRunItems" :key="item.kind + item.stepName + _i">
+
+          <!-- ── parse_output step ── -->
+          <div v-if="item.kind === 'parse'" class="rounded-md border overflow-hidden">
+            <div class="flex items-center justify-between gap-2 px-4 py-3 bg-muted/30 border-b">
+              <div class="flex items-center gap-2 min-w-0">
+                <span class="font-mono text-sm font-medium truncate">{{ item.stepName }}</span>
+                <Badge variant="outline" class="text-xs shrink-0">{{ item.parser }}</Badge>
+              </div>
+              <Button size="sm" variant="outline" class="h-7 text-xs shrink-0"
+                :disabled="dryRunStates[item.stateIdx]?.isLoading"
+                @click="parseDryRun(item.stateIdx)"
+              >
+                {{ dryRunStates[item.stateIdx]?.isLoading ? 'Parsing...' : 'Parse' }}
+              </Button>
+            </div>
+            <div class="px-4 py-2 bg-muted/10 border-b">
+              <div class="text-xs text-muted-foreground mb-1 font-semibold uppercase tracking-wider">
+                {{ item.parser === 'textfsm' ? 'TextFSM Template' : item.parser === 'jinja' ? 'Jinja Template' : 'Regex Pattern' }}
+              </div>
+              <pre class="text-xs font-mono text-foreground whitespace-pre-wrap break-all">{{
+                item.parser === 'textfsm' || item.parser === 'jinja'
+                  ? (item.template || item.pattern || '—')
+                  : (item.pattern || '—')
+              }}</pre>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-border">
+              <div class="p-3 space-y-1.5">
+                <label class="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Device Output (Input)</label>
+                <textarea
+                  :value="dryRunStates[item.stateIdx]?.inputText ?? ''"
+                  @input="(e: Event) => {
+                    if (dryRunStates[item.stateIdx]) {
+                      dryRunStates[item.stateIdx]!.inputText = (e.target as HTMLTextAreaElement).value
+                      scheduleDryRunParse(item.stateIdx)
+                    }
+                  }"
+                  class="w-full min-h-[180px] rounded-md border border-input bg-background px-3 py-2 font-mono text-xs resize-none focus:outline-none focus:ring-1 focus:ring-ring"
+                  placeholder="Paste raw device output here…"
+                  spellcheck="false"
+                />
+              </div>
+              <div class="p-3 space-y-1.5">
+                <label class="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Parsed Result</label>
+                <div v-if="dryRunStates[item.stateIdx]?.isLoading" class="min-h-[180px] rounded-md border bg-muted/20 animate-pulse" />
+                <Alert v-else-if="dryRunStates[item.stateIdx]?.error" variant="destructive" class="min-h-[180px]">
+                  <AlertTriangle class="h-4 w-4" />
+                  <AlertTitle>Parse Error</AlertTitle>
+                  <AlertDescription class="font-mono text-xs break-all">{{ dryRunStates[item.stateIdx]?.error }}</AlertDescription>
+                </Alert>
+                <div v-else-if="dryRunStates[item.stateIdx]?.result !== null" class="min-h-[180px] rounded-md border bg-muted/5 p-3 overflow-auto">
+                  <pre class="text-xs font-mono text-foreground whitespace-pre-wrap">{{ JSON.stringify(dryRunStates[item.stateIdx]?.result, null, 2) }}</pre>
+                </div>
+                <div v-else class="min-h-[180px] rounded-md border border-dashed flex items-center justify-center text-xs text-muted-foreground">
+                  Paste input and press Parse (or wait 500 ms after typing)
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── use_textfsm: true step ── -->
+          <div v-else class="rounded-md border overflow-hidden">
+            <div class="flex items-center justify-between gap-2 px-4 py-3 bg-muted/30 border-b">
+              <div class="flex items-center gap-2 min-w-0">
+                <span class="font-mono text-sm font-medium truncate">{{ item.stepName }}</span>
+                <Badge variant="outline" class="text-xs shrink-0">ntc-templates</Badge>
+              </div>
+              <Button size="sm" variant="outline" class="h-7 text-xs shrink-0"
+                :disabled="ntcDryRunStates[item.stateIdx]?.isLoading"
+                @click="parseNtcDryRun(item.stateIdx)"
+              >
+                {{ ntcDryRunStates[item.stateIdx]?.isLoading ? 'Parsing...' : 'Parse' }}
+              </Button>
+            </div>
+            <div class="px-4 py-2 bg-muted/10 border-b flex items-center justify-between gap-4 flex-wrap">
+              <div>
+                <div class="text-xs text-muted-foreground mb-1 font-semibold uppercase tracking-wider">Command</div>
+                <span class="font-mono text-xs bg-muted px-1.5 py-0.5 rounded text-foreground">{{ item.command }}</span>
+              </div>
+              <div>
+                <div class="text-xs text-muted-foreground mb-1 font-semibold uppercase tracking-wider">Platform</div>
+                <div class="flex rounded-md border overflow-hidden text-xs">
+                  <button
+                    :class="ntcDryRunStates[item.stateIdx]?.platform === 'cisco_ios'
+                      ? 'bg-primary text-primary-foreground px-3 py-1'
+                      : 'bg-background text-foreground hover:bg-muted px-3 py-1'"
+                    @click="if (ntcDryRunStates[item.stateIdx]) { ntcDryRunStates[item.stateIdx]!.platform = 'cisco_ios'; scheduleNtcDryRunParse(item.stateIdx) }"
+                  >cisco_ios</button>
+                  <button
+                    :class="ntcDryRunStates[item.stateIdx]?.platform === 'linux'
+                      ? 'bg-primary text-primary-foreground px-3 py-1 border-l'
+                      : 'bg-background text-foreground hover:bg-muted px-3 py-1 border-l'"
+                    @click="if (ntcDryRunStates[item.stateIdx]) { ntcDryRunStates[item.stateIdx]!.platform = 'linux'; scheduleNtcDryRunParse(item.stateIdx) }"
+                  >linux</button>
+                </div>
+              </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-border">
+              <div class="p-3 space-y-1.5">
+                <label class="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Device Output (Input)</label>
+                <textarea
+                  :value="ntcDryRunStates[item.stateIdx]?.inputText ?? ''"
+                  @input="(e: Event) => {
+                    if (ntcDryRunStates[item.stateIdx]) {
+                      ntcDryRunStates[item.stateIdx]!.inputText = (e.target as HTMLTextAreaElement).value
+                      scheduleNtcDryRunParse(item.stateIdx)
+                    }
+                  }"
+                  class="w-full min-h-[180px] rounded-md border border-input bg-background px-3 py-2 font-mono text-xs resize-none focus:outline-none focus:ring-1 focus:ring-ring"
+                  placeholder="Paste raw device output here…"
+                  spellcheck="false"
+                />
+              </div>
+              <div class="p-3 space-y-1.5">
+                <label class="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Parsed Result</label>
+                <div v-if="ntcDryRunStates[item.stateIdx]?.isLoading" class="min-h-[180px] rounded-md border bg-muted/20 animate-pulse" />
+                <Alert v-else-if="ntcDryRunStates[item.stateIdx]?.error" variant="destructive" class="min-h-[180px]">
+                  <AlertTriangle class="h-4 w-4" />
+                  <AlertTitle>Parse Error</AlertTitle>
+                  <AlertDescription class="font-mono text-xs break-all">{{ ntcDryRunStates[item.stateIdx]?.error }}</AlertDescription>
+                </Alert>
+                <div v-else-if="ntcDryRunStates[item.stateIdx]?.result !== null" class="min-h-[180px] rounded-md border bg-muted/5 p-3 overflow-auto">
+                  <pre class="text-xs font-mono text-foreground whitespace-pre-wrap">{{ JSON.stringify(ntcDryRunStates[item.stateIdx]?.result, null, 2) }}</pre>
+                </div>
+                <div v-else class="min-h-[180px] rounded-md border border-dashed flex items-center justify-center text-xs text-muted-foreground">
+                  Paste input and press Parse (or wait 500 ms after typing)
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </template>
+
+        <!-- ── Validation Rules testing ── -->
+        <div v-if="dryRunValidationRules.length > 0" class="rounded-md border overflow-hidden">
+
+          <!-- Header -->
+          <div class="flex items-center justify-between gap-2 px-4 py-3 bg-muted/30 border-b flex-wrap">
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="text-sm font-semibold">Validation Rules</span>
+              <Badge variant="outline" class="text-xs shrink-0">{{ dryRunValidationRules.length }} rules</Badge>
+              <Badge v-if="validationAllPassed === true" class="text-xs bg-emerald-600 text-white hover:bg-emerald-600 shrink-0">All Passed</Badge>
+              <Badge v-if="validationAllPassed === false" variant="destructive" class="text-xs shrink-0">
+                {{ validationResults?.filter((r: any) => !r.passed).length }} Failed
+              </Badge>
+            </div>
+            <div class="flex items-center gap-2">
+              <Button size="sm" variant="ghost" class="h-7 text-xs shrink-0"
+                :disabled="validationIsLoading"
+                title="Fill variables from current parse results above"
+                @click="populateVarsFromParseResults"
+              >
+                Use Parse Results
+              </Button>
+              <Button size="sm" variant="outline" class="h-7 text-xs shrink-0"
+                :disabled="validationIsLoading"
+                @click="runValidationDryRun"
+              >
+                {{ validationIsLoading ? 'Testing…' : 'Test Validation' }}
+              </Button>
+            </div>
+          </div>
+
+          <!-- Rules list + Variables JSON side by side -->
+          <div class="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-border">
+
+            <!-- Left: rules list -->
+            <div class="p-3 space-y-2">
+              <label class="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Rules</label>
+              <div
+                v-for="(rule, i) in dryRunValidationRules"
+                :key="rule.field + i"
+                class="rounded-md border p-2.5 text-xs space-y-1.5"
+                :class="validationResults?.[i]
+                  ? (validationResults[i].passed ? 'border-emerald-300 bg-emerald-50/50' : 'border-destructive/40 bg-destructive/5')
+                  : ''"
+              >
+                <div class="flex items-center gap-2 flex-wrap">
+                  <Check         v-if="validationResults?.[i]?.passed"                         class="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                  <AlertTriangle v-else-if="validationResults?.[i] && !validationResults[i].passed" class="h-3.5 w-3.5 text-destructive shrink-0" />
+                  <div v-else class="h-3.5 w-3.5 rounded-full border-2 border-muted-foreground/30 shrink-0" />
+                  <span class="font-mono font-semibold text-foreground">{{ rule.field }}</span>
+                  <Badge variant="secondary" class="text-xs font-normal shrink-0">{{ rule.condition }}</Badge>
+                  <span class="font-mono text-muted-foreground">{{ JSON.stringify(rule.value) }}</span>
+                </div>
+                <p v-if="rule.description" class="text-muted-foreground italic pl-5">{{ rule.description }}</p>
+                <div v-if="validationResults?.[i]" class="pl-5 border-l-2 border-border">
+                  <span class="text-[10px] uppercase font-bold text-foreground/60 mr-1">Actual:</span>
+                  <span class="font-mono" :class="validationResults[i].passed ? 'text-emerald-600' : 'text-destructive'">
+                    {{ JSON.stringify(validationResults[i].actual) }}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right: parameters + variables JSON input -->
+            <div class="p-3 space-y-3">
+
+              <!-- Parameter inputs (only shown when YAML has parameters:) -->
+              <div v-if="yamlParameters.length > 0" class="space-y-2">
+                <label class="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Parameters</label>
+                <div
+                  v-for="param in yamlParameters"
+                  :key="param.name"
+                  class="flex items-center gap-2"
+                >
+                  <span class="font-mono text-xs text-foreground/80 shrink-0 w-28 truncate" :title="param.name">{{ param.name }}</span>
+                  <Input
+                    v-model="validationParamsValues[param.name]"
+                    :placeholder="param.description ?? param.datatype ?? 'value'"
+                    class="h-7 text-xs font-mono"
+                    spellcheck="false"
+                  />
+                  <Badge v-if="param.required" variant="destructive" class="text-[10px] shrink-0 px-1 py-0">req</Badge>
+                  <Badge v-else variant="secondary" class="text-[10px] shrink-0 px-1 py-0">opt</Badge>
+                </div>
+                <p class="text-xs text-muted-foreground">
+                  Used to render <code class="font-mono bg-muted px-0.5 rounded text-[11px]">&#123;&#123; name &#125;&#125;</code> Jinja expressions inside validation rule values.
+                </p>
+              </div>
+
+              <!-- Registered Variables JSON -->
+              <div class="space-y-1.5">
+                <label class="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Registered Variables (JSON)</label>
+                <textarea
+                  v-model="validationVarsText"
+                  class="w-full min-h-[150px] rounded-md border border-input bg-background px-3 py-2 font-mono text-xs resize-y focus:outline-none focus:ring-1 focus:ring-ring"
+                  placeholder='{ "parsed": { "match_count": 1, "first_match": "80" } }'
+                  spellcheck="false"
+                />
+                <p class="text-xs text-muted-foreground">
+                  Keys must match <code class="font-mono bg-muted px-0.5 rounded text-[11px]">register:</code> names from your YAML steps.
+                  Use <strong>Use Parse Results</strong> to fill automatically from above.
+                </p>
+              </div>
+
+              <Alert v-if="validationError" variant="destructive">
+                <AlertTriangle class="h-4 w-4" />
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription class="font-mono text-xs break-all">{{ validationError }}</AlertDescription>
+              </Alert>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+      <!-- ── end Dry Run ── -->
+
     </CardContent>
   </Card>
 </template>

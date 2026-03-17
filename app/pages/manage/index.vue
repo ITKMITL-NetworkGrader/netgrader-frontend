@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ChevronRight, Home, Plus, Edit, Trash2, Users, BookOpen, Calendar, Lock, FileCode2, RefreshCw, ArrowRight } from 'lucide-vue-next'
+import { ChevronRight, Home, Plus, Edit, Trash2, Users, BookOpen, Calendar, Lock, FileCode2, RefreshCw, ArrowRight, Wand2 } from 'lucide-vue-next'
 import { Breadcrumb, BreadcrumbItem, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -674,6 +674,12 @@ onMounted(() => {
                     Create New Template
                   </Button>
                 </NuxtLink>
+                <NuxtLink to="/manage/parser" class="block">
+                  <Button variant="secondary" class="w-full">
+                    <Wand2 class="h-4 w-4 mr-2" />
+                    Parser Playground
+                  </Button>
+                </NuxtLink>
               </div>
             </CardContent>
           </Card>
@@ -693,6 +699,12 @@ onMounted(() => {
                 <Button variant="outline" class="w-full justify-start text-sm">
                   <FileCode2 class="h-4 w-4 mr-2" />
                   Manage Templates
+                </Button>
+              </NuxtLink>
+              <NuxtLink to="/manage/parser" class="block">
+                <Button variant="outline" class="w-full justify-start text-sm">
+                  <Wand2 class="h-4 w-4 mr-2" />
+                  Parser Playground
                 </Button>
               </NuxtLink>
             </CardContent>
