@@ -370,6 +370,152 @@ const scheduleNtcDryRunParse = (idx: number) => {
   ntcDebounceTimers[idx] = setTimeout(() => parseNtcDryRun(idx), 500)
 }
 
+// ─── Dry Run: Validation testing ──────────────────────────────────────────────
+
+type ValidationRule = {
+  field: string
+  condition: string
+  value: any
+  description?: string
+}
+
+const dryRunValidationRules = computed<ValidationRule[]>(() => {
+  try {
+    const parsed = yaml.load(props.yamlContent) as any
+    if (!Array.isArray(parsed?.validation)) return []
+    return parsed.validation.map((r: any) => ({
+      field:       r.field       ?? '',
+      condition:   r.condition   ?? 'equals',
+      value:       r.value       ?? null,
+      description: r.description ?? undefined,
+    }))
+  } catch { return [] }
+})
+
+const validationVarsText    = ref('{}')
+const validationResults     = ref<any[] | null>(null)
+const validationIsLoading   = ref(false)
+const validationError       = ref<string | null>(null)
+const validationAllPassed   = ref<boolean | null>(null)
+const validationParamsValues = ref<Record<string, string>>({})
+
+// Keep validationParamsValues in sync with YAML parameters (add new, preserve existing)
+watch(yamlParameters, (params) => {
+  const next: Record<string, string> = {}
+  for (const p of params) {
+    next[p.name] = validationParamsValues.value[p.name] ?? ''
+  }
+  validationParamsValues.value = next
+}, { immediate: true })
+
+// Coerce a string input to the most appropriate JS type for Jinja rendering
+function parseParamValue(val: string): any {
+  if (val === 'true')  return true
+  if (val === 'false') return false
+  if (val !== '' && !isNaN(Number(val))) return Number(val)
+  return val
+}
+
+// Auto-scaffold the variables JSON from register: field names in the YAML
+const dryRunRegisterNames = computed<string[]>(() => {
+  try {
+    const parsed = yaml.load(props.yamlContent) as any
+    const cmds: any[] = Array.isArray(parsed?.commands)
+      ? parsed.commands
+      : Array.isArray(parsed?.steps) ? parsed.steps : []
+    return cmds.filter((s: any) => s?.register).map((s: any) => s.register as string)
+  } catch { return [] }
+})
+
+watch(dryRunRegisterNames, (names) => {
+  try {
+    const existing = JSON.parse(validationVarsText.value)
+    let changed = false
+    for (const name of names) {
+      if (!(name in existing)) { existing[name] = null; changed = true }
+    }
+    if (changed) validationVarsText.value = JSON.stringify(existing, null, 2)
+  } catch {
+    const tmpl: Record<string, null> = {}
+    for (const name of names) tmpl[name] = null
+    validationVarsText.value = JSON.stringify(tmpl, null, 2)
+  }
+}, { immediate: true })
+
+// One-click: fill variables JSON from the current Dry Run parse results above
+const populateVarsFromParseResults = () => {
+  try {
+    const parsed = yaml.load(props.yamlContent) as any
+    const cmds: any[] = Array.isArray(parsed?.commands)
+      ? parsed.commands
+      : Array.isArray(parsed?.steps) ? parsed.steps : []
+    const vars: Record<string, any> = {}
+    let parseIdx = 0
+    let ntcIdx = 0
+    for (const s of cmds) {
+      if (s?.action === 'parse_output' && s?.register) {
+        vars[s.register] = dryRunStates.value[parseIdx]?.result ?? null
+        parseIdx++
+      } else if (s?.parameters?.use_textfsm === true && s?.register) {
+        vars[s.register] = ntcDryRunStates.value[ntcIdx]?.result ?? null
+        ntcIdx++
+      } else if (s?.register) {
+        vars[s.register] = null
+      }
+    }
+    validationVarsText.value = JSON.stringify(vars, null, 2)
+  } catch { /* keep current */ }
+}
+
+const runValidationDryRun = async () => {
+  if (!dryRunValidationRules.value.length) return
+  validationIsLoading.value = true
+  validationError.value     = null
+  validationResults.value   = null
+  validationAllPassed.value = null
+
+  let variables: Record<string, any>
+  try {
+    variables = JSON.parse(validationVarsText.value)
+  } catch {
+    validationError.value = 'Variables JSON is invalid — please fix the syntax.'
+    validationIsLoading.value = false
+    return
+  }
+
+  // Coerce string inputs to typed values before sending to backend
+  const parameters: Record<string, any> = {}
+  for (const [k, v] of Object.entries(validationParamsValues.value)) {
+    parameters[k] = parseParamValue(v)
+  }
+
+  try {
+    const resp = await $fetch<{ success: boolean; message?: string; data?: any }>(
+      `${backendURL}/v0/task-templates/validate-dry-run`,
+      {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: { variables, rules: dryRunValidationRules.value, parameters },
+      }
+    )
+    if (!resp.success || !resp.data) {
+      validationError.value = resp.message || 'Validation failed'
+      return
+    }
+    if (!resp.data.success) {
+      validationError.value = resp.data.error || 'Validation returned an error'
+    } else {
+      validationResults.value   = resp.data.results
+      validationAllPassed.value = resp.data.all_passed
+    }
+  } catch (err: any) {
+    validationError.value = err?.data?.message || err?.message || 'Request failed'
+  } finally {
+    validationIsLoading.value = false
+  }
+}
+
 // ─── Unified ordered list for rendering (preserves YAML step sequence) ────────
 
 type UnifiedDryRunItem =
@@ -1345,6 +1491,119 @@ onMounted(() => {
           </div>
 
         </template>
+
+        <!-- ── Validation Rules testing ── -->
+        <div v-if="dryRunValidationRules.length > 0" class="rounded-md border overflow-hidden">
+
+          <!-- Header -->
+          <div class="flex items-center justify-between gap-2 px-4 py-3 bg-muted/30 border-b flex-wrap">
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="text-sm font-semibold">Validation Rules</span>
+              <Badge variant="outline" class="text-xs shrink-0">{{ dryRunValidationRules.length }} rules</Badge>
+              <Badge v-if="validationAllPassed === true" class="text-xs bg-emerald-600 text-white hover:bg-emerald-600 shrink-0">All Passed</Badge>
+              <Badge v-if="validationAllPassed === false" variant="destructive" class="text-xs shrink-0">
+                {{ validationResults?.filter((r: any) => !r.passed).length }} Failed
+              </Badge>
+            </div>
+            <div class="flex items-center gap-2">
+              <Button size="sm" variant="ghost" class="h-7 text-xs shrink-0"
+                :disabled="validationIsLoading"
+                title="Fill variables from current parse results above"
+                @click="populateVarsFromParseResults"
+              >
+                Use Parse Results
+              </Button>
+              <Button size="sm" variant="outline" class="h-7 text-xs shrink-0"
+                :disabled="validationIsLoading"
+                @click="runValidationDryRun"
+              >
+                {{ validationIsLoading ? 'Testing…' : 'Test Validation' }}
+              </Button>
+            </div>
+          </div>
+
+          <!-- Rules list + Variables JSON side by side -->
+          <div class="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-border">
+
+            <!-- Left: rules list -->
+            <div class="p-3 space-y-2">
+              <label class="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Rules</label>
+              <div
+                v-for="(rule, i) in dryRunValidationRules"
+                :key="rule.field + i"
+                class="rounded-md border p-2.5 text-xs space-y-1.5"
+                :class="validationResults?.[i]
+                  ? (validationResults[i].passed ? 'border-emerald-300 bg-emerald-50/50' : 'border-destructive/40 bg-destructive/5')
+                  : ''"
+              >
+                <div class="flex items-center gap-2 flex-wrap">
+                  <Check         v-if="validationResults?.[i]?.passed"                         class="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                  <AlertTriangle v-else-if="validationResults?.[i] && !validationResults[i].passed" class="h-3.5 w-3.5 text-destructive shrink-0" />
+                  <div v-else class="h-3.5 w-3.5 rounded-full border-2 border-muted-foreground/30 shrink-0" />
+                  <span class="font-mono font-semibold text-foreground">{{ rule.field }}</span>
+                  <Badge variant="secondary" class="text-xs font-normal shrink-0">{{ rule.condition }}</Badge>
+                  <span class="font-mono text-muted-foreground">{{ JSON.stringify(rule.value) }}</span>
+                </div>
+                <p v-if="rule.description" class="text-muted-foreground italic pl-5">{{ rule.description }}</p>
+                <div v-if="validationResults?.[i]" class="pl-5 border-l-2 border-border">
+                  <span class="text-[10px] uppercase font-bold text-foreground/60 mr-1">Actual:</span>
+                  <span class="font-mono" :class="validationResults[i].passed ? 'text-emerald-600' : 'text-destructive'">
+                    {{ JSON.stringify(validationResults[i].actual) }}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right: parameters + variables JSON input -->
+            <div class="p-3 space-y-3">
+
+              <!-- Parameter inputs (only shown when YAML has parameters:) -->
+              <div v-if="yamlParameters.length > 0" class="space-y-2">
+                <label class="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Parameters</label>
+                <div
+                  v-for="param in yamlParameters"
+                  :key="param.name"
+                  class="flex items-center gap-2"
+                >
+                  <span class="font-mono text-xs text-foreground/80 shrink-0 w-28 truncate" :title="param.name">{{ param.name }}</span>
+                  <Input
+                    v-model="validationParamsValues[param.name]"
+                    :placeholder="param.description ?? param.datatype ?? 'value'"
+                    class="h-7 text-xs font-mono"
+                    spellcheck="false"
+                  />
+                  <Badge v-if="param.required" variant="destructive" class="text-[10px] shrink-0 px-1 py-0">req</Badge>
+                  <Badge v-else variant="secondary" class="text-[10px] shrink-0 px-1 py-0">opt</Badge>
+                </div>
+                <p class="text-xs text-muted-foreground">
+                  Used to render <code class="font-mono bg-muted px-0.5 rounded text-[11px]">&#123;&#123; name &#125;&#125;</code> Jinja expressions inside validation rule values.
+                </p>
+              </div>
+
+              <!-- Registered Variables JSON -->
+              <div class="space-y-1.5">
+                <label class="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Registered Variables (JSON)</label>
+                <textarea
+                  v-model="validationVarsText"
+                  class="w-full min-h-[150px] rounded-md border border-input bg-background px-3 py-2 font-mono text-xs resize-y focus:outline-none focus:ring-1 focus:ring-ring"
+                  placeholder='{ "parsed": { "match_count": 1, "first_match": "80" } }'
+                  spellcheck="false"
+                />
+                <p class="text-xs text-muted-foreground">
+                  Keys must match <code class="font-mono bg-muted px-0.5 rounded text-[11px]">register:</code> names from your YAML steps.
+                  Use <strong>Use Parse Results</strong> to fill automatically from above.
+                </p>
+              </div>
+
+              <Alert v-if="validationError" variant="destructive">
+                <AlertTriangle class="h-4 w-4" />
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription class="font-mono text-xs break-all">{{ validationError }}</AlertDescription>
+              </Alert>
+            </div>
+
+          </div>
+        </div>
 
       </div>
       <!-- ── end Dry Run ── -->
