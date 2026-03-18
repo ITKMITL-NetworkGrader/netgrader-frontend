@@ -38,7 +38,7 @@ const studentId = computed(() => route.params.student_id as string)
 
 // Composables
 const { currentCourse, fetchCourse } = useCourse()
-const { currentLab, fetchLabById } = useCourseLabs()
+const { currentLab, currentLabParts, fetchLabById, fetchLabParts } = useCourseLabs()
 const {
   isLoading,
   error,
@@ -65,8 +65,24 @@ const submissionHistoryWithIncrementalPenalty = computed<PenalizedPartHistory[]>
 })
 
 // Calculate overall statistics using shared utility
+const totalLabPossiblePoints = computed(() => {
+  return currentLabParts.value.reduce((sum, part) => sum + (part.totalPoints || 0), 0)
+})
+
+// Calculate overall statistics using shared utility
 const overallStats = computed(() => {
-  return calculateStats(submissionHistoryWithIncrementalPenalty.value)
+  return calculateStats(submissionHistoryWithIncrementalPenalty.value, totalLabPossiblePoints.value)
+})
+
+// Total parts should come from lab definition, not only submission history
+const totalLabParts = computed(() => {
+  return currentLabParts.value.length
+})
+
+// Calculate progress percentage based on parts completed
+const progressPercentage = computed(() => {
+  if (totalLabParts.value === 0) return 0
+  return Math.round((overallStats.value.partsCompleted / totalLabParts.value) * 100)
 })
 
 // Get the best attempt for a part (highest effective score)
@@ -96,6 +112,7 @@ const loadData = async () => {
     await Promise.all([
       fetchCourse(courseId.value),
       fetchLabById(labId.value),
+      fetchLabParts(labId.value),
       fetchStudentSubmissionHistory(labId.value, studentId.value)
     ])
   } catch (err) {
@@ -218,7 +235,7 @@ onMounted(() => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div class="text-3xl font-bold">{{ overallStats.partsCompleted }}/{{ overallStats.totalParts }}</div>
+            <div class="text-3xl font-bold">{{ overallStats.partsCompleted }}/{{ totalLabParts }}</div>
           </CardContent>
         </Card>
 
@@ -244,8 +261,8 @@ onMounted(() => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div class="text-3xl font-bold mb-2">{{ overallStats.progressPercentage }}%</div>
-            <Progress :model-value="overallStats.progressPercentage" class="h-2" />
+            <div class="text-3xl font-bold mb-2">{{ progressPercentage }}%</div>
+            <Progress :model-value="progressPercentage" class="h-2" />
           </CardContent>
         </Card>
       </div>
