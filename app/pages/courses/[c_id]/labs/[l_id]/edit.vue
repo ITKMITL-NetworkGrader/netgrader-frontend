@@ -333,6 +333,7 @@
         :gns3-config="playgroundConfig?.gns3Config || null" :device-mappings="playgroundConfig?.deviceMappings || []"
         :custom-ip-mappings="playgroundConfig?.customIpMappings || {}"
         :custom-vlan-mappings="playgroundConfig?.customVlanMappings || {}" @reconfigure="handlePlaygroundReconfigure" />
+
     </template>
   </div>
 </template>
@@ -574,8 +575,15 @@ const playgroundConfig = ref<{
   customVlanMappings: Record<string, number>
 } | null>(null)
 
+// ContainerLab detection — uses networkProvider from raw lab data
+const isClabLab = computed(() => (originalLabData.value as any)?.networkProvider === 'clab')
+
 // Playground functions
 function openPlayground() {
+  if (isClabLab.value) {
+    router.push(`/courses/${courseId}/labs/${labId}/playground`)
+    return
+  }
   if (playgroundConfig.value) {
     // If already configured, go directly to testing modal
     showPlaygroundTesting.value = true

@@ -99,6 +99,12 @@ const navigationItems = computed(() => [
         active: route.path.startsWith('/courses')
     },
     {
+        label: 'Playground',
+        to: '/playground/clab',
+        show: isAuthenticated.value && canAccessManagePage.value,
+        active: route.path.startsWith('/playground')
+    },
+    {
         label: 'Manage',
         to: '/manage',
         show: isAuthenticated.value && canAccessManagePage.value,

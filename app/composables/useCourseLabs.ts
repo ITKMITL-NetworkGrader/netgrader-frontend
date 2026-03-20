@@ -7,6 +7,7 @@ export interface Lab {
   title: string
   description?: string
   type: 'lab' | 'exam'
+  networkProvider?: 'gns3' | 'clab'  // Determines which lab environment backend to use
   network: {
     name: string
     topology: {

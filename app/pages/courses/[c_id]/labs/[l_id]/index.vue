@@ -54,6 +54,7 @@ import LabResultsModal from '@/components/student/LabResultsModal.vue'
 import FillInBlankQuestions from '@/components/student/FillInBlankQuestions.vue'
 import PlaygroundTab from '@/components/playground/PlaygroundTab.vue'
 import StudentGns3SetupModal from '@/components/student/StudentGns3SetupModal.vue'
+import ClabStudentLabManager from '@/components/clab/ClabStudentLabManager.vue'
 import type { ISubmission, LecturerRangeAnswerPayload } from '@/types/submission'
 import { toast } from 'vue-sonner'
 
@@ -440,6 +441,22 @@ const hasClearedLabStorage = ref(false)
 const showGns3SetupModal = ref(false)
 const hasGns3Project = ref(false)
 const GNS3_PROJECT_STORAGE_KEY = 'netgrader_gns3_project'
+
+// ContainerLab provider detection
+const isClabLab = computed(() => currentLab.value?.networkProvider === 'clab')
+// Track the clab lab name for an already-running session (stored in localStorage)
+const CLAB_LAB_STORAGE_KEY = 'netgrader_clab_lab'
+const existingClabLabName = computed<string | undefined>(() => {
+  if (typeof window === 'undefined') return undefined
+  try {
+    const saved = localStorage.getItem(CLAB_LAB_STORAGE_KEY)
+    if (saved) {
+      const data = JSON.parse(saved)
+      if (data.labId === labId.value) return data.clabLabName as string
+    }
+  } catch { /* ignore */ }
+  return undefined
+})
 
 // Copy to clipboard state and function
 const copiedValue = ref<string | null>(null)
@@ -970,9 +987,11 @@ function checkGns3ProjectExists(): boolean {
 }
 
 function checkAndShowGns3Modal() {
-  
+  // ContainerLab labs use ClabStudentLabManager inline — no modal needed
+  if (isClabLab.value) return
+
   const projectExists = checkGns3ProjectExists()
-  
+
   if (!projectExists) {
     showGns3SetupModal.value = true
   } else {
@@ -989,6 +1008,21 @@ function handleGns3SetupComplete(config: {
   hasGns3Project.value = true
   showGns3SetupModal.value = false
   toast.success(`GNS3 project "${config.projectName}" configured successfully!`)
+}
+
+// ContainerLab handlers
+function handleClabLabStarted(clabLabName: string) {
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.setItem(CLAB_LAB_STORAGE_KEY, JSON.stringify({ labId: labId.value, clabLabName }))
+    } catch { /* ignore */ }
+  }
+}
+
+function handleClabLabStopped() {
+  if (typeof window !== 'undefined') {
+    try { localStorage.removeItem(CLAB_LAB_STORAGE_KEY) } catch { /* ignore */ }
+  }
 }
 
 // Grading Submission
@@ -2041,6 +2075,18 @@ watch(() => route.query.part, (newPart) => {
               <span class="font-medium text-primary">{{ totalPointsEarned }}/{{ totalPointsAvailable }} pts</span>
             </div>
           </div>
+        </div>
+
+        <!-- ContainerLab Environment (only for clab labs) -->
+        <div v-if="isClabLab" class="p-4 border-b">
+          <ClabStudentLabManager
+            :lab-id="labId"
+            :student-id="resolvedUserId || ''"
+            :lab-name="currentLab.title"
+            :existing-lab-name="existingClabLabName"
+            @lab-started="handleClabLabStarted"
+            @lab-stopped="handleClabLabStopped"
+          />
         </div>
 
         <!-- Parts List -->
