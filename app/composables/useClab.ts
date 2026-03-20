@@ -11,6 +11,15 @@
 
 export type ClabLifecycleState = 'idle' | 'provisioning' | 'running' | 'destroying' | 'error'
 
+export interface SSHProxyInfo {
+  host: string
+  port: number
+  username: string
+  command: string
+  expiration: string
+  nodeName: string
+}
+
 export interface ClabNode {
   name: string
   kind: string
@@ -283,6 +292,75 @@ export function useClab() {
     }
   }
 
+  // ─── Node access (instructor only) ─────────────────────────────────────────
+
+  /**
+   * Execute a command on a specific node via clab exec API.
+   * Calls POST /playground/clab/exec-node.
+   */
+  async function execNodeCommand(
+    cfg: ClabServerConfig,
+    labName: string,
+    nodeName: string,
+    command: string,
+  ): Promise<{ success: boolean; stdout?: string; stderr?: string; exitCode?: number; error?: string }> {
+    try {
+      const response = await $fetch<{
+        success: boolean
+        data?: Record<string, Array<{ stdout: string; stderr: string; 'return-code': number }>>
+        error?: string
+      }>(`${apiBaseUrl}/playground/clab/exec-node`, {
+        method: 'POST',
+        credentials: 'include',
+        body: { ...serverConfigBody(cfg), labName, nodeName: `clab-${labName}-${nodeName}`, command },
+      })
+
+      if (!response.success || !response.data) {
+        return { success: false, error: response.error || 'Exec failed' }
+      }
+
+      // data is ExecResponse: Record<nodeName, ExecResult[]> — take first entry
+      const results = Object.values(response.data).flat()
+      const first = results[0]
+      if (!first) return { success: true, stdout: '', stderr: '', exitCode: 0 }
+
+      return {
+        success: true,
+        stdout: first.stdout ?? '',
+        stderr: first.stderr ?? '',
+        exitCode: first['return-code'] ?? 0,
+      }
+    } catch (err: any) {
+      return { success: false, error: err?.data?.error || err?.message || 'Exec failed' }
+    }
+  }
+
+  /**
+   * Request SSH proxy access for a specific node.
+   * Calls POST /playground/clab/get-ssh-proxy.
+   */
+  async function getSSHProxy(
+    cfg: ClabServerConfig,
+    labName: string,
+    nodeName: string,
+    options?: { duration?: string; sshUsername?: string },
+  ): Promise<{ success: boolean; data?: SSHProxyInfo; error?: string }> {
+    try {
+      const response = await $fetch<{
+        success: boolean
+        data?: SSHProxyInfo
+        error?: string
+      }>(`${apiBaseUrl}/playground/clab/get-ssh-proxy`, {
+        method: 'POST',
+        credentials: 'include',
+        body: { ...serverConfigBody(cfg), labName, nodeName: `clab-${labName}-${nodeName}`, ...options },
+      })
+      return response
+    } catch (err: any) {
+      return { success: false, error: err?.data?.error || err?.message || 'SSH proxy request failed' }
+    }
+  }
+
   // ─── Helpers ───────────────────────────────────────────────────────────────
 
   function reset() {
@@ -360,6 +438,9 @@ export function useClab() {
     destroyPlaygroundLab,
     inspectPlaygroundLab,
     listPlaygroundLabs,
+    // Node access (instructor)
+    execNodeCommand,
+    getSSHProxy,
     // Utils
     reset,
   }

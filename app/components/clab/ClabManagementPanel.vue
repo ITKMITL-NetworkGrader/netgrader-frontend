@@ -24,7 +24,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import ClabNodeStatusGrid from './ClabNodeStatusGrid.vue'
+import ClabNodeAccessPanel from './ClabNodeAccessPanel.vue'
 import { useClab, type ClabServerConfig } from '@/composables/useClab'
 import { toast } from 'vue-sonner'
 
@@ -32,6 +32,7 @@ import { toast } from 'vue-sonner'
 
 const {
   isLoading,
+  nodes: inspectedNodeList,
   testConnectivity,
   listPlaygroundLabs,
   deployPlaygroundLab,
@@ -100,15 +101,13 @@ async function toggleExpand(labName: string) {
     return
   }
   expandedLab.value = labName
-  // Inspect to get fresh node data
+  // Inspect to get fresh node data (normalized ClabNode[] with ipv4_address etc.)
   if (!inspectedNodes[labName]) {
     inspectingLab.value = labName
     const ok = await inspectPlaygroundLab({ ...form }, labName)
     if (ok) {
-      // The composable's nodes are updated but scoped — fetch directly
-      const fresh = await listPlaygroundLabs({ ...form }) as LabInfo[]
-      const found = fresh.find(l => l.labName === labName)
-      if (found) inspectedNodes[labName] = found.nodes
+      // Capture the composable's nodes after inspect
+      inspectedNodes[labName] = [...inspectedNodeList.value]
     }
     inspectingLab.value = null
   }
@@ -377,13 +376,13 @@ async function handleDeploy() {
                 </Button>
               </div>
 
-              <!-- Expanded: node grid -->
+              <!-- Expanded: node access panel -->
               <div v-if="expandedLab === lab.labName" class="px-4 pb-4 border-t bg-muted/20">
                 <div class="pt-3">
-                  <ClabNodeStatusGrid
-                    :nodes="(inspectedNodes[lab.labName] ?? lab.nodes) as any"
+                  <ClabNodeAccessPanel
+                    :nodes="inspectedNodes[lab.labName] ?? lab.nodes"
                     :lab-name="lab.labName"
-                    :poll-interval="0"
+                    :cfg="form"
                   />
                 </div>
               </div>
