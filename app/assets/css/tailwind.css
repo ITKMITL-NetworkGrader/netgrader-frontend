@@ -107,6 +107,10 @@
   .animation-delay-1000 {
     animation-delay: 1000ms;
   }
+
+  .animate-fade-in-up {
+    animation: fade-in-up 0.4s ease-out;
+  }
 }
 
 @theme inline {

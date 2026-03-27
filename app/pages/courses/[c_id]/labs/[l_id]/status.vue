@@ -18,7 +18,8 @@ import {
   Filter,
   ChevronLeft,
   FileSpreadsheet,
-  Download
+  Download,
+  BarChart2
 } from 'lucide-vue-next'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -34,6 +35,12 @@ import { Button } from '@/components/ui/button'
 import { useCourseLabs, type LabPart } from '@/composables/useCourseLabs'
 import { useCourse } from '@/composables/useCourse'
 import { useLabStatus, type LabSubmissionOverview, type LabIPStats, type AssignedIP } from '@/composables/useLabStatus'
+import { useMonitoring } from '@/composables/useMonitoring'
+import { useUserState } from '@/composables/states'
+import MonitoringKpiCards from '@/components/monitoring/MonitoringKpiCards.vue'
+import ExecutionTimeChart from '@/components/monitoring/ExecutionTimeChart.vue'
+import SubmissionTimelineChart from '@/components/monitoring/SubmissionTimelineChart.vue'
+import PassRateChart from '@/components/monitoring/PassRateChart.vue'
 
 const route = useRoute()
 
@@ -45,6 +52,17 @@ const labId = computed(() => route.params.l_id as string)
 const { currentCourse, fetchCourse } = useCourse()
 const { currentLab, fetchLabById, fetchLabParts } = useCourseLabs()
 const { fetchLabSubmissionOverview, fetchLabIPStats } = useLabStatus()
+const { isLoading: monitoringLoading, error: monitoringError, data: monitoringData, fetchMonitoringData } = useMonitoring()
+const userState = useUserState()
+
+// Only ADMIN users can see the Monitoring tab
+const isAdmin = computed(() => userState.value?.role === 'ADMIN')
+
+// Track whether monitoring data has been fetched (lazy load on first tab activation)
+const monitoringFetched = ref(false)
+
+// Submission type filter for Monitoring tab
+const monitoringSubmissionType = ref<'fill_in_blank' | 'auto_grading' | undefined>(undefined)
 
 // State
 const isLoading = ref(true)
@@ -540,6 +558,10 @@ watch(activeTab, (newTab) => {
     if (newTab === 'ip-assignment') {
       loadIPStats()
     }
+    if (newTab === 'monitoring' && !monitoringFetched.value) {
+      monitoringFetched.value = true
+      fetchMonitoringData(labId.value, monitoringSubmissionType.value)
+    }
   }
 })
 
@@ -725,7 +747,7 @@ const exportToExcel = async () => {
 
       <!-- Tabs -->
       <Tabs v-model="activeTab" default-value="submissions" class="w-full">
-        <TabsList class="grid w-full grid-cols-3">
+        <TabsList :class="['grid w-full', isAdmin ? 'grid-cols-4' : 'grid-cols-3']">
           <TabsTrigger value="submissions" class="flex items-center space-x-2">
             <Users class="w-4 h-4" />
             <span>Submissions</span>
@@ -737,6 +759,15 @@ const exportToExcel = async () => {
           <TabsTrigger value="score-export" class="flex items-center space-x-2">
             <FileSpreadsheet class="w-4 h-4" />
             <span>Score Export</span>
+          </TabsTrigger>
+          <!-- Admin-only Monitoring tab -->
+          <TabsTrigger
+            v-if="isAdmin"
+            value="monitoring"
+            class="flex items-center space-x-2"
+          >
+            <BarChart2 class="w-4 h-4" />
+            <span>Monitoring</span>
           </TabsTrigger>
         </TabsList>
 
@@ -1199,6 +1230,129 @@ const exportToExcel = async () => {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <!-- ── Monitoring Tab (Admin only) ─────────────────────────────────── -->
+        <TabsContent v-if="isAdmin" value="monitoring" class="mt-6 space-y-6">
+
+          <!-- Loading -->
+          <div v-if="monitoringLoading" class="flex items-center justify-center py-20">
+            <div class="text-center">
+              <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-primary mx-auto mb-4" />
+              <p class="text-sm text-muted-foreground">Loading analytics…</p>
+            </div>
+          </div>
+
+          <!-- Error -->
+          <Alert v-else-if="monitoringError" variant="destructive">
+            <AlertCircle class="h-4 w-4" />
+            <AlertDescription>{{ monitoringError }}</AlertDescription>
+          </Alert>
+
+          <template v-else-if="monitoringData">
+            <!-- Header row -->
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-fade-in-up">
+              <div>
+                <h2 class="text-lg font-semibold flex items-center gap-2">
+                  <BarChart2 class="w-5 h-5 text-primary" />
+                  Lab Performance Monitoring
+                </h2>
+                <p class="text-sm text-muted-foreground mt-0.5">
+                  Admin view · Based on {{ monitoringData.kpi.totalCompletedSubmissions.toLocaleString() }} completed submissions
+                </p>
+              </div>
+              <div class="flex items-center gap-2">
+                <!-- Submission type filter -->
+                <Select
+                  :model-value="monitoringSubmissionType ?? 'all'"
+                  @update:model-value="(val: string) => {
+                    monitoringSubmissionType = val === 'all' ? undefined : val as 'fill_in_blank' | 'auto_grading'
+                    fetchMonitoringData(labId, monitoringSubmissionType)
+                  }"
+                >
+                  <SelectTrigger class="w-48 h-8 text-xs">
+                    <SelectValue placeholder="All types" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All submission types</SelectItem>
+                    <SelectItem value="auto_grading">Auto Grading</SelectItem>
+                    <SelectItem value="fill_in_blank">Fill in Blank</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button variant="outline" size="sm" @click="fetchMonitoringData(labId, monitoringSubmissionType)">
+                  <Loader2 v-if="monitoringLoading" class="w-4 h-4 mr-2 animate-spin" />
+                  Refresh
+                </Button>
+              </div>
+            </div>
+
+            <!-- KPI Cards -->
+            <MonitoringKpiCards :kpi="monitoringData.kpi" />
+
+            <!-- Charts grid -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+              <!-- Execution Time Distribution -->
+              <Card class="animate-fade-in-up" style="animation-delay: 100ms; animation-fill-mode: both">
+                <CardHeader class="pb-2">
+                  <CardTitle class="text-base font-semibold">
+                    Execution Time Distribution
+                  </CardTitle>
+                  <CardDescription>
+                    How long grading jobs take (completed submissions)
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div v-if="monitoringData.executionTimeDistribution.length === 0" class="text-center py-8 text-sm text-muted-foreground">
+                    No data available
+                  </div>
+                  <ExecutionTimeChart
+                    v-else
+                    :data="monitoringData.executionTimeDistribution"
+                  />
+                </CardContent>
+              </Card>
+
+              <!-- Submission Timeline -->
+              <Card class="animate-fade-in-up" style="animation-delay: 160ms; animation-fill-mode: both">
+                <CardHeader class="pb-2">
+                  <CardTitle class="text-base font-semibold">
+                    Submission Timeline
+                  </CardTitle>
+                  <CardDescription>
+                    Submission volume by hour of day (UTC) — reveals queue congestion periods
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <SubmissionTimelineChart :data="monitoringData.submissionTimeline" />
+                </CardContent>
+              </Card>
+
+              <!-- Pass Rate by Attempt -->
+              <Card class="animate-fade-in-up lg:col-span-2" style="animation-delay: 220ms; animation-fill-mode: both">
+                <CardHeader class="pb-2">
+                  <CardTitle class="text-base font-semibold">
+                    Pass Rate by Attempt
+                  </CardTitle>
+                  <CardDescription>
+                    Full-score submissions vs partial/failed — grouped by attempt number
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div v-if="monitoringData.passRateByAttempt.length === 0" class="text-center py-8 text-sm text-muted-foreground">
+                    No data available
+                  </div>
+                  <PassRateChart
+                    v-else
+                    :data="monitoringData.passRateByAttempt"
+                  />
+                </CardContent>
+              </Card>
+
+            </div>
+          </template>
+
+        </TabsContent>
+
       </Tabs>
     </div>
   </div>
@@ -1216,4 +1370,6 @@ const exportToExcel = async () => {
 .animate-ping {
   animation: ping 1s cubic-bezier(0, 0, 0.2, 1) infinite;
 }
+
+/* Chart entrance animation is defined globally in tailwind.css */
 </style>
