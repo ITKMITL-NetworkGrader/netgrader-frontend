@@ -1,0 +1,43 @@
+name: Auto-Generated-Pipeline
+'on':
+  push:
+    branches:
+      - vulnerabilities-patch
+  pull_request:
+    branches:
+      - vulnerabilities-patch
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Dependencies
+        run: |
+          if ! command -v bun > /dev/null 2>&1; then npm install -g bun; fi
+          bun install --frozen-lockfile
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: npm-${{ runner.os }}
+
+      - name: Security check
+        run: |
+          case "codeql" in
+            npm_audit) npm audit --audit-level=high ;;
+            trivy) docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v $PWD:/src aquasec/trivy fs --exit-code 1 /src ;;
+            codeql) echo "Add CodeQL action step manually if needed" ;;
+            *) npm audit --audit-level=high ;;
+          esac
+
+      - name: Build Project
+        run: bun run build
