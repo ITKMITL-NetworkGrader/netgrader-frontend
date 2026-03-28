@@ -1,0 +1,81 @@
+<h2>How should the Timeline chart be fixed?</h2>
+<p class="subtitle">Pick the approach that best fits how instructors use the monitoring tab</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Date Range Filter + Real Timeline</h3>
+      <p>Add a date range picker (start → end). Backend returns actual date+hour buckets. X-axis shows real dates like <strong>"Jan 20 8pm", "Jan 21 9am"</strong>. Adaptive granularity: hourly if ≤ 3 days, daily if wider range.</p>
+      <div style="margin-top:10px; padding:10px; background:var(--bg-secondary,#f5f5f5); border-radius:6px; font-size:13px;">
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+          <span style="background:#6366f1;color:white;padding:2px 8px;border-radius:4px;font-size:11px">Jan 20 2026</span>
+          <span>→</span>
+          <span style="background:#6366f1;color:white;padding:2px 8px;border-radius:4px;font-size:11px">Jan 21 2026</span>
+        </div>
+        <div style="display:flex;align-items:flex-end;gap:2px;height:40px;">
+          <div style="width:10px;background:#f59e0b;height:30%"></div>
+          <div style="width:10px;background:#f59e0b;height:15%"></div>
+          <div style="width:10px;background:#f59e0b;height:60%"></div>
+          <div style="width:10px;background:#f59e0b;height:100%"></div>
+          <div style="width:10px;background:#f59e0b;height:80%"></div>
+          <div style="width:10px;background:#f59e0b;height:20%"></div>
+          <div style="width:10px;background:#f59e0b;height:5%"></div>
+          <div style="width:10px;background:#f59e0b;height:5%"></div>
+          <div style="width:10px;background:#f59e0b;height:8%"></div>
+          <div style="width:10px;background:#f59e0b;height:40%"></div>
+          <div style="width:10px;background:#f59e0b;height:70%"></div>
+          <div style="width:10px;background:#f59e0b;height:90%"></div>
+        </div>
+        <div style="font-size:10px;color:#888;margin-top:4px">Jan 20 9am · 10am · 11am · 12pm · 1pm · 2pm · 8pm · 9pm · Jan 21 10am · 11am · 12pm · 1pm</div>
+      </div>
+      <div style="margin-top:8px;font-size:12px;color:#10b981">✓ Most informative — every bar is unambiguous</div>
+      <div style="font-size:12px;color:#6b7280">± Requires backend change + UI date picker</div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Quick Preset Buttons Only</h3>
+      <p>Replace the generic 24-hour chart with smart preset buttons: <strong>"Exam Day", "This Week", "Overtime Window", "All Time"</strong>. Each preset queries its own date range without manual date picking.</p>
+      <div style="margin-top:10px; padding:10px; background:var(--bg-secondary,#f5f5f5); border-radius:6px; font-size:13px;">
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">
+          <span style="background:#6366f1;color:white;padding:3px 10px;border-radius:20px;font-size:11px">📅 Exam Day</span>
+          <span style="background:#e5e7eb;color:#374151;padding:3px 10px;border-radius:20px;font-size:11px">📆 This Week</span>
+          <span style="background:#e5e7eb;color:#374151;padding:3px 10px;border-radius:20px;font-size:11px">⏰ Overtime</span>
+          <span style="background:#e5e7eb;color:#374151;padding:3px 10px;border-radius:20px;font-size:11px">📊 All Time</span>
+        </div>
+        <div style="font-size:11px;color:#888;">Each preset knows the lab's dueDate, availableFrom, availableUntil and sets range automatically</div>
+      </div>
+      <div style="margin-top:8px;font-size:12px;color:#10b981">✓ Zero configuration — one click</div>
+      <div style="font-size:12px;color:#6b7280">± No flexibility for custom investigation windows</div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Both: Presets + Custom Range</h3>
+      <p>Quick preset buttons for the common cases, plus a <strong>"Custom…"</strong> option that reveals a date range picker. Best of both worlds — fast for normal use, flexible for investigation.</p>
+      <div style="margin-top:10px; padding:10px; background:var(--bg-secondary,#f5f5f5); border-radius:6px; font-size:13px;">
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">
+          <span style="background:#6366f1;color:white;padding:3px 10px;border-radius:20px;font-size:11px">📅 Exam Day</span>
+          <span style="background:#e5e7eb;color:#374151;padding:3px 10px;border-radius:20px;font-size:11px">⏰ Overtime</span>
+          <span style="background:#e5e7eb;color:#374151;padding:3px 10px;border-radius:20px;font-size:11px">📊 All Time</span>
+          <span style="border:1px dashed #6366f1;color:#6366f1;padding:3px 10px;border-radius:20px;font-size:11px">✏️ Custom…</span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <span style="background:#f3f4f6;border:1px solid #d1d5db;padding:2px 8px;border-radius:4px;font-size:11px">Jan 20 2026  ▾</span>
+          <span style="font-size:11px;">→</span>
+          <span style="background:#f3f4f6;border:1px solid #d1d5db;padding:2px 8px;border-radius:4px;font-size:11px">Jan 21 2026  ▾</span>
+          <span style="font-size:10px;color:#888;">(shown when Custom is active)</span>
+        </div>
+      </div>
+      <div style="margin-top:8px;font-size:12px;color:#10b981">✓ Fast default + full flexibility when needed</div>
+      <div style="font-size:12px;color:#6b7280">± More UI complexity, slightly more backend work</div>
+    </div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:16px;">My recommendation: <strong>Option C</strong> — the presets solve 90% of cases instantly (Exam Day / Overtime are exactly what you investigated today), and Custom covers the rest.</p>

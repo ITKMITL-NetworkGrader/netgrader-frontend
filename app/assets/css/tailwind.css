@@ -113,6 +113,11 @@
   }
 }
 
+/* Unovis SVG text (axis labels, tick text) — match app font */
+.unovis-xy-container text {
+  font-family: var(--font-sans) !important;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

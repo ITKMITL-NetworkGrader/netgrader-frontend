@@ -12,7 +12,7 @@ export interface DistributionBucket {
 }
 
 export interface TimelinePoint {
-  hour: number
+  timestamp: string  // "2026-01-20T20:00:00" (hourly) or "2026-01-20" (daily) — Bangkok UTC+7
   count: number
 }
 
@@ -28,6 +28,7 @@ export interface MonitoringData {
   kpi: MonitoringKpi
   executionTimeDistribution: DistributionBucket[]
   submissionTimeline: TimelinePoint[]
+  timelineGranularity: 'hourly' | 'daily'
   passRateByAttempt: PassRateAttempt[]
 }
 
@@ -41,13 +42,19 @@ export const useMonitoring = () => {
 
   const fetchMonitoringData = async (
     labId: string,
-    submissionType?: 'fill_in_blank' | 'auto_grading'
+    submissionType?: 'fill_in_blank' | 'auto_grading',
+    startDate?: Date,
+    endDate?: Date,
   ): Promise<void> => {
     isLoading.value = true
     error.value = null
 
     try {
-      const params = submissionType ? `?submissionType=${submissionType}` : ''
+      const qs = new URLSearchParams()
+      if (submissionType) qs.set('submissionType', submissionType)
+      if (startDate) qs.set('startDate', startDate.toISOString())
+      if (endDate) qs.set('endDate', endDate.toISOString())
+      const params = qs.toString() ? `?${qs.toString()}` : ''
       const response = await fetch(`${backendUrl}/v0/submissions/lab/${labId}/monitoring${params}`, {
         method: 'GET',
         credentials: 'include',

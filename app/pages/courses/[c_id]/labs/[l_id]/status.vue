@@ -31,6 +31,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
+import { DatePicker } from '@/components/ui/date-picker'
+import { TimePicker } from '@/components/ui/time-picker'
 
 import { useCourseLabs, type LabPart } from '@/composables/useCourseLabs'
 import { useCourse } from '@/composables/useCourse'
@@ -63,6 +65,42 @@ const monitoringFetched = ref(false)
 
 // Submission type filter for Monitoring tab
 const monitoringSubmissionType = ref<'fill_in_blank' | 'auto_grading' | undefined>(undefined)
+
+// Date range filter for Monitoring tab (default: availableFrom → dueDate)
+const monitoringStartDate = ref<Date | undefined>(undefined)
+const monitoringStartTime = ref<string>('00:00')
+const monitoringEndDate = ref<Date | undefined>(undefined)
+const monitoringEndTime = ref<string>('23:59')
+
+// Combine a date + time string (HH:mm) into a single Date in local time
+const combineDateAndTime = (date: Date | undefined, time: string): Date | undefined => {
+  if (!date) return undefined
+  const [h, m] = time.split(':').map(Number)
+  const d = new Date(date)
+  d.setHours(h, m, 0, 0)
+  return d
+}
+
+const monitoringStart = computed(() => combineDateAndTime(monitoringStartDate.value, monitoringStartTime.value))
+const monitoringEnd = computed(() => combineDateAndTime(monitoringEndDate.value, monitoringEndTime.value))
+
+// Initialise date range defaults from lab dates once lab data is available
+const initMonitoringDateRange = () => {
+  const lab = currentLab.value
+  if (!lab) return
+  const from = lab.availableFrom ? new Date(lab.availableFrom) : undefined
+  const until = lab.dueDate
+    ? new Date(lab.dueDate)
+    : lab.availableUntil ? new Date(lab.availableUntil) : undefined
+  if (from) {
+    monitoringStartDate.value = new Date(from.getFullYear(), from.getMonth(), from.getDate())
+    monitoringStartTime.value = `${String(from.getHours()).padStart(2,'0')}:${String(from.getMinutes()).padStart(2,'0')}`
+  }
+  if (until) {
+    monitoringEndDate.value = new Date(until.getFullYear(), until.getMonth(), until.getDate())
+    monitoringEndTime.value = `${String(until.getHours()).padStart(2,'0')}:${String(until.getMinutes()).padStart(2,'0')}`
+  }
+}
 
 // State
 const isLoading = ref(true)
@@ -560,7 +598,8 @@ watch(activeTab, (newTab) => {
     }
     if (newTab === 'monitoring' && !monitoringFetched.value) {
       monitoringFetched.value = true
-      fetchMonitoringData(labId.value, monitoringSubmissionType.value)
+      initMonitoringDateRange()
+      fetchMonitoringData(labId.value, monitoringSubmissionType.value, monitoringStart.value, monitoringEnd.value)
     }
   }
 })
@@ -1250,37 +1289,56 @@ const exportToExcel = async () => {
 
           <template v-else-if="monitoringData">
             <!-- Header row -->
-            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-fade-in-up">
-              <div>
-                <h2 class="text-lg font-semibold flex items-center gap-2">
-                  <BarChart2 class="w-5 h-5 text-primary" />
-                  Lab Performance Monitoring
-                </h2>
-                <p class="text-sm text-muted-foreground mt-0.5">
-                  Admin view · Based on {{ monitoringData.kpi.totalCompletedSubmissions.toLocaleString() }} completed submissions
-                </p>
+            <div class="flex flex-col gap-3 animate-fade-in-up">
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h2 class="text-lg font-semibold flex items-center gap-2">
+                    <BarChart2 class="w-5 h-5 text-primary" />
+                    Lab Performance Monitoring
+                  </h2>
+                  <p class="text-sm text-muted-foreground mt-0.5">
+                    Admin view · Based on {{ monitoringData.kpi.totalCompletedSubmissions.toLocaleString() }} completed submissions in selected range
+                  </p>
+                </div>
+                <div class="flex items-center gap-2">
+                  <!-- Submission type filter -->
+                  <Select
+                    :model-value="monitoringSubmissionType ?? 'all'"
+                    @update:model-value="(val: string) => {
+                      monitoringSubmissionType = val === 'all' ? undefined : val as 'fill_in_blank' | 'auto_grading'
+                      fetchMonitoringData(labId, monitoringSubmissionType, monitoringStart, monitoringEnd)
+                    }"
+                  >
+                    <SelectTrigger class="w-48 h-8 text-xs">
+                      <SelectValue placeholder="All types" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All submission types</SelectItem>
+                      <SelectItem value="auto_grading">Auto Grading</SelectItem>
+                      <SelectItem value="fill_in_blank">Fill in Blank</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button variant="outline" size="sm" @click="fetchMonitoringData(labId, monitoringSubmissionType, monitoringStart, monitoringEnd)">
+                    <Loader2 v-if="monitoringLoading" class="w-4 h-4 mr-2 animate-spin" />
+                    Refresh
+                  </Button>
+                </div>
               </div>
-              <div class="flex items-center gap-2">
-                <!-- Submission type filter -->
-                <Select
-                  :model-value="monitoringSubmissionType ?? 'all'"
-                  @update:model-value="(val: string) => {
-                    monitoringSubmissionType = val === 'all' ? undefined : val as 'fill_in_blank' | 'auto_grading'
-                    fetchMonitoringData(labId, monitoringSubmissionType)
-                  }"
+
+              <!-- Date/time range filter -->
+              <div class="flex flex-wrap items-center gap-2 p-3 bg-muted/40 rounded-lg border text-sm">
+                <span class="text-xs font-medium text-muted-foreground uppercase tracking-wide mr-1">Date Range</span>
+                <DatePicker v-model="monitoringStartDate" placeholder="Start date" class="h-8 text-xs w-48" />
+                <TimePicker v-model="monitoringStartTime" class="h-8 text-xs" />
+                <span class="text-muted-foreground px-1">→</span>
+                <DatePicker v-model="monitoringEndDate" placeholder="End date" class="h-8 text-xs w-48" />
+                <TimePicker v-model="monitoringEndTime" class="h-8 text-xs" />
+                <Button
+                  size="sm"
+                  class="h-8 text-xs ml-1"
+                  @click="fetchMonitoringData(labId, monitoringSubmissionType, monitoringStart, monitoringEnd)"
                 >
-                  <SelectTrigger class="w-48 h-8 text-xs">
-                    <SelectValue placeholder="All types" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All submission types</SelectItem>
-                    <SelectItem value="auto_grading">Auto Grading</SelectItem>
-                    <SelectItem value="fill_in_blank">Fill in Blank</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Button variant="outline" size="sm" @click="fetchMonitoringData(labId, monitoringSubmissionType)">
-                  <Loader2 v-if="monitoringLoading" class="w-4 h-4 mr-2 animate-spin" />
-                  Refresh
+                  Apply
                 </Button>
               </div>
             </div>
@@ -1319,11 +1377,14 @@ const exportToExcel = async () => {
                     Submission Timeline
                   </CardTitle>
                   <CardDescription>
-                    Submission volume by hour of day (UTC) — reveals queue congestion periods
+                    Submission volume over time (Bangkok UTC+7) — reveals queue congestion and peak periods
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <SubmissionTimelineChart :data="monitoringData.submissionTimeline" />
+                  <SubmissionTimelineChart
+                    :data="monitoringData.submissionTimeline"
+                    :granularity="monitoringData.timelineGranularity"
+                  />
                 </CardContent>
               </Card>
 

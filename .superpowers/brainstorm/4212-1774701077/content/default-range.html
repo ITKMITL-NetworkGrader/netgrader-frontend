@@ -1,0 +1,50 @@
+<h2>What should the default date range be when the tab first opens?</h2>
+<p class="subtitle">This is what the instructor sees before touching any filter</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Full lab window (availableFrom → availableUntil)</h3>
+      <p>Shows everything from when the lab opened to when it closes. For a 2-week lab this gives you the complete picture including overtime.</p>
+      <div style="margin-top:8px;padding:8px;background:var(--bg-secondary,#f5f5f5);border-radius:6px;font-size:12px;">
+        <span style="color:#6366f1">Jan 19 09:30</span> → <span style="color:#6366f1">Feb 02 24:00</span>
+        <span style="color:#888;margin-left:8px;">(14 days → daily buckets)</span>
+      </div>
+      <div style="margin-top:6px;font-size:12px;color:#10b981">✓ Always complete picture on first load</div>
+      <div style="font-size:12px;color:#6b7280">± Wide range means daily buckets — less hourly detail by default</div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Exam window only (availableFrom → dueDate)</h3>
+      <p>Defaults to the "official" exam period. Overtime submissions are hidden until the instructor zooms out. Matches what most instructors care about first.</p>
+      <div style="margin-top:8px;padding:8px;background:var(--bg-secondary,#f5f5f5);border-radius:6px;font-size:12px;">
+        <span style="color:#6366f1">Jan 19 09:30</span> → <span style="color:#f59e0b">Jan 20 20:10</span>
+        <span style="color:#888;margin-left:8px;">(2 days → hourly buckets)</span>
+      </div>
+      <div style="margin-top:6px;font-size:12px;color:#10b981">✓ Exam day shows hourly detail immediately</div>
+      <div style="font-size:12px;color:#6b7280">± Overtime students invisible until range is widened</div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Last 7 days (rolling window)</h3>
+      <p>Always shows the most recent 7 days regardless of lab dates. Useful for active labs, but confusing for past exams.</p>
+      <div style="margin-top:8px;padding:8px;background:var(--bg-secondary,#f5f5f5);border-radius:6px;font-size:12px;">
+        <span style="color:#6366f1">Mar 21 00:00</span> → <span style="color:#6366f1">Mar 28 23:59</span>
+        <span style="color:#888;margin-left:8px;">(today-based)</span>
+      </div>
+      <div style="margin-top:6px;font-size:12px;color:#10b981">✓ Always "current" for live labs</div>
+      <div style="font-size:12px;color:#ef4444">✗ Shows empty data for past exams</div>
+    </div>
+  </div>
+</div>
+
+<div style="margin-top:20px;padding:12px;background:var(--bg-secondary,#f5f5f5);border-radius:8px;font-size:13px;">
+  <strong>Also applies to all 4 charts:</strong> KPI cards, Execution Time, Pass Rate, and Timeline will all filter by the selected date range — so every number on the page reflects the same window.
+</div>
