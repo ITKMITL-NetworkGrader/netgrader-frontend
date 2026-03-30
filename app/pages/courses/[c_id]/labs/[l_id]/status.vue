@@ -43,6 +43,8 @@ import MonitoringKpiCards from '@/components/monitoring/MonitoringKpiCards.vue'
 import ExecutionTimeChart from '@/components/monitoring/ExecutionTimeChart.vue'
 import SubmissionTimelineChart from '@/components/monitoring/SubmissionTimelineChart.vue'
 import PassRateChart from '@/components/monitoring/PassRateChart.vue'
+import StudentIdPrefixFilter from '@/components/monitoring/StudentIdPrefixFilter.vue'
+import type { PrefixOption } from '@/components/monitoring/StudentIdPrefixFilter.vue'
 
 const route = useRoute()
 
@@ -65,6 +67,11 @@ const monitoringFetched = ref(false)
 
 // Submission type filter for Monitoring tab
 const monitoringSubmissionType = ref<'fill_in_blank' | 'auto_grading' | undefined>(undefined)
+
+// Student ID prefix filter for Monitoring tab
+const monitoringStudentIdPrefixes = ref<string[]>([])
+const availablePrefixes = ref<PrefixOption[]>([])
+const prefixesLoading = ref(false)
 
 // Date range filter for Monitoring tab (default: availableFrom → dueDate)
 const monitoringStartDate = ref<Date | undefined>(undefined)
@@ -99,6 +106,52 @@ const initMonitoringDateRange = () => {
   if (until) {
     monitoringEndDate.value = new Date(until.getFullYear(), until.getMonth(), until.getDate())
     monitoringEndTime.value = `${String(until.getHours()).padStart(2,'0')}:${String(until.getMinutes()).padStart(2,'0')}`
+  }
+}
+
+/**
+ * Auto-detect student ID prefixes from enrolled STUDENT members.
+ * Extracts the first 5 characters of each student u_id, counts frequency,
+ * and pre-selects the most common prefixes (covering the majority of the class).
+ */
+const detectStudentIdPrefixes = async () => {
+  prefixesLoading.value = true
+  try {
+    const config = useRuntimeConfig()
+    const backendURL = config.public.backendurl
+    const response = await $fetch<{
+      success: boolean
+      enrollments: Array<{ u_id: string; fullName: string; u_role: string; enrollmentDate: string }>
+    }>(`${backendURL}/v0/enrollments/${courseId.value}`, {
+      method: 'GET',
+      credentials: 'include'
+    })
+
+    if (response.success && response.enrollments) {
+      // Only consider STUDENT role enrollments
+      const students = response.enrollments.filter(e => e.u_role === 'STUDENT')
+
+      // Count prefix frequency (first 5 chars of u_id)
+      const prefixCounts = new Map<string, number>()
+      for (const student of students) {
+        const prefix = student.u_id.substring(0, 5)
+        prefixCounts.set(prefix, (prefixCounts.get(prefix) || 0) + 1)
+      }
+
+      // Sort by count descending
+      const sorted = Array.from(prefixCounts.entries())
+        .map(([prefix, count]) => ({ prefix, count }))
+        .sort((a, b) => b.count - a.count)
+
+      availablePrefixes.value = sorted
+
+      // Auto-select all prefixes (admin can deselect as needed)
+      monitoringStudentIdPrefixes.value = sorted.map(p => p.prefix)
+    }
+  } catch (err: any) {
+    console.error('Failed to detect student ID prefixes:', err)
+  } finally {
+    prefixesLoading.value = false
   }
 }
 
@@ -588,7 +641,7 @@ const stopPolling = () => {
 }
 
 // Watch active tab changes
-watch(activeTab, (newTab) => {
+watch(activeTab, async (newTab) => {
   if (newTab === 'submissions') {
     startPolling()
   } else {
@@ -599,10 +652,27 @@ watch(activeTab, (newTab) => {
     if (newTab === 'monitoring' && !monitoringFetched.value) {
       monitoringFetched.value = true
       initMonitoringDateRange()
-      fetchMonitoringData(labId.value, monitoringSubmissionType.value, monitoringStart.value, monitoringEnd.value)
+      // Detect student prefixes first, then fetch monitoring data
+      await detectStudentIdPrefixes()
+      fetchMonitoringData(labId.value, monitoringSubmissionType.value, monitoringStart.value, monitoringEnd.value, monitoringStudentIdPrefixes.value)
     }
   }
 })
+
+// Auto-fetch monitoring data when any filter value changes (debounced 400ms)
+let monitoringDebounceTimer: ReturnType<typeof setTimeout> | null = null
+watch(
+  [monitoringSubmissionType, monitoringStartDate, monitoringStartTime, monitoringEndDate, monitoringEndTime, monitoringStudentIdPrefixes],
+  () => {
+    // Only auto-fetch if monitoring tab has been activated at least once
+    if (!monitoringFetched.value) return
+    if (monitoringDebounceTimer) clearTimeout(monitoringDebounceTimer)
+    monitoringDebounceTimer = setTimeout(() => {
+      fetchMonitoringData(labId.value, monitoringSubmissionType.value, monitoringStart.value, monitoringEnd.value, monitoringStudentIdPrefixes.value)
+    }, 400)
+  },
+  { deep: true }
+)
 
 // Load initial data
 const loadData = async () => {
@@ -1273,8 +1343,8 @@ const exportToExcel = async () => {
         <!-- ── Monitoring Tab (Admin only) ─────────────────────────────────── -->
         <TabsContent v-if="isAdmin" value="monitoring" class="mt-6 space-y-6">
 
-          <!-- Loading -->
-          <div v-if="monitoringLoading" class="flex items-center justify-center py-20">
+          <!-- Initial loading (no data yet) -->
+          <div v-if="monitoringLoading && !monitoringData" class="flex items-center justify-center py-20">
             <div class="text-center">
               <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-primary mx-auto mb-4" />
               <p class="text-sm text-muted-foreground">Loading analytics…</p>
@@ -1282,7 +1352,7 @@ const exportToExcel = async () => {
           </div>
 
           <!-- Error -->
-          <Alert v-else-if="monitoringError" variant="destructive">
+          <Alert v-else-if="monitoringError && !monitoringData" variant="destructive">
             <AlertCircle class="h-4 w-4" />
             <AlertDescription>{{ monitoringError }}</AlertDescription>
           </Alert>
@@ -1301,56 +1371,75 @@ const exportToExcel = async () => {
                   </p>
                 </div>
                 <div class="flex items-center gap-2">
-                  <!-- Submission type filter -->
-                  <Select
-                    :model-value="monitoringSubmissionType ?? 'all'"
-                    @update:model-value="(val: string) => {
-                      monitoringSubmissionType = val === 'all' ? undefined : val as 'fill_in_blank' | 'auto_grading'
-                      fetchMonitoringData(labId, monitoringSubmissionType, monitoringStart, monitoringEnd)
-                    }"
-                  >
-                    <SelectTrigger class="w-48 h-8 text-xs">
-                      <SelectValue placeholder="All types" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All submission types</SelectItem>
-                      <SelectItem value="auto_grading">Auto Grading</SelectItem>
-                      <SelectItem value="fill_in_blank">Fill in Blank</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Button variant="outline" size="sm" @click="fetchMonitoringData(labId, monitoringSubmissionType, monitoringStart, monitoringEnd)">
+                  <Button variant="outline" size="sm" @click="fetchMonitoringData(labId, monitoringSubmissionType, monitoringStart, monitoringEnd, monitoringStudentIdPrefixes)">
                     <Loader2 v-if="monitoringLoading" class="w-4 h-4 mr-2 animate-spin" />
                     Refresh
                   </Button>
                 </div>
               </div>
 
-              <!-- Date/time range filter -->
-              <div class="flex flex-wrap items-center gap-2 p-3 bg-muted/40 rounded-lg border text-sm">
-                <span class="text-xs font-medium text-muted-foreground uppercase tracking-wide mr-1">Date Range</span>
-                <DatePicker v-model="monitoringStartDate" placeholder="Start date" class="h-8 text-xs w-48" />
-                <TimePicker v-model="monitoringStartTime" class="h-8 text-xs" />
-                <span class="text-muted-foreground px-1">→</span>
-                <DatePicker v-model="monitoringEndDate" placeholder="End date" class="h-8 text-xs w-48" />
-                <TimePicker v-model="monitoringEndTime" class="h-8 text-xs" />
-                <Button
-                  size="sm"
-                  class="h-8 text-xs ml-1"
-                  @click="fetchMonitoringData(labId, monitoringSubmissionType, monitoringStart, monitoringEnd)"
-                >
-                  Apply
-                </Button>
-              </div>
+              <!-- ── Unified Filters Card ──────────────────────────────── -->
+              <Card class="border-dashed">
+                <CardContent class="pt-4 pb-4 px-4 space-y-4">
+
+                  <!-- Row 1: Submission type + Date range -->
+                  <div class="flex flex-wrap items-end gap-4">
+                    <!-- Submission type -->
+                    <div class="space-y-1">
+                      <span class="text-xs font-medium text-muted-foreground uppercase tracking-wide">Type</span>
+                      <Select
+                        :model-value="monitoringSubmissionType ?? 'all'"
+                        @update:model-value="(val: string) => {
+                          monitoringSubmissionType = val === 'all' ? undefined : val as 'fill_in_blank' | 'auto_grading'
+                        }"
+                      >
+                        <SelectTrigger class="w-48 h-8 text-xs">
+                          <SelectValue placeholder="All types" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All submission types</SelectItem>
+                          <SelectItem value="auto_grading">Auto Grading</SelectItem>
+                          <SelectItem value="fill_in_blank">Fill in Blank</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <!-- Date range -->
+                    <div class="space-y-1">
+                      <span class="text-xs font-medium text-muted-foreground uppercase tracking-wide">Date Range</span>
+                      <div class="flex flex-wrap items-center gap-1.5">
+                        <DatePicker v-model="monitoringStartDate" placeholder="Start date" class="h-8 text-xs w-48" />
+                        <TimePicker v-model="monitoringStartTime" class="h-8 text-xs" />
+                        <span class="text-muted-foreground px-0.5">→</span>
+                        <DatePicker v-model="monitoringEndDate" placeholder="End date" class="h-8 text-xs w-48" />
+                        <TimePicker v-model="monitoringEndTime" class="h-8 text-xs" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Row 2: Student ID prefix filter -->
+                  <StudentIdPrefixFilter
+                    v-model="monitoringStudentIdPrefixes"
+                    :available-prefixes="availablePrefixes"
+                  />
+
+                </CardContent>
+              </Card>
             </div>
 
-            <!-- KPI Cards -->
-            <MonitoringKpiCards :kpi="monitoringData.kpi" />
+            <!-- KPI Cards (with inline loading overlay) -->
+            <div class="relative">
+              <MonitoringKpiCards :kpi="monitoringData.kpi" />
+              <div v-if="monitoringLoading" class="absolute inset-0 bg-background/60 backdrop-blur-[1px] rounded-lg flex items-center justify-center transition-opacity">
+                <Loader2 class="w-5 h-5 animate-spin text-primary" />
+              </div>
+            </div>
 
             <!-- Charts grid -->
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
               <!-- Execution Time Distribution -->
-              <Card class="animate-fade-in-up" style="animation-delay: 100ms; animation-fill-mode: both">
+              <Card class="relative">
                 <CardHeader class="pb-2">
                   <CardTitle class="text-base font-semibold">
                     Execution Time Distribution
@@ -1368,10 +1457,13 @@ const exportToExcel = async () => {
                     :data="monitoringData.executionTimeDistribution"
                   />
                 </CardContent>
+                <div v-if="monitoringLoading" class="absolute inset-0 bg-background/60 backdrop-blur-[1px] rounded-lg flex items-center justify-center transition-opacity">
+                  <Loader2 class="w-5 h-5 animate-spin text-primary" />
+                </div>
               </Card>
 
               <!-- Submission Timeline -->
-              <Card class="animate-fade-in-up" style="animation-delay: 160ms; animation-fill-mode: both">
+              <Card class="relative">
                 <CardHeader class="pb-2">
                   <CardTitle class="text-base font-semibold">
                     Submission Timeline
@@ -1386,10 +1478,13 @@ const exportToExcel = async () => {
                     :granularity="monitoringData.timelineGranularity"
                   />
                 </CardContent>
+                <div v-if="monitoringLoading" class="absolute inset-0 bg-background/60 backdrop-blur-[1px] rounded-lg flex items-center justify-center transition-opacity">
+                  <Loader2 class="w-5 h-5 animate-spin text-primary" />
+                </div>
               </Card>
 
               <!-- Pass Rate by Attempt -->
-              <Card class="animate-fade-in-up lg:col-span-2" style="animation-delay: 220ms; animation-fill-mode: both">
+              <Card class="relative lg:col-span-2">
                 <CardHeader class="pb-2">
                   <CardTitle class="text-base font-semibold">
                     Pass Rate by Attempt
@@ -1407,6 +1502,9 @@ const exportToExcel = async () => {
                     :data="monitoringData.passRateByAttempt"
                   />
                 </CardContent>
+                <div v-if="monitoringLoading" class="absolute inset-0 bg-background/60 backdrop-blur-[1px] rounded-lg flex items-center justify-center transition-opacity">
+                  <Loader2 class="w-5 h-5 animate-spin text-primary" />
+                </div>
               </Card>
 
             </div>

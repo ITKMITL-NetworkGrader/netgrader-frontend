@@ -45,6 +45,7 @@ export const useMonitoring = () => {
     submissionType?: 'fill_in_blank' | 'auto_grading',
     startDate?: Date,
     endDate?: Date,
+    studentIdPrefixes?: string[],
   ): Promise<void> => {
     isLoading.value = true
     error.value = null
@@ -54,6 +55,9 @@ export const useMonitoring = () => {
       if (submissionType) qs.set('submissionType', submissionType)
       if (startDate) qs.set('startDate', startDate.toISOString())
       if (endDate) qs.set('endDate', endDate.toISOString())
+      if (studentIdPrefixes && studentIdPrefixes.length > 0) {
+        qs.set('studentIdPrefixes', studentIdPrefixes.join(','))
+      }
       const params = qs.toString() ? `?${qs.toString()}` : ''
       const response = await fetch(`${backendUrl}/v0/submissions/lab/${labId}/monitoring${params}`, {
         method: 'GET',
