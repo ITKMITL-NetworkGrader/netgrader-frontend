@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import {
-  Server,
   Play,
   Trash2,
   Loader2,
   CheckCircle2,
+  XCircle,
   RefreshCw,
   ChevronDown,
   ChevronRight,
@@ -15,6 +15,7 @@ import {
   Box,
   Link2,
   AlertCircle,
+  Server,
 } from 'lucide-vue-next'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -25,7 +26,7 @@ import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import ClabNodeAccessPanel from './ClabNodeAccessPanel.vue'
-import { useClab, type ClabServerConfig } from '@/composables/useClab'
+import { useClab } from '@/composables/useClab'
 import { toast } from 'vue-sonner'
 
 // ─── Composable ──────────────────────────────────────────────────────────────
@@ -40,33 +41,27 @@ const {
   inspectPlaygroundLab,
 } = useClab()
 
-// ─── Server config ────────────────────────────────────────────────────────────
+// ─── Connection status (auto-tested on mount) ─────────────────────────────────
 
-const form = reactive<ClabServerConfig>({
-  serverIp: '',
-  serverPort: 8080,
-  username: 'admin',
-  password: '',
-})
+const connected = ref(false)
+const connectError = ref<string | null>(null)
+const connecting = ref(false)
 
-const connectionTested = ref(false)
-const connectionVersion = ref<string | null>(null)
-
-async function handleTestConnectivity() {
-  connectionTested.value = false
-  connectionVersion.value = null
-  const result = await testConnectivity({ ...form })
+async function connect() {
+  connecting.value = true
+  connectError.value = null
+  const result = await testConnectivity()
+  connecting.value = false
   if (result.success) {
-    connectionTested.value = true
-    connectionVersion.value = result.version ?? null
-    toast.success('Connected to clab-api-server', {
-      description: result.version ? `Version: ${result.version}` : undefined,
-    })
+    connected.value = true
     await refreshLabList()
   } else {
-    toast.error('Connection failed', { description: result.error })
+    connected.value = false
+    connectError.value = result.error ?? 'Could not reach clab-api-server'
   }
 }
+
+onMounted(connect)
 
 // ─── Labs list ────────────────────────────────────────────────────────────────
 
@@ -85,10 +80,9 @@ const inspectedNodes = reactive<Record<string, any[]>>({})
 const inspectingLab = ref<string | null>(null)
 
 async function refreshLabList() {
-  if (!connectionTested.value) return
   labsLoading.value = true
   try {
-    const result = await listPlaygroundLabs({ ...form })
+    const result = await listPlaygroundLabs()
     labs.value = result as LabInfo[]
   } finally {
     labsLoading.value = false
@@ -104,7 +98,7 @@ async function toggleExpand(labName: string) {
   // Inspect to get fresh node data (normalized ClabNode[] with ipv4_address etc.)
   if (!inspectedNodes[labName]) {
     inspectingLab.value = labName
-    const ok = await inspectPlaygroundLab({ ...form }, labName)
+    const ok = await inspectPlaygroundLab(labName)
     if (ok) {
       // Capture the composable's nodes after inspect
       inspectedNodes[labName] = [...inspectedNodeList.value]
@@ -115,7 +109,7 @@ async function toggleExpand(labName: string) {
 
 async function handleDestroyLab(labName: string) {
   destroyingLab.value = labName
-  const ok = await destroyPlaygroundLab({ ...form }, labName)
+  const ok = await destroyPlaygroundLab(labName)
   if (ok) {
     toast.success('Lab destroyed', { description: labName })
     labs.value = labs.value.filter(l => l.labName !== labName)
@@ -225,7 +219,7 @@ async function handleDeploy() {
 
   isDeploying.value = true
   const topology = buildTopology()
-  const ok = await deployPlaygroundLab({ ...form }, topology)
+  const ok = await deployPlaygroundLab(topology)
   isDeploying.value = false
 
   if (ok) {
@@ -245,50 +239,37 @@ async function handleDeploy() {
 
 <template>
   <div class="space-y-5">
-    <!-- Server Config Card -->
-    <Card>
-      <CardHeader class="pb-3">
-        <CardTitle class="flex items-center gap-2 text-base">
-          <Server class="h-4 w-4" />
-          clab-api-server Connection
-        </CardTitle>
-        <CardDescription>Enter the ContainerLab API server credentials to connect.</CardDescription>
-      </CardHeader>
-      <CardContent class="space-y-4">
-        <div class="grid grid-cols-2 gap-3">
-          <div class="col-span-2 sm:col-span-1 space-y-1.5">
-            <Label for="clab-ip">Server IP</Label>
-            <Input id="clab-ip" v-model="form.serverIp" placeholder="192.168.1.100" />
-          </div>
-          <div class="space-y-1.5">
-            <Label for="clab-port">Port</Label>
-            <Input id="clab-port" v-model.number="form.serverPort" type="number" placeholder="8080" />
-          </div>
-          <div class="space-y-1.5">
-            <Label for="clab-user">Username</Label>
-            <Input id="clab-user" v-model="form.username" placeholder="admin" />
-          </div>
-          <div class="space-y-1.5">
-            <Label for="clab-pass">Password</Label>
-            <Input id="clab-pass" v-model="form.password" type="password" placeholder="••••••••" />
-          </div>
-        </div>
+    <!-- Server status bar -->
+    <div class="flex items-center gap-3 rounded-md border px-4 py-3">
+      <Server class="h-4 w-4 text-muted-foreground flex-shrink-0" />
+      <span class="text-sm flex-1 text-muted-foreground">clab-api-server</span>
 
-        <div class="flex items-center gap-3">
-          <Button variant="outline" size="sm" :disabled="isLoading" @click="handleTestConnectivity">
-            <Loader2 v-if="isLoading" class="h-3.5 w-3.5 animate-spin mr-1.5" />
-            Test Connectivity
-          </Button>
-          <span v-if="connectionTested" class="flex items-center gap-1 text-sm text-green-600">
-            <CheckCircle2 class="h-3.5 w-3.5" />
-            Connected{{ connectionVersion ? ` — v${connectionVersion}` : '' }}
-          </span>
-        </div>
-      </CardContent>
-    </Card>
+      <!-- Connecting -->
+      <span v-if="connecting" class="flex items-center gap-1.5 text-sm text-muted-foreground">
+        <Loader2 class="h-3.5 w-3.5 animate-spin" />
+        Connecting…
+      </span>
 
-    <!-- Main content — only show after connection tested -->
-    <template v-if="connectionTested">
+      <!-- Connected -->
+      <span v-else-if="connected" class="flex items-center gap-1.5 text-sm text-green-600">
+        <CheckCircle2 class="h-3.5 w-3.5" />
+        Connected
+      </span>
+
+      <!-- Error -->
+      <span v-else-if="connectError" class="flex items-center gap-1.5 text-sm text-destructive truncate max-w-xs">
+        <XCircle class="h-3.5 w-3.5 flex-shrink-0" />
+        {{ connectError }}
+      </span>
+
+      <Button variant="ghost" size="sm" class="h-7 gap-1.5 text-xs flex-shrink-0" :disabled="connecting" @click="connect">
+        <RefreshCw class="h-3 w-3" :class="connecting ? 'animate-spin' : ''" />
+        Retry
+      </Button>
+    </div>
+
+    <!-- Main content — only show after connected -->
+    <template v-if="connected">
       <Tabs default-value="labs">
         <TabsList class="w-full">
           <TabsTrigger value="labs" class="flex-1 flex items-center gap-1.5">
@@ -382,7 +363,6 @@ async function handleDeploy() {
                   <ClabNodeAccessPanel
                     :nodes="inspectedNodes[lab.labName] ?? lab.nodes"
                     :lab-name="lab.labName"
-                    :cfg="form"
                   />
                 </div>
               </div>
@@ -566,12 +546,12 @@ async function handleDeploy() {
       </Tabs>
     </template>
 
-    <!-- Prompt to test connection first -->
+    <!-- Waiting to connect -->
     <div
-      v-else
+      v-else-if="!connecting && !connected"
       class="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground"
     >
-      Test connectivity above to start managing labs.
+      Unable to reach the clab-api-server. Check that CLAB_SERVER_IP, CLAB_USERNAME, and CLAB_PASSWORD are set correctly on the server, then click Retry.
     </div>
   </div>
 </template>

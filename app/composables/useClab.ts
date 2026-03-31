@@ -33,14 +33,6 @@ export interface ClabNode {
   sshUsername?: string
 }
 
-/** Config passed to playground (instructor only — admin credentials) */
-export interface ClabServerConfig {
-  serverIp: string
-  serverPort: number
-  username: string
-  password: string
-}
-
 export function useClab() {
   const config = useRuntimeConfig()
   const apiBaseUrl = config.public.backendurl + '/v0'
@@ -162,18 +154,19 @@ export function useClab() {
   }
 
   // ─── Playground Actions (instructor only) ──────────────────────────────────
+  // Server credentials come from backend env vars — no cfg needed here.
 
   /**
-   * Test connectivity to the clab-api-server.
-   * Calls POST /playground/clab/test-connectivity.
+   * Test connectivity to the clab-api-server (env-configured).
+   * Calls GET /playground/clab/test-connectivity.
    */
-  async function testConnectivity(cfg: ClabServerConfig): Promise<{ success: boolean; version?: string; error?: string }> {
+  async function testConnectivity(): Promise<{ success: boolean; version?: string; error?: string }> {
     isLoading.value = true
     error.value = null
     try {
       const response = await $fetch<{ success: boolean; version?: string; error?: string }>(
         `${apiBaseUrl}/playground/clab/test-connectivity`,
-        { method: 'POST', credentials: 'include', body: serverConfigBody(cfg) },
+        { method: 'GET', credentials: 'include' },
       )
       return response
     } catch (err: any) {
@@ -189,7 +182,7 @@ export function useClab() {
    * Deploy a topology in the playground.
    * Calls POST /playground/clab/deploy-lab.
    */
-  async function deployPlaygroundLab(cfg: ClabServerConfig, topology: object): Promise<boolean> {
+  async function deployPlaygroundLab(topology: object): Promise<boolean> {
     lifecycleState.value = 'provisioning'
     error.value = null
     isLoading.value = true
@@ -197,7 +190,7 @@ export function useClab() {
     try {
       const response = await $fetch<{ success: boolean; labName?: string; nodes?: any[]; error?: string }>(
         `${apiBaseUrl}/playground/clab/deploy-lab`,
-        { method: 'POST', credentials: 'include', body: { ...serverConfigBody(cfg), topology } },
+        { method: 'POST', credentials: 'include', body: { topology } },
       )
 
       if (!response.success) {
@@ -219,14 +212,14 @@ export function useClab() {
 
   /**
    * Inspect a lab and update node list.
-   * Calls POST /playground/clab/inspect-lab.
+   * Calls GET /playground/clab/inspect-lab/:name.
    */
-  async function inspectPlaygroundLab(cfg: ClabServerConfig, name: string): Promise<boolean> {
+  async function inspectPlaygroundLab(name: string): Promise<boolean> {
     isLoading.value = true
     try {
       const response = await $fetch<{ success: boolean; nodes?: any[]; error?: string }>(
-        `${apiBaseUrl}/playground/clab/inspect-lab`,
-        { method: 'POST', credentials: 'include', body: { ...serverConfigBody(cfg), labName: name } },
+        `${apiBaseUrl}/playground/clab/inspect-lab/${encodeURIComponent(name)}`,
+        { method: 'GET', credentials: 'include' },
       )
 
       if (response.success) {
@@ -245,20 +238,19 @@ export function useClab() {
 
   /**
    * Destroy a lab on the clab-api-server.
-   * Calls POST /playground/clab/destroy-lab.
+   * Calls DELETE /playground/clab/labs/:name.
    */
-  async function destroyPlaygroundLab(cfg: ClabServerConfig, name: string): Promise<boolean> {
+  async function destroyPlaygroundLab(name: string): Promise<boolean> {
     isLoading.value = true
     error.value = null
     try {
       const response = await $fetch<{ success: boolean; error?: string }>(
-        `${apiBaseUrl}/playground/clab/destroy-lab`,
-        { method: 'POST', credentials: 'include', body: { ...serverConfigBody(cfg), labName: name } },
+        `${apiBaseUrl}/playground/clab/labs/${encodeURIComponent(name)}`,
+        { method: 'DELETE', credentials: 'include' },
       )
       if (!response.success) {
         throw new Error(response.error || 'Destroy failed')
       }
-      // Clear state if the destroyed lab was the active one
       if (labName.value === name) {
         nodes.value = []
         labName.value = null
@@ -275,14 +267,14 @@ export function useClab() {
 
   /**
    * List all labs on the clab-api-server.
-   * Calls POST /playground/clab/list-labs.
+   * Calls GET /playground/clab/list-labs.
    */
-  async function listPlaygroundLabs(cfg: ClabServerConfig): Promise<any[]> {
+  async function listPlaygroundLabs(): Promise<any[]> {
     isLoading.value = true
     try {
       const response = await $fetch<{ success: boolean; labs?: any[]; error?: string }>(
         `${apiBaseUrl}/playground/clab/list-labs`,
-        { method: 'POST', credentials: 'include', body: serverConfigBody(cfg) },
+        { method: 'GET', credentials: 'include' },
       )
       return response.success ? (response.labs ?? []) : []
     } catch {
@@ -299,7 +291,6 @@ export function useClab() {
    * Calls POST /playground/clab/exec-node.
    */
   async function execNodeCommand(
-    cfg: ClabServerConfig,
     labName: string,
     nodeName: string,
     command: string,
@@ -312,7 +303,7 @@ export function useClab() {
       }>(`${apiBaseUrl}/playground/clab/exec-node`, {
         method: 'POST',
         credentials: 'include',
-        body: { ...serverConfigBody(cfg), labName, nodeName: `clab-${labName}-${nodeName}`, command },
+        body: { labName, nodeName: `clab-${labName}-${nodeName}`, command },
       })
 
       if (!response.success || !response.data) {
@@ -340,7 +331,6 @@ export function useClab() {
    * Calls POST /playground/clab/get-ssh-proxy.
    */
   async function getSSHProxy(
-    cfg: ClabServerConfig,
     labName: string,
     nodeName: string,
     options?: { duration?: string; sshUsername?: string },
@@ -353,7 +343,7 @@ export function useClab() {
       }>(`${apiBaseUrl}/playground/clab/get-ssh-proxy`, {
         method: 'POST',
         credentials: 'include',
-        body: { ...serverConfigBody(cfg), labName, nodeName: `clab-${labName}-${nodeName}`, ...options },
+        body: { labName, nodeName: `clab-${labName}-${nodeName}`, ...options },
       })
       return response
     } catch (err: any) {
@@ -369,15 +359,6 @@ export function useClab() {
     labName.value = null
     error.value = null
     isLoading.value = false
-  }
-
-  function serverConfigBody(cfg: ClabServerConfig) {
-    return {
-      serverIp: cfg.serverIp,
-      serverPort: cfg.serverPort,
-      username: cfg.username,
-      password: cfg.password,
-    }
   }
 
   /**

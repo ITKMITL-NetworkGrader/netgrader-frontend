@@ -1,23 +1,22 @@
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { ref, onMounted } from 'vue'
 import {
-  Server,
   Play,
   Search,
   Trash2,
   Loader2,
-  CheckCircle2,
   XCircle,
+  CheckCircle2,
   RefreshCw,
+  ServerCrash,
 } from 'lucide-vue-next'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Separator } from '@/components/ui/separator'
-import ClabNodeStatusGrid from './ClabNodeStatusGrid.vue'
-import { useClab, type ClabServerConfig } from '@/composables/useClab'
+import ClabNodeAccessPanel from './ClabNodeAccessPanel.vue'
+import { useClab } from '@/composables/useClab'
 import { toast } from 'vue-sonner'
 
 const props = defineProps<{
@@ -27,7 +26,6 @@ const props = defineProps<{
 }>()
 
 const {
-  lifecycleState,
   nodes,
   labName,
   error,
@@ -42,32 +40,26 @@ const {
   reset,
 } = useClab()
 
-// ─── Server config form ───────────────────────────────────────────────────
+// ─── Connection status ─────────────────────────────────────────────────────
 
-const form = reactive<ClabServerConfig>({
-  serverIp: '',
-  serverPort: 8080,
-  username: 'admin',
-  password: '',
-})
+const connected = ref(false)
+const connectError = ref<string | null>(null)
+const connecting = ref(false)
 
-const connectionTested = ref(false)
-const connectionVersion = ref<string | null>(null)
-
-async function handleTestConnectivity() {
-  connectionTested.value = false
-  connectionVersion.value = null
-  const result = await testConnectivity({ ...form })
+async function connect() {
+  connecting.value = true
+  connectError.value = null
+  const result = await testConnectivity()
+  connecting.value = false
   if (result.success) {
-    connectionTested.value = true
-    connectionVersion.value = result.version ?? null
-    toast.success('Connected to clab-api-server', {
-      description: result.version ? `Version: ${result.version}` : undefined,
-    })
+    connected.value = true
   } else {
-    toast.error('Connection failed', { description: result.error })
+    connected.value = false
+    connectError.value = result.error ?? 'Could not reach clab-api-server'
   }
 }
+
+onMounted(connect)
 
 // ─── Lab actions ──────────────────────────────────────────────────────────
 
@@ -76,7 +68,7 @@ async function handleDeploy() {
     toast.error('No topology defined', { description: 'Configure lab topology before deploying.' })
     return
   }
-  const success = await deployPlaygroundLab({ ...form }, props.topology)
+  const success = await deployPlaygroundLab(props.topology)
   if (success) {
     toast.success('Lab deployed', { description: labName.value ?? undefined })
   } else {
@@ -92,7 +84,7 @@ async function handleInspect() {
     toast.warning('Enter a lab name to inspect')
     return
   }
-  const success = await inspectPlaygroundLab({ ...form }, name)
+  const success = await inspectPlaygroundLab(name)
   if (!success) {
     toast.error('Inspect failed — lab not found')
   }
@@ -100,71 +92,50 @@ async function handleInspect() {
 
 async function handleRefresh() {
   if (!labName.value) return
-  await inspectPlaygroundLab({ ...form }, labName.value)
+  await inspectPlaygroundLab(labName.value)
 }
 
 function handleReset() {
   reset()
-  connectionTested.value = false
-  connectionVersion.value = null
   inspectLabNameInput.value = ''
 }
 </script>
 
 <template>
   <div class="space-y-5">
-    <!-- Server Config Card -->
-    <Card>
-      <CardHeader class="pb-3">
-        <CardTitle class="flex items-center gap-2 text-base">
-          <Server class="h-4 w-4" />
-          clab-api-server Connection
-        </CardTitle>
-        <CardDescription>
-          Enter the ContainerLab API server credentials to connect.
-        </CardDescription>
-      </CardHeader>
-      <CardContent class="space-y-4">
-        <div class="grid grid-cols-2 gap-3">
-          <div class="col-span-2 sm:col-span-1 space-y-1.5">
-            <Label for="clab-ip">Server IP</Label>
-            <Input id="clab-ip" v-model="form.serverIp" placeholder="192.168.1.100" />
-          </div>
-          <div class="space-y-1.5">
-            <Label for="clab-port">Port</Label>
-            <Input id="clab-port" v-model.number="form.serverPort" type="number" placeholder="8080" />
-          </div>
-          <div class="space-y-1.5">
-            <Label for="clab-user">Username</Label>
-            <Input id="clab-user" v-model="form.username" placeholder="admin" />
-          </div>
-          <div class="space-y-1.5">
-            <Label for="clab-pass">Password</Label>
-            <Input id="clab-pass" v-model="form.password" type="password" placeholder="••••••••" />
-          </div>
-        </div>
+    <!-- Connection status bar -->
+    <div
+      v-if="connecting"
+      class="flex items-center gap-2 text-sm text-muted-foreground px-1"
+    >
+      <Loader2 class="h-3.5 w-3.5 animate-spin" />
+      Connecting to clab-api-server…
+    </div>
+    <Alert v-else-if="connectError" variant="destructive">
+      <ServerCrash class="h-4 w-4" />
+      <AlertDescription class="flex items-center justify-between">
+        <span>{{ connectError }}</span>
+        <Button variant="outline" size="sm" class="ml-3 h-6 text-xs" @click="connect">
+          Retry
+        </Button>
+      </AlertDescription>
+    </Alert>
+    <div
+      v-else-if="connected"
+      class="flex items-center gap-1.5 text-sm text-green-600 px-1"
+    >
+      <CheckCircle2 class="h-3.5 w-3.5" />
+      Connected
+    </div>
 
-        <div class="flex items-center gap-3">
-          <Button variant="outline" size="sm" :disabled="isLoading" @click="handleTestConnectivity">
-            <Loader2 v-if="isLoading && isIdle" class="h-3.5 w-3.5 animate-spin mr-1.5" />
-            Test Connectivity
-          </Button>
-          <span v-if="connectionTested" class="flex items-center gap-1 text-sm text-green-600">
-            <CheckCircle2 class="h-3.5 w-3.5" />
-            Connected{{ connectionVersion ? ` — v${connectionVersion}` : '' }}
-          </span>
-        </div>
-      </CardContent>
-    </Card>
-
-    <!-- Error -->
+    <!-- Error from lab operations -->
     <Alert v-if="hasError" variant="destructive">
       <XCircle class="h-4 w-4" />
       <AlertDescription>{{ error }}</AlertDescription>
     </Alert>
 
     <!-- Actions -->
-    <Card>
+    <Card v-if="connected">
       <CardHeader class="pb-3">
         <CardTitle class="text-base">Actions</CardTitle>
       </CardHeader>
@@ -186,7 +157,7 @@ function handleReset() {
           </span>
         </div>
 
-        <Separator />
+        <div class="border-t" />
 
         <!-- Inspect -->
         <div class="space-y-2">
@@ -203,7 +174,7 @@ function handleReset() {
           </div>
         </div>
 
-        <Separator />
+        <div class="border-t" />
 
         <!-- Reset -->
         <Button
@@ -218,13 +189,16 @@ function handleReset() {
       </CardContent>
     </Card>
 
-    <!-- Node grid (when running) -->
+    <!-- Node access panel (when running) -->
     <template v-if="isRunning && nodes.length > 0">
-      <ClabNodeStatusGrid
-        :nodes="nodes"
-        :lab-name="labName"
-        :on-refresh="handleRefresh"
-      />
+      <div class="flex items-center justify-between mb-1">
+        <span class="text-sm font-medium">Nodes</span>
+        <Button variant="ghost" size="sm" class="h-7 gap-1.5 text-xs" @click="handleRefresh">
+          <RefreshCw class="h-3 w-3" />
+          Refresh
+        </Button>
+      </div>
+      <ClabNodeAccessPanel :nodes="nodes" :lab-name="labName ?? ''" />
     </template>
   </div>
 </template>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive } from 'vue'
+import { reactive, nextTick } from 'vue'
 import {
   Terminal,
   KeyRound,
@@ -16,13 +16,12 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { toast } from 'vue-sonner'
-import { useClab, type ClabServerConfig, type SSHProxyInfo } from '@/composables/useClab'
+import { useClab, type SSHProxyInfo } from '@/composables/useClab'
 
 const props = defineProps<{
   /** ClabNode[] or ClabContainerInfo[] — both share name/state/kind/image/ipv4_address */
   nodes: any[]
   labName: string
-  cfg: ClabServerConfig
 }>()
 
 const { execNodeCommand, getSSHProxy } = useClab()
@@ -105,7 +104,7 @@ async function toggleSsh(nodeName: string) {
   s.sshLoading = true
   s.sshError = null
 
-  const result = await getSSHProxy(props.cfg, props.labName, shortName(nodeName))
+  const result = await getSSHProxy(props.labName, shortName(nodeName))
   s.sshLoading = false
 
   if (result.success && result.data) {
@@ -142,7 +141,7 @@ async function runCommand(nodeName: string) {
   s.currentCmd = ''
 
   const ts = new Date().toLocaleTimeString()
-  const result = await execNodeCommand(props.cfg, props.labName, shortName(nodeName), cmd)
+  const result = await execNodeCommand(props.labName, shortName(nodeName), cmd)
 
   s.termHistory.push({
     cmd,
