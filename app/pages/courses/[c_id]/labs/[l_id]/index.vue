@@ -1025,6 +1025,7 @@ const submitPartForGrading = async (): Promise<{ success: boolean; isExpired?: b
     )
 
     if (result.success) {
+      triggerPlusOne()
       return { success: true }
     } else {
       console.error('❌ Failed to create submission:', result.error)
@@ -1090,6 +1091,7 @@ const handleFillInBlankSubmit = async () => {
 
   const result = await fillInBlankQuestionsRef.value.submitAnswers()
   if (result) {
+    triggerPlusOne()
     handleFillInBlankSubmissionResult(result)
   }
 }
@@ -1738,6 +1740,9 @@ const loadLabData = async () => {
 const { setTimer, clearTimer } = useNavbarTimer()
 const { setEventHandlers, clearEventHandlers } = useNavbarTimerEvents()
 
+// Navbar submissions composable
+const { setSubmissionsUrl, clearSubmissionsUrl, triggerPlusOne } = useNavbarSubmissions()
+
 // Watch for lab data to set timer
 watch(
   () => ({
@@ -1758,8 +1763,10 @@ watch(
         onTimerExpired: handleTimerExpired,
         onDeadlineExtended: handleDeadlineExtended
       })
+      setSubmissionsUrl(`/courses/${courseId.value}/labs/${labId.value}/submissions`)
     } else {
       clearTimer()
+      clearSubmissionsUrl()
     }
   },
   { immediate: true }
@@ -1815,6 +1822,7 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   clearTimer()
   clearEventHandlers()
+  clearSubmissionsUrl()
   // Clear GNS3 project data when component unmounts
   clearGns3ProjectData()
   // Close BroadcastChannel
@@ -2004,19 +2012,6 @@ watch(() => route.query.part, (newPart) => {
                     {{ currentLab.description }}
                   </p>
                 </div>
-                <!-- View Submissions Button (opens in new tab) -->
-                <a
-                  :href="`/courses/${courseId}/labs/${labId}/submissions`"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="flex-shrink-0 ml-2"
-                >
-                  <Button variant="outline" size="sm" class="flex items-center space-x-1" title="View Submission History (New Tab)">
-                    <History class="w-4 h-4" />
-                    <span class="hidden sm:inline">Submissions</span>
-                    <ExternalLink class="w-3 h-3 ml-1" />
-                  </Button>
-                </a>
               </div>
             </div>
           </div>

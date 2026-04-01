@@ -28,6 +28,27 @@ const profilePictureUrl = computed(() => {
 const { timerState } = useNavbarTimer()
 const { emitTimerExpired, emitDeadlineExtended } = useNavbarTimerEvents()
 
+// Submissions state from composable
+const { submissionsUrl, plusOneTrigger } = useNavbarSubmissions()
+
+// +1 animation instances
+interface PlusOneAnim { id: number }
+const plusOneAnims = ref<PlusOneAnim[]>([])
+let animCounter = 0
+const submissionsBtnPopping = ref(false)
+
+watch(plusOneTrigger, () => {
+    const id = ++animCounter
+    plusOneAnims.value.push({ id })
+    submissionsBtnPopping.value = true
+    setTimeout(() => {
+        plusOneAnims.value = plusOneAnims.value.filter(a => a.id !== id)
+    }, 900)
+    setTimeout(() => {
+        submissionsBtnPopping.value = false
+    }, 350)
+})
+
 // Track if component is mounted to avoid hydration issues
 const isMounted = ref(false)
 
@@ -131,8 +152,8 @@ watch(() => route.path, () => {
                 </NuxtLink>
             </div>
 
-            <!-- Center Timer Section -->
-            <div class="hidden md:flex items-center justify-center">
+            <!-- Center: Timer + Submissions button -->
+            <div class="hidden md:flex items-center justify-center gap-2">
                 <NavbarTimer
                     v-if="timerState.isActive"
                     :available-from="timerState.availableFrom"
@@ -144,6 +165,20 @@ watch(() => route.path, () => {
                     @timer-expired="emitTimerExpired"
                     @deadline-extended="emitDeadlineExtended"
                 />
+                <div v-if="submissionsUrl" class="relative">
+                    <a :href="submissionsUrl" target="_blank" rel="noopener noreferrer">
+                        <Button variant="outline" size="sm" :class="['flex items-center space-x-1', { 'btn-pop': submissionsBtnPopping }]" title="View Submission History (New Tab)">
+                            <Icon name="lucide:history" class="w-4 h-4" />
+                            <span class="hidden lg:inline">Submissions</span>
+                            <Icon name="lucide:external-link" class="w-3 h-3 ml-1" />
+                        </Button>
+                    </a>
+                    <span
+                        v-for="anim in plusOneAnims"
+                        :key="anim.id"
+                        class="plus-one-anim"
+                    >+1</span>
+                </div>
             </div>
 
             <!-- Desktop Navigation (Right) -->
@@ -346,5 +381,33 @@ watch(() => route.path, () => {
         display: flex;
         justify-content: space-between;
     }
+}
+
+.btn-pop {
+    animation: btn-scale-pop 0.35s ease-out forwards;
+}
+
+@keyframes btn-scale-pop {
+    0%   { transform: scale(1); }
+    40%  { transform: scale(1.15); }
+    100% { transform: scale(1); }
+}
+
+.plus-one-anim {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #c8972a;
+    font-weight: 700;
+    font-size: 0.875rem;
+    pointer-events: none;
+    white-space: nowrap;
+    animation: float-up-fade 0.85s ease-out forwards;
+}
+
+@keyframes float-up-fade {
+    0%   { opacity: 1; transform: translateX(-50%) translateY(0); }
+    100% { opacity: 0; transform: translateX(-50%) translateY(-36px); }
 }
 </style>

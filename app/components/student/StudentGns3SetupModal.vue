@@ -362,6 +362,15 @@ watch(() => props.open, (open) => {
                   readonly 
                   class="font-mono text-sm bg-muted/50"
                 />
+                <Button 
+                  variant="outline" 
+                  size="icon" 
+                  @click="copyPassword"
+                  class="shrink-0"
+                >
+                  <Check v-if="copiedPassword" class="h-4 w-4 text-green-600" />
+                  <Copy v-else class="h-4 w-4" />
+                </Button>
               </div>
             </div>
           </div>
